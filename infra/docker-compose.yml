@@ -1,0 +1,34 @@
+version: "3.9"
+services:
+  api:
+    build: ../apps/api
+    working_dir: /app
+    command: npm run dev
+    volumes:
+      - ../:/app
+    ports:
+      - "8787:8787"
+    environment:
+      - DB_PATH=/app/infra/local.db
+      - AI_MODE=local_prefer
+      - LOCAL_STT_URL=http://local-stt:7001
+      - LOCAL_LLM_URL=http://local-llm:7002
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+  web:
+    build: ../apps/web
+    working_dir: /app
+    command: npm run dev -- --host
+    volumes:
+      - ../:/app
+    ports:
+      - "5173:5173"
+  local-stt:
+    image: python:3.11-slim
+    command: bash -c "python -m http.server 7001"
+    ports:
+      - "7001:7001"
+  local-llm:
+    image: python:3.11-slim
+    command: bash -c "python -m http.server 7002"
+    ports:
+      - "7002:7002"
