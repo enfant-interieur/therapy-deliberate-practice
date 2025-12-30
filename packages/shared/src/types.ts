@@ -24,6 +24,78 @@ export type GradingSpec = {
   scoring: { aggregation: "weighted_mean" };
 };
 
+export type ExerciseCriterion = {
+  id: string;
+  label: string;
+  description: string;
+  objective_id?: string;
+};
+
+export type RoleplayStatement = {
+  id: string;
+  difficulty: "beginner" | "intermediate" | "advanced";
+  text: string;
+  criterion_ids?: string[];
+  cue_ids?: string[];
+};
+
+export type RoleplaySet = {
+  id: string;
+  label: string;
+  statements: RoleplayStatement[];
+};
+
+export type ExampleDialogueTurn = {
+  role: "client" | "therapist";
+  text: string;
+};
+
+export type ExampleDialogue = {
+  id: string;
+  label: string;
+  turns: ExampleDialogueTurn[];
+  related_statement_id?: string;
+};
+
+export type PatientCue = {
+  id: string;
+  label: string;
+  text: string;
+  related_statement_ids?: string[];
+};
+
+export type ExerciseContentV2 = {
+  preparations?: string[];
+  expected_therapist_response?: string;
+  criteria: ExerciseCriterion[];
+  roleplay_sets: RoleplaySet[];
+  example_dialogues: ExampleDialogue[];
+  patient_cues: PatientCue[];
+  practice_instructions?: string;
+  source?: {
+    text?: string | null;
+    url?: string | null;
+  };
+};
+
+export type DeliberatePracticeTaskV2 = {
+  version: "2.0";
+  task: {
+    name: string;
+    description: string;
+    skill_domain: string;
+    skill_difficulty_label?: string;
+    skill_difficulty_numeric: number;
+    objectives: Array<{
+      id: string;
+      label: string;
+      description: string;
+    }>;
+    tags: string[];
+  };
+  content: ExerciseContentV2;
+};
+
 export type EvaluationResult = {
   version: "1.0";
   exercise_id: string;
@@ -75,6 +147,8 @@ export type Exercise = {
   grading: GradingSpec;
   tags: string[];
   is_published: boolean;
+  content?: ExerciseContentV2;
+  criteria?: ExerciseContentV2["criteria"];
 };
 
 export type PracticeRunInput = {

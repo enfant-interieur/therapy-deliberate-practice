@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+const idSchema = z.string().min(1);
+
 export const objectiveSchema = z.object({
-  id: z.string(),
+  id: idSchema,
   label: z.string(),
   description: z.string(),
   examples_good: z.array(z.string()).optional(),
@@ -37,7 +39,7 @@ export const gradingSpecSchema = z.object({
 });
 
 export const exerciseSchema = z.object({
-  id: z.string(),
+  id: idSchema,
   slug: z.string(),
   title: z.string(),
   description: z.string(),
@@ -49,7 +51,148 @@ export const exerciseSchema = z.object({
   objectives: z.array(objectiveSchema).min(2).max(6),
   grading: gradingSpecSchema,
   tags: z.array(z.string()),
-  is_published: z.boolean()
+  is_published: z.boolean(),
+  content: z
+    .object({
+      preparations: z.array(z.string()).optional(),
+      expected_therapist_response: z.string().optional(),
+      criteria: z.array(
+        z.object({
+          id: idSchema,
+          label: z.string(),
+          description: z.string(),
+          objective_id: z.string().optional()
+        })
+      ),
+      roleplay_sets: z.array(
+        z.object({
+          id: idSchema,
+          label: z.string(),
+          statements: z.array(
+            z.object({
+              id: idSchema,
+              difficulty: z.enum(["beginner", "intermediate", "advanced"]),
+              text: z.string(),
+              criterion_ids: z.array(z.string()).optional(),
+              cue_ids: z.array(z.string()).optional()
+            })
+          )
+        })
+      ),
+      example_dialogues: z.array(
+        z.object({
+          id: idSchema,
+          label: z.string(),
+          turns: z.array(
+            z.object({
+              role: z.enum(["client", "therapist"]),
+              text: z.string()
+            })
+          ),
+          related_statement_id: z.string().optional()
+        })
+      ),
+      patient_cues: z.array(
+        z.object({
+          id: idSchema,
+          label: z.string(),
+          text: z.string(),
+          related_statement_ids: z.array(z.string()).optional()
+        })
+      ),
+      practice_instructions: z.string().optional(),
+      source: z
+        .object({
+          text: z.string().nullable().optional(),
+          url: z.string().nullable().optional()
+        })
+        .optional()
+    })
+    .optional(),
+  criteria: z
+    .array(
+      z.object({
+        id: idSchema,
+        label: z.string(),
+        description: z.string(),
+        objective_id: z.string().optional()
+      })
+    )
+    .optional()
+});
+
+export const deliberatePracticeTaskV2Schema = z.object({
+  version: z.literal("2.0"),
+  task: z.object({
+    name: z.string(),
+    description: z.string(),
+    skill_domain: z.string(),
+    skill_difficulty_label: z.string().optional(),
+    skill_difficulty_numeric: z.number().min(1).max(5),
+    objectives: z.array(
+      z.object({
+        id: idSchema,
+        label: z.string(),
+        description: z.string()
+      })
+    ),
+    tags: z.array(z.string())
+  }),
+  content: z.object({
+    preparations: z.array(z.string()).optional(),
+    expected_therapist_response: z.string().optional(),
+    criteria: z.array(
+      z.object({
+        id: idSchema,
+        label: z.string(),
+        description: z.string(),
+        objective_id: z.string().optional()
+      })
+    ),
+    roleplay_sets: z.array(
+      z.object({
+        id: idSchema,
+        label: z.string(),
+        statements: z.array(
+          z.object({
+            id: idSchema,
+            difficulty: z.enum(["beginner", "intermediate", "advanced"]),
+            text: z.string(),
+            criterion_ids: z.array(z.string()).optional(),
+            cue_ids: z.array(z.string()).optional()
+          })
+        )
+      })
+    ),
+    example_dialogues: z.array(
+      z.object({
+        id: idSchema,
+        label: z.string(),
+        turns: z.array(
+          z.object({
+            role: z.enum(["client", "therapist"]),
+            text: z.string()
+          })
+        ),
+        related_statement_id: z.string().optional()
+      })
+    ),
+    patient_cues: z.array(
+      z.object({
+        id: idSchema,
+        label: z.string(),
+        text: z.string(),
+        related_statement_ids: z.array(z.string()).optional()
+      })
+    ),
+    practice_instructions: z.string().optional(),
+    source: z
+      .object({
+        text: z.string().nullable().optional(),
+        url: z.string().nullable().optional()
+      })
+      .optional()
+  })
 });
 
 export const evaluationResultSchema = z.object({

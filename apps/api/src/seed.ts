@@ -59,6 +59,9 @@ export const seedExercises = async (
     grading: demoGrading,
     tags: ["empathy", "anxiety", "opening"],
     is_published: true,
+    content: {},
+    source_text: null,
+    source_url: null,
     created_at: Date.now(),
     updated_at: Date.now()
   });

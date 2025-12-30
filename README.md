@@ -46,7 +46,14 @@ API is built with Hono and ready for Cloudflare Workers. Configure `wrangler.tom
 
 - `AI_MODE` = local_prefer | openai_only | local_only
 - `OPENAI_API_KEY`
+- `ADMIN_TOKEN` (shared secret for admin endpoints)
 - `LOCAL_STT_URL`
 - `LOCAL_LLM_URL`
 - `LOCAL_LLM_MODEL`
 - `DB_PATH`
+
+## Admin library (authoring/import)
+
+1. Set `ADMIN_TOKEN` in the API environment.
+2. Set `VITE_ADMIN_TOKEN` in the web app environment so admin requests include the header.
+3. Visit `/admin/library` while logged in with role `admin` to parse, edit, and import exercises.

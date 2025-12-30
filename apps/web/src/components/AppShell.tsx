@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useAppSelector } from "../store/hooks";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -6,6 +7,8 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export const AppShell = () => {
+  const role = useAppSelector((state) => state.auth.role);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       <header className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur">
@@ -21,6 +24,11 @@ export const AppShell = () => {
             <NavLink to="/history" className={linkClass}>
               History
             </NavLink>
+            {role === "admin" && (
+              <NavLink to="/admin/library" className={linkClass}>
+                Admin
+              </NavLink>
+            )}
           </nav>
         </div>
       </header>

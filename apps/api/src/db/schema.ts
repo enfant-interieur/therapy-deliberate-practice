@@ -20,6 +20,9 @@ export const exercises = sqliteTable("exercises", {
   grading: text("grading", { mode: "json" }).notNull(),
   tags: text("tags", { mode: "json" }).notNull(),
   is_published: integer("is_published", { mode: "boolean" }).notNull(),
+  content: text("content", { mode: "json" }).notNull().default({}),
+  source_text: text("source_text"),
+  source_url: text("source_url"),
   created_at: integer("created_at").notNull(),
   updated_at: integer("updated_at").notNull()
 });
