@@ -17,26 +17,13 @@ import { attemptJsonRepair } from "./utils/jsonRepair";
 import type { ProviderMode, RuntimeEnv } from "./env";
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { createAdminAuth, resolveAdminStatus } from "./middleware/adminAuth";
 
 export type ApiDatabase = DrizzleD1Database | BetterSQLite3Database;
 
 export type ApiDependencies = {
   env: RuntimeEnv;
   db: ApiDatabase;
-};
-
-const requireAdmin = (
-  env: RuntimeEnv,
-  c: { req: { header: (name: string) => string | undefined } }
-) => {
-  if (!env.adminToken) {
-    return { ok: false as const, error: "ADMIN_TOKEN is not configured" };
-  }
-  const token = c.req.header("x-admin-token");
-  if (!token || token !== env.adminToken) {
-    return { ok: false as const, error: "Unauthorized" };
-  }
-  return { ok: true as const };
 };
 
 const stripHtml = (html: string) =>
@@ -387,6 +374,7 @@ const exerciseFromTask = (
 
 export const createApiApp = ({ env, db }: ApiDependencies) => {
   const app = new Hono();
+  const adminAuth = createAdminAuth(env);
 
   app.use(async (c, next) => {
     const requestId = c.req.header("x-request-id") ?? nanoid();
@@ -461,11 +449,25 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
     return c.json({ status: "updated" });
   });
 
-  app.post("/api/v1/admin/parse-exercise", async (c) => {
-    const auth = requireAdmin(env, c);
-    if (!auth.ok) {
-      return c.json({ error: auth.error }, auth.error === "Unauthorized" ? 401 : 500);
+  app.get("/api/v1/admin/whoami", async (c) => {
+    const result = await resolveAdminStatus(env, c.req.raw.headers);
+    if (!result.ok) {
+      return c.json(
+        { isAuthenticated: false, isAdmin: false, email: null },
+        result.status >= 500 ? 500 : 200
+      );
     }
+    const { identity } = result;
+    return c.json({
+      isAuthenticated: identity.isAuthenticated,
+      isAdmin: identity.isAuthenticated ? result.isAdmin : false,
+      email: identity.email
+    });
+  });
+
+  app.use("/api/v1/admin/*", adminAuth);
+
+  app.post("/api/v1/admin/parse-exercise", async (c) => {
     const body = await c.req.json();
     const schema = z.object({
       free_text: z.string().optional().default(""),
@@ -926,10 +928,6 @@ Now produce JSON that matches EXACTLY this schema:
   });
 
   app.post("/api/v1/admin/import-exercise", async (c) => {
-    const auth = requireAdmin(env, c);
-    if (!auth.ok) {
-      return c.json({ error: auth.error }, auth.error === "Unauthorized" ? 401 : 500);
-    }
     const body = await c.req.json();
     const schema = z.object({
       task_v2: deliberatePracticeTaskV2Schema,
