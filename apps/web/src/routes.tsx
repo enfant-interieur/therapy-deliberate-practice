@@ -1,5 +1,6 @@
 import { createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
+import { AdminRouteGuard } from "./components/AdminRouteGuard";
 import { LibraryPage } from "./pages/LibraryPage";
 import { ExerciseDetailPage } from "./pages/ExerciseDetailPage";
 import { PracticePage } from "./pages/PracticePage";
@@ -15,7 +16,14 @@ export const router = createBrowserRouter([
       { path: "exercises/:id", element: <ExerciseDetailPage /> },
       { path: "practice/:id", element: <PracticePage /> },
       { path: "history", element: <HistoryPage /> },
-      { path: "admin/library", element: <AdminLibraryPage /> }
+      {
+        path: "admin/library",
+        element: (
+          <AdminRouteGuard>
+            <AdminLibraryPage />
+          </AdminRouteGuard>
+        )
+      }
     ]
   }
 ]);

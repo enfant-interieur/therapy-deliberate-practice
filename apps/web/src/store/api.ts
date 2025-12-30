@@ -6,21 +6,31 @@ import type {
   DeliberatePracticeTaskV2
 } from "@deliberate/shared";
 
-const adminToken = import.meta.env.VITE_ADMIN_TOKEN as string | undefined;
+export type AdminWhoami = {
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  email: string | null;
+};
 
 export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
     baseUrl: "/api/v1",
     prepareHeaders: (headers) => {
-      if (adminToken) {
-        headers.set("x-admin-token", adminToken);
+      if (import.meta.env.DEV) {
+        const devToken = window.localStorage.getItem("devAdminToken");
+        if (devToken) {
+          headers.set("x-dev-admin-token", devToken);
+        }
       }
       return headers;
     }
   }),
   tagTypes: ["Exercise", "Attempt"],
   endpoints: (builder) => ({
+    getAdminWhoami: builder.query<AdminWhoami, void>({
+      query: () => "/admin/whoami"
+    }),
     getExercises: builder.query<Exercise[], { tag?: string; difficulty?: number; q?: string }>({
       query: (params) => ({ url: "/exercises", params }),
       providesTags: ["Exercise"]
@@ -69,6 +79,7 @@ export const api = createApi({
 });
 
 export const {
+  useGetAdminWhoamiQuery,
   useGetExercisesQuery,
   useGetExerciseQuery,
   useUpdateExerciseMutation,

@@ -76,7 +76,12 @@ wrangler d1 execute DB --file=../../infra/seed.sql
 
 - `AI_MODE` = local_prefer | openai_only | local_only
 - `OPENAI_API_KEY`
-- `ADMIN_TOKEN` (shared secret for admin endpoints)
+- `ADMIN_EMAILS` (comma-separated allowlist for admin access)
+- `ADMIN_GROUPS` (optional comma-separated Cloudflare Access group IDs)
+- `CF_ACCESS_AUD` (Cloudflare Access application audience)
+- `BYPASS_ADMIN_AUTH` (set to `true` only for local development)
+- `DEV_ADMIN_TOKEN` (dev-only token used with `x-dev-admin-token`)
+- `ENV` (set to `development` to enable dev-only auth bypass)
 - `LOCAL_STT_URL`
 - `LOCAL_LLM_URL`
 - `LOCAL_LLM_MODEL`
@@ -84,6 +89,35 @@ wrangler d1 execute DB --file=../../infra/seed.sql
 
 ## Admin library (authoring/import)
 
-1. Set `ADMIN_TOKEN` in the API environment.
-2. Set `VITE_ADMIN_TOKEN` in the web app environment so admin requests include the header.
-3. Visit `/admin/library` while logged in with role `admin` to parse, edit, and import exercises.
+### Cloudflare Access setup (production)
+
+1. In the Cloudflare dashboard, go to **Zero Trust** → **Access** → **Applications** and select **Add an application**.
+2. Choose **Self-hosted**.
+3. Set the **Application name** (e.g., `therapy-deliberate-practice-admin`) and enter the **Domain** that serves the Worker (e.g., `app.yourdomain.com`).
+4. Under **Session Duration**, choose an appropriate timeout for admins (e.g., 8h).
+5. Add an **Access policy**:
+   1. Policy name: `Admins`.
+   2. Action: **Allow**.
+   3. Include rules:
+      - **Emails** → enter each admin email (for `ADMIN_EMAILS`), **or**
+      - **Access Groups** → select the group(s) you want to allow (for `ADMIN_GROUPS`).
+6. Add a **Deny** policy below the Allow policy to block everyone else (default deny).
+7. In the application **Self-hosted** settings, enable **Path rules** and add:
+   - `/admin/*`
+   - `/api/v1/admin/*`
+8. Save the application.
+9. Copy the **Audience (AUD)** from the application settings and set it as `CF_ACCESS_AUD` in Worker variables.
+10. In the Cloudflare dashboard, go to **Workers & Pages** → your Worker → **Settings** → **Variables** and set:
+    - `ADMIN_EMAILS` (comma-separated list of allowed emails), and/or
+    - `ADMIN_GROUPS` (comma-separated Access group IDs)
+    - `CF_ACCESS_AUD` (Access application audience)
+11. Deploy the Worker and verify that:
+    - Visiting `/admin/library` prompts for Access login.
+    - `/api/v1/admin/whoami` returns `isAuthenticated: true` and `isAdmin: true` for an allowed user.
+
+### Local development
+
+1. Set `ENV=development` and `BYPASS_ADMIN_AUTH=true` for the API/Worker.
+2. Set `DEV_ADMIN_TOKEN` in the API/Worker environment.
+3. In the browser console, run `localStorage.setItem("devAdminToken", "<DEV_ADMIN_TOKEN>")`.
+4. Visit `/admin/library` to parse, edit, and import exercises.

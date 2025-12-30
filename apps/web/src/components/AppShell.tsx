@@ -1,5 +1,8 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { useAppSelector } from "../store/hooks";
+import { useEffect } from "react";
+import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { useGetAdminWhoamiQuery } from "../store/api";
+import { setAdminStatus } from "../store/authSlice";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -7,7 +10,29 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
   }`;
 
 export const AppShell = () => {
-  const role = useAppSelector((state) => state.auth.role);
+  const dispatch = useAppDispatch();
+  const isAdmin = useAppSelector((state) => state.auth.isAdmin);
+  const { data, isError } = useGetAdminWhoamiQuery();
+
+  useEffect(() => {
+    if (data) {
+      dispatch(
+        setAdminStatus({
+          isAdmin: data.isAdmin,
+          email: data.email,
+          isAuthenticated: data.isAuthenticated
+        })
+      );
+    } else if (isError) {
+      dispatch(
+        setAdminStatus({
+          isAdmin: false,
+          email: null,
+          isAuthenticated: false
+        })
+      );
+    }
+  }, [data, isError, dispatch]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
@@ -24,7 +49,7 @@ export const AppShell = () => {
             <NavLink to="/history" className={linkClass}>
               History
             </NavLink>
-            {role === "admin" && (
+            {isAdmin && (
               <NavLink to="/admin/library" className={linkClass}>
                 Admin
               </NavLink>
