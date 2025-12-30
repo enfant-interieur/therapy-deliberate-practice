@@ -1,12 +1,14 @@
 import type { LlmProvider, SttProvider } from "@deliberate/shared";
+import type { ProviderMode, RuntimeEnv } from "../env";
 import { LocalMlxLlmProvider, OpenAILlmProvider } from "./llm";
 import { LocalWhisperSttProvider, OpenAISttProvider } from "./stt";
 
-export type ProviderMode = "local_prefer" | "openai_only" | "local_only";
-
-export const selectSttProvider = async (mode: ProviderMode): Promise<SttProvider> => {
-  const local = LocalWhisperSttProvider();
-  const cloud = OpenAISttProvider();
+export const selectSttProvider = async (
+  mode: ProviderMode,
+  env: RuntimeEnv
+): Promise<SttProvider> => {
+  const local = LocalWhisperSttProvider(env);
+  const cloud = OpenAISttProvider(env);
 
   if (mode === "local_only") {
     if (!(await local.healthCheck())) {
@@ -31,9 +33,12 @@ export const selectSttProvider = async (mode: ProviderMode): Promise<SttProvider
   throw new Error("No STT provider available");
 };
 
-export const selectLlmProvider = async (mode: ProviderMode): Promise<LlmProvider> => {
-  const local = LocalMlxLlmProvider();
-  const cloud = OpenAILlmProvider();
+export const selectLlmProvider = async (
+  mode: ProviderMode,
+  env: RuntimeEnv
+): Promise<LlmProvider> => {
+  const local = LocalMlxLlmProvider(env);
+  const cloud = OpenAILlmProvider(env);
 
   if (mode === "local_only") {
     if (!(await local.healthCheck())) {

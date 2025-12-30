@@ -1,0 +1,20 @@
+{
+  "name": "deliberate-practice",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": "../../apps/web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "deliberate_practice",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID"
+    }
+  ],
+  "placement": {
+    "mode": "smart"
+  }
+}

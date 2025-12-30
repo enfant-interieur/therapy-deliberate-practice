@@ -1,5 +1,5 @@
 import type { LlmProvider, EvaluationInput, EvaluationResult } from "@deliberate/shared";
-import { env } from "../env";
+import type { RuntimeEnv } from "../env";
 
 const healthCheck = async (url: string) => {
   try {
@@ -10,7 +10,7 @@ const healthCheck = async (url: string) => {
   }
 };
 
-export const LocalMlxLlmProvider = (): LlmProvider => ({
+export const LocalMlxLlmProvider = (env: RuntimeEnv): LlmProvider => ({
   kind: "local",
   model: env.localLlmModel,
   healthCheck: () => healthCheck(env.localLlmUrl),
@@ -27,7 +27,7 @@ export const LocalMlxLlmProvider = (): LlmProvider => ({
   }
 });
 
-export const OpenAILlmProvider = (): LlmProvider => ({
+export const OpenAILlmProvider = (env: RuntimeEnv): LlmProvider => ({
   kind: "openai",
   model: "gpt-4o-mini",
   healthCheck: async () => Boolean(env.openaiApiKey),

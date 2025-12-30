@@ -1,5 +1,5 @@
 import type { SttProvider } from "@deliberate/shared";
-import { env } from "../env";
+import type { RuntimeEnv } from "../env";
 
 const healthCheck = async (url: string) => {
   try {
@@ -10,7 +10,16 @@ const healthCheck = async (url: string) => {
   }
 };
 
-export const LocalWhisperSttProvider = (): SttProvider => ({
+const base64ToUint8Array = (input: string) => {
+  const binary = atob(input);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+};
+
+export const LocalWhisperSttProvider = (env: RuntimeEnv): SttProvider => ({
   kind: "local",
   model: "whisper-large-v3",
   healthCheck: () => healthCheck(env.localSttUrl),
@@ -27,7 +36,7 @@ export const LocalWhisperSttProvider = (): SttProvider => ({
   }
 });
 
-export const OpenAISttProvider = (): SttProvider => ({
+export const OpenAISttProvider = (env: RuntimeEnv): SttProvider => ({
   kind: "openai",
   model: "whisper-1",
   healthCheck: async () => Boolean(env.openaiApiKey),
@@ -43,7 +52,7 @@ export const OpenAISttProvider = (): SttProvider => ({
       body: (() => {
         const form = new FormData();
         form.append("model", "whisper-1");
-        form.append("file", new Blob([Buffer.from(audio, "base64")]), "audio.webm");
+        form.append("file", new Blob([base64ToUint8Array(audio)]), "audio.webm");
         return form;
       })()
     });
