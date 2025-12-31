@@ -16,5 +16,20 @@
   ],
   "placement": {
     "mode": "smart"
+  },
+  // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, SUPABASE_JWT_SECRET
+  "vars": {
+    "AI_MODE": "local_prefer",
+    "SUPABASE_URL": "",
+    "SUPABASE_ANON_KEY": "",
+    "LOCAL_STT_URL": "http://localhost:7001",
+    "LOCAL_LLM_URL": "http://localhost:7002",
+    "LOCAL_LLM_MODEL": "mlx-community/Mistral-7B-Instruct-v0.2",
+    "ENV": "production",
+    "ADMIN_EMAILS": "",
+    "ADMIN_GROUPS": "",
+    "CF_ACCESS_AUD": "",
+    "BYPASS_ADMIN_AUTH": "false",
+    "DEV_ADMIN_TOKEN": ""
   }
 }
