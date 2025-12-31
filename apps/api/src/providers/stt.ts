@@ -1,5 +1,7 @@
 import type { SttProvider } from "@deliberate/shared";
 import type { RuntimeEnv } from "../env";
+import type { LogFn } from "../utils/logger";
+import { safeTruncate } from "../utils/logger";
 
 const healthCheck = async (url: string) => {
   try {
@@ -19,24 +21,45 @@ const base64ToUint8Array = (input: string) => {
   return bytes;
 };
 
-export const LocalWhisperSttProvider = (env: RuntimeEnv): SttProvider => ({
+export const LocalWhisperSttProvider = (
+  env: RuntimeEnv,
+  logger?: LogFn
+): SttProvider => ({
   kind: "local",
   model: "whisper-large-v3",
   healthCheck: () => healthCheck(env.localSttUrl),
   transcribe: async (audio) => {
+    const start = Date.now();
+    logger?.("info", "stt.transcribe.http_start", {
+      provider: { kind: "local", model: "whisper-large-v3" }
+    });
     const response = await fetch(`${env.localSttUrl}/transcribe`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ audio })
     });
     if (!response.ok) {
-      throw new Error("Local STT failed");
+      const body = safeTruncate(await response.text(), 200);
+      logger?.("error", "stt.transcribe.http_error", {
+        provider: { kind: "local", model: "whisper-large-v3" },
+        duration_ms: Date.now() - start,
+        status: response.status,
+        body
+      });
+      throw new Error(`Local STT failed (${response.status})`);
     }
+    logger?.("info", "stt.transcribe.http_ok", {
+      provider: { kind: "local", model: "whisper-large-v3" },
+      duration_ms: Date.now() - start
+    });
     return response.json();
   }
 });
 
-export const OpenAISttProvider = ({ apiKey }: { apiKey: string }): SttProvider => ({
+export const OpenAISttProvider = (
+  { apiKey }: { apiKey: string },
+  logger?: LogFn
+): SttProvider => ({
   kind: "openai",
   model: "whisper-1",
   healthCheck: async () => Boolean(apiKey),
@@ -44,6 +67,10 @@ export const OpenAISttProvider = ({ apiKey }: { apiKey: string }): SttProvider =
     if (!apiKey) {
       throw new Error("OpenAI key missing");
     }
+    const start = Date.now();
+    logger?.("info", "stt.transcribe.http_start", {
+      provider: { kind: "openai", model: "whisper-1" }
+    });
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: {
@@ -57,9 +84,20 @@ export const OpenAISttProvider = ({ apiKey }: { apiKey: string }): SttProvider =
       })()
     });
     if (!response.ok) {
-      throw new Error("OpenAI STT failed");
+      const body = safeTruncate(await response.text(), 200);
+      logger?.("error", "stt.transcribe.http_error", {
+        provider: { kind: "openai", model: "whisper-1" },
+        duration_ms: Date.now() - start,
+        status: response.status,
+        body
+      });
+      throw new Error(`OpenAI STT failed (${response.status})`);
     }
     const data = (await response.json()) as { text: string };
+    logger?.("info", "stt.transcribe.http_ok", {
+      provider: { kind: "openai", model: "whisper-1" },
+      duration_ms: Date.now() - start
+    });
     return { text: data.text };
   }
 });

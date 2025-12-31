@@ -278,3 +278,53 @@ export const practiceRunInputSchema = z.object({
   audio: z.string(),
   mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional()
 });
+
+export const practiceRunResponseSchema = z.object({
+  requestId: z.string(),
+  attemptId: z.string().optional(),
+  transcript: z
+    .object({
+      text: z.string(),
+      provider: z.object({
+        kind: z.enum(["local", "openai"]),
+        model: z.string()
+      }),
+      duration_ms: z.number()
+    })
+    .optional(),
+  scoring: z
+    .object({
+      evaluation: evaluationResultSchema,
+      provider: z.object({
+        kind: z.enum(["local", "openai"]),
+        model: z.string()
+      }),
+      duration_ms: z.number()
+    })
+    .optional(),
+  errors: z
+    .array(
+      z.object({
+        stage: z.enum(["input", "stt", "scoring", "db"]),
+        message: z.string()
+      })
+    )
+    .optional(),
+  debug: z
+    .object({
+      timings: z.record(z.number()),
+      selectedProviders: z.object({
+        stt: z.object({
+          kind: z.enum(["local", "openai"]),
+          model: z.string()
+        }),
+        llm: z
+          .object({
+            kind: z.enum(["local", "openai"]),
+            model: z.string()
+          })
+          .nullable()
+      })
+    })
+    .optional()
+});

@@ -2,7 +2,7 @@ import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type {
   Exercise,
   PracticeRunInput,
-  EvaluationResult,
+  PracticeRunResponse,
   DeliberatePracticeTaskV2
 } from "@deliberate/shared";
 import type { RootState } from ".";
@@ -110,7 +110,7 @@ export const api = createApi({
       query: (body) => ({ url: "/attempts/start", method: "POST", body }),
       invalidatesTags: ["Attempt"]
     }),
-    runPractice: builder.mutation<EvaluationResult, PracticeRunInput>({
+    runPractice: builder.mutation<PracticeRunResponse, PracticeRunInput>({
       query: (body) => ({ url: "/practice/run", method: "POST", body }),
       invalidatesTags: ["Attempt"]
     }),

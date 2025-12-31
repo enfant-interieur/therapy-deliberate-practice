@@ -158,6 +158,38 @@ export type PracticeRunInput = {
   mode?: "local_prefer" | "openai_only" | "local_only";
 };
 
+export type PracticeRunError = {
+  stage: "input" | "stt" | "scoring" | "db";
+  message: string;
+};
+
+export type PracticeRunTranscript = {
+  text: string;
+  provider: { kind: "local" | "openai"; model: string };
+  duration_ms: number;
+};
+
+export type PracticeRunScoring = {
+  evaluation: EvaluationResult;
+  provider: { kind: "local" | "openai"; model: string };
+  duration_ms: number;
+};
+
+export type PracticeRunResponse = {
+  requestId: string;
+  attemptId?: string;
+  transcript?: PracticeRunTranscript;
+  scoring?: PracticeRunScoring;
+  errors?: PracticeRunError[];
+  debug?: {
+    timings: Record<string, number>;
+    selectedProviders: {
+      stt: { kind: "local" | "openai"; model: string };
+      llm: { kind: "local" | "openai"; model: string } | null;
+    };
+  };
+};
+
 export type EvaluationInput = {
   exercise: Exercise;
   attempt_id: string;

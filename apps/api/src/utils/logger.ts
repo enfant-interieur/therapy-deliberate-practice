@@ -1,16 +1,17 @@
+import { nanoid } from "nanoid";
+
 export type LogLevel = "debug" | "info" | "warn" | "error";
-
 export type LogFields = Record<string, unknown>;
+export type LogFn = (level: LogLevel, event: string, fields?: LogFields) => void;
 
-export type Logger = {
-  debug: (message: string, fields?: LogFields) => void;
-  info: (message: string, fields?: LogFields) => void;
-  warn: (message: string, fields?: LogFields) => void;
-  error: (message: string, fields?: LogFields) => void;
-  child: (fields: LogFields) => Logger;
+export const makeRequestId = () => nanoid();
+
+export const safeTruncate = (value: string, maxLength: number) => {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}…`;
 };
 
-export const serializeError = (error: unknown) => {
+export const safeError = (error: unknown) => {
   if (error instanceof Error) {
     return {
       name: error.name,
@@ -25,26 +26,24 @@ export const serializeError = (error: unknown) => {
   };
 };
 
-const emitLog = (payload: LogFields) => {
-  console.log(JSON.stringify(payload));
+export const log: LogFn = (level, event, fields = {}) => {
+  console.log(
+    JSON.stringify({
+      ts: new Date().toISOString(),
+      level,
+      event,
+      ...fields
+    })
+  );
 };
 
-export const createLogger = (baseFields: LogFields = {}): Logger => {
-  const log = (level: LogLevel, message: string, fields: LogFields = {}) => {
-    emitLog({
-      timestamp: new Date().toISOString(),
-      level,
-      message,
-      ...baseFields,
-      ...fields
-    });
-  };
-
+export const createLogger = (baseFields: LogFields = {}) => {
+  const withFields = (fields?: LogFields) => ({ ...baseFields, ...(fields ?? {}) });
   return {
-    debug: (message, fields) => log("debug", message, fields),
-    info: (message, fields) => log("info", message, fields),
-    warn: (message, fields) => log("warn", message, fields),
-    error: (message, fields) => log("error", message, fields),
-    child: (fields) => createLogger({ ...baseFields, ...fields })
+    debug: (event: string, fields?: LogFields) => log("debug", event, withFields(fields)),
+    info: (event: string, fields?: LogFields) => log("info", event, withFields(fields)),
+    warn: (event: string, fields?: LogFields) => log("warn", event, withFields(fields)),
+    error: (event: string, fields?: LogFields) => log("error", event, withFields(fields)),
+    child: (fields: LogFields) => createLogger(withFields(fields))
   };
 };

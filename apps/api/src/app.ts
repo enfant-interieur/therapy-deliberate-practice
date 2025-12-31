@@ -20,7 +20,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { createAdminAuth, resolveAdminStatus } from "./middleware/adminAuth";
 import { createUserAuth } from "./middleware/userAuth";
 import { decryptOpenAiKey, encryptOpenAiKey } from "./utils/crypto";
-import { createLogger, serializeError } from "./utils/logger";
+import { createLogger, log, makeRequestId, safeError, safeTruncate } from "./utils/logger";
 
 export type ApiDatabase = DrizzleD1Database | BetterSQLite3Database;
 
@@ -438,34 +438,38 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
   });
 
   app.use(async (c, next) => {
-    const requestId = c.req.header("x-request-id") ?? nanoid();
+    const requestId = c.req.header("x-request-id") ?? makeRequestId();
     c.set("requestId", requestId);
     c.header("x-request-id", requestId);
-    const log = logger.child({
+    const start = Date.now();
+    const contentLength = c.req.header("content-length");
+    log("info", "request.start", {
       requestId,
       method: c.req.method,
-      path: c.req.path
+      path: c.req.path,
+      userId: c.get("user")?.id ?? null,
+      content_length: contentLength ? Number(contentLength) : null
     });
-    const start = Date.now();
     try {
       await next();
     } catch (error) {
       const duration = Date.now() - start;
-      log.error("Unhandled request error", {
+      log("error", "request.error", {
+        requestId,
         duration_ms: duration,
-        error: serializeError(error)
+        stage: c.get("logStage") ?? null,
+        error: safeError(error)
       });
-      throw error;
+      return c.json({ error: "Internal server error", requestId }, 500);
     } finally {
       const duration = Date.now() - start;
       const status = c.res.status || 500;
-      if (status >= 500) {
-        log.error("Request completed", { duration_ms: duration, status });
-      } else if (status >= 400) {
-        log.warn("Request completed", { duration_ms: duration, status });
-      } else {
-        log.info("Request completed", { duration_ms: duration, status });
-      }
+      log("info", "request.end", {
+        requestId,
+        status,
+        duration_ms: duration,
+        userId: c.get("user")?.id ?? null
+      });
     }
   });
 
@@ -1026,7 +1030,7 @@ Now produce JSON that matches EXACTLY this schema:
     try {
       parsedJson = JSON.parse(content);
     } catch (error) {
-      log.error("OpenAI parse returned invalid JSON", { error: serializeError(error) });
+      log.error("OpenAI parse returned invalid JSON", { error: safeError(error) });
       return c.json({ error: "OpenAI parse returned invalid JSON", details: String(error) }, 500);
     }
     const parsed = llmParseSchema.safeParse(parsedJson);
@@ -1135,7 +1139,7 @@ Now produce JSON that matches EXACTLY this schema:
     try {
       body = await c.req.json();
     } catch (error) {
-      log.warn("Invalid JSON body for settings", { error: serializeError(error) });
+      log.warn("Invalid JSON body for settings", { error: safeError(error) });
       return c.json({ error: "Invalid JSON body" }, 400);
     }
     const nullableUrl = z.preprocess(
@@ -1392,18 +1396,77 @@ Now produce JSON that matches EXACTLY this schema:
   });
 
   app.post("/api/v1/practice/run", async (c) => {
-    const log = logger.child({ requestId: c.get("requestId"), endpoint: "practice_run" });
-    const body = await c.req.json();
-    const input = practiceRunInputSchema.parse(body);
+    const requestId = c.get("requestId");
     const user = c.get("user");
-    if (!checkRateLimit(`practice:${user.id}`)) {
-      log.warn("Practice run rate limited", { userId: user.id });
-      return c.json({ error: "Too many practice requests. Please slow down." }, 429);
+    const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
+      log(level, event, { requestId, userId: user?.id ?? null, ...fields });
+    const debugEnabled = env.environment === "development" || c.req.query("debug") === "true";
+    const timings: Record<string, number> = {};
+    const errors: Array<{ stage: "input" | "stt" | "scoring" | "db"; message: string }> = [];
+
+    logEvent("info", "practice.run.start");
+
+    const inputParseStart = Date.now();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch (error) {
+      logEvent("error", "input.parse.error", { error: safeError(error) });
+      return c.json(
+        { requestId, errors: [{ stage: "input", message: "Invalid JSON body." }] },
+        400
+      );
     }
+    const parsedInput = practiceRunInputSchema.safeParse(body);
+    if (!parsedInput.success) {
+      logEvent("warn", "input.parse.error", {
+        issues: parsedInput.error.flatten().fieldErrors
+      });
+      return c.json(
+        { requestId, errors: [{ stage: "input", message: "Invalid practice payload." }] },
+        400
+      );
+    }
+    const input = parsedInput.data;
+    const audioLength = input.audio?.length ?? 0;
+    const minAudioLength = 128;
+    if (!input.audio || audioLength < minAudioLength) {
+      logEvent("warn", "input.parse.error", {
+        reason: "audio_too_small",
+        audio_length: audioLength
+      });
+      return c.json(
+        {
+          requestId,
+          errors: [{ stage: "input", message: "Audio is missing or too short to evaluate." }]
+        },
+        400
+      );
+    }
+    timings.input_parse = Date.now() - inputParseStart;
+    logEvent("info", "input.parse.ok", {
+      exerciseId: input.exercise_id,
+      attemptId: input.attempt_id ?? null,
+      mode: input.mode ?? null,
+      audio_length: audioLength
+    });
+
+    if (!checkRateLimit(`practice:${user.id}`)) {
+      logEvent("warn", "practice.run.rate_limited");
+      return c.json(
+        { requestId, errors: [{ stage: "input", message: "Too many practice requests." }] },
+        429
+      );
+    }
+
+    logEvent("info", "auth.context.start");
     const settings = await getUserSettingsRow(user.id);
     if (!settings) {
-      log.warn("Practice run settings missing", { userId: user.id });
-      return c.json({ error: "Settings not found" }, 404);
+      logEvent("warn", "auth.context.error");
+      return c.json(
+        { requestId, errors: [{ stage: "input", message: "Settings not found." }] },
+        404
+      );
     }
 
     const mode = (settings.ai_mode ?? env.aiMode) as ProviderMode;
@@ -1416,7 +1479,15 @@ Now produce JSON that matches EXACTLY this schema:
     let openaiApiKey = env.openaiApiKey;
     if (settings.openai_key_ciphertext && settings.openai_key_iv) {
       if (!env.openaiKeyEncryptionSecret) {
-        return c.json({ error: "OPENAI_KEY_ENCRYPTION_SECRET is not configured" }, 500);
+        return c.json(
+          {
+            requestId,
+            errors: [
+              { stage: "input", message: "OPENAI_KEY_ENCRYPTION_SECRET is not configured." }
+            ]
+          },
+          500
+        );
       }
       openaiApiKey = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
         ciphertextB64: settings.openai_key_ciphertext,
@@ -1424,115 +1495,284 @@ Now produce JSON that matches EXACTLY this schema:
       });
     }
 
+    logEvent("info", "auth.context.ok", {
+      mode,
+      store_audio: settings.store_audio ?? false,
+      has_openai_key: Boolean(openaiApiKey),
+      local_stt_configured: Boolean(envWithOverrides.localSttUrl),
+      local_llm_configured: Boolean(envWithOverrides.localLlmUrl)
+    });
+
     if (mode === "openai_only" && !openaiApiKey) {
-      log.warn("Practice run missing OpenAI key", { userId: user.id, mode });
+      logEvent("warn", "auth.context.error", { reason: "openai_key_missing", mode });
       return c.json(
-        { error: "OpenAI mode requires an API key. Add one in Settings to continue." },
+        {
+          requestId,
+          errors: [
+            {
+              stage: "input",
+              message: "OpenAI mode requires an API key. Add one in Settings to continue."
+            }
+          ]
+        },
         400
       );
     }
 
-    let sttProvider;
-    let llmProvider;
-    try {
-      sttProvider = await selectSttProvider(mode, envWithOverrides, openaiApiKey);
-      llmProvider = await selectLlmProvider(mode, envWithOverrides, openaiApiKey);
-    } catch (error) {
-      if (!openaiApiKey && mode !== "local_only") {
-        log.warn("Practice run no OpenAI key available", { userId: user.id, mode });
-        return c.json(
-          {
-            error:
-              "No OpenAI key available. Add one in Settings or switch to local-only mode to continue."
-          },
-          400
-        );
-      }
-      log.error("Practice run provider selection failed", { error: serializeError(error) });
-      return c.json({ error: (error as Error).message }, 400);
-    }
-
-    const sttStart = Date.now();
-    const transcript = await sttProvider.transcribe(input.audio);
-    const sttDuration = Date.now() - sttStart;
-    log.info("STT completed", { sttDurationMs: sttDuration, sttProvider: sttProvider.kind });
-
+    logEvent("info", "exercise.load.start", { exerciseId: input.exercise_id });
     const [exercise] = await db
       .select()
       .from(exercises)
       .where(eq(exercises.id, input.exercise_id))
       .limit(1);
     if (!exercise) {
-      log.warn("Practice run exercise not found", { exerciseId: input.exercise_id });
-      return c.json({ error: "Exercise not found" }, 404);
+      logEvent("warn", "exercise.load.error", { exerciseId: input.exercise_id });
+      return c.json(
+        { requestId, errors: [{ stage: "input", message: "Exercise not found." }] },
+        404
+      );
     }
+    logEvent("info", "exercise.load.ok", { exerciseId: input.exercise_id });
 
-    const llmStart = Date.now();
-    let evaluation: any;
+    let sttProvider;
+    logEvent("info", "stt.select.start", { mode });
     try {
-      evaluation = await llmProvider.evaluateDeliberatePractice({
-        exercise,
-        attempt_id: input.attempt_id ?? nanoid(),
-        transcript
+      const sttSelection = await selectSttProvider(mode, envWithOverrides, openaiApiKey, logEvent);
+      sttProvider = sttSelection.provider;
+      logEvent("info", "stt.select.ok", {
+        selected: { kind: sttProvider.kind, model: sttProvider.model },
+        health: sttSelection.health
       });
     } catch (error) {
-      log.error("LLM evaluation failed", { error: serializeError(error) });
-      return c.json({ error: (error as Error).message }, 500);
+      logEvent("error", "stt.select.error", { error: safeError(error) });
+      return c.json(
+        {
+          requestId,
+          errors: [{ stage: "stt", message: (error as Error).message || "STT unavailable." }]
+        },
+        502
+      );
     }
-    const llmDuration = Date.now() - llmStart;
-    log.info("LLM evaluation completed", { llmDurationMs: llmDuration, llmProvider: llmProvider.kind });
 
-    let parsed = evaluationResultSchema.safeParse(evaluation);
-    if (!parsed.success) {
-      const repaired = attemptJsonRepair(JSON.stringify(evaluation));
-      if (repaired) {
-        parsed = evaluationResultSchema.safeParse(JSON.parse(repaired));
+    const sttStart = Date.now();
+    logEvent("info", "stt.transcribe.start", {
+      audio_length: audioLength,
+      provider: { kind: sttProvider.kind, model: sttProvider.model }
+    });
+    let transcript: { text: string };
+    try {
+      transcript = await sttProvider.transcribe(input.audio);
+    } catch (error) {
+      const duration = Date.now() - sttStart;
+      logEvent("error", "stt.transcribe.error", {
+        duration_ms: duration,
+        error: safeError(error)
+      });
+      return c.json(
+        {
+          requestId,
+          errors: [{ stage: "stt", message: "Transcription failed. Please try again." }]
+        },
+        502
+      );
+    }
+    const sttDuration = Date.now() - sttStart;
+    timings.stt = sttDuration;
+    logEvent("info", "stt.transcribe.ok", {
+      duration_ms: sttDuration,
+      transcript_length: transcript.text?.length ?? 0,
+      transcript_preview: debugEnabled ? safeTruncate(transcript.text ?? "", 60) : undefined
+    });
+
+    const attemptId = input.attempt_id ?? nanoid();
+    let llmProvider;
+    logEvent("info", "llm.select.start", { mode });
+    try {
+      const llmSelection = await selectLlmProvider(mode, envWithOverrides, openaiApiKey, logEvent);
+      llmProvider = llmSelection.provider;
+      logEvent("info", "llm.select.ok", {
+        selected: { kind: llmProvider.kind, model: llmProvider.model },
+        health: llmSelection.health
+      });
+    } catch (error) {
+      logEvent("error", "llm.select.error", { error: safeError(error) });
+      errors.push({
+        stage: "scoring",
+        message: (error as Error).message || "LLM unavailable."
+      });
+    }
+
+    let evaluation: unknown;
+    let llmDuration: number | undefined;
+    if (llmProvider) {
+      const llmStart = Date.now();
+      logEvent("info", "llm.evaluate.start", {
+        attemptId,
+        provider: { kind: llmProvider.kind, model: llmProvider.model }
+      });
+      try {
+        evaluation = await llmProvider.evaluateDeliberatePractice({
+          exercise,
+          attempt_id: attemptId,
+          transcript
+        });
+      } catch (error) {
+        logEvent("error", "llm.evaluate.error", { error: safeError(error) });
+        errors.push({
+          stage: "scoring",
+          message: "Scoring failed. Check your AI provider settings and try again."
+        });
+      }
+      llmDuration = Date.now() - llmStart;
+      timings.llm = llmDuration;
+      if (!errors.find((entry) => entry.stage === "scoring")) {
+        logEvent("info", "llm.evaluate.ok", { duration_ms: llmDuration });
       }
     }
-    if (!parsed.success) {
-      log.warn("Evaluation response failed validation", { attemptId: input.attempt_id ?? null });
+
+    let scoringResult;
+    if (evaluation) {
+      let parsed = evaluationResultSchema.safeParse(evaluation);
+      if (!parsed.success) {
+        const repaired = attemptJsonRepair(JSON.stringify(evaluation));
+        if (repaired) {
+          parsed = evaluationResultSchema.safeParse(JSON.parse(repaired));
+        }
+      }
+      if (!parsed.success) {
+        logEvent("warn", "llm.evaluate.invalid", {
+          attemptId,
+          issues: parsed.error.errors.map((issue) => issue.message)
+        });
+        errors.push({
+          stage: "scoring",
+          message: "We could not score this response due to invalid evaluation output."
+        });
+      } else {
+        scoringResult = parsed.data;
+      }
     }
 
-    const result = parsed.success
-      ? parsed.data
-      : {
-          version: "1.0" as const,
-          exercise_id: input.exercise_id,
-          attempt_id: input.attempt_id ?? nanoid(),
-          transcript: { text: transcript.text },
-          objective_scores: [],
-          overall: {
-            score: 0,
-            pass: false,
-            summary_feedback:
-              "We could not score this response because the evaluation format was invalid.",
-            what_to_improve_next: ["Try again with a shorter response."]
+    if (transcript) {
+      logEvent("info", "db.attempt.insert.start", { attemptId });
+      try {
+        const modelInfo = {
+          provider: {
+            stt: { kind: sttProvider.kind, model: sttProvider.model },
+            llm: llmProvider ? { kind: llmProvider.kind, model: llmProvider.model } : null
           },
-          patient_reaction: {
-            emotion: "neutral",
-            intensity: 1,
-            response_text: "Let's reset and try again."
-          },
-          diagnostics: {
-            provider: {
-              stt: { kind: sttProvider.kind, model: sttProvider.model },
-              llm: { kind: llmProvider.kind, model: llmProvider.model }
-            },
-            timing_ms: { stt: sttDuration, llm: llmDuration, total: sttDuration + llmDuration }
+          timing_ms: {
+            stt: sttDuration,
+            llm: llmDuration,
+            total: sttDuration + (llmDuration ?? 0)
           }
         };
-
-    return c.json({
-      ...result,
-      transcript: { ...result.transcript, text: transcript.text },
-      diagnostics: {
-        provider: {
-          stt: { kind: sttProvider.kind, model: sttProvider.model },
-          llm: { kind: llmProvider.kind, model: llmProvider.model }
-        },
-        timing_ms: { stt: sttDuration, llm: llmDuration, total: sttDuration + llmDuration }
+        const evaluationPayload = scoringResult ?? {};
+        const overallScore = scoringResult?.overall.score ?? 0;
+        const overallPass = scoringResult?.overall.pass ?? false;
+        const transcriptText = transcript.text ?? "";
+        if (input.attempt_id) {
+          const [existing] = await db
+            .select({ id: attempts.id })
+            .from(attempts)
+            .where(and(eq(attempts.id, input.attempt_id), eq(attempts.user_id, user.id)))
+            .limit(1);
+          if (existing) {
+            await db
+              .update(attempts)
+              .set({
+                completed_at: Date.now(),
+                transcript: transcriptText,
+                evaluation: evaluationPayload,
+                overall_score: overallScore,
+                overall_pass: overallPass,
+                model_info: modelInfo
+              })
+              .where(and(eq(attempts.id, input.attempt_id), eq(attempts.user_id, user.id)));
+          } else {
+            await db.insert(attempts).values({
+              id: attemptId,
+              user_id: user.id,
+              exercise_id: input.exercise_id,
+              started_at: Date.now(),
+              completed_at: Date.now(),
+              audio_ref: null,
+              transcript: transcriptText,
+              evaluation: evaluationPayload,
+              overall_pass: overallPass,
+              overall_score: overallScore,
+              model_info: modelInfo
+            });
+          }
+        } else {
+          await db.insert(attempts).values({
+            id: attemptId,
+            user_id: user.id,
+            exercise_id: input.exercise_id,
+            started_at: Date.now(),
+            completed_at: Date.now(),
+            audio_ref: null,
+            transcript: transcriptText,
+            evaluation: evaluationPayload,
+            overall_pass: overallPass,
+            overall_score: overallScore,
+            model_info: modelInfo
+          });
+        }
+        logEvent("info", "db.attempt.insert.ok", { attemptId });
+      } catch (error) {
+        logEvent("error", "db.attempt.insert.error", { error: safeError(error) });
+        errors.push({
+          stage: "db",
+          message: "We couldn't save this attempt. Please try again."
+        });
       }
-    });
+    }
+
+    const response = {
+      requestId,
+      attemptId,
+      transcript: transcript
+        ? {
+            text: transcript.text,
+            provider: { kind: sttProvider.kind, model: sttProvider.model },
+            duration_ms: sttDuration
+          }
+        : undefined,
+      scoring: scoringResult
+        ? {
+            evaluation: scoringResult,
+            provider: llmProvider
+              ? { kind: llmProvider.kind, model: llmProvider.model }
+              : { kind: "openai", model: "unknown" },
+            duration_ms: llmDuration ?? 0
+          }
+        : undefined,
+      errors: errors.length ? errors : undefined,
+      debug: debugEnabled
+        ? {
+            timings,
+            selectedProviders: {
+              stt: { kind: sttProvider.kind, model: sttProvider.model },
+              llm: llmProvider ? { kind: llmProvider.kind, model: llmProvider.model } : null
+            }
+          }
+        : undefined
+    };
+
+    if (errors.length) {
+      logEvent("warn", "practice.run.error", {
+        attemptId,
+        error_count: errors.length
+      });
+    } else {
+      logEvent("info", "practice.run.ok", {
+        attemptId,
+        total_duration_ms: sttDuration + (llmDuration ?? 0)
+      });
+    }
+
+    return c.json(response);
   });
 
   return app;

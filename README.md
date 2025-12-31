@@ -179,6 +179,35 @@ npm run dev
 docker compose -f infra/docker-compose.yml up
 ```
 
+## Debugging practice runs
+
+Use request tracing to follow a single practice session end-to-end.
+
+### Tail logs (Cloudflare Worker)
+
+```
+cd apps/worker
+wrangler tail
+```
+
+Look for `request.start`, `practice.run.start`, `stt.transcribe.ok`, `llm.evaluate.ok`, and `practice.run.ok`
+events. Each log line includes a `requestId` that matches the `x-request-id` response header and the
+`requestId` field in the JSON response body.
+
+### Typical failure modes
+
+- **input**: audio missing/too small or invalid payload. UI shows the error and requestId.
+- **stt**: provider unavailable or transcription failure. Check `stt.select.*` and `stt.transcribe.*` logs.
+- **scoring**: LLM provider failures or invalid JSON output. Check `llm.evaluate.*` logs.
+- **db**: attempt write failures. Check `db.attempt.insert.*` logs.
+
+### Manual test checklist
+
+- Local mode (Node dev server): start a practice run and confirm transcript + scoring.
+- Worker mode (wrangler dev / production): confirm logs appear in `wrangler tail`.
+- With/without OpenAI key: ensure missing key surfaces a clear `scoring` error.
+- Local endpoints configured vs not configured: confirm provider selection and fallback logs.
+
 ## Deployment (Worker)
 
 1. Build the web app:
