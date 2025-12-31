@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { useGetAdminWhoamiQuery, useGetMeSettingsQuery } from "../store/api";
@@ -16,6 +16,77 @@ export const AppShell = () => {
   const { isAdmin, isAuthenticated, authChecked, email } = useAppSelector((state) => state.auth);
   const { data, isError } = useGetAdminWhoamiQuery();
   const { data: settingsData } = useGetMeSettingsQuery(undefined, { skip: !isAuthenticated });
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const run = async () => {
+      const url = new URL(window.location.href);
+
+      const code = url.searchParams.get("code");
+      const urlError =
+        url.searchParams.get("error_description") || url.searchParams.get("error") || null;
+
+      const hashParams = new URLSearchParams(
+        window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash
+      );
+      const hashHasTokens = hashParams.has("access_token") || hashParams.has("refresh_token");
+      const hashError = hashParams.get("error_description") || hashParams.get("error") || null;
+
+      const hasAuthCallback = Boolean(code || hashHasTokens || urlError || hashError);
+      if (!hasAuthCallback) return;
+
+      const errorMessage = urlError || hashError;
+      if (errorMessage) {
+        window.localStorage.setItem("authError", errorMessage);
+      }
+
+      try {
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
+        } else if (hashHasTokens) {
+          const authAny = supabase.auth as { getSessionFromUrl?: (options: { storeSession: boolean }) => Promise<unknown> };
+          if (typeof authAny.getSessionFromUrl === "function") {
+            await authAny.getSessionFromUrl({ storeSession: true });
+          } else {
+            await supabase.auth.getSession();
+          }
+        }
+        await supabase.auth.getSession();
+      } finally {
+        const returnToFromUrl = url.searchParams.get("returnTo");
+        const storedReturnTo = window.localStorage.getItem("authReturnTo");
+
+        const safeReturnTo = (value: string | null) => (value && value.startsWith("/") ? value : null);
+
+        const returnTo = safeReturnTo(returnToFromUrl) ?? safeReturnTo(storedReturnTo) ?? "/";
+
+        window.localStorage.removeItem("authReturnTo");
+
+        const clean = new URL(window.location.href);
+        clean.searchParams.delete("code");
+        clean.searchParams.delete("state");
+        clean.searchParams.delete("error");
+        clean.searchParams.delete("error_code");
+        clean.searchParams.delete("error_description");
+        clean.hash = "";
+        window.history.replaceState({}, document.title, clean.pathname + clean.search);
+
+        if (errorMessage) {
+          if (location.pathname !== "/login") {
+            navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
+          }
+          return;
+        }
+
+        if (location.pathname !== returnTo) {
+          navigate(returnTo, { replace: true });
+        }
+      }
+    };
+
+    void run();
+  }, [navigate, location.pathname]);
 
   useEffect(() => {
     let mounted = true;
