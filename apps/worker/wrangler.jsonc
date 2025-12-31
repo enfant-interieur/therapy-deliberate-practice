@@ -11,7 +11,8 @@
     {
       "binding": "DB",
       "database_name": "deliberate_practice",
-      "database_id": "bffbd995-32c3-4d2c-9288-4f1dd8bc5794"
+      "database_id": "bffbd995-32c3-4d2c-9288-4f1dd8bc5794",
+      "migrations_dir": "migrations"
     }
   ],
   "placement": {

@@ -1,4 +1,4 @@
-INSERT INTO exercises (
+INSERT OR IGNORE INTO exercises (
   id,
   slug,
   title,

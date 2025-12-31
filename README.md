@@ -97,12 +97,12 @@ wrangler secret put SUPABASE_JWT_SECRET
 
 ## D1 setup & migrations
 
-All Wrangler commands must be run from `apps/worker`.
+Wrangler now manages tracked D1 migrations from `apps/worker/migrations`. Migrations are applied
+in filename order and tracked by Wrangler, so the commands below are safe to run repeatedly.
 
 ### Create the database
 
 ```
-cd apps/worker
 wrangler d1 create deliberate_practice
 ```
 
@@ -111,26 +111,36 @@ Copy the resulting `database_id` into `apps/worker/wrangler.jsonc` under the `DB
 ### Local D1 (development)
 
 ```
-cd apps/worker
-wrangler d1 execute DB --file=../../infra/migrations/0001_init.sql --local
-wrangler d1 execute DB --file=../../infra/migrations/0002_add_exercise_content.sql --local
-wrangler d1 execute DB --file=../../infra/migrations/0003_add_user_settings.sql --local
-wrangler d1 execute DB --file=../../infra/seed.sql --local
+npm run migrate:local -w apps/worker
+```
+
+Optional seed (idempotent):
+
+```
+wrangler d1 execute DB --file=infra/seed.sql --local
 ```
 
 ### Remote D1 (production)
 
-Run these in order from `apps/worker`:
-
 ```
-cd apps/worker
-npx wrangler d1 execute DB --remote --file=../../infra/migrations/0001_init.sql
-npx wrangler d1 execute DB --remote --file=../../infra/migrations/0002_add_exercise_content.sql
-npx wrangler d1 execute DB --remote --file=../../infra/migrations/0003_add_user_settings.sql
-npx wrangler d1 execute DB --remote --file=../../infra/seed.sql
+npm run migrate:remote -w apps/worker
 ```
 
-> ✅ The three commands above are required verbatim for the remote setup.
+> Migrations run before deploy in CI via `npm run deploy:ci -w apps/worker`.
+
+### CI deploy command sequence (Cloudflare)
+
+```
+npm ci
+npm run build -w apps/web
+npm run deploy:ci -w apps/worker
+```
+
+### Adding a new migration
+
+1. Add a new SQL file under `apps/worker/migrations/` with the next numeric prefix
+   (e.g. `0004_add_feature.sql`).
+2. Commit the file. The next `migrate:*` run will apply it once, in order.
 
 ### Local SQLite for `apps/api`
 

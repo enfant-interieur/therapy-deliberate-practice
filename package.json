@@ -11,6 +11,7 @@
     "dev:api": "npm run dev -w apps/api",
     "dev:worker": "npm run dev -w apps/worker",
     "build": "npm run build -w apps/web && npm run build -w apps/api && npm run build -w apps/worker",
+    "deploy:prod": "npm run build -w apps/web && npm run deploy:ci -w apps/worker",
     "lint": "npm run lint -w apps/web",
     "format": "prettier --write ."
   },
