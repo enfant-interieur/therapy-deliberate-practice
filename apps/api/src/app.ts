@@ -1045,14 +1045,28 @@ Now produce JSON that matches EXACTLY this schema:
 
   app.put("/api/v1/me/settings", async (c) => {
     const user = c.get("user");
-    const body = await c.req.json();
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch (error) {
+      return c.json({ error: "Invalid JSON body" }, 400);
+    }
+    const nullableUrl = z.preprocess(
+      (value) =>
+        typeof value === "string" && value.trim() === "" ? null : value,
+      z.string().url().nullable().optional()
+    );
     const schema = z.object({
       aiMode: z.enum(["local_prefer", "openai_only", "local_only"]),
-      localSttUrl: z.string().url().nullable().optional(),
-      localLlmUrl: z.string().url().nullable().optional(),
+      localSttUrl: nullableUrl,
+      localLlmUrl: nullableUrl,
       storeAudio: z.boolean()
     });
-    const data = schema.parse(body);
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid settings payload", details: parsed.error.flatten() }, 400);
+    }
+    const data = parsed.data;
     const normalizeUrl = (value?: string | null) => {
       if (!value) return null;
       const trimmed = value.trim();
