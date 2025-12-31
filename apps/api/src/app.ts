@@ -20,6 +20,7 @@ import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { createAdminAuth, resolveAdminStatus } from "./middleware/adminAuth";
 import { createUserAuth } from "./middleware/userAuth";
 import { decryptOpenAiKey, encryptOpenAiKey } from "./utils/crypto";
+import { createLogger, serializeError } from "./utils/logger";
 
 export type ApiDatabase = DrizzleD1Database | BetterSQLite3Database;
 
@@ -396,6 +397,7 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
   const app = new Hono();
   const adminAuth = createAdminAuth(env);
   const userAuth = createUserAuth(env, db);
+  const logger = createLogger({ service: "api" });
 
   const getUserSettingsRow = async (userId: string) => {
     const [settings] = await db
@@ -418,23 +420,38 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
     const requestId = c.req.header("x-request-id") ?? nanoid();
     c.set("requestId", requestId);
     c.header("x-request-id", requestId);
+    const log = logger.child({
+      requestId,
+      method: c.req.method,
+      path: c.req.path
+    });
     const start = Date.now();
-    await next();
-    const duration = Date.now() - start;
-    console.log(
-      JSON.stringify({
-        requestId,
-        method: c.req.method,
-        path: c.req.path,
-        status: c.res.status,
-        duration_ms: duration
-      })
-    );
+    try {
+      await next();
+    } catch (error) {
+      const duration = Date.now() - start;
+      log.error("Unhandled request error", {
+        duration_ms: duration,
+        error: serializeError(error)
+      });
+      throw error;
+    } finally {
+      const duration = Date.now() - start;
+      const status = c.res.status || 500;
+      if (status >= 500) {
+        log.error("Request completed", { duration_ms: duration, status });
+      } else if (status >= 400) {
+        log.warn("Request completed", { duration_ms: duration, status });
+      } else {
+        log.info("Request completed", { duration_ms: duration, status });
+      }
+    }
   });
 
   app.get("/api/v1/health", (c) => c.json({ status: "ok" }));
 
   app.get("/api/v1/health/local-ai", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "health_local_ai" });
     const stt = await selectSttProvider("local_only", env, env.openaiApiKey).then(
       () => true,
       () => false
@@ -443,15 +460,20 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       () => true,
       () => false
     );
+    log.info("Local AI health check completed", { stt, llm });
     return c.json({ stt, llm });
   });
 
   app.get("/api/v1/exercises", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "exercises_list" });
+    log.debug("Listing exercises");
     const results = await db.select().from(exercises);
+    log.info("Exercises fetched", { count: results.length });
     return c.json(results);
   });
 
   app.post("/api/v1/exercises", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "exercises_create" });
     const body = await c.req.json();
     const data = exerciseSchema.parse(body);
     await db.insert(exercises).values({
@@ -460,42 +482,62 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       created_at: Date.now(),
       updated_at: Date.now()
     });
+    log.info("Exercise created", { exerciseId: data.id });
     return c.json({ status: "created", id: data.id }, 201);
   });
 
   app.get("/api/v1/exercises/:id", async (c) => {
     const id = c.req.param("id");
+    const log = logger.child({
+      requestId: c.get("requestId"),
+      endpoint: "exercises_get",
+      exerciseId: id
+    });
     const [result] = await db
       .select()
       .from(exercises)
       .where(eq(exercises.id, id))
       .limit(1);
     if (!result) {
+      log.warn("Exercise not found");
       return c.json({ error: "Not found" }, 404);
     }
+    log.info("Exercise retrieved");
     return c.json(result);
   });
 
   app.put("/api/v1/exercises/:id", async (c) => {
     const id = c.req.param("id");
+    const log = logger.child({
+      requestId: c.get("requestId"),
+      endpoint: "exercises_update",
+      exerciseId: id
+    });
     const body = await c.req.json();
     const data = exerciseSchema.parse({ ...body, id });
     await db
       .update(exercises)
       .set({ ...data, content: data.content ?? {}, updated_at: Date.now() })
       .where(eq(exercises.id, id));
+    log.info("Exercise updated");
     return c.json({ status: "updated" });
   });
 
   app.get("/api/v1/admin/whoami", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_whoami" });
     const result = await resolveAdminStatus(env, c.req.raw.headers);
     if (!result.ok) {
+      log.warn("Admin whoami failed", { status: result.status });
       return c.json(
         { isAuthenticated: false, isAdmin: false, email: null },
         result.status >= 500 ? 500 : 200
       );
     }
     const { identity } = result;
+    log.info("Admin whoami resolved", {
+      isAuthenticated: identity.isAuthenticated,
+      isAdmin: result.isAdmin
+    });
     return c.json({
       isAuthenticated: identity.isAuthenticated,
       isAdmin: identity.isAuthenticated ? result.isAdmin : false,
@@ -511,25 +553,33 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
   app.use("/api/v1/practice/*", userAuth);
 
   app.post("/api/v1/admin/parse-exercise", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_parse_exercise" });
     const body = await c.req.json();
     const schema = z.object({
       free_text: z.string().optional().default(""),
       source_url: z.string().nullable().optional()
     });
     const data = schema.parse(body);
+    log.info("Parse exercise request received", {
+      hasSourceUrl: Boolean(data.source_url),
+      hasFreeText: Boolean(data.free_text?.trim())
+    });
     let sourceText = data.free_text?.trim() ?? "";
     if (!sourceText && data.source_url) {
       const response = await fetch(data.source_url);
       if (!response.ok) {
+        log.warn("Source URL fetch failed", { status: response.status });
         return c.json({ error: "Failed to fetch source URL" }, 400);
       }
       const html = await response.text();
       sourceText = stripHtml(html);
     }
     if (!sourceText) {
+      log.warn("Parse exercise missing source text");
       return c.json({ error: "Provide free_text or source_url" }, 400);
     }
     if (!env.openaiApiKey) {
+      log.error("OpenAI key missing for parse exercise");
       return c.json({ error: "OpenAI key missing" }, 500);
     }
     const jsonSchema = {
@@ -942,35 +992,42 @@ Now produce JSON that matches EXACTLY this schema:
       })
     });
     if (!response.ok) {
+      log.error("OpenAI parse request failed", { status: response.status });
       return c.json({ error: "OpenAI parse failed" }, 500);
     }
     const payload = await response.json();
     const content = payload.choices?.[0]?.message?.content;
     if (!content) {
+      log.error("OpenAI parse returned empty content");
       return c.json({ error: "OpenAI parse returned empty response" }, 500);
     }
     let parsedJson: unknown = null;
     try {
       parsedJson = JSON.parse(content);
     } catch (error) {
+      log.error("OpenAI parse returned invalid JSON", { error: serializeError(error) });
       return c.json({ error: "OpenAI parse returned invalid JSON", details: String(error) }, 500);
     }
     const parsed = llmParseSchema.safeParse(parsedJson);
     if (!parsed.success) {
+      log.warn("OpenAI parse response failed validation");
       return c.json({ error: "Invalid parse response", details: parsed.error.flatten() }, 400);
     }
     const mapped = mapLlmTaskToV2(parsed.data);
     const validated = deliberatePracticeTaskV2Schema.safeParse(mapped);
     if (!validated.success) {
+      log.warn("Mapped parse response failed validation");
       return c.json(
         { error: "Mapped parse response failed validation", details: validated.error.flatten() },
         400
       );
     }
+    log.info("Parse exercise completed");
     return c.json(validated.data);
   });
 
   app.post("/api/v1/admin/import-exercise", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_import_exercise" });
     const body = await c.req.json();
     const schema = z.object({
       task_v2: deliberatePracticeTaskV2Schema,
@@ -1009,6 +1066,7 @@ Now produce JSON that matches EXACTLY this schema:
           updated_at: Date.now()
         })
         .where(eq(exercises.id, existing.id));
+      log.info("Exercise imported (updated)", { exerciseId: existing.id, slug: validated.slug });
       return c.json({ id: existing.id, slug: validated.slug });
     }
     await db.insert(exercises).values({
@@ -1019,13 +1077,16 @@ Now produce JSON that matches EXACTLY this schema:
       created_at: Date.now(),
       updated_at: Date.now()
     });
+    log.info("Exercise imported (created)", { exerciseId: validated.id, slug: validated.slug });
     return c.json({ id: validated.id, slug: validated.slug });
   });
 
   app.get("/api/v1/me", async (c) => {
     const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "me" });
     const [record] = await db.select().from(users).where(eq(users.id, user.id)).limit(1);
     const settings = await getUserSettingsRow(user.id);
+    log.info("User profile fetched", { userId: user.id });
     return c.json({
       id: user.id,
       email: user.email,
@@ -1036,19 +1097,24 @@ Now produce JSON that matches EXACTLY this schema:
 
   app.get("/api/v1/me/settings", async (c) => {
     const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "me_settings_get" });
     const settings = await getUserSettingsRow(user.id);
     if (!settings) {
+      log.warn("Settings not found", { userId: user.id });
       return c.json({ error: "Settings not found" }, 404);
     }
+    log.info("Settings fetched", { userId: user.id });
     return c.json(normalizeSettings(settings));
   });
 
   app.put("/api/v1/me/settings", async (c) => {
     const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "me_settings_update" });
     let body: unknown;
     try {
       body = await c.req.json();
     } catch (error) {
+      log.warn("Invalid JSON body for settings", { error: serializeError(error) });
       return c.json({ error: "Invalid JSON body" }, 400);
     }
     const nullableUrl = z.preprocess(
@@ -1064,6 +1130,7 @@ Now produce JSON that matches EXACTLY this schema:
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
+      log.warn("Settings payload failed validation", { userId: user.id });
       return c.json({ error: "Invalid settings payload", details: parsed.error.flatten() }, 400);
     }
     const data = parsed.data;
@@ -1084,13 +1151,16 @@ Now produce JSON that matches EXACTLY this schema:
       .where(eq(userSettings.user_id, user.id));
     const settings = await getUserSettingsRow(user.id);
     if (!settings) {
+      log.warn("Settings not found after update", { userId: user.id });
       return c.json({ error: "Settings not found" }, 404);
     }
+    log.info("Settings updated", { userId: user.id });
     return c.json(normalizeSettings(settings));
   });
 
   app.put("/api/v1/me/openai-key", async (c) => {
     const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "me_openai_key_update" });
     const body = await c.req.json();
     const schema = z.object({
       openaiApiKey: z
@@ -1101,6 +1171,7 @@ Now produce JSON that matches EXACTLY this schema:
     });
     const data = schema.parse(body);
     if (!env.openaiKeyEncryptionSecret) {
+      log.error("Missing OpenAI encryption secret", { userId: user.id });
       return c.json({ error: "OPENAI_KEY_ENCRYPTION_SECRET is not configured" }, 500);
     }
     const encrypted = await encryptOpenAiKey(env.openaiKeyEncryptionSecret, data.openaiApiKey);
@@ -1113,11 +1184,13 @@ Now produce JSON that matches EXACTLY this schema:
         updated_at: Date.now()
       })
       .where(eq(userSettings.user_id, user.id));
+    log.info("OpenAI key updated", { userId: user.id });
     return c.json({ ok: true, hasOpenAiKey: true });
   });
 
   app.delete("/api/v1/me/openai-key", async (c) => {
     const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "me_openai_key_delete" });
     await db
       .update(userSettings)
       .set({
@@ -1127,12 +1200,15 @@ Now produce JSON that matches EXACTLY this schema:
         updated_at: Date.now()
       })
       .where(eq(userSettings.user_id, user.id));
+    log.info("OpenAI key deleted", { userId: user.id });
     return c.json({ ok: true, hasOpenAiKey: false });
   });
 
   app.post("/api/v1/me/openai-key/validate", async (c) => {
     const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "me_openai_key_validate" });
     if (!checkRateLimit(`openai-validate:${user.id}`)) {
+      log.warn("OpenAI key validation rate limited", { userId: user.id });
       return c.json({ ok: false, error: "Too many validation attempts. Try again shortly." }, 429);
     }
     const body = await c.req.json().catch(() => ({}));
@@ -1155,11 +1231,13 @@ Now produce JSON that matches EXACTLY this schema:
           ivB64: settings.openai_key_iv
         });
       } else if (settings?.openai_key_ciphertext && !env.openaiKeyEncryptionSecret) {
+        log.error("Missing OpenAI encryption secret during validation", { userId: user.id });
         return c.json({ ok: false, error: "OPENAI_KEY_ENCRYPTION_SECRET is not configured." }, 500);
       }
     }
 
     if (!apiKey) {
+      log.warn("No OpenAI key available for validation", { userId: user.id });
       return c.json({ ok: false, error: "No OpenAI key available to validate." }, 400);
     }
 
@@ -1168,10 +1246,16 @@ Now produce JSON that matches EXACTLY this schema:
         headers: { Authorization: `Bearer ${apiKey}` }
       });
       if (!response.ok) {
+        log.warn("OpenAI key validation failed", { userId: user.id, status: response.status });
         return c.json({ ok: false, error: "OpenAI key validation failed." }, 200);
       }
+      log.info("OpenAI key validated", { userId: user.id });
       return c.json({ ok: true });
     } catch (error) {
+      log.error("OpenAI validation request failed", {
+        userId: user.id,
+        error: serializeError(error)
+      });
       return c.json({ ok: false, error: "Unable to reach OpenAI for validation." }, 200);
     }
   });
@@ -1195,6 +1279,9 @@ Now produce JSON that matches EXACTLY this schema:
       overall_score: 0,
       model_info: {}
     });
+    logger
+      .child({ requestId: c.get("requestId"), endpoint: "attempts_start" })
+      .info("Attempt started", { attemptId: id, userId: user.id, exerciseId: data.exercise_id });
     return c.json({ attempt_id: id });
   });
 
@@ -1204,10 +1291,17 @@ Now produce JSON that matches EXACTLY this schema:
     const schema = z.object({ audio_ref: z.string() });
     const data = schema.parse(body);
     const user = c.get("user");
+    const log = logger.child({
+      requestId: c.get("requestId"),
+      endpoint: "attempts_upload_audio",
+      attemptId,
+      userId: user.id
+    });
     await db
       .update(attempts)
       .set({ audio_ref: data.audio_ref })
       .where(and(eq(attempts.id, attemptId), eq(attempts.user_id, user.id)));
+    log.info("Audio uploaded", { audioRef: data.audio_ref });
     return c.json({ status: "ok" });
   });
 
@@ -1222,6 +1316,12 @@ Now produce JSON that matches EXACTLY this schema:
     });
     const data = schema.parse(body);
     const user = c.get("user");
+    const log = logger.child({
+      requestId: c.get("requestId"),
+      endpoint: "attempts_evaluate",
+      attemptId,
+      userId: user.id
+    });
     await db
       .update(attempts)
       .set({
@@ -1231,21 +1331,30 @@ Now produce JSON that matches EXACTLY this schema:
         overall_score: data.overall_score
       })
       .where(and(eq(attempts.id, attemptId), eq(attempts.user_id, user.id)));
+    log.info("Attempt evaluated", { overallScore: data.overall_score, overallPass: data.overall_pass });
     return c.json({ status: "ok" });
   });
 
   app.post("/api/v1/attempts/:id/complete", async (c) => {
     const attemptId = c.req.param("id");
     const user = c.get("user");
+    const log = logger.child({
+      requestId: c.get("requestId"),
+      endpoint: "attempts_complete",
+      attemptId,
+      userId: user.id
+    });
     await db
       .update(attempts)
       .set({ completed_at: Date.now() })
       .where(and(eq(attempts.id, attemptId), eq(attempts.user_id, user.id)));
+    log.info("Attempt completed");
     return c.json({ status: "ok" });
   });
 
   app.get("/api/v1/attempts", async (c) => {
     const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "attempts_list", userId: user.id });
     const { exercise_id } = c.req.query();
     const filters = [eq(attempts.user_id, user.id)];
     if (exercise_id) {
@@ -1255,6 +1364,7 @@ Now produce JSON that matches EXACTLY this schema:
       .select()
       .from(attempts)
       .where(filters.length > 1 ? and(...filters) : filters[0]);
+    log.info("Attempts fetched", { count: results.length, exerciseId: exercise_id ?? null });
     return c.json(
       results.map((attempt) => ({
         id: attempt.id,
@@ -1267,14 +1377,17 @@ Now produce JSON that matches EXACTLY this schema:
   });
 
   app.post("/api/v1/practice/run", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "practice_run" });
     const body = await c.req.json();
     const input = practiceRunInputSchema.parse(body);
     const user = c.get("user");
     if (!checkRateLimit(`practice:${user.id}`)) {
+      log.warn("Practice run rate limited", { userId: user.id });
       return c.json({ error: "Too many practice requests. Please slow down." }, 429);
     }
     const settings = await getUserSettingsRow(user.id);
     if (!settings) {
+      log.warn("Practice run settings missing", { userId: user.id });
       return c.json({ error: "Settings not found" }, 404);
     }
 
@@ -1297,6 +1410,7 @@ Now produce JSON that matches EXACTLY this schema:
     }
 
     if (mode === "openai_only" && !openaiApiKey) {
+      log.warn("Practice run missing OpenAI key", { userId: user.id, mode });
       return c.json(
         { error: "OpenAI mode requires an API key. Add one in Settings to continue." },
         400
@@ -1310,6 +1424,7 @@ Now produce JSON that matches EXACTLY this schema:
       llmProvider = await selectLlmProvider(mode, envWithOverrides, openaiApiKey);
     } catch (error) {
       if (!openaiApiKey && mode !== "local_only") {
+        log.warn("Practice run no OpenAI key available", { userId: user.id, mode });
         return c.json(
           {
             error:
@@ -1318,12 +1433,14 @@ Now produce JSON that matches EXACTLY this schema:
           400
         );
       }
+      log.error("Practice run provider selection failed", { error: serializeError(error) });
       return c.json({ error: (error as Error).message }, 400);
     }
 
     const sttStart = Date.now();
     const transcript = await sttProvider.transcribe(input.audio);
     const sttDuration = Date.now() - sttStart;
+    log.info("STT completed", { sttDurationMs: sttDuration, sttProvider: sttProvider.kind });
 
     const [exercise] = await db
       .select()
@@ -1331,6 +1448,7 @@ Now produce JSON that matches EXACTLY this schema:
       .where(eq(exercises.id, input.exercise_id))
       .limit(1);
     if (!exercise) {
+      log.warn("Practice run exercise not found", { exerciseId: input.exercise_id });
       return c.json({ error: "Exercise not found" }, 404);
     }
 
@@ -1343,9 +1461,11 @@ Now produce JSON that matches EXACTLY this schema:
         transcript
       });
     } catch (error) {
+      log.error("LLM evaluation failed", { error: serializeError(error) });
       return c.json({ error: (error as Error).message }, 500);
     }
     const llmDuration = Date.now() - llmStart;
+    log.info("LLM evaluation completed", { llmDurationMs: llmDuration, llmProvider: llmProvider.kind });
 
     let parsed = evaluationResultSchema.safeParse(evaluation);
     if (!parsed.success) {
@@ -1353,6 +1473,9 @@ Now produce JSON that matches EXACTLY this schema:
       if (repaired) {
         parsed = evaluationResultSchema.safeParse(JSON.parse(repaired));
       }
+    }
+    if (!parsed.success) {
+      log.warn("Evaluation response failed validation", { attemptId: input.attempt_id ?? null });
     }
 
     const result = parsed.success
