@@ -517,9 +517,30 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       logEvent("error", "tts.config.missing");
       return c.json({ error: "TTS storage is not configured." }, 500);
     }
-    if (!env.openaiApiKey) {
-      logEvent("error", "tts.openai_key_missing");
-      return c.json({ error: "OpenAI API key is not configured." }, 500);
+    const settings = await getUserSettingsRow(user.id);
+    if (!settings) {
+      logEvent("warn", "tts.prefetch.settings_missing");
+      return c.json({ error: "Settings not found." }, 404);
+    }
+
+    let openaiApiKey = env.openaiApiKey;
+    if (settings.openai_key_ciphertext && settings.openai_key_iv) {
+      if (!env.openaiKeyEncryptionSecret) {
+        logEvent("error", "tts.prefetch.encryption_secret_missing");
+        return c.json({ error: "OPENAI_KEY_ENCRYPTION_SECRET is not configured." }, 500);
+      }
+      openaiApiKey = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
+        ciphertextB64: settings.openai_key_ciphertext,
+        ivB64: settings.openai_key_iv
+      });
+    }
+
+    if (!openaiApiKey) {
+      logEvent("warn", "tts.openai_key_missing");
+      return c.json(
+        { error: "OpenAI API key is required to generate patient audio." },
+        400
+      );
     }
 
     const schema = z.object({
@@ -567,7 +588,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
     const ttsProvider = OpenAITtsProvider(
       {
-        apiKey: env.openaiApiKey,
+        apiKey: openaiApiKey,
         model: OPENAI_TTS_MODEL,
         voice: "alloy",
         format: OPENAI_TTS_FORMAT
