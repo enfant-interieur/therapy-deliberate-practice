@@ -1,0 +1,287 @@
+{
+  "appShell": {
+    "brand": "Deliberate Practice",
+    "title": "Therapy Studio",
+    "nav": {
+      "library": "Library",
+      "history": "History",
+      "profile": "Profile",
+      "settings": "Settings",
+      "admin": "Admin",
+      "login": "Log in",
+      "logout": "Log out",
+      "logoutWithEmail": "Log out ({{email}})"
+    },
+    "language": {
+      "label": "Language",
+      "english": "English",
+      "french": "French"
+    }
+  },
+  "routeGuard": {
+    "checkingSession": "Checking your session..."
+  },
+  "login": {
+    "welcome": "Welcome",
+    "signInTitle": "Sign in to continue",
+    "signUpTitle": "Create your account",
+    "redirectNote": "You'll be redirected back to {{returnTo}} after signing in.",
+    "mode": {
+      "signIn": "Email sign in",
+      "signUp": "Email sign up"
+    },
+    "placeholders": {
+      "email": "Email",
+      "password": "Password",
+      "confirmPassword": "Confirm password"
+    },
+    "actions": {
+      "primarySignIn": "Sign in with email",
+      "primarySignUp": "Create account with email",
+      "signingIn": "Signing in...",
+      "creatingAccount": "Creating account...",
+      "resetPassword": "Forgot password",
+      "resettingPassword": "Sending reset email...",
+      "resendConfirmation": "Resend confirmation email",
+      "resendingConfirmation": "Resending confirmation...",
+      "or": "or"
+    },
+    "oauth": {
+      "google": "Continue with Google",
+      "googleLoading": "Connecting to Google...",
+      "github": "Continue with GitHub",
+      "githubLoading": "Connecting to GitHub..."
+    },
+    "errors": {
+      "missingEmailPassword": "Enter your email and password.",
+      "passwordShort": "Password must be at least 6 characters.",
+      "passwordMismatch": "Passwords do not match.",
+      "missingEmailReset": "Enter your email to reset your password.",
+      "missingEmailResend": "Enter your email to resend the confirmation email."
+    },
+    "info": {
+      "checkEmail": "Check your email to confirm your account, then come back to sign in.",
+      "accountCreated": "Account created. Signing you in...",
+      "resetEmailSent": "Password reset email sent. Follow the link to create a new password.",
+      "confirmationResent": "Confirmation email resent. Check your inbox to finish signing up."
+    }
+  },
+  "library": {
+    "title": "Exercise Library",
+    "subtitle": "Choose a deliberate practice scenario and refine micro-skills with guided feedback.",
+    "searchPlaceholder": "Search exercises",
+    "loading": "Loading exercises...",
+    "difficulty": "Difficulty {{difficulty}}",
+    "viewDetails": "View details",
+    "startPractice": "Start practice",
+    "noResults": "No exercises found. Try a different search."
+  },
+  "history": {
+    "title": "Practice history",
+    "subtitle": "Track your progress across exercises and revisit past coaching highlights.",
+    "loading": "Loading attempts...",
+    "empty": "No attempts yet. Start a practice session.",
+    "exerciseLabel": "Exercise {{id}}",
+    "completedLabel": "Completed {{date}}",
+    "scoreLabel": "Score {{score}}",
+    "statusPassed": "Passed",
+    "statusNeedsWork": "Needs work"
+  },
+  "profile": {
+    "tagline": "Your profile",
+    "title": "Account overview",
+    "subtitle": "Manage your identity and review account status in one place.",
+    "loading": "Loading profile...",
+    "error": "We couldn't load your profile. Try again.",
+    "identity": "Identity",
+    "emailUnavailable": "Email not available",
+    "userIdLabel": "User ID: {{id}}",
+    "accountCreated": "Account created",
+    "unknown": "Unknown",
+    "openAiKeyLabel": "OpenAI key: {{status}}",
+    "openAiKeyConnected": "Connected",
+    "openAiKeyNotConnected": "Not connected",
+    "actionsTitle": "Account actions",
+    "actionsSubtitle": "Sign out on shared devices or when you're done practicing.",
+    "logout": "Log out"
+  },
+  "settings": {
+    "tagline": "Preferences",
+    "title": "Practice settings",
+    "subtitle": "Tune your AI stack, privacy defaults, and OpenAI credentials for the best practice flow.",
+    "loading": "Loading settings...",
+    "error": "We couldn't load your settings. Try again.",
+    "aiMode": {
+      "label": "AI mode",
+      "helper": "Choose how we prioritize local inference versus OpenAI during practice.",
+      "options": {
+        "localPrefer": "Local preferred (fallback to OpenAI)",
+        "openaiOnly": "OpenAI only",
+        "localOnly": "Local only"
+      }
+    },
+    "localStt": {
+      "label": "Local STT endpoint",
+      "placeholder": "http://localhost:7001",
+      "helper": "Used when local STT is selected."
+    },
+    "localLlm": {
+      "label": "Local LLM endpoint",
+      "placeholder": "http://localhost:7002",
+      "helper": "Used when local LLM is selected."
+    },
+    "storeAudio": {
+      "label": "Store audio recordings",
+      "helper": "Save audio clips alongside attempts for future review.",
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "actions": {
+      "save": "Save settings",
+      "saving": "Saving..."
+    },
+    "status": {
+      "saved": "Settings saved.",
+      "saveError": "We couldn't save your settings. Try again."
+    },
+    "openAi": {
+      "title": "OpenAI API key",
+      "connected": "Your key is connected and ready for OpenAI calls.",
+      "disconnected": "Connect your key to unlock OpenAI-powered practice.",
+      "status": {
+        "connected": "Connected",
+        "disconnected": "Not connected"
+      },
+      "placeholder": "sk-...",
+      "reveal": "Reveal",
+      "hide": "Hide",
+      "save": "Save key",
+      "saveLoading": "Saving...",
+      "validate": "Validate key",
+      "validateLoading": "Validating...",
+      "remove": "Remove key",
+      "removeLoading": "Removing...",
+      "keyStatus": {
+        "missing": "Add an OpenAI key to connect.",
+        "saved": "Key saved securely.",
+        "saveError": "We couldn't save that key. Double-check and try again.",
+        "removed": "Key removed.",
+        "removeError": "We couldn't remove the key. Try again."
+      },
+      "confirmRemove": "Remove your stored OpenAI key? This cannot be undone.",
+      "validateStatus": {
+        "missing": "Add a key (or save one first) before validating.",
+        "valid": "Key is valid and ready for practice.",
+        "invalidFallback": "Key validation failed.",
+        "error": "Unable to validate the key right now."
+      },
+      "securityNote": "Keys are encrypted at rest and never shared back to the browser after saving."
+    }
+  },
+  "practice": {
+    "title": "Practice session",
+    "loadingScenario": "Loading scenario...",
+    "responseLabel": "Your response",
+    "startRecording": "Start recording",
+    "stopRecording": "Stop recording",
+    "runEvaluation": "Run evaluation",
+    "evaluating": "Evaluating...",
+    "error": {
+      "readAudio": "Unable to read audio data.",
+      "noAudio": "No audio captured. Please record again.",
+      "evaluateFailed": "Unable to evaluate response. Please try again."
+    },
+    "transcriptTitle": "Transcript",
+    "copyTranscript": "Copy transcript",
+    "transcriptPlaceholder": "Your transcript will appear here after evaluation.",
+    "requestId": "Request ID: {{id}}",
+    "snagTitle": "We hit a snag",
+    "coachFeedback": "Coach feedback",
+    "scoringTitle": "Scoring matrix",
+    "objectiveLabel": "Objective {{id}}",
+    "scoreLabel": "Score {{score}} / 4",
+    "patientReady": "Ready"
+  },
+  "exercise": {
+    "loading": "Loading exercise...",
+    "notFound": "Exercise not found.",
+    "difficulty": "Difficulty {{difficulty}}",
+    "startPractice": "Start practice",
+    "backToLibrary": "Back to library",
+    "patientScenario": "Patient scenario",
+    "exampleResponse": "Example response",
+    "objectives": "Objectives"
+  },
+  "admin": {
+    "title": "Admin Library",
+    "subtitle": "Parse new exercises with OpenAI, edit content, and import into the library.",
+    "searchPlaceholder": "Search exercises",
+    "exercisesTitle": "Exercises",
+    "createFromText": {
+      "title": "Create from free text",
+      "subtitle": "Paste source text or provide a URL to parse.",
+      "placeholderText": "Paste exercise text here",
+      "placeholderUrl": "Source URL (optional)",
+      "parse": "Parse with OpenAI",
+      "parsing": "Parsing...",
+      "errorFallback": "Failed to parse"
+    },
+    "task": {
+      "titlePlaceholder": "Title",
+      "skillDomainPlaceholder": "Skill domain",
+      "descriptionPlaceholder": "Description",
+      "difficultyLabelPlaceholder": "Difficulty label",
+      "difficultyNumericPlaceholder": "Difficulty numeric",
+      "tagsPlaceholder": "Tags (comma separated)",
+      "regenerateCues": "Regenerate cues from statements",
+      "autoLink": "Auto-link criteria & cues",
+      "rawJson": "Raw JSON",
+      "applyJson": "Apply JSON edits",
+      "import": "Save / Import",
+      "importing": "Importing...",
+      "invalidJson": "Invalid JSON",
+      "importFailed": "Failed to import",
+      "regenerateFailed": "Failed to regenerate cues"
+    },
+    "edit": {
+      "title": "Edit existing exercise",
+      "subtitle": "Select an exercise from the list to update metadata and content.",
+      "save": "Save changes",
+      "saving": "Saving...",
+      "selectPrompt": "Select an exercise to edit.",
+      "publishLabel": "Published",
+      "saveFailed": "Failed to save"
+    },
+    "content": {
+      "criteria": "Criteria",
+      "addCriterion": "+ Add criterion",
+      "roleplaySets": "Roleplay sets",
+      "setLabelPlaceholder": "Set label",
+      "addStatement": "+ Add statement",
+      "addRoleplaySet": "+ Add roleplay set",
+      "exampleDialogues": "Example dialogues",
+      "dialogueLabelPlaceholder": "Dialogue label",
+      "addTurn": "+ Add turn",
+      "addDialogue": "+ Add dialogue",
+      "addCue": "+ Add cue",
+      "patientCues": "Patient cues",
+      "cueLabelPlaceholder": "Cue label",
+      "cueTextPlaceholder": "Cue text",
+      "labelPlaceholder": "Label",
+      "descriptionPlaceholder": "Description",
+      "clientStatementPlaceholder": "Client statement",
+      "criterionIdsPlaceholder": "criterion ids (comma)",
+      "cueIdsPlaceholder": "cue ids (comma)",
+      "turnPlaceholder": "Dialogue turn",
+      "role": {
+        "client": "Client",
+        "therapist": "Therapist"
+      },
+      "difficulty": {
+        "beginner": "Beginner",
+        "intermediate": "Intermediate",
+        "advanced": "Advanced"
+      }
+    }
+  }
+}

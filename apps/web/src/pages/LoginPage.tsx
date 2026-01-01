@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "../supabase/client";
 import { useAppSelector } from "../store/hooks";
 
 type Mode = "signin" | "signup";
 
 export const LoginPage = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const { isAuthenticated, authChecked } = useAppSelector((state) => state.auth);
@@ -68,17 +70,17 @@ export const LoginPage = () => {
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !password) {
-      setError("Enter your email and password.");
+      setError(t("login.errors.missingEmailPassword"));
       return;
     }
 
     if (mode === "signup") {
       if (password.length < 6) {
-        setError("Password must be at least 6 characters.");
+        setError(t("login.errors.passwordShort"));
         return;
       }
       if (password !== confirm) {
-        setError("Passwords do not match.");
+        setError(t("login.errors.passwordMismatch"));
         return;
       }
     }
@@ -113,9 +115,9 @@ export const LoginPage = () => {
       }
 
       if (!data.session) {
-        setInfo("Check your email to confirm your account, then come back to sign in.");
+        setInfo(t("login.info.checkEmail"));
       } else {
-        setInfo("Account created. Signing you in...");
+        setInfo(t("login.info.accountCreated"));
       }
     } finally {
       setLoadingEmail(false);
@@ -128,7 +130,7 @@ export const LoginPage = () => {
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      setError("Enter your email to reset your password.");
+      setError(t("login.errors.missingEmailReset"));
       return;
     }
 
@@ -142,7 +144,7 @@ export const LoginPage = () => {
         return;
       }
 
-      setInfo("Password reset email sent. Follow the link to create a new password.");
+      setInfo(t("login.info.resetEmailSent"));
     } finally {
       setLoadingAction(null);
     }
@@ -154,7 +156,7 @@ export const LoginPage = () => {
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      setError("Enter your email to resend the confirmation email.");
+      setError(t("login.errors.missingEmailResend"));
       return;
     }
 
@@ -172,7 +174,7 @@ export const LoginPage = () => {
         return;
       }
 
-      setInfo("Confirmation email resent. Check your inbox to finish signing up.");
+      setInfo(t("login.info.confirmationResent"));
     } finally {
       setLoadingAction(null);
     }
@@ -181,12 +183,12 @@ export const LoginPage = () => {
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Welcome</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("login.welcome")}</p>
         <h2 className="mt-3 text-3xl font-semibold">
-          {mode === "signin" ? "Sign in to continue" : "Create your account"}
+          {mode === "signin" ? t("login.signInTitle") : t("login.signUpTitle")}
         </h2>
         <p className="mt-3 text-sm text-slate-300">
-          You&apos;ll be redirected back to {returnTo} after signing in.
+          {t("login.redirectNote", { returnTo })}
         </p>
       </section>
 
@@ -204,7 +206,7 @@ export const LoginPage = () => {
             }}
             disabled={loadingEmail || loadingProvider !== null}
           >
-            Email sign in
+            {t("login.mode.signIn")}
           </button>
           <button
             type="button"
@@ -218,14 +220,14 @@ export const LoginPage = () => {
             }}
             disabled={loadingEmail || loadingProvider !== null}
           >
-            Email sign up
+            {t("login.mode.signUp")}
           </button>
         </div>
 
         <div className="mt-6 space-y-3">
           <input
             className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-            placeholder="Email"
+            placeholder={t("login.placeholders.email")}
             type="email"
             autoComplete="email"
             value={email}
@@ -234,7 +236,7 @@ export const LoginPage = () => {
           />
           <input
             className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-            placeholder="Password"
+            placeholder={t("login.placeholders.password")}
             type="password"
             autoComplete={mode === "signin" ? "current-password" : "new-password"}
             value={password}
@@ -244,7 +246,7 @@ export const LoginPage = () => {
           {mode === "signup" && (
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-              placeholder="Confirm password"
+              placeholder={t("login.placeholders.confirmPassword")}
               type="password"
               autoComplete="new-password"
               value={confirm}
@@ -260,11 +262,11 @@ export const LoginPage = () => {
           >
             {loadingEmail
               ? mode === "signin"
-                ? "Signing in..."
-                : "Creating account..."
+                ? t("login.actions.signingIn")
+                : t("login.actions.creatingAccount")
               : mode === "signin"
-                ? "Sign in with email"
-                : "Create account with email"}
+                ? t("login.actions.primarySignIn")
+                : t("login.actions.primarySignUp")}
           </button>
 
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
@@ -274,7 +276,7 @@ export const LoginPage = () => {
               onClick={handlePasswordReset}
               disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
             >
-              {loadingAction === "reset" ? "Sending reset email..." : "Forgot password"}
+              {loadingAction === "reset" ? t("login.actions.resettingPassword") : t("login.actions.resetPassword")}
             </button>
             <button
               type="button"
@@ -282,7 +284,9 @@ export const LoginPage = () => {
               onClick={handleResendConfirmation}
               disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
             >
-              {loadingAction === "resend" ? "Resending confirmation..." : "Resend confirmation email"}
+              {loadingAction === "resend"
+                ? t("login.actions.resendingConfirmation")
+                : t("login.actions.resendConfirmation")}
             </button>
           </div>
 
@@ -292,7 +296,7 @@ export const LoginPage = () => {
 
         <div className="my-8 flex items-center gap-4">
           <div className="h-px flex-1 bg-white/10" />
-          <span className="text-xs text-slate-400">or</span>
+          <span className="text-xs text-slate-400">{t("login.actions.or")}</span>
           <div className="h-px flex-1 bg-white/10" />
         </div>
 
@@ -302,14 +306,14 @@ export const LoginPage = () => {
             onClick={() => handleOAuth("google")}
             disabled={loadingEmail || loadingProvider !== null}
           >
-            {loadingProvider === "google" ? "Connecting to Google..." : "Continue with Google"}
+            {loadingProvider === "google" ? t("login.oauth.googleLoading") : t("login.oauth.google")}
           </button>
           <button
             className="flex w-full items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/20"
             onClick={() => handleOAuth("github")}
             disabled={loadingEmail || loadingProvider !== null}
           >
-            {loadingProvider === "github" ? "Connecting to GitHub..." : "Continue with GitHub"}
+            {loadingProvider === "github" ? t("login.oauth.githubLoading") : t("login.oauth.github")}
           </button>
         </div>
       </section>

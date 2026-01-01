@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
 import type { EvaluationResult } from "@deliberate/shared";
+import { useTranslation } from "react-i18next";
 
 const emotionColors: Record<
   NonNullable<EvaluationResult["patient_reaction"]>["emotion"],
@@ -20,6 +21,7 @@ export const PatientCanvas = ({
 }: {
   reaction?: EvaluationResult["patient_reaction"];
 }) => {
+  const { t, i18n } = useTranslation();
   const canvasRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
 
@@ -69,10 +71,7 @@ export const PatientCanvas = ({
         .drawCircle(285, 140, 6)
         .endFill();
 
-      const moodText = new Text(
-        "Ready",
-        new TextStyle({ fill: 0xe2e8f0, fontSize: 14 })
-      );
+      const moodText = new Text(t("practice.patientReady"), new TextStyle({ fill: 0xe2e8f0, fontSize: 14 }));
       moodText.x = 210;
       moodText.y = 260;
 
@@ -96,7 +95,7 @@ export const PatientCanvas = ({
         appRef.current = null;
       }
     };
-  }, []);
+  }, [i18n.language, t]);
 
   useEffect(() => {
     if (!canvasRef.current) return;

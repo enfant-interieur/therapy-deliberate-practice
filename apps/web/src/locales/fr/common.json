@@ -1,0 +1,287 @@
+{
+  "appShell": {
+    "brand": "Pratique délibérée",
+    "title": "Studio de thérapie",
+    "nav": {
+      "library": "Bibliothèque",
+      "history": "Historique",
+      "profile": "Profil",
+      "settings": "Paramètres",
+      "admin": "Admin",
+      "login": "Se connecter",
+      "logout": "Se déconnecter",
+      "logoutWithEmail": "Se déconnecter ({{email}})"
+    },
+    "language": {
+      "label": "Langue",
+      "english": "Anglais",
+      "french": "Français"
+    }
+  },
+  "routeGuard": {
+    "checkingSession": "Vérification de votre session..."
+  },
+  "login": {
+    "welcome": "Bienvenue",
+    "signInTitle": "Connectez-vous pour continuer",
+    "signUpTitle": "Créez votre compte",
+    "redirectNote": "Vous serez redirigé vers {{returnTo}} après la connexion.",
+    "mode": {
+      "signIn": "Connexion par e-mail",
+      "signUp": "Inscription par e-mail"
+    },
+    "placeholders": {
+      "email": "E-mail",
+      "password": "Mot de passe",
+      "confirmPassword": "Confirmer le mot de passe"
+    },
+    "actions": {
+      "primarySignIn": "Se connecter avec l'e-mail",
+      "primarySignUp": "Créer un compte avec l'e-mail",
+      "signingIn": "Connexion...",
+      "creatingAccount": "Création du compte...",
+      "resetPassword": "Mot de passe oublié",
+      "resettingPassword": "Envoi de l'e-mail de réinitialisation...",
+      "resendConfirmation": "Renvoyer l'e-mail de confirmation",
+      "resendingConfirmation": "Renvoi de la confirmation...",
+      "or": "ou"
+    },
+    "oauth": {
+      "google": "Continuer avec Google",
+      "googleLoading": "Connexion à Google...",
+      "github": "Continuer avec GitHub",
+      "githubLoading": "Connexion à GitHub..."
+    },
+    "errors": {
+      "missingEmailPassword": "Saisissez votre e-mail et votre mot de passe.",
+      "passwordShort": "Le mot de passe doit contenir au moins 6 caractères.",
+      "passwordMismatch": "Les mots de passe ne correspondent pas.",
+      "missingEmailReset": "Saisissez votre e-mail pour réinitialiser le mot de passe.",
+      "missingEmailResend": "Saisissez votre e-mail pour renvoyer la confirmation."
+    },
+    "info": {
+      "checkEmail": "Vérifiez votre e-mail pour confirmer votre compte, puis revenez vous connecter.",
+      "accountCreated": "Compte créé. Connexion en cours...",
+      "resetEmailSent": "E-mail de réinitialisation envoyé. Suivez le lien pour créer un nouveau mot de passe.",
+      "confirmationResent": "E-mail de confirmation renvoyé. Vérifiez votre boîte de réception pour terminer l'inscription."
+    }
+  },
+  "library": {
+    "title": "Bibliothèque d'exercices",
+    "subtitle": "Choisissez un scénario de pratique délibérée et affinez les micro-compétences grâce à des retours guidés.",
+    "searchPlaceholder": "Rechercher des exercices",
+    "loading": "Chargement des exercices...",
+    "difficulty": "Difficulté {{difficulty}}",
+    "viewDetails": "Voir les détails",
+    "startPractice": "Commencer la pratique",
+    "noResults": "Aucun exercice trouvé. Essayez une autre recherche."
+  },
+  "history": {
+    "title": "Historique de pratique",
+    "subtitle": "Suivez vos progrès à travers les exercices et revisitez les points forts des coachings passés.",
+    "loading": "Chargement des tentatives...",
+    "empty": "Aucune tentative pour l'instant. Commencez une session de pratique.",
+    "exerciseLabel": "Exercice {{id}}",
+    "completedLabel": "Terminé {{date}}",
+    "scoreLabel": "Score {{score}}",
+    "statusPassed": "Réussi",
+    "statusNeedsWork": "À améliorer"
+  },
+  "profile": {
+    "tagline": "Votre profil",
+    "title": "Aperçu du compte",
+    "subtitle": "Gérez votre identité et consultez l'état du compte en un seul endroit.",
+    "loading": "Chargement du profil...",
+    "error": "Impossible de charger votre profil. Réessayez.",
+    "identity": "Identité",
+    "emailUnavailable": "E-mail indisponible",
+    "userIdLabel": "ID utilisateur : {{id}}",
+    "accountCreated": "Compte créé",
+    "unknown": "Inconnu",
+    "openAiKeyLabel": "Clé OpenAI : {{status}}",
+    "openAiKeyConnected": "Connectée",
+    "openAiKeyNotConnected": "Non connectée",
+    "actionsTitle": "Actions du compte",
+    "actionsSubtitle": "Déconnectez-vous sur les appareils partagés ou lorsque vous avez terminé la pratique.",
+    "logout": "Se déconnecter"
+  },
+  "settings": {
+    "tagline": "Préférences",
+    "title": "Paramètres de pratique",
+    "subtitle": "Ajustez votre pile IA, vos paramètres de confidentialité et vos identifiants OpenAI pour une pratique optimale.",
+    "loading": "Chargement des paramètres...",
+    "error": "Impossible de charger vos paramètres. Réessayez.",
+    "aiMode": {
+      "label": "Mode IA",
+      "helper": "Choisissez comment nous priorisons l'inférence locale par rapport à OpenAI pendant la pratique.",
+      "options": {
+        "localPrefer": "Local en priorité (repli vers OpenAI)",
+        "openaiOnly": "OpenAI uniquement",
+        "localOnly": "Local uniquement"
+      }
+    },
+    "localStt": {
+      "label": "Point d'accès STT local",
+      "placeholder": "http://localhost:7001",
+      "helper": "Utilisé lorsque le STT local est sélectionné."
+    },
+    "localLlm": {
+      "label": "Point d'accès LLM local",
+      "placeholder": "http://localhost:7002",
+      "helper": "Utilisé lorsque le LLM local est sélectionné."
+    },
+    "storeAudio": {
+      "label": "Enregistrer les enregistrements audio",
+      "helper": "Sauvegardez les clips audio avec les tentatives pour une consultation ultérieure.",
+      "enabled": "Activé",
+      "disabled": "Désactivé"
+    },
+    "actions": {
+      "save": "Enregistrer les paramètres",
+      "saving": "Enregistrement..."
+    },
+    "status": {
+      "saved": "Paramètres enregistrés.",
+      "saveError": "Impossible d'enregistrer vos paramètres. Réessayez."
+    },
+    "openAi": {
+      "title": "Clé API OpenAI",
+      "connected": "Votre clé est connectée et prête pour les appels OpenAI.",
+      "disconnected": "Connectez votre clé pour débloquer la pratique via OpenAI.",
+      "status": {
+        "connected": "Connectée",
+        "disconnected": "Non connectée"
+      },
+      "placeholder": "sk-...",
+      "reveal": "Afficher",
+      "hide": "Masquer",
+      "save": "Enregistrer la clé",
+      "saveLoading": "Enregistrement...",
+      "validate": "Valider la clé",
+      "validateLoading": "Validation...",
+      "remove": "Supprimer la clé",
+      "removeLoading": "Suppression...",
+      "keyStatus": {
+        "missing": "Ajoutez une clé OpenAI pour vous connecter.",
+        "saved": "Clé enregistrée en toute sécurité.",
+        "saveError": "Impossible d'enregistrer cette clé. Vérifiez et réessayez.",
+        "removed": "Clé supprimée.",
+        "removeError": "Impossible de supprimer la clé. Réessayez."
+      },
+      "confirmRemove": "Supprimer votre clé OpenAI enregistrée ? Cette action est irréversible.",
+      "validateStatus": {
+        "missing": "Ajoutez une clé (ou enregistrez-en une) avant de valider.",
+        "valid": "La clé est valide et prête pour la pratique.",
+        "invalidFallback": "La validation de la clé a échoué.",
+        "error": "Impossible de valider la clé pour le moment."
+      },
+      "securityNote": "Les clés sont chiffrées au repos et ne sont jamais renvoyées au navigateur après l'enregistrement."
+    }
+  },
+  "practice": {
+    "title": "Session de pratique",
+    "loadingScenario": "Chargement du scénario...",
+    "responseLabel": "Votre réponse",
+    "startRecording": "Démarrer l'enregistrement",
+    "stopRecording": "Arrêter l'enregistrement",
+    "runEvaluation": "Lancer l'évaluation",
+    "evaluating": "Évaluation...",
+    "error": {
+      "readAudio": "Impossible de lire les données audio.",
+      "noAudio": "Aucun audio capturé. Veuillez enregistrer à nouveau.",
+      "evaluateFailed": "Impossible d'évaluer la réponse. Veuillez réessayer."
+    },
+    "transcriptTitle": "Transcription",
+    "copyTranscript": "Copier la transcription",
+    "transcriptPlaceholder": "Votre transcription apparaîtra ici après l'évaluation.",
+    "requestId": "ID de requête : {{id}}",
+    "snagTitle": "Nous avons rencontré un problème",
+    "coachFeedback": "Retour du coach",
+    "scoringTitle": "Matrice de score",
+    "objectiveLabel": "Objectif {{id}}",
+    "scoreLabel": "Score {{score}} / 4",
+    "patientReady": "Prêt"
+  },
+  "exercise": {
+    "loading": "Chargement de l'exercice...",
+    "notFound": "Exercice introuvable.",
+    "difficulty": "Difficulté {{difficulty}}",
+    "startPractice": "Commencer la pratique",
+    "backToLibrary": "Retour à la bibliothèque",
+    "patientScenario": "Scénario du patient",
+    "exampleResponse": "Réponse exemple",
+    "objectives": "Objectifs"
+  },
+  "admin": {
+    "title": "Bibliothèque admin",
+    "subtitle": "Analysez de nouveaux exercices avec OpenAI, modifiez le contenu et importez-les dans la bibliothèque.",
+    "searchPlaceholder": "Rechercher des exercices",
+    "exercisesTitle": "Exercices",
+    "createFromText": {
+      "title": "Créer à partir d'un texte libre",
+      "subtitle": "Collez le texte source ou fournissez une URL à analyser.",
+      "placeholderText": "Collez le texte de l'exercice ici",
+      "placeholderUrl": "URL source (facultatif)",
+      "parse": "Analyser avec OpenAI",
+      "parsing": "Analyse...",
+      "errorFallback": "Échec de l'analyse"
+    },
+    "task": {
+      "titlePlaceholder": "Titre",
+      "skillDomainPlaceholder": "Domaine de compétence",
+      "descriptionPlaceholder": "Description",
+      "difficultyLabelPlaceholder": "Libellé de difficulté",
+      "difficultyNumericPlaceholder": "Difficulté numérique",
+      "tagsPlaceholder": "Tags (séparés par des virgules)",
+      "regenerateCues": "Régénérer les indices à partir des phrases",
+      "autoLink": "Lier automatiquement critères et indices",
+      "rawJson": "JSON brut",
+      "applyJson": "Appliquer les modifications JSON",
+      "import": "Enregistrer / Importer",
+      "importing": "Importation...",
+      "invalidJson": "JSON invalide",
+      "importFailed": "Échec de l'importation",
+      "regenerateFailed": "Échec de la régénération des indices"
+    },
+    "edit": {
+      "title": "Modifier un exercice existant",
+      "subtitle": "Sélectionnez un exercice dans la liste pour mettre à jour les métadonnées et le contenu.",
+      "save": "Enregistrer les modifications",
+      "saving": "Enregistrement...",
+      "selectPrompt": "Sélectionnez un exercice à modifier.",
+      "publishLabel": "Publié",
+      "saveFailed": "Échec de l'enregistrement"
+    },
+    "content": {
+      "criteria": "Critères",
+      "addCriterion": "+ Ajouter un critère",
+      "roleplaySets": "Ensembles de jeu de rôle",
+      "setLabelPlaceholder": "Libellé de l'ensemble",
+      "addStatement": "+ Ajouter une réplique",
+      "addRoleplaySet": "+ Ajouter un ensemble",
+      "exampleDialogues": "Dialogues exemples",
+      "dialogueLabelPlaceholder": "Libellé du dialogue",
+      "addTurn": "+ Ajouter un tour",
+      "addDialogue": "+ Ajouter un dialogue",
+      "addCue": "+ Ajouter un indice",
+      "patientCues": "Indices patient",
+      "cueLabelPlaceholder": "Libellé de l'indice",
+      "cueTextPlaceholder": "Texte de l'indice",
+      "labelPlaceholder": "Libellé",
+      "descriptionPlaceholder": "Description",
+      "clientStatementPlaceholder": "Réplique du client",
+      "criterionIdsPlaceholder": "IDs de critère (virgules)",
+      "cueIdsPlaceholder": "IDs d'indice (virgules)",
+      "turnPlaceholder": "Tour de dialogue",
+      "role": {
+        "client": "Client",
+        "therapist": "Thérapeute"
+      },
+      "difficulty": {
+        "beginner": "Débutant",
+        "intermediate": "Intermédiaire",
+        "advanced": "Avancé"
+      }
+    }
+  }
+}

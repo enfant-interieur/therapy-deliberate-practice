@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useDeleteOpenAiKeyMutation,
   useGetMeSettingsQuery,
@@ -10,6 +11,7 @@ import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { hydrateSettings, setHasOpenAiKey } from "../store/settingsSlice";
 
 export const SettingsPage = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { data, isLoading, isError } = useGetMeSettingsQuery();
   const settings = useAppSelector((state) => state.settings);
@@ -51,9 +53,9 @@ export const SettingsPage = () => {
         storeAudio
       }).unwrap();
       dispatch(hydrateSettings(result));
-      setSaveStatus("Settings saved.");
+      setSaveStatus(t("settings.status.saved"));
     } catch (error) {
-      setSaveStatus("We couldn't save your settings. Try again.");
+      setSaveStatus(t("settings.status.saveError"));
     }
   };
 
@@ -61,31 +63,31 @@ export const SettingsPage = () => {
     setKeyStatus(null);
     setValidationStatus(null);
     if (!openAiKey.trim()) {
-      setKeyStatus("Add an OpenAI key to connect.");
+      setKeyStatus(t("settings.openAi.keyStatus.missing"));
       return;
     }
     try {
       const result = await updateKey({ openaiApiKey: openAiKey.trim() }).unwrap();
       dispatch(setHasOpenAiKey(result.hasOpenAiKey));
       setOpenAiKey("");
-      setKeyStatus("Key saved securely.");
+      setKeyStatus(t("settings.openAi.keyStatus.saved"));
     } catch (error) {
-      setKeyStatus("We couldn't save that key. Double-check and try again.");
+      setKeyStatus(t("settings.openAi.keyStatus.saveError"));
     }
   };
 
-  const handleRemoveKey = async () => {
+    const handleRemoveKey = async () => {
     setKeyStatus(null);
     setValidationStatus(null);
-    if (!window.confirm("Remove your stored OpenAI key? This cannot be undone.")) {
+    if (!window.confirm(t("settings.openAi.confirmRemove"))) {
       return;
     }
     try {
       const result = await deleteKey().unwrap();
       dispatch(setHasOpenAiKey(result.hasOpenAiKey));
-      setKeyStatus("Key removed.");
+      setKeyStatus(t("settings.openAi.keyStatus.removed"));
     } catch (error) {
-      setKeyStatus("We couldn't remove the key. Try again.");
+      setKeyStatus(t("settings.openAi.keyStatus.removeError"));
     }
   };
 
@@ -94,83 +96,77 @@ export const SettingsPage = () => {
     const typed = openAiKey.trim();
 
     if (!typed && !settings.hasOpenAiKey) {
-      setValidationStatus("Add a key (or save one first) before validating.");
+      setValidationStatus(t("settings.openAi.validateStatus.missing"));
       return;
     }
 
     try {
       const result = await validateKey(typed ? { openaiApiKey: typed } : {}).unwrap();
       if (result.ok) {
-        setValidationStatus("Key is valid and ready for practice.");
+        setValidationStatus(t("settings.openAi.validateStatus.valid"));
       } else {
-        setValidationStatus(result.error ?? "Key validation failed.");
+        setValidationStatus(result.error ?? t("settings.openAi.validateStatus.invalidFallback"));
       }
     } catch (error) {
-      setValidationStatus("Unable to validate the key right now.");
+      setValidationStatus(t("settings.openAi.validateStatus.error"));
     }
   };
 
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Preferences</p>
-        <h2 className="mt-3 text-3xl font-semibold">Practice settings</h2>
-        <p className="mt-3 text-sm text-slate-300">
-          Tune your AI stack, privacy defaults, and OpenAI credentials for the best practice flow.
-        </p>
+        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("settings.tagline")}</p>
+        <h2 className="mt-3 text-3xl font-semibold">{t("settings.title")}</h2>
+        <p className="mt-3 text-sm text-slate-300">{t("settings.subtitle")}</p>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-8">
-        {isLoading && <p className="text-sm text-slate-400">Loading settings...</p>}
+        {isLoading && <p className="text-sm text-slate-400">{t("settings.loading")}</p>}
         {isError && (
-          <p className="text-sm text-rose-300">We couldn't load your settings. Try again.</p>
+          <p className="text-sm text-rose-300">{t("settings.error")}</p>
         )}
         <div className="space-y-6">
           <div className="space-y-3">
-            <label className="text-sm font-semibold">AI mode</label>
-            <p className="text-xs text-slate-400">
-              Choose how we prioritize local inference versus OpenAI during practice.
-            </p>
+            <label className="text-sm font-semibold">{t("settings.aiMode.label")}</label>
+            <p className="text-xs text-slate-400">{t("settings.aiMode.helper")}</p>
             <select
               className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
               value={aiMode}
               onChange={(event) => setAiMode(event.target.value as typeof aiMode)}
             >
-              <option value="local_prefer">Local preferred (fallback to OpenAI)</option>
-              <option value="openai_only">OpenAI only</option>
-              <option value="local_only">Local only</option>
+              <option value="local_prefer">{t("settings.aiMode.options.localPrefer")}</option>
+              <option value="openai_only">{t("settings.aiMode.options.openaiOnly")}</option>
+              <option value="local_only">{t("settings.aiMode.options.localOnly")}</option>
             </select>
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-3">
-              <label className="text-sm font-semibold">Local STT endpoint</label>
+              <label className="text-sm font-semibold">{t("settings.localStt.label")}</label>
               <input
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
                 value={localSttUrl}
                 onChange={(event) => setLocalSttUrl(event.target.value)}
-                placeholder="http://localhost:7001"
+                placeholder={t("settings.localStt.placeholder")}
               />
-              <p className="text-xs text-slate-400">Used when local STT is selected.</p>
+              <p className="text-xs text-slate-400">{t("settings.localStt.helper")}</p>
             </div>
             <div className="space-y-3">
-              <label className="text-sm font-semibold">Local LLM endpoint</label>
+              <label className="text-sm font-semibold">{t("settings.localLlm.label")}</label>
               <input
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
                 value={localLlmUrl}
                 onChange={(event) => setLocalLlmUrl(event.target.value)}
-                placeholder="http://localhost:7002"
+                placeholder={t("settings.localLlm.placeholder")}
               />
-              <p className="text-xs text-slate-400">Used when local LLM is selected.</p>
+              <p className="text-xs text-slate-400">{t("settings.localLlm.helper")}</p>
             </div>
           </div>
 
           <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/40 p-4">
             <div>
-              <p className="text-sm font-semibold">Store audio recordings</p>
-              <p className="text-xs text-slate-400">
-                Save audio clips alongside attempts for future review.
-              </p>
+              <p className="text-sm font-semibold">{t("settings.storeAudio.label")}</p>
+              <p className="text-xs text-slate-400">{t("settings.storeAudio.helper")}</p>
             </div>
             <button
               className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
@@ -178,7 +174,7 @@ export const SettingsPage = () => {
               }`}
               onClick={() => setStoreAudio((value) => !value)}
             >
-              {storeAudio ? "Enabled" : "Disabled"}
+              {storeAudio ? t("settings.storeAudio.enabled") : t("settings.storeAudio.disabled")}
             </button>
           </div>
 
@@ -188,7 +184,7 @@ export const SettingsPage = () => {
               onClick={handleSaveSettings}
               disabled={isSavingSettings}
             >
-              {isSavingSettings ? "Saving..." : "Save settings"}
+              {isSavingSettings ? t("settings.actions.saving") : t("settings.actions.save")}
             </button>
             {saveStatus && <span className="text-xs text-slate-300">{saveStatus}</span>}
           </div>
@@ -198,11 +194,11 @@ export const SettingsPage = () => {
       <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold">OpenAI API key</h3>
+            <h3 className="text-lg font-semibold">{t("settings.openAi.title")}</h3>
             <p className="text-sm text-slate-300">
               {settings.hasOpenAiKey
-                ? "Your key is connected and ready for OpenAI calls."
-                : "Connect your key to unlock OpenAI-powered practice."}
+                ? t("settings.openAi.connected")
+                : t("settings.openAi.disconnected")}
             </p>
           </div>
           <span
@@ -210,7 +206,7 @@ export const SettingsPage = () => {
               settings.hasOpenAiKey ? "bg-emerald-400/20 text-emerald-300" : "bg-amber-400/20 text-amber-200"
             }`}
           >
-            {settings.hasOpenAiKey ? "Connected" : "Not connected"}
+            {settings.hasOpenAiKey ? t("settings.openAi.status.connected") : t("settings.openAi.status.disconnected")}
           </span>
         </div>
 
@@ -219,7 +215,7 @@ export const SettingsPage = () => {
             <input
               className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
               type={showKey ? "text" : "password"}
-              placeholder="sk-..."
+              placeholder={t("settings.openAi.placeholder")}
               value={openAiKey}
               onChange={(event) => setOpenAiKey(event.target.value)}
             />
@@ -227,7 +223,7 @@ export const SettingsPage = () => {
               className="rounded-full border border-white/10 px-4 py-2 text-xs text-slate-200"
               onClick={() => setShowKey((value) => !value)}
             >
-              {showKey ? "Hide" : "Reveal"}
+              {showKey ? t("settings.openAi.hide") : t("settings.openAi.reveal")}
             </button>
           </div>
 
@@ -237,27 +233,27 @@ export const SettingsPage = () => {
               onClick={handleSaveKey}
               disabled={isSavingKey}
             >
-              {isSavingKey ? "Saving..." : "Save key"}
+              {isSavingKey ? t("settings.openAi.saveLoading") : t("settings.openAi.save")}
             </button>
             <button
               className="rounded-full border border-white/10 px-6 py-2 text-sm text-slate-200"
               onClick={handleValidateKey}
               disabled={isValidatingKey}
             >
-              {isValidatingKey ? "Validating..." : "Validate key"}
+              {isValidatingKey ? t("settings.openAi.validateLoading") : t("settings.openAi.validate")}
             </button>
             <button
               className="rounded-full border border-rose-400/40 px-6 py-2 text-sm text-rose-200"
               onClick={handleRemoveKey}
               disabled={isDeletingKey}
             >
-              {isDeletingKey ? "Removing..." : "Remove key"}
+              {isDeletingKey ? t("settings.openAi.removeLoading") : t("settings.openAi.remove")}
             </button>
           </div>
           {keyStatus && <p className="text-xs text-slate-300">{keyStatus}</p>}
           {validationStatus && <p className="text-xs text-slate-300">{validationStatus}</p>}
           <p className="text-xs text-slate-500">
-            Keys are encrypted at rest and never shared back to the browser after saving.
+            {t("settings.openAi.securityNote")}
           </p>
         </div>
       </section>

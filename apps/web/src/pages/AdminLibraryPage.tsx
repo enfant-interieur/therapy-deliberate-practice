@@ -8,6 +8,7 @@ import {
 } from "../store/api";
 import type { DeliberatePracticeTaskV2, Exercise, ExerciseContentV2 } from "@deliberate/shared";
 import { deliberatePracticeTaskV2Schema, exerciseSchema } from "@deliberate/shared";
+import { useTranslation } from "react-i18next";
 
 const emptyContent = (): ExerciseContentV2 => ({
   criteria: [],
@@ -72,15 +73,16 @@ type ContentEditorProps = {
 };
 
 const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
+  const { t } = useTranslation();
   return (
     <div className="space-y-6">
       <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">Criteria</h4>
+        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.criteria")}</h4>
         {content.criteria.map((criterion, index) => (
           <div key={criterion.id} className="grid gap-2 md:grid-cols-2">
             <input
               className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder="Label"
+              placeholder={t("admin.content.labelPlaceholder")}
               value={criterion.label}
               onChange={(event) =>
                 onChange({
@@ -94,7 +96,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
             />
             <input
               className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder="Description"
+              placeholder={t("admin.content.descriptionPlaceholder")}
               value={criterion.description}
               onChange={(event) =>
                 onChange({
@@ -121,17 +123,17 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
             })
           }
         >
-          + Add criterion
+          {t("admin.content.addCriterion")}
         </button>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">Roleplay sets</h4>
+        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.roleplaySets")}</h4>
         {content.roleplay_sets.map((set, setIndex) => (
           <div key={set.id} className="space-y-3 rounded-xl border border-white/10 p-3">
             <input
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder="Set label"
+              placeholder={t("admin.content.setLabelPlaceholder")}
               value={set.label}
               onChange={(event) =>
                 onChange({
@@ -162,13 +164,13 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
                       })
                     }
                   >
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
+                    <option value="beginner">{t("admin.content.difficulty.beginner")}</option>
+                    <option value="intermediate">{t("admin.content.difficulty.intermediate")}</option>
+                    <option value="advanced">{t("admin.content.difficulty.advanced")}</option>
                   </select>
                   <input
                     className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-                    placeholder="Client statement"
+                    placeholder={t("admin.content.clientStatementPlaceholder")}
                     value={statement.text}
                     onChange={(event) =>
                       onChange({
@@ -185,7 +187,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
                   />
                   <input
                     className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
-                    placeholder="criterion ids (comma)"
+                    placeholder={t("admin.content.criterionIdsPlaceholder")}
                     value={(statement.criterion_ids ?? []).join(", ")}
                     onChange={(event) =>
                       onChange({
@@ -202,7 +204,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
                   />
                   <input
                     className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
-                    placeholder="cue ids (comma)"
+                    placeholder={t("admin.content.cueIdsPlaceholder")}
                     value={(statement.cue_ids ?? []).join(", ")}
                     onChange={(event) =>
                       onChange({
@@ -240,7 +242,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
                 })
               }
             >
-              + Add statement
+              {t("admin.content.addStatement")}
             </button>
           </div>
         ))}
@@ -257,17 +259,17 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
             })
           }
         >
-          + Add roleplay set
+          {t("admin.content.addRoleplaySet")}
         </button>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">Example dialogues</h4>
+        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.exampleDialogues")}</h4>
         {content.example_dialogues.map((dialogue, index) => (
           <div key={dialogue.id} className="space-y-2 rounded-xl border border-white/10 p-3">
             <input
               className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder="Dialogue label"
+              placeholder={t("admin.content.dialogueLabelPlaceholder")}
               value={dialogue.label}
               onChange={(event) =>
                 onChange({
@@ -297,12 +299,12 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
                     })
                   }
                 >
-                  <option value="client">Client</option>
-                  <option value="therapist">Therapist</option>
+                  <option value="client">{t("admin.content.role.client")}</option>
+                  <option value="therapist">{t("admin.content.role.therapist")}</option>
                 </select>
                 <input
                   className="md:col-span-3 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-                  placeholder="Dialogue turn"
+                  placeholder={t("admin.content.turnPlaceholder")}
                   value={turn.text}
                   onChange={(event) =>
                     onChange({
@@ -332,7 +334,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
                 })
               }
             >
-              + Add turn
+              {t("admin.content.addTurn")}
             </button>
           </div>
         ))}
@@ -349,17 +351,17 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
             })
           }
         >
-          + Add dialogue
+          {t("admin.content.addDialogue")}
         </button>
       </div>
 
       <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">Patient cues</h4>
+        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.patientCues")}</h4>
         {content.patient_cues.map((cue, index) => (
           <div key={cue.id} className="grid gap-2 md:grid-cols-3">
             <input
               className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder="Cue label"
+              placeholder={t("admin.content.cueLabelPlaceholder")}
               value={cue.label}
               onChange={(event) =>
                 onChange({
@@ -373,7 +375,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
             />
             <input
               className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder="Cue text"
+              placeholder={t("admin.content.cueTextPlaceholder")}
               value={cue.text}
               onChange={(event) =>
                 onChange({
@@ -400,7 +402,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
             })
           }
         >
-          + Add cue
+          {t("admin.content.addCue")}
         </button>
       </div>
     </div>
@@ -408,6 +410,7 @@ const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
 };
 
 export const AdminLibraryPage = () => {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
   const [freeText, setFreeText] = useState("");
@@ -462,7 +465,7 @@ export const AdminLibraryPage = () => {
       };
       setTaskDraft(enriched);
     } catch (error) {
-      setTaskError((error as Error).message ?? "Failed to parse");
+      setTaskError((error as Error).message ?? t("admin.createFromText.errorFallback"));
     }
   };
 
@@ -473,7 +476,7 @@ export const AdminLibraryPage = () => {
       setTaskDraft(validated);
       setTaskError(null);
     } catch (error) {
-      setTaskError((error as Error).message ?? "Invalid JSON");
+      setTaskError((error as Error).message ?? t("admin.task.invalidJson"));
     }
   };
 
@@ -488,7 +491,7 @@ export const AdminLibraryPage = () => {
       await importExercise({ task_v2: validated.data }).unwrap();
       setTaskError(null);
     } catch (error) {
-      setTaskError((error as Error).message ?? "Failed to import");
+      setTaskError((error as Error).message ?? t("admin.task.importFailed"));
     }
   };
 
@@ -503,7 +506,7 @@ export const AdminLibraryPage = () => {
       const result = await parseExercise({ free_text: text }).unwrap();
       setTaskDraft({ ...taskDraft, content: { ...taskDraft.content, patient_cues: result.content.patient_cues } });
     } catch (error) {
-      setTaskError((error as Error).message ?? "Failed to regenerate cues");
+      setTaskError((error as Error).message ?? t("admin.task.regenerateFailed"));
     }
   };
 
@@ -531,29 +534,27 @@ export const AdminLibraryPage = () => {
       await updateExercise({ id: exerciseDraft.id, exercise: validated.data }).unwrap();
       setExerciseError(null);
     } catch (error) {
-      setExerciseError((error as Error).message ?? "Failed to save");
+      setExerciseError((error as Error).message ?? t("admin.edit.saveFailed"));
     }
   };
 
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <h2 className="text-2xl font-semibold">Admin Library</h2>
-        <p className="text-sm text-slate-300">
-          Parse new exercises with OpenAI, edit content, and import into the library.
-        </p>
+        <h2 className="text-2xl font-semibold">{t("admin.title")}</h2>
+        <p className="text-sm text-slate-300">{t("admin.subtitle")}</p>
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
         <aside className="space-y-4">
           <input
             className="w-full rounded-full border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-            placeholder="Search exercises"
+            placeholder={t("admin.searchPlaceholder")}
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
           <div className="space-y-2 rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-            <h3 className="text-sm font-semibold text-teal-200">Exercises</h3>
+            <h3 className="text-sm font-semibold text-teal-200">{t("admin.exercisesTitle")}</h3>
             {filteredExercises.map((exercise) => (
               <button
                 type="button"
@@ -574,18 +575,18 @@ export const AdminLibraryPage = () => {
         <div className="space-y-8">
           <section className="space-y-6 rounded-3xl border border-white/10 bg-slate-900/40 p-6">
             <div>
-              <h3 className="text-lg font-semibold">Create from free text</h3>
-              <p className="text-sm text-slate-400">Paste source text or provide a URL to parse.</p>
+              <h3 className="text-lg font-semibold">{t("admin.createFromText.title")}</h3>
+              <p className="text-sm text-slate-400">{t("admin.createFromText.subtitle")}</p>
             </div>
             <textarea
               className="h-32 w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-white"
-              placeholder="Paste exercise text here"
+              placeholder={t("admin.createFromText.placeholderText")}
               value={freeText}
               onChange={(event) => setFreeText(event.target.value)}
             />
             <input
               className="w-full rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-              placeholder="Source URL (optional)"
+              placeholder={t("admin.createFromText.placeholderUrl")}
               value={sourceUrl}
               onChange={(event) => setSourceUrl(event.target.value)}
             />
@@ -595,7 +596,7 @@ export const AdminLibraryPage = () => {
               onClick={handleParse}
               disabled={parseState.isLoading}
             >
-              {parseState.isLoading ? "Parsing..." : "Parse with OpenAI"}
+              {parseState.isLoading ? t("admin.createFromText.parsing") : t("admin.createFromText.parse")}
             </button>
             {taskError && <p className="text-sm text-rose-400">{taskError}</p>}
 
@@ -604,7 +605,7 @@ export const AdminLibraryPage = () => {
                 <div className="grid gap-3 md:grid-cols-2">
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Title"
+                    placeholder={t("admin.task.titlePlaceholder")}
                     value={taskDraft.task.name}
                     onChange={(event) =>
                       setTaskDraft({
@@ -615,7 +616,7 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Skill domain"
+                    placeholder={t("admin.task.skillDomainPlaceholder")}
                     value={taskDraft.task.skill_domain}
                     onChange={(event) =>
                       setTaskDraft({
@@ -626,7 +627,7 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="md:col-span-2 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Description"
+                    placeholder={t("admin.task.descriptionPlaceholder")}
                     value={taskDraft.task.description}
                     onChange={(event) =>
                       setTaskDraft({
@@ -637,7 +638,7 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Difficulty label"
+                    placeholder={t("admin.task.difficultyLabelPlaceholder")}
                     value={taskDraft.task.skill_difficulty_label ?? ""}
                     onChange={(event) =>
                       setTaskDraft({
@@ -648,7 +649,7 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Difficulty numeric"
+                    placeholder={t("admin.task.difficultyNumericPlaceholder")}
                     type="number"
                     min={1}
                     max={5}
@@ -665,7 +666,7 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="md:col-span-2 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Tags (comma separated)"
+                    placeholder={t("admin.task.tagsPlaceholder")}
                     value={joinTags(taskDraft.task.tags)}
                     onChange={(event) =>
                       setTaskDraft({
@@ -687,19 +688,19 @@ export const AdminLibraryPage = () => {
                     className="rounded-full border border-white/10 px-4 py-2 text-xs text-white"
                     onClick={handleRegenerateCues}
                   >
-                    Regenerate cues from statements
+                    {t("admin.task.regenerateCues")}
                   </button>
                   <button
                     type="button"
                     className="rounded-full border border-white/10 px-4 py-2 text-xs text-white"
                     onClick={handleAutoLink}
                   >
-                    Auto-link criteria & cues
+                    {t("admin.task.autoLink")}
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  <h4 className="text-sm font-semibold text-teal-200">Raw JSON</h4>
+                  <h4 className="text-sm font-semibold text-teal-200">{t("admin.task.rawJson")}</h4>
                   <textarea
                     className="h-48 w-full rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs text-white"
                     value={taskJson}
@@ -710,7 +711,7 @@ export const AdminLibraryPage = () => {
                     className="rounded-full border border-white/10 px-4 py-2 text-xs text-white"
                     onClick={handleApplyJson}
                   >
-                    Apply JSON edits
+                    {t("admin.task.applyJson")}
                   </button>
                 </div>
 
@@ -720,7 +721,7 @@ export const AdminLibraryPage = () => {
                   onClick={handleImport}
                   disabled={importState.isLoading}
                 >
-                  {importState.isLoading ? "Importing..." : "Save / Import"}
+                  {importState.isLoading ? t("admin.task.importing") : t("admin.task.import")}
                 </button>
               </div>
             )}
@@ -728,17 +729,15 @@ export const AdminLibraryPage = () => {
 
           <section className="space-y-4 rounded-3xl border border-white/10 bg-slate-900/40 p-6">
             <div>
-              <h3 className="text-lg font-semibold">Edit existing exercise</h3>
-              <p className="text-sm text-slate-400">
-                Select an exercise from the list to update metadata and content.
-              </p>
+              <h3 className="text-lg font-semibold">{t("admin.edit.title")}</h3>
+              <p className="text-sm text-slate-400">{t("admin.edit.subtitle")}</p>
             </div>
             {exerciseDraft ? (
               <div className="space-y-6">
                 <div className="grid gap-3 md:grid-cols-2">
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Title"
+                    placeholder={t("admin.task.titlePlaceholder")}
                     value={exerciseDraft.title}
                     onChange={(event) =>
                       setExerciseDraft({ ...exerciseDraft, title: event.target.value })
@@ -746,7 +745,7 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Skill domain"
+                    placeholder={t("admin.task.skillDomainPlaceholder")}
                     value={exerciseDraft.skill_domain}
                     onChange={(event) =>
                       setExerciseDraft({ ...exerciseDraft, skill_domain: event.target.value })
@@ -754,7 +753,7 @@ export const AdminLibraryPage = () => {
                   />
                   <textarea
                     className="md:col-span-2 h-20 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-white"
-                    placeholder="Description"
+                    placeholder={t("admin.task.descriptionPlaceholder")}
                     value={exerciseDraft.description}
                     onChange={(event) =>
                       setExerciseDraft({ ...exerciseDraft, description: event.target.value })
@@ -762,7 +761,7 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder="Tags (comma separated)"
+                    placeholder={t("admin.task.tagsPlaceholder")}
                     value={joinTags(exerciseDraft.tags)}
                     onChange={(event) =>
                       setExerciseDraft({ ...exerciseDraft, tags: parseTags(event.target.value) })
@@ -776,7 +775,7 @@ export const AdminLibraryPage = () => {
                         setExerciseDraft({ ...exerciseDraft, is_published: event.target.checked })
                       }
                     />
-                    Published
+                    {t("admin.edit.publishLabel")}
                   </label>
                 </div>
 
@@ -798,11 +797,11 @@ export const AdminLibraryPage = () => {
                   onClick={handleSaveExercise}
                   disabled={updateState.isLoading}
                 >
-                  {updateState.isLoading ? "Saving..." : "Save changes"}
+                  {updateState.isLoading ? t("admin.edit.saving") : t("admin.edit.save")}
                 </button>
               </div>
             ) : (
-              <p className="text-sm text-slate-400">Select an exercise to edit.</p>
+              <p className="text-sm text-slate-400">{t("admin.edit.selectPrompt")}</p>
             )}
           </section>
         </div>

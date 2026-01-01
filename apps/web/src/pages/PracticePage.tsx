@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useGetExerciseQuery, useRunPracticeMutation } from "../store/api";
 import { PatientCanvas } from "../components/PatientCanvas";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
@@ -10,24 +11,25 @@ import {
   setTranscript
 } from "../store/practiceSlice";
 
-const blobToBase64 = (blob: Blob) =>
+const blobToBase64 = (blob: Blob, errorMessage: string) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result !== "string") {
-        reject(new Error("Unable to read audio data."));
+        reject(new Error(errorMessage));
         return;
       }
       const base64 = reader.result.split(",")[1] ?? "";
       resolve(base64);
     };
     reader.onerror = () => {
-      reject(reader.error ?? new Error("Unable to read audio data."));
+      reject(reader.error ?? new Error(errorMessage));
     };
     reader.readAsDataURL(blob);
   });
 
 export const PracticePage = () => {
+  const { t } = useTranslation();
   const { id } = useParams();
   const { data: exercise } = useGetExerciseQuery(id ?? "");
   const [runPractice, { isLoading }] = useRunPracticeMutation();
@@ -86,11 +88,11 @@ export const PracticePage = () => {
       const response = await fetch(practice.audioBlobRef);
       const blob = await response.blob();
       if (!blob.size) {
-        setError("No audio captured. Please record again.");
+        setError(t("practice.error.noAudio"));
         dispatch(setRecordingState("ready"));
         return;
       }
-      const base64 = await blobToBase64(blob);
+      const base64 = await blobToBase64(blob, t("practice.error.readAudio"));
       const result = await runPractice({
         exercise_id: exercise.id,
         audio: base64,
@@ -121,7 +123,7 @@ export const PracticePage = () => {
       if (errorData?.errors) {
         setResponseErrors(errorData.errors);
       }
-      setError(message ?? "Unable to evaluate response. Please try again.");
+      setError(message ?? t("practice.error.evaluateFailed"));
       dispatch(setEvaluation(undefined));
       dispatch(setTranscript(undefined));
       dispatch(setRecordingState("ready"));
@@ -133,27 +135,27 @@ export const PracticePage = () => {
       <section className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
         <div className="space-y-6">
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-            <h2 className="text-2xl font-semibold">Practice session</h2>
+            <h2 className="text-2xl font-semibold">{t("practice.title")}</h2>
             <p className="mt-2 text-sm text-slate-300">
-              {exercise?.example_prompt ?? "Loading scenario..."}
+              {exercise?.example_prompt ?? t("practice.loadingScenario")}
             </p>
           </div>
           <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Your response</p>
+            <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("practice.responseLabel")}</p>
             <div className="mt-4 flex flex-wrap gap-3">
               {practice.recordingState !== "recording" ? (
                 <button
                   className="rounded-full bg-teal-400 px-6 py-2 text-sm font-semibold text-slate-950"
                   onClick={startRecording}
                 >
-                  Start recording
+                  {t("practice.startRecording")}
                 </button>
               ) : (
                 <button
                   className="rounded-full bg-rose-400 px-6 py-2 text-sm font-semibold text-slate-950"
                   onClick={stopRecording}
                 >
-                  Stop recording
+                  {t("practice.stopRecording")}
                 </button>
               )}
               <button
@@ -161,7 +163,7 @@ export const PracticePage = () => {
                 onClick={runEvaluation}
                 disabled={!practice.audioBlobRef || isLoading}
               >
-                {isLoading ? "Evaluating..." : "Run evaluation"}
+                {isLoading ? t("practice.evaluating") : t("practice.runEvaluation")}
               </button>
             </div>
             {practice.audioBlobRef && (
@@ -171,25 +173,25 @@ export const PracticePage = () => {
           </div>
           <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Transcript</h3>
+              <h3 className="text-lg font-semibold">{t("practice.transcriptTitle")}</h3>
               <button
                 className="rounded-full border border-white/20 px-4 py-1 text-xs"
                 onClick={() => practice.transcript && navigator.clipboard.writeText(practice.transcript)}
                 disabled={!practice.transcript}
               >
-                Copy transcript
+                {t("practice.copyTranscript")}
               </button>
             </div>
             <p className="mt-3 text-sm text-slate-200 whitespace-pre-wrap">
-              {practice.transcript || "Your transcript will appear here after evaluation."}
+              {practice.transcript || t("practice.transcriptPlaceholder")}
             </p>
             {requestId && (
-              <p className="mt-3 text-xs text-slate-400">Request ID: {requestId}</p>
+              <p className="mt-3 text-xs text-slate-400">{t("practice.requestId", { id: requestId })}</p>
             )}
           </div>
           {(responseErrors?.length ?? 0) > 0 && (
             <div className="rounded-3xl border border-rose-400/30 bg-rose-500/10 p-6">
-              <h3 className="text-lg font-semibold text-rose-100">We hit a snag</h3>
+              <h3 className="text-lg font-semibold text-rose-100">{t("practice.snagTitle")}</h3>
               <ul className="mt-3 space-y-2 text-sm text-rose-100">
                 {responseErrors?.map((entry, index) => (
                   <li key={`${entry.stage}-${index}`}>
@@ -199,7 +201,7 @@ export const PracticePage = () => {
                 ))}
               </ul>
               {requestId && (
-                <p className="mt-3 text-xs text-rose-100/80">Request ID: {requestId}</p>
+                <p className="mt-3 text-xs text-rose-100/80">{t("practice.requestId", { id: requestId })}</p>
               )}
             </div>
           )}
@@ -208,7 +210,7 @@ export const PracticePage = () => {
           <PatientCanvas reaction={practice.patientReaction} />
           {practice.evaluation && (
             <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-              <h3 className="text-lg font-semibold">Coach feedback</h3>
+              <h3 className="text-lg font-semibold">{t("practice.coachFeedback")}</h3>
               <p className="mt-3 text-sm text-slate-300">{practice.evaluation.overall.summary_feedback}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {practice.evaluation.overall.what_to_improve_next.map((tip) => (
@@ -224,12 +226,16 @@ export const PracticePage = () => {
 
       {practice.evaluation && (
         <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
-          <h3 className="text-lg font-semibold">Scoring matrix</h3>
+          <h3 className="text-lg font-semibold">{t("practice.scoringTitle")}</h3>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {practice.evaluation.objective_scores.map((score) => (
               <div key={score.objective_id} className="rounded-2xl border border-white/10 p-4">
-                <p className="text-sm font-semibold">Objective {score.objective_id}</p>
-                <p className="mt-1 text-xs text-slate-400">Score {score.score} / 4</p>
+                <p className="text-sm font-semibold">
+                  {t("practice.objectiveLabel", { id: score.objective_id })}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {t("practice.scoreLabel", { score: score.score })}
+                </p>
                 <p className="mt-2 text-sm text-slate-200">{score.rationale_short}</p>
               </div>
             ))}
