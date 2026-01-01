@@ -65,6 +65,70 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 ENV
 ```
 
+## Real Time Mode (Hard Practice) + cached TTS setup
+
+Follow these steps to enable patient-audio TTS caching (R2) and the Real Time Mode flow.
+
+1. **Configure R2 credentials in the root `.env`.**
+
+   Add the R2 settings that the Node API uses to upload and stream audio:
+
+   ```
+   R2_ACCOUNT_ID=your-account-id
+   R2_ACCESS_KEY_ID=your-access-key
+   R2_SECRET_ACCESS_KEY=your-secret-key
+   R2_BUCKET=your-bucket-name
+   R2_PUBLIC_BASE_URL= # optional
+   R2_S3_ENDPOINT= # optional, defaults to https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+   ```
+
+2. **Apply the new `tts_assets` migration.**
+
+   - For D1 (local):
+
+     ```
+     npm run migrate:local -w apps/worker
+     ```
+
+   - For D1 (remote):
+
+     ```
+     npm run migrate:remote -w apps/worker
+     ```
+
+   - For the local SQLite API DB (Node dev server):
+
+     ```
+     sqlite3 apps/api/infra/local.db < apps/worker/migrations/0002_add_tts_assets.sql
+     ```
+
+3. **Ensure OpenAI TTS can run.**
+
+   Set `OPENAI_API_KEY` in the root `.env` (or as a Worker secret) so the API can call
+   `POST /v1/audio/speech` via the provider layer.
+
+4. **Start the API and web apps.**
+
+   ```
+   npm run dev -w apps/api
+   npm run dev -w apps/web
+   ```
+
+5. **Open a Practice session and enable Real Time Mode.**
+
+   - Go to `/practice/:taskId` in the web app.
+   - Toggle **Real Time Mode**.
+   - The app calls `POST /api/v1/practice/patient-audio/prefetch`, which:
+     - Finds the patient text (Phase 1 uses `task_examples.patient_text` for the selected example).
+     - Generates or reuses cached audio in R2.
+   - Once audio is ready, the patient audio plays first; recording unlocks when playback ends.
+
+6. **Verify audio is cached.**
+
+   - First request: `tts_assets.status` goes `generating → ready` and the audio file is written to R2.
+   - Subsequent requests for the same text/model/voice/format reuse the existing `cache_key`.
+   - Audio is served via `GET /api/v1/tts/:cacheKey` (auth required) with long-lived cache headers.
+
 ### Worker env (Cloudflare)
 
 In `apps/worker/wrangler.jsonc`, define non-secret vars and bind the D1 database:
