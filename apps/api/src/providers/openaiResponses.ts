@@ -168,11 +168,9 @@ export const createStructuredResponse = async <T>({
       text: {
         format: {
           type: "json_schema",
-          json_schema: {
-            name: schemaName,
-            schema: jsonSchema,
-            strict: true
-          }
+          name: schemaName,
+          schema: jsonSchema,
+          strict: true
         }
       }
     })
