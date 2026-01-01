@@ -178,6 +178,144 @@
       "securityNote": "Les clés sont chiffrées au repos et ne sont jamais renvoyées au navigateur après l'enregistrement."
     }
   },
+  "aiSetup": {
+    "title": {
+      "kicker": "Configuration IA",
+      "main": "Préparez votre pratique assistée par l'IA",
+      "subtitle": "Vous pouvez tout exécuter en local ou connecter OpenAI. Nous vous guidons pas à pas avec des cartes."
+    },
+    "stepsLabel": "Étape {{current}} / {{total}}",
+    "actions": {
+      "close": "Fermer",
+      "back": "Retour",
+      "next": "Suivant",
+      "choosePath": "Choisir une option",
+      "changePath": "Changer d'option"
+    },
+    "side": {
+      "title": "Checklist rapide",
+      "subtitle": "Ce qui alimente l'expérience",
+      "description": "Les évaluations reposent sur un LLM. La voix du patient utilise la TTS. Vous pouvez tout garder en local ou laisser OpenAI gérer le tout en sécurité.",
+      "tipTitle": "Astuce",
+      "tipBody": "Vous pourrez changer plus tard dans les paramètres. Si vous ignorez pour l'instant, la pratique reste hors ligne jusqu'à configuration."
+    },
+    "choice": {
+      "title": "Choisissez votre option",
+      "description": "Sélectionnez la configuration qui vous convient aujourd'hui.",
+      "local": {
+        "title": "Utiliser mes modèles (local)",
+        "body": "Lancez les serveurs LLM + TTS sur votre machine."
+      },
+      "openai": {
+        "title": "Utiliser OpenAI",
+        "body": "Mise en route rapide avec facturation à l'usage."
+      },
+      "skip": "Passer pour l'instant"
+    },
+    "intro": {
+      "steps": [
+        {
+          "title": "Bienvenue dans votre studio de pratique",
+          "description": "Cet espace simule une conversation patient et note votre réponse selon le barème choisi.",
+          "bullets": [
+            "Le LLM génère un coaching détaillé.",
+            "La TTS produit la voix du patient.",
+            "Vous décidez des fournisseurs d'IA utilisés."
+          ]
+        },
+        {
+          "title": "Ce qu'il faut pour lancer les évaluations",
+          "description": "Les évaluations nécessitent un LLM et un fournisseur TTS. Vous pouvez rester en local ou connecter OpenAI.",
+          "bullets": [
+            "Mode local : exécutez le script Python fourni.",
+            "Mode OpenAI : ajoutez votre clé API une fois.",
+            "Vous pourrez ajuster plus tard."
+          ]
+        },
+        {
+          "title": "Choisissez comment continuer",
+          "description": "Sélectionnez une option à droite pour obtenir des étapes guidées et des liens.",
+          "bullets": [
+            "Local = aucune requête externe.",
+            "OpenAI = le démarrage le plus rapide.",
+            "Ignorer = pratique hors ligne."
+          ]
+        }
+      ]
+    },
+    "local": {
+      "steps": [
+        {
+          "title": "Démarrez les serveurs LLM + TTS locaux",
+          "description": "Lancez le script ci-dessous. Il détecte Apple Silicon et choisit automatiquement les modèles MLX.",
+          "links": [
+            { "label": "Docs du script", "href": "https://github.com/albertbuchard/therapy-deliberate-practice" }
+          ]
+        },
+        {
+          "title": "Téléchargez les modèles recommandés",
+          "description": "Nous utilisons Qwen 4B pour l'évaluation et Kokoro/Chatterbox pour la TTS selon votre machine.",
+          "bullets": [
+            "Apple Silicon : Qwen MLX + Kokoro MLX TTS.",
+            "Autres GPU : Qwen Instruct + Chatterbox TTS multilingue.",
+            "Le script les référence par défaut."
+          ],
+          "links": [
+            { "label": "Qwen 3 4B MLX", "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit" },
+            { "label": "Qwen 3 4B Instruct", "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507" },
+            { "label": "Kokoro MLX TTS", "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16" }
+          ]
+        },
+        {
+          "title": "Pointez l'application vers vos services locaux",
+          "description": "Conservez les valeurs par défaut ou ajustez les URLs dans les paramètres une fois les serveurs prêts.",
+          "bullets": [
+            "Serveur LLM : http://localhost:7002",
+            "Serveur TTS : http://localhost:7003"
+          ]
+        }
+      ]
+    },
+    "openai": {
+      "steps": [
+        {
+          "title": "Générez votre clé API OpenAI",
+          "description": "La clé nous permet d'envoyer en toute sécurité les demandes d'évaluation et de synthèse vocale à OpenAI.",
+          "bullets": [
+            "Nous utilisons la clé seulement lors des évaluations ou de la génération audio.",
+            "Les clés sont chiffrées au repos et jamais affichées après enregistrement.",
+            "Vous pouvez révoquer la clé à tout moment dans OpenAI."
+          ],
+          "links": [
+            { "label": "Créer une clé API", "href": "https://platform.openai.com/api-keys" },
+            { "label": "Docs OpenAI", "href": "https://platform.openai.com/docs" }
+          ]
+        },
+        {
+          "title": "Comprendre l'usage et le coût",
+          "description": "Les coûts dépendent du modèle et de l'usage. La plupart des sessions coûtent quelques centimes et vous gardez le contrôle.",
+          "bullets": [
+            "Créez un projet pour suivre l'usage.",
+            "Fixez un plafond mensuel pour éviter les surprises.",
+            "Consultez les usages dans le tableau de bord OpenAI."
+          ],
+          "links": [
+            { "label": "Créer un projet", "href": "https://platform.openai.com/settings/organization/projects" },
+            { "label": "Usage et limites", "href": "https://platform.openai.com/settings/organization/limits" }
+          ]
+        },
+        {
+          "title": "Enregistrez la clé dans Paramètres",
+          "description": "Collez la clé dans la section OpenAI des paramètres. Une fois validée, vous êtes prêt à pratiquer.",
+          "bullets": [
+            "Passez le mode IA en OpenAI uniquement ou Local en priorité.",
+            "Lancez un test de pratique rapide.",
+            "Vous pouvez retirer la clé à tout moment."
+          ]
+        }
+      ]
+    }
+  },
   "practice": {
     "title": "Session de pratique",
     "loadingScenario": "Chargement du scénario...",
