@@ -460,7 +460,6 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
   app.use("/api/v1/attempts/*", userAuth);
   app.use("/api/v1/practice/*", userAuth);
   app.use("/api/v1/sessions/*", userAuth);
-  app.use("/api/v1/tts/*", userAuth);
 
   const ttsConfigReady = Boolean(env.r2Bucket);
 
