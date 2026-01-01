@@ -86,6 +86,19 @@ const buildStrictJsonSchema = (schema: z.ZodSchema<unknown>, schemaName: string)
   if (root && typeof root === "object" && root.type == null && root.properties) {
     root.type = "object";
   }
+
+  // OpenAI strict schema rules:
+  // - additionalProperties must be false for every object
+  // - required must exist and include every key in properties
+  const ensureRequiredAllProps = (record: Record<string, unknown>) => {
+    if (!record.properties || typeof record.properties !== "object") return;
+    const props = record.properties as Record<string, unknown>;
+    const keys = Object.keys(props);
+
+    // Always require all keys (OpenAI strict expects this)
+    record.required = keys;
+  };
+
   const enforceStrict = (node: unknown) => {
     if (!node || typeof node !== "object") return;
     const record = node as Record<string, unknown>;
@@ -94,6 +107,7 @@ const buildStrictJsonSchema = (schema: z.ZodSchema<unknown>, schemaName: string)
       if (!("additionalProperties" in record)) {
         record.additionalProperties = false;
       }
+      ensureRequiredAllProps(record);
       for (const value of Object.values(record.properties as Record<string, unknown>)) {
         enforceStrict(value);
       }
