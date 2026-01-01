@@ -7,7 +7,7 @@ import {
   useRunPracticeMutation,
   useStartSessionMutation
 } from "../store/api";
-import { PatientCanvas } from "../components/PatientCanvas";
+import { TalkingPatientCanvas } from "../components/TalkingPatientCanvas";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   setAudioBlobRef,
@@ -59,6 +59,7 @@ export const PracticePage = () => {
   const [hidePatientText, setHidePatientText] = useState(true);
   const [autoPlayPatientAudio, setAutoPlayPatientAudio] = useState(true);
   const [patientAudioError, setPatientAudioError] = useState<string | null>(null);
+  const [patientPlay, setPatientPlay] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const patientAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -67,6 +68,7 @@ export const PracticePage = () => {
   const settings = useAppSelector((state) => state.settings);
   const currentItem = practice.sessionItems[practice.currentIndex];
   const currentExampleId = currentItem?.example_id;
+  const patientLine = practice.transcript?.trim() || currentItem?.patient_text || "";
   const criterionMap = useMemo(() => {
     const entries = task?.criteria?.map((criterion) => [criterion.id, criterion]) ?? [];
     return new Map(entries);
@@ -151,11 +153,16 @@ export const PracticePage = () => {
     setPatientAudioError(null);
     setPatientSpeaking(false);
     setCanRecord(practiceMode === "standard");
+    setPatientPlay(false);
     if (practiceMode === "standard" && patientAudioRef.current) {
       patientAudioRef.current.pause();
       patientAudioRef.current.currentTime = 0;
     }
   }, [practiceMode, currentExampleId]);
+
+  useEffect(() => {
+    setPatientPlay(false);
+  }, [patientLine]);
 
   useEffect(() => {
     if (practiceMode !== "real_time" || !taskId || !currentExampleId) return;
@@ -515,7 +522,26 @@ export const PracticePage = () => {
           )}
         </div>
         <div className="space-y-6">
-          <PatientCanvas reaction={practice.patientReaction} />
+          <div className="space-y-3">
+            <TalkingPatientCanvas
+              text={patientLine}
+              play={patientPlay}
+              reaction={practice.patientReaction}
+              onDone={() => setPatientPlay(false)}
+            />
+            <div className="flex items-center justify-between">
+              <button
+                className="rounded-full border border-white/20 px-4 py-2 text-sm"
+                onClick={() => setPatientPlay((prev) => !prev)}
+                disabled={!patientLine}
+              >
+                {patientPlay ? "Stop patient" : "Play patient"}
+              </button>
+              {!patientLine && (
+                <span className="text-xs text-slate-400">No patient line available.</span>
+              )}
+            </div>
+          </div>
           {practice.evaluation && (
             <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
               <h3 className="text-lg font-semibold">{t("practice.coachFeedback")}</h3>
