@@ -509,7 +509,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
   };
 
   app.get("/api/v1/tts/:cacheKey", handleTtsRequest);
-  app.head("/api/v1/tts/:cacheKey", handleTtsRequest);
+  app.on("HEAD", "/api/v1/tts/:cacheKey", handleTtsRequest);
 
   app.post("/api/v1/practice/patient-audio/prefetch", async (c) => {
     const requestId = c.get("requestId");
