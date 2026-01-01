@@ -40,6 +40,18 @@ const practiceSlice = createSlice({
   name: "practice",
   initialState,
   reducers: {
+    resetSessionState(state) {
+      state.sessionId = undefined;
+      state.sessionItems = [];
+      state.currentIndex = 0;
+      state.currentSessionItemId = undefined;
+      state.currentAttemptId = undefined;
+      state.recordingState = "idle";
+      state.audioBlobRef = undefined;
+      state.transcript = undefined;
+      state.evaluation = undefined;
+      state.patientReaction = undefined;
+    },
     setAttemptId(state, action: PayloadAction<string | undefined>) {
       state.currentAttemptId = action.payload;
     },
@@ -84,6 +96,7 @@ const practiceSlice = createSlice({
 });
 
 export const {
+  resetSessionState,
   setAttemptId,
   setSession,
   setCurrentIndex,

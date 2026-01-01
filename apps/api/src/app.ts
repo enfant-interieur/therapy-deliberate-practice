@@ -13,7 +13,7 @@ import {
   userTaskProgress,
   users
 } from "./db/schema";
-import { and, eq, like, or } from "drizzle-orm";
+import { and, desc, eq, inArray, like, or } from "drizzle-orm";
 import {
   deliberatePracticeTaskV2Schema,
   evaluationResultSchema,
@@ -320,6 +320,16 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       target_difficulty: number;
       patient_text: string;
     }> = [];
+    const attemptRows = await db
+      .select({ task_id: attempts.task_id, example_id: attempts.example_id })
+      .from(attempts)
+      .where(eq(attempts.user_id, user.id));
+    const attemptMap = attemptRows.reduce((map, row) => {
+      const existing = map.get(row.task_id) ?? new Set<string>();
+      existing.add(row.example_id);
+      map.set(row.task_id, existing);
+      return map;
+    }, new Map<string, Set<string>>());
 
     if (data.mode === "single_task") {
       if (!data.task_id) {
@@ -340,14 +350,14 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         .select()
         .from(taskExamples)
         .where(eq(taskExamples.task_id, task.id));
-      const picked = pickExamplesForDifficulty(
-        examples.map((example) => ({
-          ...example,
-          meta: example.meta ?? null
-        })),
-        targetDifficulty,
-        data.item_count
-      );
+      const normalized = examples.map((example) => ({
+        ...example,
+        meta: example.meta ?? null
+      }));
+      const attemptedIds = attemptMap.get(task.id) ?? new Set<string>();
+      const fresh = normalized.filter((example) => !attemptedIds.has(example.id));
+      const pool = fresh.length >= data.item_count ? fresh : normalized;
+      const picked = pickExamplesForDifficulty(pool, targetDifficulty, data.item_count);
       picked.forEach((example, index) => {
         selectedItems.push({
           session_item_id: nanoid(),
@@ -381,14 +391,14 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           .select()
           .from(taskExamples)
           .where(eq(taskExamples.task_id, task.id));
-        const picked = pickExamplesForDifficulty(
-          examples.map((example) => ({
-            ...example,
-            meta: example.meta ?? null
-          })),
-          targetDifficulty,
-          1
-        );
+        const normalized = examples.map((example) => ({
+          ...example,
+          meta: example.meta ?? null
+        }));
+        const attemptedIds = attemptMap.get(task.id) ?? new Set<string>();
+        const fresh = normalized.filter((example) => !attemptedIds.has(example.id));
+        const pool = fresh.length ? fresh : normalized;
+        const picked = pickExamplesForDifficulty(pool, targetDifficulty, 1);
         const example = picked[0];
         if (!example) continue;
         selectedItems.push({
@@ -429,6 +439,126 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
     log.info("Session created", { sessionId, itemCount: selectedItems.length });
     return c.json({ session_id: sessionId, items: selectedItems });
+  });
+
+  app.get("/api/v1/sessions", userAuth, async (c) => {
+    const user = c.get("user");
+    const { task_id: taskId } = c.req.query();
+    const filters = [eq(practiceSessions.user_id, user.id)];
+    if (taskId) {
+      filters.push(eq(practiceSessions.source_task_id, taskId));
+    }
+    const sessions = await db
+      .select()
+      .from(practiceSessions)
+      .where(filters.length > 1 ? and(...filters) : filters[0])
+      .orderBy(desc(practiceSessions.created_at));
+
+    if (!sessions.length) {
+      return c.json([]);
+    }
+
+    const sessionIds = sessions.map((session) => session.id);
+    const items = await db
+      .select({
+        session_id: practiceSessionItems.session_id,
+        session_item_id: practiceSessionItems.id,
+        task_id: practiceSessionItems.task_id,
+        example_id: practiceSessionItems.example_id,
+        target_difficulty: practiceSessionItems.target_difficulty,
+        patient_text: taskExamples.patient_text,
+        position: practiceSessionItems.position
+      })
+      .from(practiceSessionItems)
+      .leftJoin(taskExamples, eq(practiceSessionItems.example_id, taskExamples.id))
+      .where(inArray(practiceSessionItems.session_id, sessionIds))
+      .orderBy(practiceSessionItems.session_id, practiceSessionItems.position);
+
+    const attemptsRows = await db
+      .select({ session_id: attempts.session_id, session_item_id: attempts.session_item_id })
+      .from(attempts)
+      .where(and(eq(attempts.user_id, user.id), inArray(attempts.session_id, sessionIds)));
+
+    const attemptsBySession = attemptsRows.reduce((map, row) => {
+      if (!row.session_id || !row.session_item_id) return map;
+      const existing = map.get(row.session_id) ?? new Set<string>();
+      existing.add(row.session_item_id);
+      map.set(row.session_id, existing);
+      return map;
+    }, new Map<string, Set<string>>());
+
+    const itemsBySession = items.reduce((map, item) => {
+      const entry = map.get(item.session_id) ?? [];
+      entry.push({
+        session_item_id: item.session_item_id,
+        task_id: item.task_id,
+        example_id: item.example_id,
+        target_difficulty: item.target_difficulty,
+        patient_text: item.patient_text ?? ""
+      });
+      map.set(item.session_id, entry);
+      return map;
+    }, new Map<string, Array<{ session_item_id: string; task_id: string; example_id: string; target_difficulty: number; patient_text: string }>>());
+
+    return c.json(
+      sessions.map((session) => {
+        const sessionItems = itemsBySession.get(session.id) ?? [];
+        const completed = attemptsBySession.get(session.id) ?? new Set<string>();
+        return {
+          id: session.id,
+          mode: session.mode,
+          source_task_id: session.source_task_id ?? null,
+          created_at: session.created_at,
+          ended_at: session.ended_at ?? null,
+          item_count: sessionItems.length,
+          completed_count: completed.size,
+          items: sessionItems
+        };
+      })
+    );
+  });
+
+  app.get("/api/v1/sessions/:id", userAuth, async (c) => {
+    const user = c.get("user");
+    const sessionId = c.req.param("id");
+    const [session] = await db
+      .select()
+      .from(practiceSessions)
+      .where(and(eq(practiceSessions.id, sessionId), eq(practiceSessions.user_id, user.id)))
+      .limit(1);
+
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const items = await db
+      .select({
+        session_item_id: practiceSessionItems.id,
+        task_id: practiceSessionItems.task_id,
+        example_id: practiceSessionItems.example_id,
+        target_difficulty: practiceSessionItems.target_difficulty,
+        patient_text: taskExamples.patient_text,
+        position: practiceSessionItems.position
+      })
+      .from(practiceSessionItems)
+      .leftJoin(taskExamples, eq(practiceSessionItems.example_id, taskExamples.id))
+      .where(eq(practiceSessionItems.session_id, sessionId))
+      .orderBy(practiceSessionItems.position);
+
+    return c.json({
+      id: session.id,
+      mode: session.mode,
+      source_task_id: session.source_task_id ?? null,
+      created_at: session.created_at,
+      ended_at: session.ended_at ?? null,
+      items: items.map((item) => ({
+        session_item_id: item.session_item_id,
+        task_id: item.task_id,
+        example_id: item.example_id,
+        target_difficulty: item.target_difficulty,
+        patient_text: item.patient_text ?? ""
+      }))
+    });
   });
 
   app.get("/api/v1/admin/whoami", async (c) => {

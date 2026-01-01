@@ -37,6 +37,25 @@ export type UserSettingsInput = {
   storeAudio: boolean;
 };
 
+export type PracticeSessionItem = {
+  session_item_id: string;
+  task_id: string;
+  example_id: string;
+  target_difficulty: number;
+  patient_text: string;
+};
+
+export type PracticeSessionSummary = {
+  id: string;
+  mode: string;
+  source_task_id: string | null;
+  created_at: number;
+  ended_at: number | null;
+  item_count: number;
+  completed_count: number;
+  items: PracticeSessionItem[];
+};
+
 export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
@@ -98,10 +117,13 @@ export const api = createApi({
       }
     ),
     startSession: builder.mutation<
-      { session_id: string; items: Array<{ session_item_id: string; task_id: string; example_id: string; target_difficulty: number; patient_text: string }> },
+      { session_id: string; items: PracticeSessionItem[] },
       { mode: "single_task" | "mixed_set"; task_id?: string; item_count: number; difficulty?: number }
     >({
       query: (body) => ({ url: "/sessions/start", method: "POST", body })
+    }),
+    getPracticeSessions: builder.query<PracticeSessionSummary[], { task_id?: string }>({
+      query: (params) => ({ url: "/sessions", params })
     }),
     getAdminTasks: builder.query<Task[], void>({
       query: () => "/admin/tasks",
@@ -164,6 +186,7 @@ export const {
   useGetTaskQuery,
   useGetTaskExamplesQuery,
   useStartSessionMutation,
+  useGetPracticeSessionsQuery,
   useGetAdminTasksQuery,
   useGetAdminTaskQuery,
   useUpdateTaskMutation,

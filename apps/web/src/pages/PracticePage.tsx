@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   useGetTaskQuery,
+  useGetPracticeSessionsQuery,
   usePrefetchPatientAudioMutation,
   useRunPracticeMutation,
   useStartSessionMutation
@@ -10,6 +11,7 @@ import {
 import { TalkingPatientCanvas } from "../components/TalkingPatientCanvas";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
+  resetSessionState,
   setAudioBlobRef,
   setCurrentIndex,
   setEvaluation,
@@ -42,6 +44,14 @@ export const PracticePage = () => {
   const [startSession, { isLoading: isStartingSession }] = useStartSessionMutation();
   const [runPractice, { isLoading }] = useRunPracticeMutation();
   const [prefetchPatientAudio] = usePrefetchPatientAudioMutation();
+  const {
+    data: sessionHistory = [],
+    isLoading: isLoadingSessions,
+    refetch: refetchSessions
+  } = useGetPracticeSessionsQuery(
+    { task_id: taskId },
+    { skip: !taskId }
+  );
   const [error, setError] = useState<string | null>(null);
   const [responseErrors, setResponseErrors] = useState<
     Array<{ stage: string; message: string }> | null
@@ -56,24 +66,34 @@ export const PracticePage = () => {
   const [patientCacheKey, setPatientCacheKey] = useState<string | null>(null);
   const [patientSpeaking, setPatientSpeaking] = useState(false);
   const [canRecord, setCanRecord] = useState(true);
-  const [hidePatientText, setHidePatientText] = useState(true);
+  const [hidePatientText, setHidePatientText] = useState(false);
   const [autoPlayPatientAudio, setAutoPlayPatientAudio] = useState(true);
   const [patientAudioError, setPatientAudioError] = useState<string | null>(null);
   const [patientPlay, setPatientPlay] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const patientAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previousTaskIdRef = useRef<string | null>(null);
+  const hasInitializedRef = useRef(false);
   const dispatch = useAppDispatch();
   const practice = useAppSelector((state) => state.practice);
   const settings = useAppSelector((state) => state.settings);
   const currentItem = practice.sessionItems[practice.currentIndex];
   const currentExampleId = currentItem?.example_id;
-  const patientLine = practice.transcript?.trim() || currentItem?.patient_text || "";
+  const patientLine = currentItem?.patient_text ?? "";
   const criterionMap = useMemo(() => {
     const entries = task?.criteria?.map((criterion) => [criterion.id, criterion]) ?? [];
     return new Map(entries);
   }, [task?.criteria]);
   const canStartRecording = practiceMode === "standard" || canRecord;
+  const sessionIndexKey = useCallback(
+    (sessionId: string) => `practiceSessionProgress:${sessionId}`,
+    []
+  );
+  const formatDate = useMemo(
+    () => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }),
+    []
+  );
 
   useEffect(() => {
     return () => {
@@ -83,68 +103,82 @@ export const PracticePage = () => {
     };
   }, [practice.audioBlobRef]);
 
+  const resetSessionUI = useCallback(() => {
+    setError(null);
+    setResponseErrors(null);
+    setNextDifficulty(null);
+    setRequestId(null);
+    setPatientAudioError(null);
+    setPatientAudioStatus("idle");
+    setPatientAudioUrl(null);
+    setPatientCacheKey(null);
+    setPatientSpeaking(false);
+    setPatientPlay(false);
+    setCanRecord(practiceMode === "standard");
+  }, [practiceMode]);
+
+  const startNewSession = useCallback(async () => {
+    if (!taskId) return;
+    try {
+      const result = await startSession({
+        mode: "single_task",
+        task_id: taskId,
+        item_count: 5
+      }).unwrap();
+      dispatch(resetSessionState());
+      dispatch(setSession({ sessionId: result.session_id, items: result.items }));
+      dispatch(setCurrentIndex(0));
+      resetSessionUI();
+      await refetchSessions();
+    } catch (err) {
+      setError(t("practice.error.sessionFailed"));
+    }
+  }, [dispatch, refetchSessions, resetSessionUI, startSession, t, taskId]);
+
+  const loadSession = useCallback(
+    (sessionId: string, items: typeof practice.sessionItems, fallbackIndex: number) => {
+      dispatch(resetSessionState());
+      dispatch(setSession({ sessionId, items }));
+      const cachedIndex = Number(window.localStorage.getItem(sessionIndexKey(sessionId)));
+      const safeIndex =
+        Number.isFinite(cachedIndex) && cachedIndex >= 0 && cachedIndex < items.length
+          ? cachedIndex
+          : fallbackIndex;
+      dispatch(setCurrentIndex(safeIndex));
+      resetSessionUI();
+    },
+    [dispatch, resetSessionUI, sessionIndexKey]
+  );
+
+  useEffect(() => {
+    if (!taskId) return;
+    if (!hasInitializedRef.current) {
+      dispatch(resetSessionState());
+      hasInitializedRef.current = true;
+    }
+  }, [dispatch, taskId]);
+
+  useEffect(() => {
+    if (!taskId) return;
+    if (previousTaskIdRef.current && previousTaskIdRef.current !== taskId) {
+      dispatch(resetSessionState());
+    }
+    previousTaskIdRef.current = taskId;
+  }, [dispatch, taskId]);
+
   useEffect(() => {
     if (!taskId) return;
     if (practice.sessionId) return;
-    const cached = window.localStorage.getItem(`practiceSession:${taskId}`);
-    if (cached) {
-      try {
-        const parsed = JSON.parse(cached) as {
-          session_id: string;
-          items: Array<{
-            session_item_id: string;
-            task_id: string;
-            example_id: string;
-            target_difficulty: number;
-            patient_text: string;
-          }>;
-          current_index?: number;
-        };
-        if (parsed.session_id && parsed.items?.length) {
-          dispatch(setSession({ sessionId: parsed.session_id, items: parsed.items }));
-          if (typeof parsed.current_index === "number" && parsed.current_index < parsed.items.length) {
-            dispatch(setCurrentIndex(parsed.current_index));
-          }
-          return;
-        }
-      } catch {
-        window.localStorage.removeItem(`practiceSession:${taskId}`);
-      }
-    }
-  }, [dispatch, practice.sessionId, taskId]);
+    void startNewSession();
+  }, [practice.sessionId, startNewSession, taskId]);
 
   useEffect(() => {
-    if (!taskId) return;
-    if (practice.sessionId && practice.sessionItems.length > 0) return;
-    (async () => {
-      try {
-        const result = await startSession({
-          mode: "single_task",
-          task_id: taskId,
-          item_count: 5
-        }).unwrap();
-        dispatch(setSession({ sessionId: result.session_id, items: result.items }));
-        window.localStorage.setItem(
-          `practiceSession:${taskId}`,
-          JSON.stringify({ session_id: result.session_id, items: result.items, current_index: 0 })
-        );
-      } catch (err) {
-        setError(t("practice.error.sessionFailed"));
-      }
-    })();
-  }, [dispatch, practice.sessionId, practice.sessionItems.length, startSession, t, taskId]);
-
-  useEffect(() => {
-    if (!taskId || !practice.sessionId || !practice.sessionItems.length) return;
+    if (!practice.sessionId) return;
     window.localStorage.setItem(
-      `practiceSession:${taskId}`,
-      JSON.stringify({
-        session_id: practice.sessionId,
-        items: practice.sessionItems,
-        current_index: practice.currentIndex
-      })
+      sessionIndexKey(practice.sessionId),
+      practice.currentIndex.toString()
     );
-  }, [practice.currentIndex, practice.sessionId, practice.sessionItems, taskId]);
+  }, [practice.currentIndex, practice.sessionId, sessionIndexKey]);
 
   useEffect(() => {
     setPatientAudioStatus("idle");
@@ -324,6 +358,18 @@ export const PracticePage = () => {
     }
   };
 
+  const handlePreviousExample = () => {
+    const prevIndex = practice.currentIndex - 1;
+    if (prevIndex >= 0) {
+      dispatch(setCurrentIndex(prevIndex));
+      dispatch(setEvaluation(undefined));
+      dispatch(setTranscript(undefined));
+      setResponseErrors(null);
+      setRequestId(null);
+      setNextDifficulty(null);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <section className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -377,23 +423,49 @@ export const PracticePage = () => {
           </div>
 
           {practiceMode === "standard" ? (
-            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-              <h3 className="text-lg font-semibold">Scenario</h3>
-              <p className="mt-2 text-sm text-slate-300">
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient prompt</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-white">Scenario</h3>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase text-slate-300">
+                  {t("practice.itemProgress", {
+                    index: practice.currentIndex + 1,
+                    total: practice.sessionItems.length || 0
+                  })}
+                </span>
+              </div>
+              <p className="mt-6 text-2xl font-semibold leading-relaxed text-slate-100 md:text-3xl">
                 {currentItem?.patient_text ?? t("practice.loadingScenario")}
               </p>
-              <p className="mt-3 text-xs uppercase text-slate-400">
-                {t("practice.itemProgress", {
-                  index: practice.currentIndex + 1,
-                  total: practice.sessionItems.length || 0
-                })}
-              </p>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
+                  onClick={handlePreviousExample}
+                  disabled={practice.currentIndex === 0}
+                >
+                  Previous example
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
+                  onClick={handleNextExample}
+                  disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
+                >
+                  {t("practice.nextExample")}
+                </button>
+              </div>
             </div>
           ) : (
-            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Patient</h3>
-                <span className="text-xs uppercase text-slate-400">
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient audio</p>
+                  <h3 className="mt-2 text-2xl font-semibold text-white">Real-time session</h3>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase text-slate-300">
                   {t("practice.itemProgress", {
                     index: practice.currentIndex + 1,
                     total: practice.sessionItems.length || 0
@@ -401,54 +473,87 @@ export const PracticePage = () => {
                 </span>
               </div>
               {!hidePatientText && (
-                <p className="mt-2 text-sm text-slate-300">
+                <p className="mt-6 text-2xl font-semibold leading-relaxed text-slate-100 md:text-3xl">
                   {currentItem?.patient_text ?? t("practice.loadingScenario")}
                 </p>
               )}
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs uppercase text-slate-400">
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs uppercase text-slate-400">
                 <button
                   type="button"
-                  className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                  className="rounded-full border border-white/20 px-3 py-1 text-xs hover:border-white/40"
                   onClick={() => setHidePatientText((prev) => !prev)}
                 >
                   {hidePatientText ? "Show transcript" : "Hide transcript"}
                 </button>
                 {patientSpeaking && <span className="text-amber-200">Patient speaking…</span>}
               </div>
-              {patientAudioStatus === "generating" && (
-                <p className="mt-3 text-sm text-slate-300">Generating patient audio…</p>
-              )}
-              {patientAudioError && <p className="mt-3 text-sm text-rose-300">{patientAudioError}</p>}
-              {patientAudioUrl && (
-                <div className="mt-4 space-y-3">
-                  <audio
-                    ref={patientAudioRef}
-                    className="w-full"
-                    controls
-                    src={patientAudioUrl}
-                    onPlay={() => {
-                      setPatientSpeaking(true);
-                      setCanRecord(false);
-                    }}
-                    onPause={() => setPatientSpeaking(false)}
-                    onEnded={() => {
-                      setPatientSpeaking(false);
-                      setCanRecord(true);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    className="rounded-full border border-white/20 px-4 py-2 text-xs"
-                    onClick={() =>
-                      patientAudioRef.current
-                        ?.play()
-                        .catch(() => setPatientAudioError("Unable to play patient audio."))
-                    }
-                  >
-                    Play patient
-                  </button>
-                </div>
-              )}
+              <div className="mt-5 space-y-4">
+                <TalkingPatientCanvas
+                  text={patientLine}
+                  play={patientPlay}
+                  reaction={practice.patientReaction}
+                  onDone={() => setPatientPlay(false)}
+                />
+                {patientAudioStatus === "generating" && (
+                  <p className="text-sm text-slate-300">Generating patient audio…</p>
+                )}
+                {patientAudioError && (
+                  <p className="text-sm text-rose-300">{patientAudioError}</p>
+                )}
+                {patientAudioUrl && (
+                  <div className="space-y-3">
+                    <audio
+                      ref={patientAudioRef}
+                      className="w-full"
+                      controls
+                      src={patientAudioUrl}
+                      onPlay={() => {
+                        setPatientSpeaking(true);
+                        setPatientPlay(true);
+                        setCanRecord(false);
+                      }}
+                      onPause={() => {
+                        setPatientSpeaking(false);
+                        setPatientPlay(false);
+                      }}
+                      onEnded={() => {
+                        setPatientSpeaking(false);
+                        setPatientPlay(false);
+                        setCanRecord(true);
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="rounded-full border border-white/20 px-4 py-2 text-xs hover:border-white/40"
+                      onClick={() =>
+                        patientAudioRef.current
+                          ?.play()
+                          .catch(() => setPatientAudioError("Unable to play patient audio."))
+                      }
+                    >
+                      Play patient
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
+                  onClick={handlePreviousExample}
+                  disabled={practice.currentIndex === 0}
+                >
+                  Previous patient turn
+                </button>
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
+                  onClick={handleNextExample}
+                  disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
+                >
+                  Next patient turn
+                </button>
+              </div>
             </div>
           )}
           <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
@@ -522,26 +627,123 @@ export const PracticePage = () => {
           )}
         </div>
         <div className="space-y-6">
-          <div className="space-y-3">
-            <TalkingPatientCanvas
-              text={patientLine}
-              play={patientPlay}
-              reaction={practice.patientReaction}
-              onDone={() => setPatientPlay(false)}
-            />
-            <div className="flex items-center justify-between">
+          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Session history</p>
+                <h3 className="mt-2 text-lg font-semibold">All sessions</h3>
+              </div>
               <button
-                className="rounded-full border border-white/20 px-4 py-2 text-sm"
-                onClick={() => setPatientPlay((prev) => !prev)}
-                disabled={!patientLine}
+                type="button"
+                className="rounded-full bg-teal-400 px-4 py-2 text-xs font-semibold text-slate-950"
+                onClick={startNewSession}
+                disabled={isStartingSession}
               >
-                {patientPlay ? "Stop patient" : "Play patient"}
+                New session
               </button>
-              {!patientLine && (
-                <span className="text-xs text-slate-400">No patient line available.</span>
+            </div>
+            <p className="mt-3 text-sm text-slate-300">
+              Revisit any previous run or continue where you left off.
+            </p>
+            <div className="mt-4 max-h-[360px] space-y-3 overflow-y-auto pr-2">
+              {isLoadingSessions && (
+                <p className="text-sm text-slate-400">Loading sessions…</p>
               )}
+              {!isLoadingSessions && sessionHistory.length === 0 && (
+                <p className="text-sm text-slate-400">No sessions yet.</p>
+              )}
+              {sessionHistory.map((session) => {
+                const isActive = session.id === practice.sessionId;
+                const fallbackIndex = Math.min(
+                  session.completed_count,
+                  Math.max(session.items.length - 1, 0)
+                );
+                return (
+                  <button
+                    key={session.id}
+                    type="button"
+                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                      isActive
+                        ? "border-teal-400/70 bg-teal-500/10"
+                        : "border-white/10 bg-slate-900/40 hover:border-white/30"
+                    }`}
+                    onClick={() => loadSession(session.id, session.items, fallbackIndex)}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-white">
+                        Session {session.id.slice(0, 6).toUpperCase()}
+                      </p>
+                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase text-slate-300">
+                        {session.completed_count >= session.item_count ? "Completed" : "In progress"}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                      <span>{formatDate.format(new Date(session.created_at))}</span>
+                      <span>
+                        {session.completed_count}/{session.item_count} examples
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6" open>
+            <summary className="flex cursor-pointer items-center justify-between gap-3 text-lg font-semibold text-white">
+              <span>Exercise info &amp; criteria</span>
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-400 transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
+            <div className="mt-5 space-y-4 text-sm text-slate-300">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Exercise</p>
+                <h4 className="mt-2 text-lg font-semibold text-white">
+                  {task?.title ?? "Loading exercise..."}
+                </h4>
+                {task?.description && <p className="mt-2 text-sm text-slate-200">{task.description}</p>}
+                {task?.general_objective && (
+                  <p className="mt-3 text-xs text-slate-400">{task.general_objective}</p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
+                  <span className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1">
+                    Base difficulty: {task?.base_difficulty ?? "--"}
+                  </span>
+                  {task?.skill_domain && (
+                    <span className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1">
+                      {task.skill_domain}
+                    </span>
+                  )}
+                  {(task?.tags ?? []).map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Task criteria</p>
+                <div className="mt-3 space-y-3">
+                  {task?.criteria?.map((criterion) => (
+                    <div
+                      key={criterion.id}
+                      className="rounded-2xl border border-white/10 bg-slate-900/50 p-4"
+                    >
+                      <p className="text-sm font-semibold text-white">{criterion.label}</p>
+                      <p className="mt-2 text-xs text-slate-300">{criterion.description}</p>
+                    </div>
+                  ))}
+                  {!task?.criteria?.length && (
+                    <p className="text-xs text-slate-400">No criteria available.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </details>
           {practice.evaluation && (
             <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
               <h3 className="text-lg font-semibold">{t("practice.coachFeedback")}</h3>
