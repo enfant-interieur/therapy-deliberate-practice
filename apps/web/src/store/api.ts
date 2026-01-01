@@ -5,7 +5,8 @@ import type {
   DeliberatePracticeTaskV2,
   Task,
   TaskCriterion,
-  TaskExample
+  TaskExample,
+  EvaluationResult
 } from "@deliberate/shared";
 import type { RootState } from ".";
 
@@ -54,6 +55,16 @@ export type PracticeSessionSummary = {
   item_count: number;
   completed_count: number;
   items: PracticeSessionItem[];
+};
+
+export type PracticeSessionAttempt = {
+  id: string;
+  session_item_id: string;
+  completed_at: number | null;
+  transcript: string;
+  evaluation: EvaluationResult | null;
+  overall_score: number;
+  overall_pass: boolean;
 };
 
 export const api = createApi({
@@ -125,6 +136,10 @@ export const api = createApi({
     getPracticeSessions: builder.query<PracticeSessionSummary[], { task_id?: string }>({
       query: (params) => ({ url: "/sessions", params })
     }),
+    getPracticeSessionAttempts: builder.query<PracticeSessionAttempt[], string>({
+      query: (sessionId) => `/sessions/${sessionId}/attempts`,
+      providesTags: ["Attempt"]
+    }),
     getAdminTasks: builder.query<Task[], void>({
       query: () => "/admin/tasks",
       providesTags: ["Task"]
@@ -186,7 +201,8 @@ export const {
   useGetTaskQuery,
   useGetTaskExamplesQuery,
   useStartSessionMutation,
-  useGetPracticeSessionsQuery,
+    useGetPracticeSessionsQuery,
+    useGetPracticeSessionAttemptsQuery,
   useGetAdminTasksQuery,
   useGetAdminTaskQuery,
   useUpdateTaskMutation,

@@ -561,6 +561,60 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     });
   });
 
+  app.get("/api/v1/sessions/:id/attempts", userAuth, async (c) => {
+    const user = c.get("user");
+    const sessionId = c.req.param("id");
+    const [session] = await db
+      .select({ id: practiceSessions.id })
+      .from(practiceSessions)
+      .where(and(eq(practiceSessions.id, sessionId), eq(practiceSessions.user_id, user.id)))
+      .limit(1);
+
+    if (!session) {
+      return c.json({ error: "Session not found" }, 404);
+    }
+
+    const attemptRows = await db
+      .select({
+        id: attempts.id,
+        session_item_id: attempts.session_item_id,
+        completed_at: attempts.completed_at,
+        transcript: attempts.transcript,
+        evaluation: attempts.evaluation,
+        overall_score: attempts.overall_score,
+        overall_pass: attempts.overall_pass
+      })
+      .from(attempts)
+      .where(and(eq(attempts.user_id, user.id), eq(attempts.session_id, sessionId)))
+      .orderBy(desc(attempts.completed_at));
+
+    const latestByItem = new Map<
+      string,
+      {
+        id: string;
+        session_item_id: string;
+        completed_at: number | null;
+        transcript: string;
+        evaluation: unknown | null;
+        overall_score: number;
+        overall_pass: boolean;
+      }
+    >();
+
+    for (const attempt of attemptRows) {
+      if (!attempt.session_item_id) continue;
+      if (!latestByItem.has(attempt.session_item_id)) {
+        const evaluation =
+          attempt.evaluation && evaluationResultSchema.safeParse(attempt.evaluation).success
+            ? attempt.evaluation
+            : null;
+        latestByItem.set(attempt.session_item_id, { ...attempt, evaluation });
+      }
+    }
+
+    return c.json(Array.from(latestByItem.values()));
+  });
+
   app.get("/api/v1/admin/whoami", async (c) => {
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_whoami" });
     const result = await resolveAdminStatus(env, c.req.raw.headers);

@@ -122,7 +122,7 @@ export const evaluationResultSchema = z.object({
     z.object({
       criterion_id: z.string(),
       score: z.number().min(0).max(4),
-      rationale_short: z.string().max(240),
+      rationale_short: z.string().max(800),
       evidence_quotes: z.array(z.string()).optional(),
       missed_points: z.array(z.string()).optional()
     })
@@ -130,7 +130,7 @@ export const evaluationResultSchema = z.object({
   overall: z.object({
     score: z.number().min(0).max(4),
     pass: z.boolean(),
-    summary_feedback: z.string().max(400),
+    summary_feedback: z.string().max(1500),
     what_to_improve_next: z.array(z.string()).min(1).max(3)
   }),
   patient_reaction: z.object({

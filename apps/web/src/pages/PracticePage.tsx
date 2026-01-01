@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import {
   useGetTaskQuery,
   useGetPracticeSessionsQuery,
+  useGetPracticeSessionAttemptsQuery,
   usePrefetchPatientAudioMutation,
   useRunPracticeMutation,
   useStartSessionMutation
@@ -13,11 +14,11 @@ import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   resetSessionState,
   setAudioBlobRef,
+  setAttemptForItem,
   setCurrentIndex,
-  setEvaluation,
   setRecordingState,
+  setSessionAttempts,
   setSession,
-  setTranscript
 } from "../store/practiceSlice";
 
 const blobToBase64 = (blob: Blob, errorMessage: string) =>
@@ -51,6 +52,10 @@ export const PracticePage = () => {
   } = useGetPracticeSessionsQuery(
     { task_id: taskId },
     { skip: !taskId }
+  );
+  const { data: sessionAttempts = [] } = useGetPracticeSessionAttemptsQuery(
+    practice.sessionId ?? "",
+    { skip: !practice.sessionId }
   );
   const [error, setError] = useState<string | null>(null);
   const [responseErrors, setResponseErrors] = useState<
@@ -240,6 +245,23 @@ export const PracticePage = () => {
   }, [practice.currentIndex, practice.sessionId, sessionIndexKey]);
 
   useEffect(() => {
+    if (!practice.sessionId) return;
+    const attemptsByItem = Object.fromEntries(
+      sessionAttempts
+        .filter((attempt) => attempt.session_item_id)
+        .map((attempt) => [
+          attempt.session_item_id,
+          {
+            transcript: attempt.transcript,
+            evaluation: attempt.evaluation ?? undefined,
+            attemptId: attempt.id
+          }
+        ])
+    );
+    dispatch(setSessionAttempts(attemptsByItem));
+  }, [dispatch, practice.sessionId, sessionAttempts]);
+
+  useEffect(() => {
     setPatientAudioStatus("idle");
     setPatientAudioUrl(null);
     setPatientCacheKey(null);
@@ -375,8 +397,14 @@ export const PracticePage = () => {
       setRequestId(result.requestId ?? null);
       setResponseErrors(result.errors ?? null);
       setNextDifficulty(result.next_recommended_difficulty ?? null);
-      dispatch(setEvaluation(result.scoring?.evaluation));
-      dispatch(setTranscript(result.transcript?.text));
+      dispatch(
+        setAttemptForItem({
+          sessionItemId: currentItem.session_item_id,
+          transcript: result.transcript?.text,
+          evaluation: result.scoring?.evaluation,
+          attemptId: result.attemptId
+        })
+      );
       dispatch(setRecordingState("ready"));
     } catch (err) {
       const message =
@@ -399,8 +427,6 @@ export const PracticePage = () => {
         setResponseErrors(errorData.errors);
       }
       setError(message ?? t("practice.error.evaluateFailed"));
-      dispatch(setEvaluation(undefined));
-      dispatch(setTranscript(undefined));
       dispatch(setRecordingState("ready"));
     }
   };
@@ -409,8 +435,6 @@ export const PracticePage = () => {
     const nextIndex = practice.currentIndex + 1;
     if (nextIndex < practice.sessionItems.length) {
       dispatch(setCurrentIndex(nextIndex));
-      dispatch(setEvaluation(undefined));
-      dispatch(setTranscript(undefined));
       setResponseErrors(null);
       setRequestId(null);
       setNextDifficulty(null);
@@ -421,8 +445,6 @@ export const PracticePage = () => {
     const prevIndex = practice.currentIndex - 1;
     if (prevIndex >= 0) {
       dispatch(setCurrentIndex(prevIndex));
-      dispatch(setEvaluation(undefined));
-      dispatch(setTranscript(undefined));
       setResponseErrors(null);
       setRequestId(null);
       setNextDifficulty(null);
