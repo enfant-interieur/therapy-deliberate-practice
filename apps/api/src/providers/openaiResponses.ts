@@ -64,12 +64,28 @@ const extractOutputText = (payload: unknown): string | null => {
   return null;
 };
 
-const buildStrictJsonSchema = (schema: z.ZodSchema<unknown>) => {
-  const jsonSchema = zodToJsonSchema(schema, {
-    name: "StructuredOutput",
+const buildStrictJsonSchema = (schema: z.ZodSchema<unknown>, schemaName: string) => {
+  const full = zodToJsonSchema(schema, {
+    name: schemaName,
     $refStrategy: "none",
     target: "jsonSchema7"
-  });
+  }) as Record<string, unknown>;
+  const defs =
+    (full.definitions ?? full.$defs ?? {}) as Record<string, Record<string, unknown>>;
+  let root: Record<string, unknown> = full;
+
+  if (defs?.[schemaName]) {
+    root = defs[schemaName];
+  } else if (typeof full.$ref === "string") {
+    const match = full.$ref.match(/^#\/(definitions|\$defs)\/(.+)$/);
+    if (match && defs?.[match[2]]) {
+      root = defs[match[2]];
+    }
+  }
+
+  if (root && typeof root === "object" && root.type == null && root.properties) {
+    root.type = "object";
+  }
   const enforceStrict = (node: unknown) => {
     if (!node || typeof node !== "object") return;
     const record = node as Record<string, unknown>;
@@ -101,8 +117,8 @@ const buildStrictJsonSchema = (schema: z.ZodSchema<unknown>) => {
       }
     }
   };
-  enforceStrict(jsonSchema);
-  return jsonSchema;
+  enforceStrict(root);
+  return root;
 };
 
 export const createTextResponse = async ({
@@ -153,7 +169,7 @@ export const createStructuredResponse = async <T>({
   schemaName,
   schema
 }: StructuredResponseInput<T>): Promise<OpenAIResponseResult<T>> => {
-  const jsonSchema = buildStrictJsonSchema(schema);
+  const jsonSchema = buildStrictJsonSchema(schema, schemaName);
   const response = await fetch(openaiEndpoint, {
     method: "POST",
     headers: {
