@@ -30,7 +30,7 @@ type OpenAITextResult = {
   Responses API mapping:
   - System prompt goes into the `instructions` field.
   - User input goes into the `input` field (plain text).
-  - Structured Outputs attach `response_format: { type: "json_schema", json_schema: { name, schema, strict: true } }`.
+  - Structured Outputs attach `text.format: { type: "json_schema", json_schema: { name, schema, strict: true } }`.
   - Output text/JSON is extracted from `response.output[].content[].text` (type `output_text`) or
     the top-level `output_text` convenience field when present.
   - Structured outputs are parsed/repair-attempted once and then validated with Zod as the final gate.
@@ -165,12 +165,14 @@ export const createStructuredResponse = async <T>({
       input,
       instructions,
       temperature,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: schemaName,
-          schema: jsonSchema,
-          strict: true
+      text: {
+        format: {
+          type: "json_schema",
+          json_schema: {
+            name: schemaName,
+            schema: jsonSchema,
+            strict: true
+          }
         }
       }
     })
