@@ -94,6 +94,18 @@ export const PracticePage = () => {
     () => new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }),
     []
   );
+  const latestSession = useMemo(() => {
+    if (sessionHistory.length === 0) return null;
+    return [...sessionHistory].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )[0];
+  }, [sessionHistory]);
+  const activeSession = useMemo(() => {
+    if (practice.sessionId) {
+      return sessionHistory.find((session) => session.id === practice.sessionId) ?? null;
+    }
+    return latestSession;
+  }, [latestSession, practice.sessionId, sessionHistory]);
 
   useEffect(() => {
     return () => {
@@ -169,8 +181,24 @@ export const PracticePage = () => {
   useEffect(() => {
     if (!taskId) return;
     if (practice.sessionId) return;
+    if (isLoadingSessions) return;
+    if (latestSession) {
+      const fallbackIndex = Math.min(
+        latestSession.completed_count,
+        Math.max(latestSession.items.length - 1, 0)
+      );
+      loadSession(latestSession.id, latestSession.items, fallbackIndex);
+      return;
+    }
     void startNewSession();
-  }, [practice.sessionId, startNewSession, taskId]);
+  }, [
+    isLoadingSessions,
+    latestSession,
+    loadSession,
+    practice.sessionId,
+    startNewSession,
+    taskId
+  ]);
 
   useEffect(() => {
     if (!practice.sessionId) return;
@@ -374,54 +402,6 @@ export const PracticePage = () => {
     <div className="space-y-8">
       <section className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
         <div className="space-y-6">
-          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-            <h2 className="text-2xl font-semibold">{t("practice.title")}</h2>
-            <div className="mt-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                  practiceMode === "standard"
-                    ? "bg-teal-400 text-slate-950"
-                    : "border border-white/20 text-slate-200"
-                }`}
-                onClick={() => setPracticeMode("standard")}
-              >
-                Standard
-              </button>
-              <button
-                type="button"
-                className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                  practiceMode === "real_time"
-                    ? "bg-teal-400 text-slate-950"
-                    : "border border-white/20 text-slate-200"
-                }`}
-                onClick={() => setPracticeMode("real_time")}
-              >
-                Real Time Mode
-              </button>
-            </div>
-            {practiceMode === "real_time" && (
-              <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-200">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={autoPlayPatientAudio}
-                    onChange={(event) => setAutoPlayPatientAudio(event.target.checked)}
-                  />
-                  Auto-play patient audio
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={hidePatientText}
-                    onChange={(event) => setHidePatientText(event.target.checked)}
-                  />
-                  Hide patient text (audio only)
-                </label>
-              </div>
-            )}
-          </div>
-
           {practiceMode === "standard" ? (
             <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -627,12 +607,144 @@ export const PracticePage = () => {
           )}
         </div>
         <div className="space-y-6">
-          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Session history</p>
-                <h3 className="mt-2 text-lg font-semibold">All sessions</h3>
+          <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 text-lg font-semibold text-white">
+              <span>{task?.title ?? "Loading exercise..."}</span>
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-400 transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
+            <div className="mt-5 space-y-4 text-sm text-slate-300">
+              {task?.description && <p className="text-sm text-slate-200">{task.description}</p>}
+              {task?.general_objective && (
+                <p className="text-xs text-slate-400">{task.general_objective}</p>
+              )}
+              <div className="flex flex-wrap gap-2 text-xs text-slate-300">
+                <span className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1">
+                  Base difficulty: {task?.base_difficulty ?? "--"}
+                </span>
+                {task?.skill_domain && (
+                  <span className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1">
+                    {task.skill_domain}
+                  </span>
+                )}
+                {(task?.tags ?? []).map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1"
+                  >
+                    {tag}
+                  </span>
+                ))}
               </div>
+            </div>
+          </details>
+          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Task criteria</p>
+              <div className="mt-4 space-y-3">
+                {task?.criteria?.map((criterion, index) => (
+                  <div
+                    key={criterion.id}
+                    className="rounded-2xl border border-white/10 bg-slate-900/50 p-4"
+                  >
+                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                      {index + 1}.
+                    </p>
+                    <p className="mt-2 text-sm font-semibold text-white">{criterion.label}</p>
+                    <p className="mt-2 text-xs text-slate-300">{criterion.description}</p>
+                  </div>
+                ))}
+                {!task?.criteria?.length && (
+                  <p className="text-xs text-slate-400">No criteria available.</p>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+            <h2 className="text-lg font-semibold">{t("practice.title")}</h2>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  practiceMode === "standard"
+                    ? "bg-teal-400 text-slate-950"
+                    : "border border-white/20 text-slate-200"
+                }`}
+                onClick={() => setPracticeMode("standard")}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  practiceMode === "real_time"
+                    ? "bg-teal-400 text-slate-950"
+                    : "border border-white/20 text-slate-200"
+                }`}
+                onClick={() => setPracticeMode("real_time")}
+              >
+                Real Time Mode
+              </button>
+            </div>
+            {practiceMode === "real_time" && (
+              <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-200">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={autoPlayPatientAudio}
+                    onChange={(event) => setAutoPlayPatientAudio(event.target.checked)}
+                  />
+                  Auto-play patient audio
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={hidePatientText}
+                    onChange={(event) => setHidePatientText(event.target.checked)}
+                  />
+                  Hide patient text (audio only)
+                </label>
+              </div>
+            )}
+          </div>
+          <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+            <summary className="flex cursor-pointer items-center justify-between gap-3 text-lg font-semibold text-white">
+              <span>Session history</span>
+              <span className="text-xs uppercase tracking-[0.3em] text-slate-400 transition group-open:rotate-180">
+                ▾
+              </span>
+            </summary>
+            <div className="mt-4 space-y-3">
+              {activeSession && (
+                <div className="rounded-2xl border border-teal-400/40 bg-teal-500/10 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-white">
+                      Session {activeSession.id.slice(0, 6).toUpperCase()}
+                    </p>
+                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase text-slate-300">
+                      {activeSession.completed_count >= activeSession.item_count
+                        ? "Completed"
+                        : "In progress"}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                    <span>{formatDate.format(new Date(activeSession.created_at))}</span>
+                    <span>
+                      {activeSession.completed_count}/{activeSession.item_count} examples
+                    </span>
+                  </div>
+                </div>
+              )}
+              {!activeSession && isLoadingSessions && (
+                <p className="text-sm text-slate-400">Loading sessions…</p>
+              )}
+              {!activeSession && !isLoadingSessions && (
+                <p className="text-sm text-slate-400">No sessions yet.</p>
+              )}
+            </div>
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-slate-300">Browse all sessions or start a new one.</p>
               <button
                 type="button"
                 className="rounded-full bg-teal-400 px-4 py-2 text-xs font-semibold text-slate-950"
@@ -642,11 +754,8 @@ export const PracticePage = () => {
                 New session
               </button>
             </div>
-            <p className="mt-3 text-sm text-slate-300">
-              Revisit any previous run or continue where you left off.
-            </p>
-            <div className="mt-4 max-h-[360px] space-y-3 overflow-y-auto pr-2">
-              {isLoadingSessions && (
+            <div className="mt-4 max-h-[320px] space-y-3 overflow-y-auto pr-2">
+              {isLoadingSessions && sessionHistory.length === 0 && (
                 <p className="text-sm text-slate-400">Loading sessions…</p>
               )}
               {!isLoadingSessions && sessionHistory.length === 0 && (
@@ -686,62 +795,6 @@ export const PracticePage = () => {
                   </button>
                 );
               })}
-            </div>
-          </div>
-
-          <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6" open>
-            <summary className="flex cursor-pointer items-center justify-between gap-3 text-lg font-semibold text-white">
-              <span>Exercise info &amp; criteria</span>
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-400 transition group-open:rotate-180">
-                ▾
-              </span>
-            </summary>
-            <div className="mt-5 space-y-4 text-sm text-slate-300">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Exercise</p>
-                <h4 className="mt-2 text-lg font-semibold text-white">
-                  {task?.title ?? "Loading exercise..."}
-                </h4>
-                {task?.description && <p className="mt-2 text-sm text-slate-200">{task.description}</p>}
-                {task?.general_objective && (
-                  <p className="mt-3 text-xs text-slate-400">{task.general_objective}</p>
-                )}
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-300">
-                  <span className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1">
-                    Base difficulty: {task?.base_difficulty ?? "--"}
-                  </span>
-                  {task?.skill_domain && (
-                    <span className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1">
-                      {task.skill_domain}
-                    </span>
-                  )}
-                  {(task?.tags ?? []).map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full border border-white/10 bg-slate-900/60 px-3 py-1"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Task criteria</p>
-                <div className="mt-3 space-y-3">
-                  {task?.criteria?.map((criterion) => (
-                    <div
-                      key={criterion.id}
-                      className="rounded-2xl border border-white/10 bg-slate-900/50 p-4"
-                    >
-                      <p className="text-sm font-semibold text-white">{criterion.label}</p>
-                      <p className="mt-2 text-xs text-slate-300">{criterion.description}</p>
-                    </div>
-                  ))}
-                  {!task?.criteria?.length && (
-                    <p className="text-xs text-slate-400">No criteria available.</p>
-                  )}
-                </div>
-              </div>
             </div>
           </details>
           {practice.evaluation && (
