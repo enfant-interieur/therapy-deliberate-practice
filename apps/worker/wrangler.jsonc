@@ -33,6 +33,7 @@
     "LOCAL_LLM_URL": "http://localhost:7002",
     "LOCAL_LLM_MODEL": "mlx-community/Mistral-7B-Instruct-v0.2",
     "ENV": "production",
+    "R2_BUCKET": "deliberate-practice-audio",
     "ADMIN_EMAILS": "",
     "ADMIN_GROUPS": "",
     "CF_ACCESS_AUD": "",
