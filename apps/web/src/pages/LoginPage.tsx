@@ -20,6 +20,7 @@ export const LoginPage = () => {
 
   const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
   const [loadingEmail, setLoadingEmail] = useState(false);
+  const [loadingAction, setLoadingAction] = useState<"reset" | "resend" | null>(null);
 
   const returnTo = useMemo(() => {
     const params = new URLSearchParams(location.search);
@@ -121,6 +122,62 @@ export const LoginPage = () => {
     }
   };
 
+  const handlePasswordReset = async () => {
+    setError(null);
+    setInfo(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError("Enter your email to reset your password.");
+      return;
+    }
+
+    setLoadingAction("reset");
+    try {
+      const redirectTo = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+
+      if (resetError) {
+        setError(resetError.message);
+        return;
+      }
+
+      setInfo("Password reset email sent. Follow the link to create a new password.");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleResendConfirmation = async () => {
+    setError(null);
+    setInfo(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError("Enter your email to resend the confirmation email.");
+      return;
+    }
+
+    setLoadingAction("resend");
+    try {
+      const emailRedirectTo = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
+      const { error: resendError } = await supabase.auth.resend({
+        type: "signup",
+        email: cleanEmail,
+        options: { emailRedirectTo }
+      });
+
+      if (resendError) {
+        setError(resendError.message);
+        return;
+      }
+
+      setInfo("Confirmation email resent. Check your inbox to finish signing up.");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
@@ -173,7 +230,7 @@ export const LoginPage = () => {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            disabled={loadingEmail || loadingProvider !== null}
+            disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
           />
           <input
             className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
@@ -182,7 +239,7 @@ export const LoginPage = () => {
             autoComplete={mode === "signin" ? "current-password" : "new-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            disabled={loadingEmail || loadingProvider !== null}
+            disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
           />
           {mode === "signup" && (
             <input
@@ -192,14 +249,14 @@ export const LoginPage = () => {
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              disabled={loadingEmail || loadingProvider !== null}
+              disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
             />
           )}
 
           <button
             className="mt-2 w-full rounded-full bg-teal-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-300"
             onClick={handleEmailSubmit}
-            disabled={loadingEmail || loadingProvider !== null}
+            disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
           >
             {loadingEmail
               ? mode === "signin"
@@ -209,6 +266,25 @@ export const LoginPage = () => {
                 ? "Sign in with email"
                 : "Create account with email"}
           </button>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
+            <button
+              type="button"
+              className="underline decoration-white/40 underline-offset-4 transition hover:text-white"
+              onClick={handlePasswordReset}
+              disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+            >
+              {loadingAction === "reset" ? "Sending reset email..." : "Forgot password"}
+            </button>
+            <button
+              type="button"
+              className="underline decoration-white/40 underline-offset-4 transition hover:text-white"
+              onClick={handleResendConfirmation}
+              disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+            >
+              {loadingAction === "resend" ? "Resending confirmation..." : "Resend confirmation email"}
+            </button>
+          </div>
 
           {error && <p className="text-sm text-rose-300">{error}</p>}
           {info && <p className="text-sm text-slate-300">{info}</p>}
