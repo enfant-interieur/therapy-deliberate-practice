@@ -18,6 +18,16 @@
   "placement": {
     "mode": "smart"
   },
+  "routes": [
+    {
+      "pattern": "therapy-deliberate-practice.com/*",
+      "zone_name": "therapy-deliberate-practice.com"
+    },
+    {
+      "pattern": "www.therapy-deliberate-practice.com/*",
+      "zone_name": "therapy-deliberate-practice.com"
+    }
+  ],
   "r2_buckets": [
     {
       "bucket_name": "deliberate-practice-audio",
