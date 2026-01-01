@@ -33,7 +33,6 @@ import { createAdminAuth, resolveAdminStatus } from "./middleware/adminAuth";
 import { createUserAuth } from "./middleware/userAuth";
 import { decryptOpenAiKey, encryptOpenAiKey } from "./utils/crypto";
 import { createLogger, log, makeRequestId, safeError, safeTruncate } from "./utils/logger";
-import { createR2Client } from "./utils/r2";
 import { OpenAITtsProvider } from "./providers/tts";
 import { OPENAI_TTS_FORMAT, OPENAI_TTS_MODEL } from "./providers/models";
 import { getOrCreateTtsAsset, type TtsStorage } from "./services/ttsService";
@@ -123,7 +122,12 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
   const adminAuth = createAdminAuth(env);
   const userAuth = createUserAuth(env, db);
   const logger = createLogger({ service: "api" });
-  const ttsStorage = tts?.storage ?? createR2Client(env);
+  const ttsStorage = tts?.storage;
+  if (!ttsStorage) {
+    throw new Error(
+      "TTS storage is not configured. Provide tts.storage (Worker R2 binding or Node R2 client)."
+    );
+  }
 
   const getUserSettingsRow = async (userId: string) => {
     const [settings] = await db

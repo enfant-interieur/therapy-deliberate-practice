@@ -69,20 +69,35 @@ ENV
 
 Follow these steps to enable patient-audio TTS caching (R2) and the Real Time Mode flow.
 
-1. **Configure R2 credentials in the root `.env`.**
+1. **Create the R2 bucket.**
 
-   Add the R2 settings that the Node API uses to upload and stream audio:
+   Create an R2 bucket in Cloudflare named `deliberate-practice-audio` (or your preferred name).
 
-   ```
-   R2_ACCOUNT_ID=your-account-id
-   R2_ACCESS_KEY_ID=your-access-key
-   R2_SECRET_ACCESS_KEY=your-secret-key
-   R2_BUCKET=your-bucket-name
-   R2_PUBLIC_BASE_URL= # optional
-   R2_S3_ENDPOINT= # optional, defaults to https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
-   ```
+2. **Configure R2 for the runtime you are using.**
 
-2. **Apply the new `tts_assets` migration.**
+   - **Worker runtime (Cloudflare):** use the native R2 binding in `apps/worker/wrangler.jsonc`.
+     This repo already expects:
+
+     ```
+     r2_buckets = [{ bucket_name = "deliberate-practice-audio", binding = "deliberate_practice_audio" }]
+     vars.R2_BUCKET = "deliberate-practice-audio"
+     ```
+
+     No `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, or `R2_S3_ENDPOINT` are required
+     for the Worker.
+
+   - **Node runtime (apps/api dev server):** configure the S3-compatible R2 client in the root `.env`:
+
+     ```
+     R2_ACCOUNT_ID=your-account-id
+     R2_ACCESS_KEY_ID=your-access-key
+     R2_SECRET_ACCESS_KEY=your-secret-key
+     R2_BUCKET=deliberate-practice-audio
+     R2_PUBLIC_BASE_URL= # optional
+     R2_S3_ENDPOINT= # optional, defaults to https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com
+     ```
+
+3. **Apply the new `tts_assets` migration.**
 
    - For D1 (local):
 
@@ -102,19 +117,19 @@ Follow these steps to enable patient-audio TTS caching (R2) and the Real Time Mo
      sqlite3 apps/api/infra/local.db < apps/worker/migrations/0002_add_tts_assets.sql
      ```
 
-3. **Ensure OpenAI TTS can run.**
+4. **Ensure OpenAI TTS can run.**
 
    Set `OPENAI_API_KEY` in the root `.env` (or as a Worker secret) so the API can call
    `POST /v1/audio/speech` via the provider layer.
 
-4. **Start the API and web apps.**
+5. **Start the API and web apps.**
 
    ```
    npm run dev -w apps/api
    npm run dev -w apps/web
    ```
 
-5. **Open a Practice session and enable Real Time Mode.**
+6. **Open a Practice session and enable Real Time Mode.**
 
    - Go to `/practice/:taskId` in the web app.
    - Toggle **Real Time Mode**.
@@ -123,7 +138,7 @@ Follow these steps to enable patient-audio TTS caching (R2) and the Real Time Mo
      - Generates or reuses cached audio in R2.
    - Once audio is ready, the patient audio plays first; recording unlocks when playback ends.
 
-6. **Verify audio is cached.**
+7. **Verify audio is cached.**
 
    - First request: `tts_assets.status` goes `generating → ready` and the audio file is written to R2.
    - Subsequent requests for the same text/model/voice/format reuse the existing `cache_key`.
@@ -131,7 +146,7 @@ Follow these steps to enable patient-audio TTS caching (R2) and the Real Time Mo
 
 ### Worker env (Cloudflare)
 
-In `apps/worker/wrangler.jsonc`, define non-secret vars and bind the D1 database:
+In `apps/worker/wrangler.jsonc`, define non-secret vars, bind the D1 database, and bind R2:
 
 - `AI_MODE`
 - `SUPABASE_URL`
@@ -140,6 +155,13 @@ In `apps/worker/wrangler.jsonc`, define non-secret vars and bind the D1 database
 - `LOCAL_STT_URL`
 - `LOCAL_LLM_URL`
 - `LOCAL_LLM_MODEL`
+- `R2_BUCKET` (matches the R2 bucket name)
+
+Ensure the `r2_buckets` binding is present:
+
+```
+r2_buckets = [{ bucket_name = "deliberate-practice-audio", binding = "deliberate_practice_audio" }]
+```
 
 Use Wrangler secrets for sensitive values:
 
