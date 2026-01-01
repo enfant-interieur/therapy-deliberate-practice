@@ -81,6 +81,10 @@ export const PracticePage = () => {
   const currentItem = practice.sessionItems[practice.currentIndex];
   const currentExampleId = currentItem?.example_id;
   const patientLine = currentItem?.patient_text ?? "";
+  const hasCoachReview = Boolean(practice.evaluation);
+  const hasPreviousExample = practice.currentIndex > 0;
+  const hasNextExample = practice.currentIndex + 1 < practice.sessionItems.length;
+  const nextArrowAttention = hasCoachReview && hasNextExample;
   const criterionMap = useMemo(() => {
     const entries = task?.criteria?.map((criterion) => [criterion.id, criterion]) ?? [];
     return new Map(entries);
@@ -408,34 +412,61 @@ export const PracticePage = () => {
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient prompt</p>
                 </div>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase text-slate-300">
-                  {t("practice.itemProgress", {
-                    index: practice.currentIndex + 1,
-                    total: practice.sessionItems.length || 0
-                  })}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous example"
+                    className="group flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={handlePreviousExample}
+                    disabled={!hasPreviousExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:-translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
+                    {t("practice.itemProgress", {
+                      index: practice.currentIndex + 1,
+                      total: practice.sessionItems.length || 0
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Next example"
+                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                      nextArrowAttention ? "animate-[pulse_3s_ease-in-out_infinite]" : ""
+                    }`}
+                    onClick={handleNextExample}
+                    disabled={!hasNextExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9 6l6 6-6 6" />
+                    </svg>
+                    {nextArrowAttention && (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+                    )}
+                  </button>
+                </div>
               </div>
               <p className="mt-6 text-2xl font-semibold leading-relaxed text-slate-100 md:text-3xl">
                 {currentItem?.patient_text ?? t("practice.loadingScenario")}
               </p>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
-                  onClick={handlePreviousExample}
-                  disabled={practice.currentIndex === 0}
-                >
-                  Previous example
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
-                  onClick={handleNextExample}
-                  disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
-                >
-                  {t("practice.nextExample")}
-                </button>
-              </div>
             </div>
           ) : (
             <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
@@ -443,12 +474,57 @@ export const PracticePage = () => {
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient audio</p>
                 </div>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase text-slate-300">
-                  {t("practice.itemProgress", {
-                    index: practice.currentIndex + 1,
-                    total: practice.sessionItems.length || 0
-                  })}
-                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous patient turn"
+                    className="group flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={handlePreviousExample}
+                    disabled={!hasPreviousExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:-translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
+                    {t("practice.itemProgress", {
+                      index: practice.currentIndex + 1,
+                      total: practice.sessionItems.length || 0
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Next patient turn"
+                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                      nextArrowAttention ? "animate-[pulse_3s_ease-in-out_infinite]" : ""
+                    }`}
+                    onClick={handleNextExample}
+                    disabled={!hasNextExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9 6l6 6-6 6" />
+                    </svg>
+                    {nextArrowAttention && (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+                    )}
+                  </button>
+                </div>
               </div>
               {!hidePatientText && (
                 <p className="mt-6 text-2xl font-semibold leading-relaxed text-slate-100 md:text-3xl">
@@ -513,24 +589,6 @@ export const PracticePage = () => {
                     </button>
                   </div>
                 )}
-              </div>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
-                  onClick={handlePreviousExample}
-                  disabled={practice.currentIndex === 0}
-                >
-                  Previous patient turn
-                </button>
-                <button
-                  type="button"
-                  className="rounded-full border border-white/20 px-4 py-2 text-sm text-slate-200 hover:border-white/40"
-                  onClick={handleNextExample}
-                  disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
-                >
-                  Next patient turn
-                </button>
               </div>
             </div>
           )}
@@ -608,7 +666,7 @@ export const PracticePage = () => {
           <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6">
             <summary className="flex cursor-pointer items-center justify-between gap-3 text-lg font-semibold text-white">
               <span>{task?.title ?? "Loading exercise..."}</span>
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-400 transition group-open:rotate-180">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg text-slate-200 transition group-open:rotate-180">
                 ▾
               </span>
             </summary>
@@ -646,10 +704,12 @@ export const PracticePage = () => {
                     key={criterion.id}
                     className="rounded-2xl border border-white/10 bg-slate-900/50 p-4"
                   >
-                    <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
-                      {index + 1}.
-                    </p>
-                    <p className="mt-2 text-sm font-semibold text-white">{criterion.label}</p>
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full border border-teal-300/40 bg-teal-400/10 text-xs font-semibold text-teal-200 shadow-[0_0_12px_rgba(45,212,191,0.35)]">
+                        {index + 1}
+                      </span>
+                      <p className="text-sm font-semibold text-white">{criterion.label}</p>
+                    </div>
                     <p className="mt-2 text-xs text-slate-300">{criterion.description}</p>
                   </div>
                 ))}
@@ -709,7 +769,7 @@ export const PracticePage = () => {
           <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6">
             <summary className="flex cursor-pointer items-center justify-between gap-3 text-lg font-semibold text-white">
               <span>Session history</span>
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-400 transition group-open:rotate-180">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg text-slate-200 transition group-open:rotate-180">
                 ▾
               </span>
             </summary>
