@@ -4,11 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.958.0",
-    "@aws-sdk/lib-storage": "^3.958.0",
-    "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@deliberate/shared": "*",
-    "@hono/node-server": "^1.13.4",
     "better-sqlite3": "^12.5.0",
     "drizzle-orm": "^0.33.0",
     "hono": "^4.5.8",
@@ -25,7 +21,6 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/server.js",
     "test": "node --test --loader tsx"
   }
 }

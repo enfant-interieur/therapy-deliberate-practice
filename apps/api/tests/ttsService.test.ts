@@ -24,12 +24,8 @@ const createEnv = (): RuntimeEnv => ({
   supabaseUrl: "",
   supabaseAnonKey: "",
   supabaseJwtSecret: "test-secret",
-  r2AccountId: "test-account",
-  r2AccessKeyId: "test-access",
-  r2SecretAccessKey: "test-secret",
   r2Bucket: "tts-bucket",
-  r2PublicBaseUrl: "",
-  r2S3Endpoint: "http://localhost:9000"
+  r2PublicBaseUrl: ""
 });
 
 const setupDb = () => {

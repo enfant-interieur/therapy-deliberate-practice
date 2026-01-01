@@ -125,7 +125,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
   const ttsStorage = tts?.storage;
   if (!ttsStorage) {
     throw new Error(
-      "TTS storage is not configured. Provide tts.storage (Worker R2 binding or Node R2 client)."
+      "TTS storage is not configured. Provide tts.storage (Worker R2 binding)."
     );
   }
 
@@ -462,11 +462,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
   app.use("/api/v1/sessions/*", userAuth);
   app.use("/api/v1/tts/*", userAuth);
 
-  const ttsConfigReady =
-    Boolean(env.r2Bucket) &&
-    Boolean(env.r2AccessKeyId) &&
-    Boolean(env.r2SecretAccessKey) &&
-    (Boolean(env.r2S3Endpoint) || Boolean(env.r2AccountId));
+  const ttsConfigReady = Boolean(env.r2Bucket);
 
   const handleTtsRequest = async (c: Context) => {
     const requestId = c.get("requestId");
