@@ -178,6 +178,144 @@
       "securityNote": "Keys are encrypted at rest and never shared back to the browser after saving."
     }
   },
+  "aiSetup": {
+    "title": {
+      "kicker": "AI setup",
+      "main": "Get ready for AI-assisted practice",
+      "subtitle": "You can run everything locally or connect OpenAI. We'll walk you through each option with step-by-step cards."
+    },
+    "stepsLabel": "Step {{current}} / {{total}}",
+    "actions": {
+      "close": "Close",
+      "back": "Back",
+      "next": "Next",
+      "choosePath": "Choose a path",
+      "changePath": "Change path"
+    },
+    "side": {
+      "title": "Quick checklist",
+      "subtitle": "What powers the experience",
+      "description": "Evaluations run on an LLM. Patient audio uses TTS. You can keep everything local, or let OpenAI handle both securely.",
+      "tipTitle": "Tip",
+      "tipBody": "You can switch later in Settings. If you skip now, practice will run in offline mode until a provider is configured."
+    },
+    "choice": {
+      "title": "Choose your path",
+      "description": "Pick the setup that fits your workflow today.",
+      "local": {
+        "title": "Use my own models (local)",
+        "body": "Run the LLM + TTS servers on your machine."
+      },
+      "openai": {
+        "title": "Use OpenAI",
+        "body": "Fast setup with usage-based billing."
+      },
+      "skip": "Skip for now"
+    },
+    "intro": {
+      "steps": [
+        {
+          "title": "Welcome to your practice studio",
+          "description": "This space simulates a patient conversation and then scores your response against the rubric you selected.",
+          "bullets": [
+            "LLM scoring produces detailed coaching feedback.",
+            "TTS generates the patient's voice prompts.",
+            "You stay in control of which AI providers are used."
+          ]
+        },
+        {
+          "title": "What you need to run evaluations",
+          "description": "Evaluations require an LLM and TTS provider. You can keep everything local or connect OpenAI.",
+          "bullets": [
+            "Local mode: run the bundled Python launcher.",
+            "OpenAI mode: add your API key once.",
+            "You can mix and match later."
+          ]
+        },
+        {
+          "title": "Choose how you'd like to proceed",
+          "description": "Pick a path on the right. You'll get guided steps and links.",
+          "bullets": [
+            "Local setup = no external API calls.",
+            "OpenAI setup = fastest to start.",
+            "Skipping keeps practice in offline mode."
+          ]
+        }
+      ]
+    },
+    "local": {
+      "steps": [
+        {
+          "title": "Start the local LLM + TTS servers",
+          "description": "Run the script below. It detects Apple Silicon and chooses MLX models automatically.",
+          "links": [
+            { "label": "Script docs", "href": "https://github.com/albertbuchard/therapy-deliberate-practice" }
+          ]
+        },
+        {
+          "title": "Download the recommended models",
+          "description": "We use Qwen 4B for scoring and Kokoro/Chatterbox for TTS depending on your machine.",
+          "bullets": [
+            "Apple Silicon: Qwen MLX + Kokoro MLX TTS.",
+            "Other GPUs: Qwen Instruct + Chatterbox multilingual TTS.",
+            "The script will reference these by default."
+          ],
+          "links": [
+            { "label": "Qwen 3 4B MLX", "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit" },
+            { "label": "Qwen 3 4B Instruct", "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507" },
+            { "label": "Kokoro MLX TTS", "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16" }
+          ]
+        },
+        {
+          "title": "Point the app to your local services",
+          "description": "Keep the defaults or adjust the URLs in Settings once the servers report healthy.",
+          "bullets": [
+            "LLM server: http://localhost:7002",
+            "TTS server: http://localhost:7003"
+          ]
+        }
+      ]
+    },
+    "openai": {
+      "steps": [
+        {
+          "title": "Generate your OpenAI API key",
+          "description": "The key lets us securely send evaluation prompts and text-to-speech requests to OpenAI.",
+          "bullets": [
+            "We only use the key when you run evaluations or generate patient audio.",
+            "Keys are encrypted at rest and never shown after saving.",
+            "You can revoke the key anytime in OpenAI."
+          ],
+          "links": [
+            { "label": "Create API key", "href": "https://platform.openai.com/api-keys" },
+            { "label": "OpenAI docs", "href": "https://platform.openai.com/docs" }
+          ]
+        },
+        {
+          "title": "Understand usage and cost",
+          "description": "Costs depend on the model and usage. Most sessions cost just a few cents, and you control limits.",
+          "bullets": [
+            "Create a project to track usage by workspace.",
+            "Set a monthly cap to avoid surprises.",
+            "Review usage in the OpenAI dashboard anytime."
+          ],
+          "links": [
+            { "label": "Create a project", "href": "https://platform.openai.com/settings/organization/projects" },
+            { "label": "Usage & limits", "href": "https://platform.openai.com/settings/organization/limits" }
+          ]
+        },
+        {
+          "title": "Save the key in Settings",
+          "description": "Paste the key in the OpenAI section of Settings. Once validated, you're ready to practice.",
+          "bullets": [
+            "Switch AI mode to OpenAI only or Local preferred.",
+            "Run a quick practice item to confirm.",
+            "You can remove the key at any time."
+          ]
+        }
+      ]
+    }
+  },
   "practice": {
     "title": "Practice session",
     "loadingScenario": "Loading scenario...",

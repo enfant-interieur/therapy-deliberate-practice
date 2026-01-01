@@ -6,6 +6,7 @@ import { useGetAdminWhoamiQuery, useGetMeSettingsQuery } from "../store/api";
 import { setAdminStatus, setUser } from "../store/authSlice";
 import { supabase } from "../supabase/client";
 import { hydrateSettings } from "../store/settingsSlice";
+import { AiSetupModal } from "./AiSetupModal";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -22,6 +23,7 @@ export const AppShell = () => {
   const location = useLocation();
   const selectedLanguage = i18n.resolvedLanguage ?? i18n.language;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [showAiSetup, setShowAiSetup] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const handledAuthSignatureRef = useRef<string>("");
 
@@ -136,6 +138,17 @@ export const AppShell = () => {
   }, [settingsData, dispatch]);
 
   useEffect(() => {
+    if (!authChecked || !isAuthenticated || !settingsData) return;
+    const dismissed = window.sessionStorage.getItem("aiSetupDismissed") === "1";
+    if (dismissed) return;
+    const missingLocal = !settingsData.localLlmUrl || !settingsData.localSttUrl;
+    const missingOpenAi = !settingsData.hasOpenAiKey;
+    if (missingLocal || missingOpenAi) {
+      setShowAiSetup(true);
+    }
+  }, [authChecked, isAuthenticated, settingsData]);
+
+  useEffect(() => {
     if (data) {
       dispatch(
         setAdminStatus({
@@ -189,6 +202,16 @@ export const AppShell = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+      <AiSetupModal
+        open={showAiSetup}
+        onClose={(reason) => {
+          window.sessionStorage.setItem("aiSetupDismissed", "1");
+          setShowAiSetup(false);
+          if (reason === "skip") {
+            return;
+          }
+        }}
+      />
       <header className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
