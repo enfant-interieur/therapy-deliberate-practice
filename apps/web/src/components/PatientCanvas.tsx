@@ -111,7 +111,7 @@ export const PatientCanvas = ({
   return (
     <div
       ref={canvasRef}
-      className="rounded-3xl border border-white/10 bg-slate-900/60 p-4"
+      className="rounded-3xl bg-slate-900/60 p-4 overflow-hidden"
     />
   );
 };

@@ -558,7 +558,7 @@ export const PracticePage = () => {
                   <div className="space-y-3">
                     <audio
                       ref={patientAudioRef}
-                      className="w-full"
+                      className="audio-player w-full"
                       controls
                       src={patientAudioUrl}
                       onPlay={() => {
@@ -623,7 +623,7 @@ export const PracticePage = () => {
               </button>
             </div>
             {practice.audioBlobRef && (
-              <audio className="mt-4 w-full" controls src={practice.audioBlobRef} />
+              <audio className="audio-player mt-4 w-full" controls src={practice.audioBlobRef} />
             )}
             {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
           </div>

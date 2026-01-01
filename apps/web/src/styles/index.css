@@ -5,3 +5,20 @@
 body {
   font-family: "Inter", system-ui, sans-serif;
 }
+
+audio.audio-player {
+  height: 44px;
+  border-radius: 9999px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background-color: rgba(15, 23, 42, 0.55);
+  padding: 4px 12px;
+}
+
+audio.audio-player::-webkit-media-controls-panel {
+  background-color: transparent;
+}
+
+audio.audio-player::-webkit-media-controls-enclosure {
+  border-radius: 9999px;
+  background-color: rgba(15, 23, 42, 0.7);
+}
