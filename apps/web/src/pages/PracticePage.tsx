@@ -569,12 +569,12 @@ export const PracticePage = () => {
                 {patientSpeaking && <span className="text-amber-200">Patient speaking…</span>}
               </div>
               <div className="mt-5 space-y-4">
-                <TalkingPatientCanvas
-                  text={patientLine}
-                  play={patientPlay}
-                  reaction={practice.patientReaction}
-                  onDone={() => setPatientPlay(false)}
-                />
+                {/*<TalkingPatientCanvas*/}
+                {/*  text={patientLine}*/}
+                {/*  play={patientPlay}*/}
+                {/*  reaction={practice.patientReaction}*/}
+                {/*  onDone={() => setPatientPlay(false)}*/}
+                {/*/>*/}
                 {patientAudioStatus === "generating" && (
                 <p className="text-sm font-light text-slate-300">Generating patient audio…</p>
               )}
