@@ -431,294 +431,7 @@ export const PracticePage = () => {
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
-        <div className="space-y-6">
-          {practiceMode === "standard" ? (
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient prompt</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Previous example"
-                    className="group flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    onClick={handlePreviousExample}
-                    disabled={!hasPreviousExample}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-5 w-5 transition group-hover:-translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M15 18l-6-6 6-6" />
-                    </svg>
-                  </button>
-                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
-                    {t("practice.itemProgress", {
-                      index: practice.currentIndex + 1,
-                      total: practice.sessionItems.length || 0
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Next example"
-                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
-                      nextArrowAttention ? "animate-[pulse_3s_ease-in-out_infinite]" : ""
-                    }`}
-                    onClick={handleNextExample}
-                    disabled={!hasNextExample}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-5 w-5 transition group-hover:translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M9 6l6 6-6 6" />
-                    </svg>
-                    {nextArrowAttention && (
-                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              <p className="mt-6 text-2xl font-light leading-relaxed text-slate-100 md:text-3xl">
-                {currentItem?.patient_text ?? t("practice.loadingScenario")}
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient audio</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    aria-label="Previous patient turn"
-                    className="group flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    onClick={handlePreviousExample}
-                    disabled={!hasPreviousExample}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-5 w-5 transition group-hover:-translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M15 18l-6-6 6-6" />
-                    </svg>
-                  </button>
-                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
-                    {t("practice.itemProgress", {
-                      index: practice.currentIndex + 1,
-                      total: practice.sessionItems.length || 0
-                    })}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label="Next patient turn"
-                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
-                      nextArrowAttention ? "animate-[pulse_3s_ease-in-out_infinite]" : ""
-                    }`}
-                    onClick={handleNextExample}
-                    disabled={!hasNextExample}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      className="h-5 w-5 transition group-hover:translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M9 6l6 6-6 6" />
-                    </svg>
-                    {nextArrowAttention && (
-                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
-                    )}
-                  </button>
-                </div>
-              </div>
-              {!hidePatientText && (
-                <p className="mt-6 text-2xl font-light leading-relaxed text-slate-100 md:text-3xl">
-                  {currentItem?.patient_text ?? t("practice.loadingScenario")}
-                </p>
-              )}
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs uppercase text-slate-400">
-                <button
-                  type="button"
-                  className="rounded-full border border-white/20 px-3 py-1 text-xs hover:border-white/40"
-                  onClick={() => setHidePatientText((prev) => !prev)}
-                >
-                  {hidePatientText ? "Show transcript" : "Hide transcript"}
-                </button>
-                {patientSpeaking && <span className="text-amber-200">Patient speaking…</span>}
-              </div>
-              <div className="mt-5 space-y-4">
-                {/*<TalkingPatientCanvas*/}
-                {/*  text={patientLine}*/}
-                {/*  play={patientPlay}*/}
-                {/*  reaction={practice.patientReaction}*/}
-                {/*  onDone={() => setPatientPlay(false)}*/}
-                {/*/>*/}
-                {patientAudioStatus === "generating" && (
-                <p className="text-sm font-light text-slate-300">Generating patient audio…</p>
-              )}
-              {patientAudioError && (
-                  <p className="text-sm font-light text-rose-300">{patientAudioError}</p>
-              )}
-                {patientAudioUrl && (
-                  <div className="space-y-3">
-                    <audio
-                      ref={patientAudioRef}
-                      className="audio-player w-full"
-                      controls
-                      src={patientAudioUrl}
-                      onPlay={() => {
-                        setPatientSpeaking(true);
-                        setPatientPlay(true);
-                        setCanRecord(false);
-                      }}
-                      onPause={() => {
-                        setPatientSpeaking(false);
-                        setPatientPlay(false);
-                      }}
-                      onEnded={() => {
-                        setPatientSpeaking(false);
-                        setPatientPlay(false);
-                        setCanRecord(true);
-                      }}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
-            <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("practice.responseLabel")}</p>
-            {practiceMode === "real_time" && !canRecord && (
-              <p className="mt-2 text-xs text-slate-400">Listen to the patient before recording.</p>
-            )}
-            <div className="mt-4 flex flex-wrap gap-3">
-              {practice.recordingState !== "recording" ? (
-                <button
-                  className="rounded-full bg-teal-400 px-6 py-2 text-sm font-semibold text-slate-950"
-                  onClick={startRecording}
-                  disabled={!canStartRecording}
-                >
-                  {t("practice.startRecording")}
-                </button>
-              ) : (
-                <button
-                  className="rounded-full bg-rose-400 px-6 py-2 text-sm font-semibold text-slate-950"
-                  onClick={stopRecording}
-                >
-                  {t("practice.stopRecording")}
-                </button>
-              )}
-              <button
-                className="rounded-full border border-white/20 px-6 py-2 text-sm"
-                onClick={runEvaluation}
-                disabled={!practice.audioBlobRef || isLoading || isStartingSession || !currentItem}
-              >
-                {isLoading ? t("practice.evaluating") : t("practice.runEvaluation")}
-              </button>
-            </div>
-            {practice.audioBlobRef && (
-              <audio className="audio-player mt-4 w-full" controls src={practice.audioBlobRef} />
-            )}
-            {error && <p className="mt-3 text-sm font-light text-rose-300">{error}</p>}
-          </div>
-          {practice.evaluation && (
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-slate-950/80 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h3 className="text-lg font-semibold">{t("practice.coachFeedback")}</h3>
-                <span
-                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${scoreTone(
-                    practice.evaluation.overall.score
-                  )}`}
-                >
-                  Overall {practice.evaluation.overall.score}/4
-                </span>
-              </div>
-              <p className="mt-3 text-sm text-slate-300">{practice.evaluation.overall.summary_feedback}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {practice.evaluation.overall.what_to_improve_next.map((tip) => (
-                  <span
-                    key={tip}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200"
-                  >
-                    {tip}
-                  </span>
-                ))}
-              </div>
-              {typeof nextDifficulty === "number" && (
-                <p className="mt-3 text-xs text-slate-400">
-                  {t("practice.recommendedDifficulty", { difficulty: nextDifficulty })}
-                </p>
-              )}
-              <button
-                type="button"
-                className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm"
-                onClick={handleNextExample}
-                disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
-              >
-                {practiceMode === "real_time" ? "Next patient turn" : t("practice.nextExample")}
-              </button>
-            </div>
-          )}
-          {practice.transcript && (
-            <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{t("practice.transcriptTitle")}</h3>
-                <button
-                  className="rounded-full border border-white/20 px-4 py-1 text-xs"
-                  onClick={() => practice.transcript && navigator.clipboard.writeText(practice.transcript)}
-                >
-                  {t("practice.copyTranscript")}
-                </button>
-              </div>
-              <p className="mt-3 text-sm font-light text-slate-200 whitespace-pre-wrap">
-                {practice.transcript}
-              </p>
-              {requestId && (
-                <p className="mt-3 text-xs font-light text-slate-400">
-                  {t("practice.requestId", { id: requestId })}
-                </p>
-              )}
-            </div>
-          )}
-          {(responseErrors?.length ?? 0) > 0 && (
-            <div className="rounded-3xl border border-rose-400/30 bg-rose-500/10 p-6">
-              <h3 className="text-lg font-semibold text-rose-100">{t("practice.snagTitle")}</h3>
-              <ul className="mt-3 space-y-2 text-sm text-rose-100">
-                {responseErrors?.map((entry, index) => (
-                  <li key={`${entry.stage}-${index}`}>
-                    <span className="font-semibold uppercase text-xs">{entry.stage}</span>:{" "}
-                    {entry.message}
-                  </li>
-                ))}
-              </ul>
-              {requestId && (
-                <p className="mt-3 text-xs text-rose-100/80">{t("practice.requestId", { id: requestId })}</p>
-              )}
-            </div>
-          )}
-        </div>
+      <section className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
         <div className="space-y-6">
           <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6">
             <summary className="flex cursor-pointer items-center justify-between gap-3 text-lg font-semibold text-white">
@@ -942,6 +655,293 @@ export const PracticePage = () => {
               })}
             </div>
           </details>
+        </div>
+        <div className="space-y-6">
+          {practiceMode === "standard" ? (
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient prompt</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous example"
+                    className="group flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={handlePreviousExample}
+                    disabled={!hasPreviousExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:-translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
+                    {t("practice.itemProgress", {
+                      index: practice.currentIndex + 1,
+                      total: practice.sessionItems.length || 0
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Next example"
+                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                      nextArrowAttention ? "animate-[pulse_3s_ease-in-out_infinite]" : ""
+                    }`}
+                    onClick={handleNextExample}
+                    disabled={!hasNextExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9 6l6 6-6 6" />
+                    </svg>
+                    {nextArrowAttention && (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-6 text-2xl font-light leading-relaxed text-slate-100 md:text-3xl">
+                {currentItem?.patient_text ?? t("practice.loadingScenario")}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient audio</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    aria-label="Previous patient turn"
+                    className="group flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-slate-300 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={handlePreviousExample}
+                    disabled={!hasPreviousExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:-translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M15 18l-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
+                    {t("practice.itemProgress", {
+                      index: practice.currentIndex + 1,
+                      total: practice.sessionItems.length || 0
+                    })}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Next patient turn"
+                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                      nextArrowAttention ? "animate-[pulse_3s_ease-in-out_infinite]" : ""
+                    }`}
+                    onClick={handleNextExample}
+                    disabled={!hasNextExample}
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5 transition group-hover:translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M9 6l6 6-6 6" />
+                    </svg>
+                    {nextArrowAttention && (
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+                    )}
+                  </button>
+                </div>
+              </div>
+              {!hidePatientText && (
+                <p className="mt-6 text-2xl font-light leading-relaxed text-slate-100 md:text-3xl">
+                  {currentItem?.patient_text ?? t("practice.loadingScenario")}
+                </p>
+              )}
+              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs uppercase text-slate-400">
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-3 py-1 text-xs hover:border-white/40"
+                  onClick={() => setHidePatientText((prev) => !prev)}
+                >
+                  {hidePatientText ? "Show transcript" : "Hide transcript"}
+                </button>
+                {patientSpeaking && <span className="text-amber-200">Patient speaking…</span>}
+              </div>
+              <div className="mt-5 space-y-4">
+                {/*<TalkingPatientCanvas*/}
+                {/*  text={patientLine}*/}
+                {/*  play={patientPlay}*/}
+                {/*  reaction={practice.patientReaction}*/}
+                {/*  onDone={() => setPatientPlay(false)}*/}
+                {/*/>*/}
+                {patientAudioStatus === "generating" && (
+                  <p className="text-sm font-light text-slate-300">Generating patient audio…</p>
+                )}
+                {patientAudioError && (
+                  <p className="text-sm font-light text-rose-300">{patientAudioError}</p>
+                )}
+                {patientAudioUrl && (
+                  <div className="space-y-3">
+                    <audio
+                      ref={patientAudioRef}
+                      className="audio-player w-full"
+                      controls
+                      src={patientAudioUrl}
+                      onPlay={() => {
+                        setPatientSpeaking(true);
+                        setPatientPlay(true);
+                        setCanRecord(false);
+                      }}
+                      onPause={() => {
+                        setPatientSpeaking(false);
+                        setPatientPlay(false);
+                      }}
+                      onEnded={() => {
+                        setPatientSpeaking(false);
+                        setPatientPlay(false);
+                        setCanRecord(true);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
+            <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("practice.responseLabel")}</p>
+            {practiceMode === "real_time" && !canRecord && (
+              <p className="mt-2 text-xs text-slate-400">Listen to the patient before recording.</p>
+            )}
+            <div className="mt-4 flex flex-wrap gap-3">
+              {practice.recordingState !== "recording" ? (
+                <button
+                  className="rounded-full bg-teal-400 px-6 py-2 text-sm font-semibold text-slate-950"
+                  onClick={startRecording}
+                  disabled={!canStartRecording}
+                >
+                  {t("practice.startRecording")}
+                </button>
+              ) : (
+                <button
+                  className="rounded-full bg-rose-400 px-6 py-2 text-sm font-semibold text-slate-950"
+                  onClick={stopRecording}
+                >
+                  {t("practice.stopRecording")}
+                </button>
+              )}
+              <button
+                className="rounded-full border border-white/20 px-6 py-2 text-sm"
+                onClick={runEvaluation}
+                disabled={!practice.audioBlobRef || isLoading || isStartingSession || !currentItem}
+              >
+                {isLoading ? t("practice.evaluating") : t("practice.runEvaluation")}
+              </button>
+            </div>
+            {practice.audioBlobRef && (
+              <audio className="audio-player mt-4 w-full" controls src={practice.audioBlobRef} />
+            )}
+            {error && <p className="mt-3 text-sm font-light text-rose-300">{error}</p>}
+          </div>
+          {practice.evaluation && (
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-slate-950/80 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold">{t("practice.coachFeedback")}</h3>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${scoreTone(
+                    practice.evaluation.overall.score
+                  )}`}
+                >
+                  Overall {practice.evaluation.overall.score}/4
+                </span>
+              </div>
+              <p className="mt-3 text-sm text-slate-300">{practice.evaluation.overall.summary_feedback}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {practice.evaluation.overall.what_to_improve_next.map((tip) => (
+                  <span
+                    key={tip}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200"
+                  >
+                    {tip}
+                  </span>
+                ))}
+              </div>
+              {typeof nextDifficulty === "number" && (
+                <p className="mt-3 text-xs text-slate-400">
+                  {t("practice.recommendedDifficulty", { difficulty: nextDifficulty })}
+                </p>
+              )}
+              <button
+                type="button"
+                className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm"
+                onClick={handleNextExample}
+                disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
+              >
+                {practiceMode === "real_time" ? "Next patient turn" : t("practice.nextExample")}
+              </button>
+            </div>
+          )}
+          {practice.transcript && (
+            <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{t("practice.transcriptTitle")}</h3>
+                <button
+                  className="rounded-full border border-white/20 px-4 py-1 text-xs"
+                  onClick={() => practice.transcript && navigator.clipboard.writeText(practice.transcript)}
+                >
+                  {t("practice.copyTranscript")}
+                </button>
+              </div>
+              <p className="mt-3 text-sm font-light text-slate-200 whitespace-pre-wrap">
+                {practice.transcript}
+              </p>
+              {requestId && (
+                <p className="mt-3 text-xs font-light text-slate-400">
+                  {t("practice.requestId", { id: requestId })}
+                </p>
+              )}
+            </div>
+          )}
+          {(responseErrors?.length ?? 0) > 0 && (
+            <div className="rounded-3xl border border-rose-400/30 bg-rose-500/10 p-6">
+              <h3 className="text-lg font-semibold text-rose-100">{t("practice.snagTitle")}</h3>
+              <ul className="mt-3 space-y-2 text-sm text-rose-100">
+                {responseErrors?.map((entry, index) => (
+                  <li key={`${entry.stage}-${index}`}>
+                    <span className="font-semibold uppercase text-xs">{entry.stage}</span>:{" "}
+                    {entry.message}
+                  </li>
+                ))}
+              </ul>
+              {requestId && (
+                <p className="mt-3 text-xs text-rose-100/80">{t("practice.requestId", { id: requestId })}</p>
+              )}
+            </div>
+          )}
         </div>
       </section>
 
