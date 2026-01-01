@@ -67,25 +67,25 @@
     }
   },
   "library": {
-    "title": "Bibliothèque d'exercices",
-    "subtitle": "Choisissez un scénario de pratique délibérée et affinez les micro-compétences grâce à des retours guidés.",
-    "searchPlaceholder": "Rechercher des exercices",
-    "loading": "Chargement des exercices...",
+    "title": "Bibliothèque des tâches",
+    "subtitle": "Choisissez une tâche de pratique délibérée et affinez les micro-compétences grâce à des retours guidés.",
+    "searchPlaceholder": "Rechercher des tâches",
+    "loading": "Chargement des tâches...",
     "difficulty": "Difficulté {{difficulty}}",
     "viewDetails": "Voir les détails",
     "startPractice": "Commencer la pratique",
-    "noResults": "Aucun exercice trouvé. Essayez une autre recherche."
+    "noResults": "Aucune tâche trouvée. Essayez une autre recherche."
   },
   "history": {
     "title": "Historique de pratique",
-    "subtitle": "Suivez vos progrès à travers les exercices et revisitez les points forts des coachings passés.",
+    "subtitle": "Suivez vos progrès à travers les tâches et revisitez les points forts des coachings passés.",
     "loading": "Chargement des tentatives...",
     "empty": "Aucune tentative pour l'instant. Commencez une session de pratique.",
-    "exerciseLabel": "Exercice {{id}}",
     "completedLabel": "Terminé {{date}}",
     "scoreLabel": "Score {{score}}",
     "statusPassed": "Réussi",
-    "statusNeedsWork": "À améliorer"
+    "statusNeedsWork": "À améliorer",
+    "exampleDifficulty": "Difficulté de l'exemple {{difficulty}}"
   },
   "profile": {
     "tagline": "Votre profil",
@@ -186,11 +186,6 @@
     "stopRecording": "Arrêter l'enregistrement",
     "runEvaluation": "Lancer l'évaluation",
     "evaluating": "Évaluation...",
-    "error": {
-      "readAudio": "Impossible de lire les données audio.",
-      "noAudio": "Aucun audio capturé. Veuillez enregistrer à nouveau.",
-      "evaluateFailed": "Impossible d'évaluer la réponse. Veuillez réessayer."
-    },
     "transcriptTitle": "Transcription",
     "copyTranscript": "Copier la transcription",
     "transcriptPlaceholder": "Votre transcription apparaîtra ici après l'évaluation.",
@@ -198,29 +193,39 @@
     "snagTitle": "Nous avons rencontré un problème",
     "coachFeedback": "Retour du coach",
     "scoringTitle": "Matrice de score",
-    "objectiveLabel": "Objectif {{id}}",
+    "criterionLabel": "Critère {{id}}",
     "scoreLabel": "Score {{score}} / 4",
-    "patientReady": "Prêt"
+    "patientReady": "Prêt",
+    "itemProgress": "Exemple {{index}} sur {{total}}",
+    "nextExample": "Exemple suivant",
+    "recommendedDifficulty": "Difficulté recommandée : {{difficulty}}",
+    "error": {
+      "readAudio": "Impossible de lire les données audio.",
+      "noAudio": "Aucun audio capturé. Veuillez enregistrer à nouveau.",
+      "evaluateFailed": "Impossible d'évaluer la réponse. Veuillez réessayer.",
+      "sessionFailed": "Impossible de démarrer la session de pratique. Veuillez actualiser."
+    }
   },
   "exercise": {
-    "loading": "Chargement de l'exercice...",
-    "notFound": "Exercice introuvable.",
+    "loading": "Chargement de la tâche...",
+    "notFound": "Tâche introuvable.",
     "difficulty": "Difficulté {{difficulty}}",
     "startPractice": "Commencer la pratique",
     "backToLibrary": "Retour à la bibliothèque",
-    "patientScenario": "Scénario du patient",
-    "exampleResponse": "Réponse exemple",
-    "objectives": "Objectifs"
+    "generalObjective": "Objectif général",
+    "generalObjectiveEmpty": "Aucun objectif général défini pour le moment.",
+    "criteria": "Critères",
+    "exampleCounts": "Exemples par difficulté"
   },
   "admin": {
     "title": "Bibliothèque admin",
-    "subtitle": "Analysez de nouveaux exercices avec OpenAI, modifiez le contenu et importez-les dans la bibliothèque.",
-    "searchPlaceholder": "Rechercher des exercices",
-    "exercisesTitle": "Exercices",
+    "subtitle": "Analysez de nouvelles tâches avec OpenAI, modifiez le contenu et importez-les dans la bibliothèque.",
+    "searchPlaceholder": "Rechercher des tâches",
+    "tasksTitle": "Tâches",
     "createFromText": {
       "title": "Créer à partir d'un texte libre",
       "subtitle": "Collez le texte source ou fournissez une URL à analyser.",
-      "placeholderText": "Collez le texte de l'exercice ici",
+      "placeholderText": "Collez le texte de la tâche ici",
       "placeholderUrl": "URL source (facultatif)",
       "parse": "Analyser avec OpenAI",
       "parsing": "Analyse...",
@@ -230,58 +235,37 @@
       "titlePlaceholder": "Titre",
       "skillDomainPlaceholder": "Domaine de compétence",
       "descriptionPlaceholder": "Description",
-      "difficultyLabelPlaceholder": "Libellé de difficulté",
       "difficultyNumericPlaceholder": "Difficulté numérique",
+      "generalObjectivePlaceholder": "Objectif général",
       "tagsPlaceholder": "Tags (séparés par des virgules)",
-      "regenerateCues": "Régénérer les indices à partir des phrases",
-      "autoLink": "Lier automatiquement critères et indices",
       "rawJson": "JSON brut",
       "applyJson": "Appliquer les modifications JSON",
       "import": "Enregistrer / Importer",
       "importing": "Importation...",
       "invalidJson": "JSON invalide",
-      "importFailed": "Échec de l'importation",
-      "regenerateFailed": "Échec de la régénération des indices"
+      "importFailed": "Échec de l'importation"
     },
     "edit": {
-      "title": "Modifier un exercice existant",
-      "subtitle": "Sélectionnez un exercice dans la liste pour mettre à jour les métadonnées et le contenu.",
+      "title": "Modifier une tâche existante",
+      "subtitle": "Sélectionnez une tâche dans la liste pour mettre à jour les métadonnées et le contenu.",
       "save": "Enregistrer les modifications",
       "saving": "Enregistrement...",
-      "selectPrompt": "Sélectionnez un exercice à modifier.",
+      "selectPrompt": "Sélectionnez une tâche à modifier.",
       "publishLabel": "Publié",
       "saveFailed": "Échec de l'enregistrement"
     },
     "content": {
       "criteria": "Critères",
       "addCriterion": "+ Ajouter un critère",
-      "roleplaySets": "Ensembles de jeu de rôle",
-      "setLabelPlaceholder": "Libellé de l'ensemble",
-      "addStatement": "+ Ajouter une réplique",
-      "addRoleplaySet": "+ Ajouter un ensemble",
-      "exampleDialogues": "Dialogues exemples",
-      "dialogueLabelPlaceholder": "Libellé du dialogue",
-      "addTurn": "+ Ajouter un tour",
-      "addDialogue": "+ Ajouter un dialogue",
-      "addCue": "+ Ajouter un indice",
-      "patientCues": "Indices patient",
-      "cueLabelPlaceholder": "Libellé de l'indice",
-      "cueTextPlaceholder": "Texte de l'indice",
       "labelPlaceholder": "Libellé",
       "descriptionPlaceholder": "Description",
-      "clientStatementPlaceholder": "Réplique du client",
-      "criterionIdsPlaceholder": "IDs de critère (virgules)",
-      "cueIdsPlaceholder": "IDs d'indice (virgules)",
-      "turnPlaceholder": "Tour de dialogue",
-      "role": {
-        "client": "Client",
-        "therapist": "Thérapeute"
-      },
-      "difficulty": {
-        "beginner": "Débutant",
-        "intermediate": "Intermédiaire",
-        "advanced": "Avancé"
-      }
+      "criterionIdPlaceholder": "ID du critère",
+      "examples": "Exemples",
+      "addExample": "+ Ajouter un exemple",
+      "exampleIdPlaceholder": "ID de l'exemple",
+      "patientTextPlaceholder": "Texte du patient",
+      "difficultyPlaceholder": "Difficulté (1-5)",
+      "severityPlaceholder": "Niveau de gravité (facultatif)"
     }
   }
 }

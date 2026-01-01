@@ -1,112 +1,73 @@
-export type Objective = {
+export type CriterionRubric = {
+  score_min: 0;
+  score_max: 4;
+  anchors: Array<{
+    score: 0 | 1 | 2 | 3 | 4;
+    meaning: string;
+  }>;
+};
+
+export type TaskCriterion = {
   id: string;
   label: string;
   description: string;
-  examples_good?: string[];
-  examples_bad?: string[];
-  weight?: number;
-  rubric: {
-    score_min: 0;
-    score_max: 4;
-    anchors: Array<{
-      score: 0 | 1 | 2 | 3 | 4;
-      meaning: string;
-    }>;
-  };
+  rubric?: CriterionRubric;
 };
 
-export type GradingSpec = {
-  pass_rule: {
-    overall_min_score?: number;
-    min_per_objective?: number;
-    required_objective_ids?: string[];
-  };
-  scoring: { aggregation: "weighted_mean" };
-};
-
-export type ExerciseCriterion = {
+export type TaskExample = {
   id: string;
-  label: string;
+  task_id?: string;
+  difficulty: number;
+  severity_label?: string | null;
+  patient_text: string;
+  meta?: Record<string, unknown> | null;
+  created_at?: number;
+  updated_at?: number;
+};
+
+export type Task = {
+  id: string;
+  slug: string;
+  title: string;
   description: string;
-  objective_id?: string;
-};
-
-export type RoleplayStatement = {
-  id: string;
-  difficulty: "beginner" | "intermediate" | "advanced";
-  text: string;
-  criterion_ids?: string[];
-  cue_ids?: string[];
-};
-
-export type RoleplaySet = {
-  id: string;
-  label: string;
-  statements: RoleplayStatement[];
-};
-
-export type ExampleDialogueTurn = {
-  role: "client" | "therapist";
-  text: string;
-};
-
-export type ExampleDialogue = {
-  id: string;
-  label: string;
-  turns: ExampleDialogueTurn[];
-  related_statement_id?: string;
-};
-
-export type PatientCue = {
-  id: string;
-  label: string;
-  text: string;
-  related_statement_ids?: string[];
-};
-
-export type ExerciseContentV2 = {
-  preparations?: string[];
-  expected_therapist_response?: string;
-  criteria: ExerciseCriterion[];
-  roleplay_sets: RoleplaySet[];
-  example_dialogues: ExampleDialogue[];
-  patient_cues: PatientCue[];
-  practice_instructions?: string;
-  source?: {
-    text?: string | null;
-    url?: string | null;
-  };
+  skill_domain: string;
+  base_difficulty: number;
+  general_objective?: string | null;
+  tags: string[];
+  is_published: boolean;
+  parent_task_id?: string | null;
+  created_at: number;
+  updated_at: number;
+  criteria?: TaskCriterion[];
+  examples?: TaskExample[];
 };
 
 export type DeliberatePracticeTaskV2 = {
-  version: "2.0";
+  version: "2.1";
   task: {
-    name: string;
+    title: string;
     description: string;
     skill_domain: string;
-    skill_difficulty_label?: string;
-    skill_difficulty_numeric: number;
-    objectives: Array<{
-      id: string;
-      label: string;
-      description: string;
-    }>;
+    base_difficulty: number;
+    general_objective?: string | null;
     tags: string[];
   };
-  content: ExerciseContentV2;
+  criteria: TaskCriterion[];
+  examples: TaskExample[];
 };
 
 export type EvaluationResult = {
-  version: "1.0";
-  exercise_id: string;
+  version: "2.0";
+  task_id: string;
+  example_id: string;
   attempt_id: string;
   transcript: {
     text: string;
     confidence?: number;
     words?: Array<{ w: string; t0?: number; t1?: number; p?: number }>;
   };
-  objective_scores: Array<{
-    objective_id: string;
+  criterion_scores: Array<{
+    criterion_id: string;
     score: number;
     rationale_short: string;
     evidence_quotes?: string[];
@@ -133,26 +94,10 @@ export type EvaluationResult = {
   };
 };
 
-export type Exercise = {
-  id: string;
-  slug: string;
-  title: string;
-  description: string;
-  skill_domain: string;
-  difficulty: number;
-  patient_profile: Record<string, unknown>;
-  example_prompt: string;
-  example_good_response?: string | null;
-  objectives: Objective[];
-  grading: GradingSpec;
-  tags: string[];
-  is_published: boolean;
-  content?: ExerciseContentV2;
-  criteria?: ExerciseContentV2["criteria"];
-};
-
 export type PracticeRunInput = {
-  exercise_id: string;
+  session_item_id?: string;
+  task_id?: string;
+  example_id?: string;
   attempt_id?: string;
   audio: string;
   mode?: "local_prefer" | "openai_only" | "local_only";
@@ -178,6 +123,7 @@ export type PracticeRunScoring = {
 export type PracticeRunResponse = {
   requestId: string;
   attemptId?: string;
+  next_recommended_difficulty?: number;
   transcript?: PracticeRunTranscript;
   scoring?: PracticeRunScoring;
   errors?: PracticeRunError[];
@@ -191,7 +137,8 @@ export type PracticeRunResponse = {
 };
 
 export type EvaluationInput = {
-  exercise: Exercise;
+  task: Task;
+  example: TaskExample;
   attempt_id: string;
   transcript: {
     text: string;

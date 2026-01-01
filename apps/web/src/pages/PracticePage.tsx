@@ -1,13 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useGetExerciseQuery, useRunPracticeMutation } from "../store/api";
+import { useGetTaskQuery, useRunPracticeMutation, useStartSessionMutation } from "../store/api";
 import { PatientCanvas } from "../components/PatientCanvas";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   setAudioBlobRef,
+  setCurrentIndex,
   setEvaluation,
   setRecordingState,
+  setSession,
   setTranscript
 } from "../store/practiceSlice";
 
@@ -30,19 +32,26 @@ const blobToBase64 = (blob: Blob, errorMessage: string) =>
 
 export const PracticePage = () => {
   const { t } = useTranslation();
-  const { id } = useParams();
-  const { data: exercise } = useGetExerciseQuery(id ?? "");
+  const { taskId } = useParams();
+  const { data: task } = useGetTaskQuery(taskId ?? "");
+  const [startSession, { isLoading: isStartingSession }] = useStartSessionMutation();
   const [runPractice, { isLoading }] = useRunPracticeMutation();
   const [error, setError] = useState<string | null>(null);
   const [responseErrors, setResponseErrors] = useState<
     Array<{ stage: string; message: string }> | null
   >(null);
+  const [nextDifficulty, setNextDifficulty] = useState<number | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const dispatch = useAppDispatch();
   const practice = useAppSelector((state) => state.practice);
   const settings = useAppSelector((state) => state.settings);
+  const currentItem = practice.sessionItems[practice.currentIndex];
+  const criterionMap = useMemo(() => {
+    const entries = task?.criteria?.map((criterion) => [criterion.id, criterion]) ?? [];
+    return new Map(entries);
+  }, [task?.criteria]);
 
   useEffect(() => {
     return () => {
@@ -51,6 +60,69 @@ export const PracticePage = () => {
       }
     };
   }, [practice.audioBlobRef]);
+
+  useEffect(() => {
+    if (!taskId) return;
+    if (practice.sessionId) return;
+    const cached = window.localStorage.getItem(`practiceSession:${taskId}`);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached) as {
+          session_id: string;
+          items: Array<{
+            session_item_id: string;
+            task_id: string;
+            example_id: string;
+            target_difficulty: number;
+            patient_text: string;
+          }>;
+          current_index?: number;
+        };
+        if (parsed.session_id && parsed.items?.length) {
+          dispatch(setSession({ sessionId: parsed.session_id, items: parsed.items }));
+          if (typeof parsed.current_index === "number" && parsed.current_index < parsed.items.length) {
+            dispatch(setCurrentIndex(parsed.current_index));
+          }
+          return;
+        }
+      } catch {
+        window.localStorage.removeItem(`practiceSession:${taskId}`);
+      }
+    }
+  }, [dispatch, practice.sessionId, taskId]);
+
+  useEffect(() => {
+    if (!taskId) return;
+    if (practice.sessionId && practice.sessionItems.length > 0) return;
+    (async () => {
+      try {
+        const result = await startSession({
+          mode: "single_task",
+          task_id: taskId,
+          item_count: 5
+        }).unwrap();
+        dispatch(setSession({ sessionId: result.session_id, items: result.items }));
+        window.localStorage.setItem(
+          `practiceSession:${taskId}`,
+          JSON.stringify({ session_id: result.session_id, items: result.items, current_index: 0 })
+        );
+      } catch (err) {
+        setError(t("practice.error.sessionFailed"));
+      }
+    })();
+  }, [dispatch, practice.sessionId, practice.sessionItems.length, startSession, t, taskId]);
+
+  useEffect(() => {
+    if (!taskId || !practice.sessionId || !practice.sessionItems.length) return;
+    window.localStorage.setItem(
+      `practiceSession:${taskId}`,
+      JSON.stringify({
+        session_id: practice.sessionId,
+        items: practice.sessionItems,
+        current_index: practice.currentIndex
+      })
+    );
+  }, [practice.currentIndex, practice.sessionId, practice.sessionItems, taskId]);
 
   const startRecording = async () => {
     setError(null);
@@ -80,7 +152,7 @@ export const PracticePage = () => {
   };
 
   const runEvaluation = async () => {
-    if (!exercise || !practice.audioBlobRef) return;
+    if (!currentItem || !practice.audioBlobRef) return;
     try {
       dispatch(setRecordingState("processing"));
       setError(null);
@@ -94,12 +166,13 @@ export const PracticePage = () => {
       }
       const base64 = await blobToBase64(blob, t("practice.error.readAudio"));
       const result = await runPractice({
-        exercise_id: exercise.id,
+        session_item_id: currentItem.session_item_id,
         audio: base64,
         mode: settings.aiMode
       }).unwrap();
       setRequestId(result.requestId ?? null);
       setResponseErrors(result.errors ?? null);
+      setNextDifficulty(result.next_recommended_difficulty ?? null);
       dispatch(setEvaluation(result.scoring?.evaluation));
       dispatch(setTranscript(result.transcript?.text));
       dispatch(setRecordingState("ready"));
@@ -130,6 +203,18 @@ export const PracticePage = () => {
     }
   };
 
+  const handleNextExample = () => {
+    const nextIndex = practice.currentIndex + 1;
+    if (nextIndex < practice.sessionItems.length) {
+      dispatch(setCurrentIndex(nextIndex));
+      dispatch(setEvaluation(undefined));
+      dispatch(setTranscript(undefined));
+      setResponseErrors(null);
+      setRequestId(null);
+      setNextDifficulty(null);
+    }
+  };
+
   return (
     <div className="space-y-8">
       <section className="grid gap-8 lg:grid-cols-[1.2fr_1fr]">
@@ -137,7 +222,13 @@ export const PracticePage = () => {
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
             <h2 className="text-2xl font-semibold">{t("practice.title")}</h2>
             <p className="mt-2 text-sm text-slate-300">
-              {exercise?.example_prompt ?? t("practice.loadingScenario")}
+              {currentItem?.patient_text ?? t("practice.loadingScenario")}
+            </p>
+            <p className="mt-3 text-xs uppercase text-slate-400">
+              {t("practice.itemProgress", {
+                index: practice.currentIndex + 1,
+                total: practice.sessionItems.length || 0
+              })}
             </p>
           </div>
           <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
@@ -161,7 +252,7 @@ export const PracticePage = () => {
               <button
                 className="rounded-full border border-white/20 px-6 py-2 text-sm"
                 onClick={runEvaluation}
-                disabled={!practice.audioBlobRef || isLoading}
+                disabled={!practice.audioBlobRef || isLoading || isStartingSession || !currentItem}
               >
                 {isLoading ? t("practice.evaluating") : t("practice.runEvaluation")}
               </button>
@@ -219,6 +310,21 @@ export const PracticePage = () => {
                   </span>
                 ))}
               </div>
+              {typeof nextDifficulty === "number" && (
+                <p className="mt-3 text-xs text-slate-400">
+                  {t("practice.recommendedDifficulty", { difficulty: nextDifficulty })}
+                </p>
+              )}
+              {practice.evaluation && (
+                <button
+                  type="button"
+                  className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm"
+                  onClick={handleNextExample}
+                  disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
+                >
+                  {t("practice.nextExample")}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -228,17 +334,19 @@ export const PracticePage = () => {
         <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
           <h3 className="text-lg font-semibold">{t("practice.scoringTitle")}</h3>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
-            {practice.evaluation.objective_scores.map((score) => (
-              <div key={score.objective_id} className="rounded-2xl border border-white/10 p-4">
+            {practice.evaluation.criterion_scores.map((score) => {
+              const criterion = criterionMap.get(score.criterion_id);
+              return (
+              <div key={score.criterion_id} className="rounded-2xl border border-white/10 p-4">
                 <p className="text-sm font-semibold">
-                  {t("practice.objectiveLabel", { id: score.objective_id })}
+                  {criterion?.label ?? t("practice.criterionLabel", { id: score.criterion_id })}
                 </p>
                 <p className="mt-1 text-xs text-slate-400">
                   {t("practice.scoreLabel", { score: score.score })}
                 </p>
                 <p className="mt-2 text-sm text-slate-200">{score.rationale_short}</p>
               </div>
-            ))}
+            )})}
           </div>
         </section>
       )}

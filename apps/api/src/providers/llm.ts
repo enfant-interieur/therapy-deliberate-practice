@@ -51,7 +51,7 @@ export const LocalMlxLlmProvider = (env: RuntimeEnv, logger?: LogFn): LlmProvide
     return response.json();
   },
   parseExercise: async () => {
-    throw new Error("Local LLM does not support exercise parsing.");
+    throw new Error("Local LLM does not support task parsing.");
   }
 });
 
@@ -71,7 +71,7 @@ export const OpenAILlmProvider = (
       provider: { kind: "openai", model: OPENAI_LLM_MODEL }
     });
     const systemPrompt =
-      "You are an evaluator for psychotherapy deliberate practice. Return strict JSON only that matches EvaluationResult.";
+      "You are an evaluator for psychotherapy deliberate practice tasks. Return strict JSON only that matches EvaluationResult with criterion_scores.";
     try {
       const result = await createStructuredResponse<EvaluationResult>({
         apiKey,
@@ -112,38 +112,16 @@ Return STRICT JSON ONLY. No markdown. No commentary. No trailing commas. No extr
 Hard rules:
 - Preserve meaning; you may rewrite for clarity but do not invent facts not present in the text.
 - If a field is not present, use null (not empty string) or [] for arrays.
-- Every item that can be graded MUST be represented as a criterion/objective with an explicit rubric.
-- All example dialogues MUST be represented as structured interactions with criterion references.
-- All client statements MUST be captured and tagged with: difficulty_label, affect_tag, and extracted patient cues.
-- Patient cues MUST be a separate list (“patient_cues”) and each cue MUST have a difficulty rating.
+- Every item that can be graded MUST be represented as a criterion with an explicit rubric.
+- Provide a list of patient text examples (short statements) with difficulty 1..5.
 - Create stable ids:
   - criterion ids: "c1", "c2", ...
-  - objective ids: "o1", "o2", ... (usually 1:1 with criteria)
-  - example dialogue ids: "ex1", "ex2", ...
-  - client statement ids: "b1".."bN", "i1".."iN", "a1".."aN" (beginner/intermediate/advanced)
-  - cue ids: "cue1", "cue2", ...
-- Normalize difficulty_label to one of: "beginner", "intermediate", "advanced".
-- Map difficulty_label to difficulty_numeric (1..5) as:
-  - beginner → 2
-  - intermediate → 3
-  - advanced → 4
-  (Use 1 or 5 ONLY if the text explicitly suggests easier/harder than the named level.)
+  - example ids: "ex1", "ex2", ...
 
-Rubric requirements (for each objective):
+Rubric requirements (for each criterion):
 - score_min must be 0, score_max must be 4
 - provide anchors for 0, 2, 4 at minimum (you may add 1 and 3 if helpful)
-- anchors must describe observable therapist behavior in the response (not internal states)
-
-What “patient cues” means here:
-- Short, concrete signals embedded in the client text that guide the therapist response:
-  examples: hesitancy, shame, defensiveness, self-doubt, testing the therapist, anger, fear, pride, relief,
-  relational dynamics, boundary setting, self-advocacy, vulnerability, critic-mode language, etc.
-- Each cue must include:
-  - label (short)
-  - evidence (a short quote fragment from the client statement)
-  - why_it_matters (1 sentence)
-  - therapist_response_hint (1 sentence)
-  - difficulty (1..5) and difficulty_reason (1 sentence)`;
+- anchors must describe observable therapist behavior in the response (not internal states)`;
     try {
       const result = await createStructuredResponse<LlmParseResult>({
         apiKey,

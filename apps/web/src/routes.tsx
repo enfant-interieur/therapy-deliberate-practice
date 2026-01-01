@@ -17,10 +17,10 @@ export const router = createBrowserRouter([
     element: <AppShell />,
     children: [
       { index: true, element: <LibraryPage /> },
-      { path: "exercises/:id", element: <ExerciseDetailPage /> },
+      { path: "tasks/:id", element: <ExerciseDetailPage /> },
       { path: "login", element: <LoginPage /> },
       {
-        path: "practice/:id",
+        path: "practice/:taskId",
         element: (
           <UserRouteGuard>
             <PracticePage />

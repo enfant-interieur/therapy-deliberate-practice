@@ -1,9 +1,11 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import type {
-  Exercise,
   PracticeRunInput,
   PracticeRunResponse,
-  DeliberatePracticeTaskV2
+  DeliberatePracticeTaskV2,
+  Task,
+  TaskCriterion,
+  TaskExample
 } from "@deliberate/shared";
 import type { RootState } from ".";
 
@@ -54,7 +56,7 @@ export const api = createApi({
       return headers;
     }
   }),
-  tagTypes: ["Exercise", "Attempt"],
+  tagTypes: ["Task", "Attempt"],
   endpoints: (builder) => ({
     getAdminWhoami: builder.query<AdminWhoami, void>({
       query: () => "/admin/whoami"
@@ -77,46 +79,66 @@ export const api = createApi({
     validateOpenAiKey: builder.mutation<{ ok: boolean; error?: string }, { openaiApiKey?: string }>({
       query: (body) => ({ url: "/me/openai-key/validate", method: "POST", body })
     }),
-    getExercises: builder.query<Exercise[], { tag?: string; difficulty?: number; q?: string }>({
-      query: (params) => ({ url: "/exercises", params }),
-      providesTags: ["Exercise"]
+    getTasks: builder.query<Task[], { tag?: string; q?: string; skill_domain?: string; published?: 1 }>(
+      {
+        query: (params) => ({ url: "/tasks", params }),
+        providesTags: ["Task"]
+      }
+    ),
+    getTask: builder.query<Task & { criteria: TaskCriterion[]; example_counts?: Record<number, number> }, string>({
+      query: (id) => `/tasks/${id}`,
+      providesTags: (_result, _err, id) => [{ type: "Task", id }]
     }),
-    getExercise: builder.query<Exercise, string>({
-      query: (id) => `/exercises/${id}`,
-      providesTags: (_result, _err, id) => [{ type: "Exercise", id }]
+    getTaskExamples: builder.query<TaskExample[], { taskId: string; difficulty?: number; limit?: number; exclude?: string[] }>(
+      {
+        query: ({ taskId, exclude, ...params }) => ({
+          url: `/tasks/${taskId}/examples`,
+          params: { ...params, exclude: exclude?.join(",") }
+        })
+      }
+    ),
+    startSession: builder.mutation<
+      { session_id: string; items: Array<{ session_item_id: string; task_id: string; example_id: string; target_difficulty: number; patient_text: string }> },
+      { mode: "single_task" | "mixed_set"; task_id?: string; item_count: number; difficulty?: number }
+    >({
+      query: (body) => ({ url: "/sessions/start", method: "POST", body })
     }),
-    updateExercise: builder.mutation<{ status: string }, { id: string; exercise: Exercise }>({
-      query: ({ id, exercise }) => ({
-        url: `/exercises/${id}`,
+    getAdminTasks: builder.query<Task[], void>({
+      query: () => "/admin/tasks",
+      providesTags: ["Task"]
+    }),
+    getAdminTask: builder.query<Task & { criteria: TaskCriterion[]; examples: TaskExample[] }, string>({
+      query: (id) => `/admin/tasks/${id}`,
+      providesTags: (_result, _err, id) => [{ type: "Task", id }]
+    }),
+    updateTask: builder.mutation<{ status: string }, { id: string; task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] } }>({
+      query: ({ id, task }) => ({
+        url: `/admin/tasks/${id}`,
         method: "PUT",
-        body: exercise
+        body: task
       }),
-      invalidatesTags: (_result, _err, { id }) => [{ type: "Exercise", id }, "Exercise"]
+      invalidatesTags: (_result, _err, { id }) => [{ type: "Task", id }, "Task"]
     }),
-    parseExercise: builder.mutation<
+    parseTask: builder.mutation<
       DeliberatePracticeTaskV2,
       { free_text?: string; source_url?: string | null }
     >({
-      query: (body) => ({ url: "/admin/parse-exercise", method: "POST", body })
+      query: (body) => ({ url: "/admin/parse-task", method: "POST", body })
     }),
-    importExercise: builder.mutation<
+    importTask: builder.mutation<
       { id: string; slug: string },
-      { task_v2: DeliberatePracticeTaskV2; exercise_overrides?: Record<string, unknown> }
+      { task_v2: DeliberatePracticeTaskV2; task_overrides?: Record<string, unknown> }
     >({
-      query: (body) => ({ url: "/admin/import-exercise", method: "POST", body }),
-      invalidatesTags: ["Exercise"]
-    }),
-    startAttempt: builder.mutation<{ attempt_id: string }, { exercise_id: string }>({
-      query: (body) => ({ url: "/attempts/start", method: "POST", body }),
-      invalidatesTags: ["Attempt"]
+      query: (body) => ({ url: "/admin/import-task", method: "POST", body }),
+      invalidatesTags: ["Task"]
     }),
     runPractice: builder.mutation<PracticeRunResponse, PracticeRunInput>({
       query: (body) => ({ url: "/practice/run", method: "POST", body }),
       invalidatesTags: ["Attempt"]
     }),
     getAttempts: builder.query<
-      Array<{ id: string; exercise_id: string; overall_score: number; overall_pass: boolean; completed_at: string }>,
-      { exercise_id?: string }
+      Array<{ id: string; task_id: string; task_title: string; example_id: string; example_difficulty: number; overall_score: number; overall_pass: boolean; completed_at: string }>,
+      { task_id?: string }
     >({
       query: (params) => ({ url: "/attempts", params }),
       providesTags: ["Attempt"]
@@ -132,12 +154,15 @@ export const {
   useUpdateOpenAiKeyMutation,
   useDeleteOpenAiKeyMutation,
   useValidateOpenAiKeyMutation,
-  useGetExercisesQuery,
-  useGetExerciseQuery,
-  useUpdateExerciseMutation,
-  useParseExerciseMutation,
-  useImportExerciseMutation,
-  useStartAttemptMutation,
+  useGetTasksQuery,
+  useGetTaskQuery,
+  useGetTaskExamplesQuery,
+  useStartSessionMutation,
+  useGetAdminTasksQuery,
+  useGetAdminTaskQuery,
+  useUpdateTaskMutation,
+  useParseTaskMutation,
+  useImportTaskMutation,
   useRunPracticeMutation,
   useGetAttemptsQuery
 } = api;

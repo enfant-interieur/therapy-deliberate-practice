@@ -1,7 +1,7 @@
 import { configureStore } from "@reduxjs/toolkit";
 import { api } from "./api";
 import { authReducer } from "./authSlice";
-import { exerciseReducer } from "./exerciseSlice";
+import { taskReducer } from "./taskSlice";
 import { practiceReducer } from "./practiceSlice";
 import { settingsReducer } from "./settingsSlice";
 import { requestIdMiddleware, errorNormalizationMiddleware } from "./middleware";
@@ -10,7 +10,7 @@ export const store = configureStore({
   reducer: {
     [api.reducerPath]: api.reducer,
     auth: authReducer,
-    exercise: exerciseReducer,
+    task: taskReducer,
     practice: practiceReducer,
     settings: settingsReducer
   },

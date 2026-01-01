@@ -117,7 +117,7 @@ npm run migrate:local -w apps/worker
 Optional seed (idempotent):
 
 ```
-wrangler d1 execute DB --file=infra/seed.sql --local
+wrangler d1 execute DB --file=apps/worker/seed.sql --local
 ```
 
 ### Remote D1 (production)
@@ -147,10 +147,33 @@ npm run deploy:ci -w apps/worker
 For the Node dev server (`apps/api`), initialize the SQLite database:
 
 ```
-sqlite3 infra/local.db < infra/migrations/0001_init.sql
-sqlite3 infra/local.db < infra/migrations/0002_add_exercise_content.sql
-sqlite3 infra/local.db < infra/migrations/0003_add_user_settings.sql
-sqlite3 infra/local.db < infra/seed.sql
+rm -f apps/api/infra/local.db
+sqlite3 apps/api/infra/local.db < apps/worker/migrations/0001_init_v2.sql
+sqlite3 apps/api/infra/local.db < apps/api/infra/seed.sql
+```
+
+### Seeding & migrations summary
+
+Local SQLite (API dev):
+
+```
+rm -f apps/api/infra/local.db
+sqlite3 apps/api/infra/local.db < apps/worker/migrations/0001_init_v2.sql
+sqlite3 apps/api/infra/local.db < apps/api/infra/seed.sql
+```
+
+Local D1:
+
+```
+npm run migrate:local -w apps/worker
+wrangler d1 execute DB --local --file=./seed.sql
+```
+
+Remote D1:
+
+```
+npm run migrate:remote -w apps/worker
+wrangler d1 execute DB --remote --file=./seed.sql
 ```
 
 ## Running locally

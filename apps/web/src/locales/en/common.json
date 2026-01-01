@@ -67,25 +67,25 @@
     }
   },
   "library": {
-    "title": "Exercise Library",
-    "subtitle": "Choose a deliberate practice scenario and refine micro-skills with guided feedback.",
-    "searchPlaceholder": "Search exercises",
-    "loading": "Loading exercises...",
+    "title": "Task Library",
+    "subtitle": "Choose a deliberate practice task and refine micro-skills with guided feedback.",
+    "searchPlaceholder": "Search tasks",
+    "loading": "Loading tasks...",
     "difficulty": "Difficulty {{difficulty}}",
     "viewDetails": "View details",
     "startPractice": "Start practice",
-    "noResults": "No exercises found. Try a different search."
+    "noResults": "No tasks found. Try a different search."
   },
   "history": {
     "title": "Practice history",
-    "subtitle": "Track your progress across exercises and revisit past coaching highlights.",
+    "subtitle": "Track your progress across tasks and revisit past coaching highlights.",
     "loading": "Loading attempts...",
     "empty": "No attempts yet. Start a practice session.",
-    "exerciseLabel": "Exercise {{id}}",
     "completedLabel": "Completed {{date}}",
     "scoreLabel": "Score {{score}}",
     "statusPassed": "Passed",
-    "statusNeedsWork": "Needs work"
+    "statusNeedsWork": "Needs work",
+    "exampleDifficulty": "Example difficulty {{difficulty}}"
   },
   "profile": {
     "tagline": "Your profile",
@@ -186,11 +186,6 @@
     "stopRecording": "Stop recording",
     "runEvaluation": "Run evaluation",
     "evaluating": "Evaluating...",
-    "error": {
-      "readAudio": "Unable to read audio data.",
-      "noAudio": "No audio captured. Please record again.",
-      "evaluateFailed": "Unable to evaluate response. Please try again."
-    },
     "transcriptTitle": "Transcript",
     "copyTranscript": "Copy transcript",
     "transcriptPlaceholder": "Your transcript will appear here after evaluation.",
@@ -198,29 +193,39 @@
     "snagTitle": "We hit a snag",
     "coachFeedback": "Coach feedback",
     "scoringTitle": "Scoring matrix",
-    "objectiveLabel": "Objective {{id}}",
+    "criterionLabel": "Criterion {{id}}",
     "scoreLabel": "Score {{score}} / 4",
-    "patientReady": "Ready"
+    "patientReady": "Ready",
+    "itemProgress": "Example {{index}} of {{total}}",
+    "nextExample": "Next example",
+    "recommendedDifficulty": "Recommended difficulty now: {{difficulty}}",
+    "error": {
+      "readAudio": "Unable to read audio data.",
+      "noAudio": "No audio captured. Please record again.",
+      "evaluateFailed": "Unable to evaluate response. Please try again.",
+      "sessionFailed": "Unable to start a practice session. Please refresh."
+    }
   },
   "exercise": {
-    "loading": "Loading exercise...",
-    "notFound": "Exercise not found.",
+    "loading": "Loading task...",
+    "notFound": "Task not found.",
     "difficulty": "Difficulty {{difficulty}}",
     "startPractice": "Start practice",
     "backToLibrary": "Back to library",
-    "patientScenario": "Patient scenario",
-    "exampleResponse": "Example response",
-    "objectives": "Objectives"
+    "generalObjective": "General objective",
+    "generalObjectiveEmpty": "No general objective set yet.",
+    "criteria": "Criteria",
+    "exampleCounts": "Examples by difficulty"
   },
   "admin": {
     "title": "Admin Library",
-    "subtitle": "Parse new exercises with OpenAI, edit content, and import into the library.",
-    "searchPlaceholder": "Search exercises",
-    "exercisesTitle": "Exercises",
+    "subtitle": "Parse new tasks with OpenAI, edit content, and import into the library.",
+    "searchPlaceholder": "Search tasks",
+    "tasksTitle": "Tasks",
     "createFromText": {
       "title": "Create from free text",
       "subtitle": "Paste source text or provide a URL to parse.",
-      "placeholderText": "Paste exercise text here",
+      "placeholderText": "Paste task text here",
       "placeholderUrl": "Source URL (optional)",
       "parse": "Parse with OpenAI",
       "parsing": "Parsing...",
@@ -230,58 +235,37 @@
       "titlePlaceholder": "Title",
       "skillDomainPlaceholder": "Skill domain",
       "descriptionPlaceholder": "Description",
-      "difficultyLabelPlaceholder": "Difficulty label",
       "difficultyNumericPlaceholder": "Difficulty numeric",
+      "generalObjectivePlaceholder": "General objective",
       "tagsPlaceholder": "Tags (comma separated)",
-      "regenerateCues": "Regenerate cues from statements",
-      "autoLink": "Auto-link criteria & cues",
       "rawJson": "Raw JSON",
       "applyJson": "Apply JSON edits",
       "import": "Save / Import",
       "importing": "Importing...",
       "invalidJson": "Invalid JSON",
-      "importFailed": "Failed to import",
-      "regenerateFailed": "Failed to regenerate cues"
+      "importFailed": "Failed to import"
     },
     "edit": {
-      "title": "Edit existing exercise",
-      "subtitle": "Select an exercise from the list to update metadata and content.",
+      "title": "Edit existing task",
+      "subtitle": "Select a task from the list to update metadata and content.",
       "save": "Save changes",
       "saving": "Saving...",
-      "selectPrompt": "Select an exercise to edit.",
+      "selectPrompt": "Select a task to edit.",
       "publishLabel": "Published",
       "saveFailed": "Failed to save"
     },
     "content": {
       "criteria": "Criteria",
       "addCriterion": "+ Add criterion",
-      "roleplaySets": "Roleplay sets",
-      "setLabelPlaceholder": "Set label",
-      "addStatement": "+ Add statement",
-      "addRoleplaySet": "+ Add roleplay set",
-      "exampleDialogues": "Example dialogues",
-      "dialogueLabelPlaceholder": "Dialogue label",
-      "addTurn": "+ Add turn",
-      "addDialogue": "+ Add dialogue",
-      "addCue": "+ Add cue",
-      "patientCues": "Patient cues",
-      "cueLabelPlaceholder": "Cue label",
-      "cueTextPlaceholder": "Cue text",
       "labelPlaceholder": "Label",
       "descriptionPlaceholder": "Description",
-      "clientStatementPlaceholder": "Client statement",
-      "criterionIdsPlaceholder": "criterion ids (comma)",
-      "cueIdsPlaceholder": "cue ids (comma)",
-      "turnPlaceholder": "Dialogue turn",
-      "role": {
-        "client": "Client",
-        "therapist": "Therapist"
-      },
-      "difficulty": {
-        "beginner": "Beginner",
-        "intermediate": "Intermediate",
-        "advanced": "Advanced"
-      }
+      "criterionIdPlaceholder": "Criterion id",
+      "examples": "Examples",
+      "addExample": "+ Add example",
+      "exampleIdPlaceholder": "Example id",
+      "patientTextPlaceholder": "Patient text",
+      "difficultyPlaceholder": "Difficulty (1-5)",
+      "severityPlaceholder": "Severity label (optional)"
     }
   }
 }

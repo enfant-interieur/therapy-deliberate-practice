@@ -1,17 +1,28 @@
 import { Hono } from "hono";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import { exercises, attempts, users, userSettings } from "./db/schema";
-import { and, eq } from "drizzle-orm";
 import {
+  attempts,
+  practiceSessionItems,
+  practiceSessions,
+  taskCriteria,
+  taskExamples,
+  tasks,
+  userSettings,
+  userTaskProgress,
+  users
+} from "./db/schema";
+import { and, eq, like, or } from "drizzle-orm";
+import {
+  deliberatePracticeTaskV2Schema,
   evaluationResultSchema,
   practiceRunInputSchema,
-  exerciseSchema,
-  deliberatePracticeTaskV2Schema,
-  llmParseSchema,
-  type DeliberatePracticeTaskV2,
-  type ExerciseContentV2,
-  type Objective
+  taskCriterionSchema,
+  taskExampleSchema,
+  taskSchema,
+  type Task,
+  type TaskCriterion,
+  type TaskExample
 } from "@deliberate/shared";
 import { selectLlmProvider, selectSttProvider } from "./providers";
 import { attemptJsonRepair } from "./utils/jsonRepair";
@@ -44,51 +55,6 @@ const slugify = (value: string) =>
     .trim()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)+/g, "");
-
-const defaultRubric = () => ({
-  score_min: 0,
-  score_max: 4,
-  anchors: [
-    { score: 0, meaning: "Missed the target behavior." },
-    { score: 2, meaning: "Partially demonstrated the behavior." },
-    { score: 4, meaning: "Clearly demonstrated the behavior." }
-  ]
-});
-
-const formatList = (label: string, items: string[]) => {
-  if (!items.length) return "";
-  const lines = items.map((item) => `- ${item}`).join("\n");
-  return `${label}:\n${lines}`;
-};
-
-const buildExpectedTherapistResponse = (
-  expected: z.infer<typeof llmParseSchema>["task"]["expected_therapist_response"]
-) => {
-  const sections = [
-    formatList("Must do", expected.must_do),
-    formatList("Should do", expected.should_do),
-    formatList("Must avoid", expected.must_avoid),
-    formatList("Style constraints", expected.style_constraints)
-  ].filter(Boolean);
-  return sections.join("\n\n");
-};
-
-const buildPracticeInstructions = (
-  practice: z.infer<typeof llmParseSchema>["task"]["practice_instructions"],
-  objectiveOverview: string
-) => {
-  const sections = [
-    objectiveOverview ? `Objective overview:\n${objectiveOverview}` : "",
-    practice.timebox_minutes ? `Timebox: ${practice.timebox_minutes} minutes` : "",
-    formatList("Steps", practice.steps),
-    formatList("Feedback process", practice.feedback_process),
-    practice.difficulty_adjustment_rule
-      ? `Difficulty adjustment: ${practice.difficulty_adjustment_rule}`
-      : "",
-    practice.role_switching ? `Role switching: ${practice.role_switching}` : ""
-  ].filter(Boolean);
-  return sections.join("\n\n");
-};
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 10;
@@ -129,181 +95,22 @@ const validateOpenAiApiKey = async (
   }
 };
 
-const mapCriterionDescription = (
-  criterion: z.infer<typeof llmParseSchema>["task"]["criteria"][number]
-) => {
-  const parts = [
-    criterion.description,
-    formatList("Behavioral markers", criterion.behavioral_markers),
-    formatList("Common mistakes", criterion.common_mistakes),
-    formatList("Evidence", criterion.what_counts_as_evidence)
-  ].filter(Boolean);
-  return parts.join("\n\n");
-};
+const shuffle = <T,>(items: T[]) => [...items].sort(() => Math.random() - 0.5);
 
-const mapPatientCueText = (
-  cue: z.infer<typeof llmParseSchema>["task"]["patient_cues"][number]
-) =>
-  [
-    `Evidence: ${cue.evidence_quote}`,
-    `Why it matters: ${cue.why_it_matters}`,
-    `Response hint: ${cue.therapist_response_hint}`,
-    `Difficulty (${cue.difficulty}): ${cue.difficulty_reason}`
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-const mapLlmTaskToV2 = (parsed: z.infer<typeof llmParseSchema>): DeliberatePracticeTaskV2 => {
-  const content: ExerciseContentV2 = {
-    preparations: parsed.task.preparations,
-    expected_therapist_response: buildExpectedTherapistResponse(
-      parsed.task.expected_therapist_response
-    ),
-    criteria: parsed.task.criteria.map((criterion) => ({
-      id: criterion.id,
-      label: criterion.name,
-      description: mapCriterionDescription(criterion)
-    })),
-    roleplay_sets: parsed.task.roleplay_sets.map((set, index) => ({
-      id: `set-${index + 1}`,
-      label: `${set.difficulty_label} (${set.difficulty_numeric})`,
-      statements: set.client_statements.map((statement) => ({
-        id: statement.id,
-        difficulty: set.difficulty_label,
-        text: statement.text,
-        criterion_ids: statement.linked_criterion_ids,
-        cue_ids: statement.extracted_cue_ids
-      }))
-    })),
-    example_dialogues: parsed.task.example_dialogues.map((dialogue) => ({
-      id: dialogue.id,
-      label: dialogue.difficulty_label ?? "example",
-      turns: [
-        { role: "client", text: dialogue.client_turn },
-        { role: "therapist", text: dialogue.therapist_turn }
-      ]
-    })),
-    patient_cues: parsed.task.patient_cues.map((cue) => ({
-      id: cue.id,
-      label: cue.label,
-      text: mapPatientCueText(cue),
-      related_statement_ids: cue.applies_to_statement_ids
-    })),
-    practice_instructions: buildPracticeInstructions(
-      parsed.task.practice_instructions,
-      parsed.task.objective_overview
-    ),
-    source: {
-      text: parsed.task.source.citation_text ?? null,
-      url: parsed.task.source.source_url ?? null
-    }
-  };
-
-  return {
-    version: "2.0",
-    task: {
-      name: parsed.task.name,
-      description: parsed.task.description,
-      skill_domain: parsed.task.skill_domain,
-      skill_difficulty_label: parsed.task.skill_difficulty_label ?? undefined,
-      skill_difficulty_numeric: parsed.task.skill_difficulty_numeric,
-      objectives: parsed.task.objectives.map((objective) => ({
-        id: objective.id,
-        label: objective.label,
-        description: objective.description
-      })),
-      tags: parsed.task.tags
-    },
-    content
-  };
-};
-
-const mapObjectives = (task: DeliberatePracticeTaskV2["task"], content: ExerciseContentV2) => {
-  const objectiveMap = new Map(task.objectives.map((obj) => [obj.id, obj]));
-  const orderedIds = content.criteria
-    .map((criterion) => criterion.objective_id)
-    .filter((id): id is string => Boolean(id));
-  const uniqueIds = Array.from(
-    new Set(orderedIds.length ? orderedIds : task.objectives.map((obj) => obj.id))
+const pickExamplesForDifficulty = (examples: TaskExample[], target: number, count: number) => {
+  const sorted = shuffle(examples).sort(
+    (a, b) => Math.abs(a.difficulty - target) - Math.abs(b.difficulty - target)
   );
-  const trimmedIds = uniqueIds.slice(0, 6);
-  const objectives: Objective[] = trimmedIds
-    .map((id) => objectiveMap.get(id))
-    .filter((obj): obj is DeliberatePracticeTaskV2["task"]["objectives"][number] =>
-      Boolean(obj)
-    )
-    .map((obj) => ({
-      id: obj.id,
-      label: obj.label,
-      description: obj.description,
-      rubric: defaultRubric()
-    }));
-  if (objectives.length < 2) {
-    const fallback = task.objectives.slice(0, 2).map((obj) => ({
-      id: obj.id,
-      label: obj.label,
-      description: obj.description,
-      rubric: defaultRubric()
-    }));
-    return fallback;
-  }
-  return objectives;
+  return sorted.slice(0, Math.min(count, sorted.length));
 };
 
-const pickExamplePrompt = (content: ExerciseContentV2) => {
-  for (const set of content.roleplay_sets) {
-    const statement = set.statements.find((item) => item.difficulty === "beginner");
-    if (statement) return statement.text;
-  }
-  const fallback = content.roleplay_sets.flatMap((set) => set.statements)[0];
-  return fallback?.text ?? "Client statement goes here.";
-};
-
-const pickExampleResponse = (content: ExerciseContentV2) => {
-  for (const dialogue of content.example_dialogues) {
-    const therapistTurn = dialogue.turns.find((turn) => turn.role === "therapist");
-    if (therapistTurn) return therapistTurn.text;
-  }
-  return null;
-};
-
-const exerciseFromTask = (
-  taskV2: DeliberatePracticeTaskV2,
-  overrides?: {
-    id?: string;
-    slug?: string;
-    is_published?: boolean;
-    tags?: string[];
-  }
-) => {
-  const slug = overrides?.slug ?? slugify(taskV2.task.name);
-  const content = taskV2.content;
-  const objectives = mapObjectives(taskV2.task, content);
-  return {
-    id: overrides?.id ?? nanoid(),
-    slug,
-    title: taskV2.task.name,
-    description: taskV2.task.description,
-    skill_domain: taskV2.task.skill_domain,
-    difficulty: taskV2.task.skill_difficulty_numeric,
-    patient_profile: { presenting: "schema therapy practice" },
-    example_prompt: pickExamplePrompt(content),
-    example_good_response: pickExampleResponse(content),
-    objectives,
-    grading: {
-      pass_rule: {
-        overall_min_score: 2.5,
-        min_per_objective: 2,
-        required_objective_ids: objectives.map((objective) => objective.id)
-      },
-      scoring: { aggregation: "weighted_mean" }
-    },
-    tags: overrides?.tags ?? taskV2.task.tags,
-    is_published: overrides?.is_published ?? false,
-    content,
-    criteria: content.criteria
-  };
-};
+const normalizeTask = (row: typeof tasks.$inferSelect): Task => ({
+  ...row,
+  tags: row.tags as Task["tags"],
+  is_published: Boolean(row.is_published),
+  general_objective: row.general_objective ?? null,
+  parent_task_id: row.parent_task_id ?? null
+});
 
 export const createApiApp = ({ env, db }: ApiDependencies) => {
   const app = new Hono();
@@ -327,6 +134,29 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
     storeAudio: settings.store_audio ?? false,
     hasOpenAiKey: Boolean(settings.openai_key_ciphertext && settings.openai_key_iv)
   });
+
+  const ensureUserTaskProgress = async (userId: string, task: Task) => {
+    const [existing] = await db
+      .select()
+      .from(userTaskProgress)
+      .where(and(eq(userTaskProgress.user_id, userId), eq(userTaskProgress.task_id, task.id)))
+      .limit(1);
+    if (existing) return existing;
+
+    const now = Date.now();
+    const initial = {
+      user_id: userId,
+      task_id: task.id,
+      current_difficulty: task.base_difficulty,
+      last_overall_score: null,
+      last_pass: null,
+      streak: 0,
+      attempt_count: 0,
+      updated_at: now
+    };
+    await db.insert(userTaskProgress).values(initial);
+    return initial;
+  };
 
   app.use(async (c, next) => {
     const requestId = c.req.header("x-request-id") ?? makeRequestId();
@@ -380,63 +210,214 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
     return c.json({ stt, llm });
   });
 
-  app.get("/api/v1/exercises", async (c) => {
-    const log = logger.child({ requestId: c.get("requestId"), endpoint: "exercises_list" });
-    log.debug("Listing exercises");
-    const results = await db.select().from(exercises);
-    log.info("Exercises fetched", { count: results.length });
-    return c.json(results);
+  app.get("/api/v1/tasks", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "tasks_list" });
+    const { q, tag, skill_domain, published } = c.req.query();
+    const filters = [];
+    if (q) {
+      filters.push(or(like(tasks.title, `%${q}%`), like(tasks.description, `%${q}%`)));
+    }
+    if (tag) {
+      filters.push(like(tasks.tags, `%"${tag}"%`));
+    }
+    if (skill_domain) {
+      filters.push(eq(tasks.skill_domain, skill_domain));
+    }
+    if (published === "1") {
+      filters.push(eq(tasks.is_published, true));
+    }
+    const baseQuery = db.select().from(tasks);
+    const results = filters.length ? await baseQuery.where(and(...filters)) : await baseQuery;
+    log.info("Tasks fetched", { count: results.length });
+    return c.json(results.map((task) => normalizeTask(task)));
   });
 
-  app.post("/api/v1/exercises", async (c) => {
-    const log = logger.child({ requestId: c.get("requestId"), endpoint: "exercises_create" });
-    const body = await c.req.json();
-    const data = exerciseSchema.parse(body);
-    await db.insert(exercises).values({
-      ...data,
-      content: data.content ?? {},
-      created_at: Date.now(),
-      updated_at: Date.now()
-    });
-    log.info("Exercise created", { exerciseId: data.id });
-    return c.json({ status: "created", id: data.id }, 201);
-  });
-
-  app.get("/api/v1/exercises/:id", async (c) => {
+  app.get("/api/v1/tasks/:id", async (c) => {
     const id = c.req.param("id");
-    const log = logger.child({
-      requestId: c.get("requestId"),
-      endpoint: "exercises_get",
-      exerciseId: id
-    });
-    const [result] = await db
-      .select()
-      .from(exercises)
-      .where(eq(exercises.id, id))
-      .limit(1);
-    if (!result) {
-      log.warn("Exercise not found");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "tasks_get", taskId: id });
+    const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    if (!taskRow) {
+      log.warn("Task not found");
       return c.json({ error: "Not found" }, 404);
     }
-    log.info("Exercise retrieved");
-    return c.json(result);
+    const criteriaRows = await db
+      .select()
+      .from(taskCriteria)
+      .where(eq(taskCriteria.task_id, id))
+      .orderBy(taskCriteria.sort_order);
+    const exampleRows = await db
+      .select()
+      .from(taskExamples)
+      .where(eq(taskExamples.task_id, id));
+    const counts = exampleRows.reduce<Record<number, number>>((acc, example) => {
+      acc[example.difficulty] = (acc[example.difficulty] ?? 0) + 1;
+      return acc;
+    }, {});
+    log.info("Task detail fetched", { criteria: criteriaRows.length, examples: exampleRows.length });
+    return c.json({
+      ...normalizeTask(taskRow),
+      criteria: criteriaRows.map((criterion) => ({
+        id: criterion.id,
+        label: criterion.label,
+        description: criterion.description,
+        rubric: criterion.rubric ?? undefined
+      })),
+      example_counts: counts
+    });
   });
 
-  app.put("/api/v1/exercises/:id", async (c) => {
-    const id = c.req.param("id");
-    const log = logger.child({
-      requestId: c.get("requestId"),
-      endpoint: "exercises_update",
-      exerciseId: id
-    });
+  app.get("/api/v1/tasks/:id/examples", async (c) => {
+    const taskId = c.req.param("id");
+    const { difficulty, limit, exclude } = c.req.query();
+    const excludeIds = exclude ? exclude.split(",").map((value) => value.trim()) : [];
+    const filters = [eq(taskExamples.task_id, taskId)];
+    if (difficulty) {
+      filters.push(eq(taskExamples.difficulty, Number(difficulty)));
+    }
+    const rows = await db
+      .select()
+      .from(taskExamples)
+      .where(filters.length > 1 ? and(...filters) : filters[0]);
+    const filtered = rows.filter((row) => !excludeIds.includes(row.id));
+    const limited = limit ? filtered.slice(0, Number(limit)) : filtered;
+    return c.json(
+      limited.map((example) => ({
+        ...example,
+        meta: example.meta ?? null
+      }))
+    );
+  });
+
+  app.post("/api/v1/sessions/start", userAuth, async (c) => {
+    const user = c.get("user");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "sessions_start" });
     const body = await c.req.json();
-    const data = exerciseSchema.parse({ ...body, id });
-    await db
-      .update(exercises)
-      .set({ ...data, content: data.content ?? {}, updated_at: Date.now() })
-      .where(eq(exercises.id, id));
-    log.info("Exercise updated");
-    return c.json({ status: "updated" });
+    const schema = z.object({
+      mode: z.enum(["single_task", "mixed_set"]),
+      task_id: z.string().optional(),
+      item_count: z.number().min(1).max(25),
+      difficulty: z.number().min(1).max(5).optional()
+    });
+    const data = schema.parse(body);
+
+    const sessionId = nanoid();
+    const createdAt = Date.now();
+    const selectedItems: Array<{
+      session_item_id: string;
+      task_id: string;
+      example_id: string;
+      target_difficulty: number;
+      patient_text: string;
+    }> = [];
+
+    if (data.mode === "single_task") {
+      if (!data.task_id) {
+        return c.json({ error: "task_id is required for single_task" }, 400);
+      }
+      const [taskRow] = await db
+        .select()
+        .from(tasks)
+        .where(eq(tasks.id, data.task_id))
+        .limit(1);
+      if (!taskRow) {
+        return c.json({ error: "Task not found" }, 404);
+      }
+      const task = normalizeTask(taskRow);
+      const progress = await ensureUserTaskProgress(user.id, task);
+      const targetDifficulty = data.difficulty ?? progress.current_difficulty;
+      const examples = await db
+        .select()
+        .from(taskExamples)
+        .where(eq(taskExamples.task_id, task.id));
+      const picked = pickExamplesForDifficulty(
+        examples.map((example) => ({
+          ...example,
+          meta: example.meta ?? null
+        })),
+        targetDifficulty,
+        data.item_count
+      );
+      picked.forEach((example, index) => {
+        selectedItems.push({
+          session_item_id: nanoid(),
+          task_id: task.id,
+          example_id: example.id,
+          target_difficulty: targetDifficulty,
+          patient_text: example.patient_text
+        });
+      });
+    } else {
+      const taskRows = await db.select().from(tasks).where(eq(tasks.is_published, true));
+      if (!taskRows.length) {
+        return c.json({ error: "No tasks available" }, 400);
+      }
+      const taskList = taskRows.map((row) => normalizeTask(row));
+      const progressRows = await db
+        .select()
+        .from(userTaskProgress)
+        .where(eq(userTaskProgress.user_id, user.id));
+      const progressMap = new Map(progressRows.map((row) => [row.task_id, row]));
+      const weighted = [...taskList].sort((a, b) => {
+        const aProgress = progressMap.get(a.id)?.attempt_count ?? 0;
+        const bProgress = progressMap.get(b.id)?.attempt_count ?? 0;
+        return aProgress - bProgress;
+      });
+      const chosenTasks = shuffle(weighted).slice(0, Math.min(weighted.length, data.item_count));
+      for (const task of chosenTasks) {
+        const progress = await ensureUserTaskProgress(user.id, task);
+        const targetDifficulty = progress.current_difficulty;
+        const examples = await db
+          .select()
+          .from(taskExamples)
+          .where(eq(taskExamples.task_id, task.id));
+        const picked = pickExamplesForDifficulty(
+          examples.map((example) => ({
+            ...example,
+            meta: example.meta ?? null
+          })),
+          targetDifficulty,
+          1
+        );
+        const example = picked[0];
+        if (!example) continue;
+        selectedItems.push({
+          session_item_id: nanoid(),
+          task_id: task.id,
+          example_id: example.id,
+          target_difficulty: targetDifficulty,
+          patient_text: example.patient_text
+        });
+      }
+    }
+
+    if (!selectedItems.length) {
+      return c.json({ error: "No examples available for this session." }, 400);
+    }
+
+    await db.insert(practiceSessions).values({
+      id: sessionId,
+      user_id: user.id,
+      mode: data.mode,
+      source_task_id: data.mode === "single_task" ? data.task_id ?? null : null,
+      random_seed: nanoid(),
+      created_at: createdAt,
+      ended_at: null
+    });
+
+    await db.insert(practiceSessionItems).values(
+      selectedItems.map((item, index) => ({
+        id: item.session_item_id,
+        session_id: sessionId,
+        position: index,
+        task_id: item.task_id,
+        example_id: item.example_id,
+        target_difficulty: item.target_difficulty,
+        created_at: createdAt
+      }))
+    );
+
+    log.info("Session created", { sessionId, itemCount: selectedItems.length });
+    return c.json({ session_id: sessionId, items: selectedItems });
   });
 
   app.get("/api/v1/admin/whoami", async (c) => {
@@ -467,16 +448,17 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
   app.use("/api/v1/attempts", userAuth);
   app.use("/api/v1/attempts/*", userAuth);
   app.use("/api/v1/practice/*", userAuth);
+  app.use("/api/v1/sessions/*", userAuth);
 
-  app.post("/api/v1/admin/parse-exercise", async (c) => {
-    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_parse_exercise" });
+  app.post("/api/v1/admin/parse-task", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_parse_task" });
     const body = await c.req.json();
     const schema = z.object({
       free_text: z.string().optional().default(""),
       source_url: z.string().nullable().optional()
     });
     const data = schema.parse(body);
-    log.info("Parse exercise request received", {
+    log.info("Parse task request received", {
       hasSourceUrl: Boolean(data.source_url),
       hasFreeText: Boolean(data.free_text?.trim())
     });
@@ -491,11 +473,11 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       sourceText = stripHtml(html);
     }
     if (!sourceText) {
-      log.warn("Parse exercise missing source text");
+      log.warn("Parse task missing source text");
       return c.json({ error: "Provide free_text or source_url" }, 400);
     }
     if (!env.openaiApiKey) {
-      log.error("OpenAI key missing for parse exercise");
+      log.error("OpenAI key missing for parse task");
       return c.json({ error: "OpenAI key missing" }, 500);
     }
     let llmProvider;
@@ -515,8 +497,7 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       return c.json({ error: "OpenAI parse failed" }, 500);
     }
 
-    const mapped = mapLlmTaskToV2(parsed);
-    const validated = deliberatePracticeTaskV2Schema.safeParse(mapped);
+    const validated = deliberatePracticeTaskV2Schema.safeParse(parsed);
     if (!validated.success) {
       log.warn("Mapped parse response failed validation");
       return c.json(
@@ -524,63 +505,205 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
         400
       );
     }
-    log.info("Parse exercise completed");
+    log.info("Parse task completed");
     return c.json(validated.data);
   });
 
-  app.post("/api/v1/admin/import-exercise", async (c) => {
-    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_import_exercise" });
+  app.post("/api/v1/admin/import-task", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_import_task" });
     const body = await c.req.json();
     const schema = z.object({
       task_v2: deliberatePracticeTaskV2Schema,
-      exercise_overrides: z
+      task_overrides: z
         .object({
           id: z.string().optional(),
           slug: z.string().optional(),
-          is_published: z.boolean().optional(),
-          tags: z.array(z.string()).optional()
+          is_published: z.boolean().optional()
         })
         .optional()
     });
     const data = schema.parse(body);
-    const exercise = exerciseFromTask(data.task_v2, data.exercise_overrides);
-    const validated = exerciseSchema.parse(exercise);
-    const existingById = data.exercise_overrides?.id
-      ? await db
-          .select()
-          .from(exercises)
-          .where(eq(exercises.id, data.exercise_overrides.id))
-          .limit(1)
-      : [];
-    const existingBySlug = existingById.length
-      ? []
-      : await db.select().from(exercises).where(eq(exercises.slug, validated.slug)).limit(1);
-    if (existingById.length || existingBySlug.length) {
-      const existing = existingById[0] ?? existingBySlug[0];
+    const parsedTask = data.task_v2;
+    const taskId = data.task_overrides?.id ?? nanoid();
+    const slug = data.task_overrides?.slug ?? slugify(parsedTask.task.title);
+    const now = Date.now();
+
+    const [existing] = await db.select().from(tasks).where(eq(tasks.slug, slug)).limit(1);
+    if (existing) {
       await db
-        .update(exercises)
+        .update(tasks)
         .set({
-          ...validated,
-          id: existing.id,
-          content: validated.content ?? {},
-          source_text: data.task_v2.content.source?.text ?? null,
-          source_url: data.task_v2.content.source?.url ?? null,
-          updated_at: Date.now()
+          title: parsedTask.task.title,
+          description: parsedTask.task.description,
+          skill_domain: parsedTask.task.skill_domain,
+          base_difficulty: parsedTask.task.base_difficulty,
+          general_objective: parsedTask.task.general_objective ?? null,
+          tags: parsedTask.task.tags,
+          is_published: data.task_overrides?.is_published ?? existing.is_published,
+          updated_at: now
         })
-        .where(eq(exercises.id, existing.id));
-      log.info("Exercise imported (updated)", { exerciseId: existing.id, slug: validated.slug });
-      return c.json({ id: existing.id, slug: validated.slug });
+        .where(eq(tasks.id, existing.id));
+
+      await db.delete(taskCriteria).where(eq(taskCriteria.task_id, existing.id));
+      await db.delete(taskExamples).where(eq(taskExamples.task_id, existing.id));
+
+      await db.insert(taskCriteria).values(
+        parsedTask.criteria.map((criterion, index) => ({
+          task_id: existing.id,
+          id: criterion.id,
+          label: criterion.label,
+          description: criterion.description,
+          rubric: criterion.rubric ?? null,
+          sort_order: index
+        }))
+      );
+      await db.insert(taskExamples).values(
+        parsedTask.examples.map((example) => ({
+          id: example.id,
+          task_id: existing.id,
+          difficulty: example.difficulty,
+          severity_label: example.severity_label ?? null,
+          patient_text: example.patient_text,
+          meta: example.meta ?? null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+      log.info("Task imported (updated)", { taskId: existing.id, slug });
+      return c.json({ id: existing.id, slug });
     }
-    await db.insert(exercises).values({
-      ...validated,
-      content: validated.content ?? {},
-      source_text: data.task_v2.content.source?.text ?? null,
-      source_url: data.task_v2.content.source?.url ?? null,
-      created_at: Date.now(),
-      updated_at: Date.now()
+
+    await db.insert(tasks).values({
+      id: taskId,
+      slug,
+      title: parsedTask.task.title,
+      description: parsedTask.task.description,
+      skill_domain: parsedTask.task.skill_domain,
+      base_difficulty: parsedTask.task.base_difficulty,
+      general_objective: parsedTask.task.general_objective ?? null,
+      tags: parsedTask.task.tags,
+      is_published: data.task_overrides?.is_published ?? false,
+      parent_task_id: null,
+      created_at: now,
+      updated_at: now
     });
-    log.info("Exercise imported (created)", { exerciseId: validated.id, slug: validated.slug });
-    return c.json({ id: validated.id, slug: validated.slug });
+
+    await db.insert(taskCriteria).values(
+      parsedTask.criteria.map((criterion, index) => ({
+        task_id: taskId,
+        id: criterion.id,
+        label: criterion.label,
+        description: criterion.description,
+        rubric: criterion.rubric ?? null,
+        sort_order: index
+      }))
+    );
+
+    await db.insert(taskExamples).values(
+      parsedTask.examples.map((example) => ({
+        id: example.id,
+        task_id: taskId,
+        difficulty: example.difficulty,
+        severity_label: example.severity_label ?? null,
+        patient_text: example.patient_text,
+        meta: example.meta ?? null,
+        created_at: now,
+        updated_at: now
+      }))
+    );
+    log.info("Task imported (created)", { taskId, slug });
+    return c.json({ id: taskId, slug });
+  });
+
+  app.get("/api/v1/admin/tasks", async (c) => {
+    const rows = await db.select().from(tasks);
+    return c.json(rows.map((row) => normalizeTask(row)));
+  });
+
+  app.get("/api/v1/admin/tasks/:id", async (c) => {
+    const id = c.req.param("id");
+    const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    if (!taskRow) return c.json({ error: "Not found" }, 404);
+    const criteriaRows = await db
+      .select()
+      .from(taskCriteria)
+      .where(eq(taskCriteria.task_id, id))
+      .orderBy(taskCriteria.sort_order);
+    const exampleRows = await db
+      .select()
+      .from(taskExamples)
+      .where(eq(taskExamples.task_id, id));
+    return c.json({
+      ...normalizeTask(taskRow),
+      criteria: criteriaRows.map((criterion) => ({
+        id: criterion.id,
+        label: criterion.label,
+        description: criterion.description,
+        rubric: criterion.rubric ?? undefined
+      })),
+      examples: exampleRows.map((example) => ({
+        ...example,
+        meta: example.meta ?? null
+      }))
+    });
+  });
+
+  app.put("/api/v1/admin/tasks/:id", async (c) => {
+    const id = c.req.param("id");
+    const body = await c.req.json();
+    const parsed = taskSchema
+      .extend({
+        criteria: z.array(taskCriterionSchema).optional(),
+        examples: z.array(taskExampleSchema).optional()
+      })
+      .parse(body);
+    const now = Date.now();
+    await db
+      .update(tasks)
+      .set({
+        slug: parsed.slug,
+        title: parsed.title,
+        description: parsed.description,
+        skill_domain: parsed.skill_domain,
+        base_difficulty: parsed.base_difficulty,
+        general_objective: parsed.general_objective ?? null,
+        tags: parsed.tags,
+        is_published: parsed.is_published,
+        parent_task_id: parsed.parent_task_id ?? null,
+        updated_at: now
+      })
+      .where(eq(tasks.id, id));
+
+    if (parsed.criteria) {
+      await db.delete(taskCriteria).where(eq(taskCriteria.task_id, id));
+      await db.insert(taskCriteria).values(
+        parsed.criteria.map((criterion, index) => ({
+          task_id: id,
+          id: criterion.id,
+          label: criterion.label,
+          description: criterion.description,
+          rubric: criterion.rubric ?? null,
+          sort_order: index
+        }))
+      );
+    }
+    if (parsed.examples) {
+      await db.delete(taskExamples).where(eq(taskExamples.task_id, id));
+      await db.insert(taskExamples).values(
+        parsed.examples.map((example) => ({
+          id: example.id,
+          task_id: id,
+          difficulty: example.difficulty,
+          severity_label: example.severity_label ?? null,
+          patient_text: example.patient_text,
+          meta: example.meta ?? null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
+
+    return c.json({ status: "updated" });
   });
 
   app.get("/api/v1/me", async (c) => {
@@ -620,8 +743,7 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       return c.json({ error: "Invalid JSON body" }, 400);
     }
     const nullableUrl = z.preprocess(
-      (value) =>
-        typeof value === "string" && value.trim() === "" ? null : value,
+      (value) => (typeof value === "string" && value.trim() === "" ? null : value),
       z.string().url().nullable().optional()
     );
     const schema = z.object({
@@ -756,118 +878,40 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
     return c.json(result, result.ok ? 200 : 400);
   });
 
-  app.post("/api/v1/attempts/start", async (c) => {
-    const body = await c.req.json();
-    const schema = z.object({ exercise_id: z.string() });
-    const data = schema.parse(body);
-    const user = c.get("user");
-    const id = nanoid();
-    await db.insert(attempts).values({
-      id,
-      user_id: user.id,
-      exercise_id: data.exercise_id,
-      started_at: Date.now(),
-      completed_at: null,
-      audio_ref: null,
-      transcript: "",
-      evaluation: {},
-      overall_pass: false,
-      overall_score: 0,
-      model_info: {}
-    });
-    logger
-      .child({ requestId: c.get("requestId"), endpoint: "attempts_start" })
-      .info("Attempt started", { attemptId: id, userId: user.id, exerciseId: data.exercise_id });
-    return c.json({ attempt_id: id });
-  });
-
-  app.post("/api/v1/attempts/:id/upload-audio", async (c) => {
-    const attemptId = c.req.param("id");
-    const body = await c.req.json();
-    const schema = z.object({ audio_ref: z.string() });
-    const data = schema.parse(body);
-    const user = c.get("user");
-    const log = logger.child({
-      requestId: c.get("requestId"),
-      endpoint: "attempts_upload_audio",
-      attemptId,
-      userId: user.id
-    });
-    await db
-      .update(attempts)
-      .set({ audio_ref: data.audio_ref })
-      .where(and(eq(attempts.id, attemptId), eq(attempts.user_id, user.id)));
-    log.info("Audio uploaded", { audioRef: data.audio_ref });
-    return c.json({ status: "ok" });
-  });
-
-  app.post("/api/v1/attempts/:id/evaluate", async (c) => {
-    const attemptId = c.req.param("id");
-    const body = await c.req.json();
-    const schema = z.object({
-      transcript: z.string(),
-      evaluation: evaluationResultSchema,
-      overall_pass: z.boolean(),
-      overall_score: z.number()
-    });
-    const data = schema.parse(body);
-    const user = c.get("user");
-    const log = logger.child({
-      requestId: c.get("requestId"),
-      endpoint: "attempts_evaluate",
-      attemptId,
-      userId: user.id
-    });
-    await db
-      .update(attempts)
-      .set({
-        transcript: data.transcript,
-        evaluation: data.evaluation,
-        overall_pass: data.overall_pass,
-        overall_score: data.overall_score
-      })
-      .where(and(eq(attempts.id, attemptId), eq(attempts.user_id, user.id)));
-    log.info("Attempt evaluated", { overallScore: data.overall_score, overallPass: data.overall_pass });
-    return c.json({ status: "ok" });
-  });
-
-  app.post("/api/v1/attempts/:id/complete", async (c) => {
-    const attemptId = c.req.param("id");
-    const user = c.get("user");
-    const log = logger.child({
-      requestId: c.get("requestId"),
-      endpoint: "attempts_complete",
-      attemptId,
-      userId: user.id
-    });
-    await db
-      .update(attempts)
-      .set({ completed_at: Date.now() })
-      .where(and(eq(attempts.id, attemptId), eq(attempts.user_id, user.id)));
-    log.info("Attempt completed");
-    return c.json({ status: "ok" });
-  });
-
   app.get("/api/v1/attempts", async (c) => {
     const user = c.get("user");
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "attempts_list", userId: user.id });
-    const { exercise_id } = c.req.query();
+    const { task_id } = c.req.query();
     const filters = [eq(attempts.user_id, user.id)];
-    if (exercise_id) {
-      filters.push(eq(attempts.exercise_id, exercise_id));
+    if (task_id) {
+      filters.push(eq(attempts.task_id, task_id));
     }
     const results = await db
-      .select()
+      .select({
+        id: attempts.id,
+        completed_at: attempts.completed_at,
+        overall_score: attempts.overall_score,
+        overall_pass: attempts.overall_pass,
+        task_id: attempts.task_id,
+        task_title: tasks.title,
+        example_id: attempts.example_id,
+        example_difficulty: taskExamples.difficulty
+      })
       .from(attempts)
+      .innerJoin(tasks, eq(attempts.task_id, tasks.id))
+      .innerJoin(taskExamples, eq(attempts.example_id, taskExamples.id))
       .where(filters.length > 1 ? and(...filters) : filters[0]);
-    log.info("Attempts fetched", { count: results.length, exerciseId: exercise_id ?? null });
+    log.info("Attempts fetched", { count: results.length, taskId: task_id ?? null });
     return c.json(
       results.map((attempt) => ({
         id: attempt.id,
-        exercise_id: attempt.exercise_id,
+        task_id: attempt.task_id,
+        task_title: attempt.task_title,
+        example_id: attempt.example_id,
+        example_difficulty: attempt.example_difficulty,
         overall_score: attempt.overall_score,
         overall_pass: attempt.overall_pass,
-        completed_at: new Date(attempt.completed_at ?? attempt.started_at).toISOString()
+        completed_at: new Date(attempt.completed_at ?? Date.now()).toISOString()
       }))
     );
   });
@@ -905,6 +949,17 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       );
     }
     const input = parsedInput.data;
+    if (!input.session_item_id && !(input.task_id && input.example_id)) {
+      return c.json(
+        {
+          requestId,
+          errors: [
+            { stage: "input", message: "Provide session_item_id or task_id + example_id." }
+          ]
+        },
+        400
+      );
+    }
     const audioLength = input.audio?.length ?? 0;
     const minAudioLength = 128;
     if (!input.audio || audioLength < minAudioLength) {
@@ -921,12 +976,6 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       );
     }
     timings.input_parse = Date.now() - inputParseStart;
-    logEvent("info", "input.parse.ok", {
-      exerciseId: input.exercise_id,
-      attemptId: input.attempt_id ?? null,
-      mode: input.mode ?? null,
-      audio_length: audioLength
-    });
 
     if (!checkRateLimit(`practice:${user.id}`)) {
       logEvent("warn", "practice.run.rate_limited");
@@ -996,20 +1045,72 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       );
     }
 
-    logEvent("info", "exercise.load.start", { exerciseId: input.exercise_id });
-    const [exercise] = await db
-      .select()
-      .from(exercises)
-      .where(eq(exercises.id, input.exercise_id))
-      .limit(1);
-    if (!exercise) {
-      logEvent("warn", "exercise.load.error", { exerciseId: input.exercise_id });
+    let taskId = input.task_id ?? null;
+    let exampleId = input.example_id ?? null;
+    let sessionId: string | null = null;
+    let sessionItemId: string | null = null;
+
+    if (input.session_item_id) {
+      const [itemRow] = await db
+        .select()
+        .from(practiceSessionItems)
+        .where(eq(practiceSessionItems.id, input.session_item_id))
+        .limit(1);
+      if (!itemRow) {
+        return c.json({ requestId, errors: [{ stage: "input", message: "Session item not found." }] }, 404);
+      }
+      sessionItemId = itemRow.id;
+      sessionId = itemRow.session_id;
+      taskId = itemRow.task_id;
+      exampleId = itemRow.example_id;
+    }
+
+    if (!taskId || !exampleId) {
       return c.json(
-        { requestId, errors: [{ stage: "input", message: "Exercise not found." }] },
+        { requestId, errors: [{ stage: "input", message: "Task or example missing." }] },
+        400
+      );
+    }
+
+    const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    if (!taskRow) {
+      return c.json(
+        { requestId, errors: [{ stage: "input", message: "Task not found." }] },
         404
       );
     }
-    logEvent("info", "exercise.load.ok", { exerciseId: input.exercise_id });
+    const criteriaRows = await db
+      .select()
+      .from(taskCriteria)
+      .where(eq(taskCriteria.task_id, taskId))
+      .orderBy(taskCriteria.sort_order);
+    const [exampleRow] = await db
+      .select()
+      .from(taskExamples)
+      .where(eq(taskExamples.id, exampleId))
+      .limit(1);
+    if (!exampleRow) {
+      return c.json(
+        { requestId, errors: [{ stage: "input", message: "Example not found." }] },
+        404
+      );
+    }
+
+    const task = normalizeTask(taskRow);
+    const criteria: TaskCriterion[] = criteriaRows.map((criterion) => ({
+      id: criterion.id,
+      label: criterion.label,
+      description: criterion.description,
+      rubric: criterion.rubric ?? undefined
+    }));
+    const example: TaskExample = {
+      id: exampleRow.id,
+      task_id: exampleRow.task_id,
+      difficulty: exampleRow.difficulty,
+      severity_label: exampleRow.severity_label ?? null,
+      patient_text: exampleRow.patient_text,
+      meta: exampleRow.meta ?? null
+    };
 
     let sttProvider;
     logEvent("info", "stt.select.start", { mode });
@@ -1089,7 +1190,8 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       });
       try {
         evaluation = await llmProvider.evaluateDeliberatePractice({
-          exercise,
+          task: { ...task, criteria },
+          example,
           attempt_id: attemptId,
           transcript
         });
@@ -1109,9 +1211,13 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
 
     let scoringResult;
     if (evaluation) {
-      let parsed = evaluationResultSchema.safeParse(evaluation);
+      const normalizedEvaluation =
+        typeof evaluation === "object" && evaluation !== null
+          ? { task_id: taskId, example_id: exampleId, attempt_id: attemptId, ...evaluation }
+          : evaluation;
+      let parsed = evaluationResultSchema.safeParse(normalizedEvaluation);
       if (!parsed.success) {
-        const repaired = attemptJsonRepair(JSON.stringify(evaluation));
+        const repaired = attemptJsonRepair(JSON.stringify(normalizedEvaluation));
         if (repaired) {
           parsed = evaluationResultSchema.safeParse(JSON.parse(repaired));
         }
@@ -1130,6 +1236,7 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
       }
     }
 
+    let nextDifficulty: number | undefined;
     if (transcript) {
       logEvent("info", "db.attempt.insert.start", { attemptId });
       try {
@@ -1148,54 +1255,53 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
         const overallScore = scoringResult?.overall.score ?? 0;
         const overallPass = scoringResult?.overall.pass ?? false;
         const transcriptText = transcript.text ?? "";
-        if (input.attempt_id) {
-          const [existing] = await db
-            .select({ id: attempts.id })
-            .from(attempts)
-            .where(and(eq(attempts.id, input.attempt_id), eq(attempts.user_id, user.id)))
-            .limit(1);
-          if (existing) {
-            await db
-              .update(attempts)
-              .set({
-                completed_at: Date.now(),
-                transcript: transcriptText,
-                evaluation: evaluationPayload,
-                overall_score: overallScore,
-                overall_pass: overallPass,
-                model_info: modelInfo
-              })
-              .where(and(eq(attempts.id, input.attempt_id), eq(attempts.user_id, user.id)));
-          } else {
-            await db.insert(attempts).values({
-              id: attemptId,
-              user_id: user.id,
-              exercise_id: input.exercise_id,
-              started_at: Date.now(),
-              completed_at: Date.now(),
-              audio_ref: null,
-              transcript: transcriptText,
-              evaluation: evaluationPayload,
-              overall_pass: overallPass,
-              overall_score: overallScore,
-              model_info: modelInfo
-            });
-          }
-        } else {
-          await db.insert(attempts).values({
-            id: attemptId,
-            user_id: user.id,
-            exercise_id: input.exercise_id,
-            started_at: Date.now(),
-            completed_at: Date.now(),
-            audio_ref: null,
-            transcript: transcriptText,
-            evaluation: evaluationPayload,
-            overall_pass: overallPass,
-            overall_score: overallScore,
-            model_info: modelInfo
-          });
+
+        await db.insert(attempts).values({
+          id: attemptId,
+          user_id: user.id,
+          session_id: sessionId,
+          session_item_id: sessionItemId,
+          task_id: taskId,
+          example_id: exampleId,
+          started_at: Date.now(),
+          completed_at: Date.now(),
+          audio_ref: null,
+          transcript: transcriptText,
+          evaluation: evaluationPayload,
+          overall_pass: overallPass,
+          overall_score: overallScore,
+          model_info: modelInfo
+        });
+
+        const existingProgress = await ensureUserTaskProgress(user.id, task);
+        let updatedDifficulty = existingProgress.current_difficulty;
+        let nextStreak = existingProgress.streak;
+        if (overallPass && overallScore >= 3.2) {
+          updatedDifficulty = Math.min(5, updatedDifficulty + 1);
+          nextStreak += 1;
+        } else if (!overallPass || overallScore < 2.4) {
+          updatedDifficulty = Math.max(1, updatedDifficulty - 1);
+          nextStreak = 0;
         }
+        nextDifficulty = updatedDifficulty;
+
+        await db
+          .update(userTaskProgress)
+          .set({
+            current_difficulty: updatedDifficulty,
+            last_overall_score: overallScore,
+            last_pass: overallPass,
+            streak: nextStreak,
+            attempt_count: existingProgress.attempt_count + 1,
+            updated_at: Date.now()
+          })
+          .where(
+            and(
+              eq(userTaskProgress.user_id, user.id),
+              eq(userTaskProgress.task_id, taskId)
+            )
+          );
+
         logEvent("info", "db.attempt.insert.ok", { attemptId });
       } catch (error) {
         logEvent("error", "db.attempt.insert.error", { error: safeError(error) });
@@ -1209,6 +1315,7 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
     const response = {
       requestId,
       attemptId,
+      next_recommended_difficulty: nextDifficulty,
       transcript: transcript
         ? {
             text: transcript.text,

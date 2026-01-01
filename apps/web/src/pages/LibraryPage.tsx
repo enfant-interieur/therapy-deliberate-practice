@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useGetExercisesQuery } from "../store/api";
+import { useGetTasksQuery } from "../store/api";
 
 export const LibraryPage = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
-  const { data, isLoading } = useGetExercisesQuery({ q: search });
+  const { data, isLoading } = useGetTasksQuery({ q: search, published: 1 });
 
   return (
     <div className="space-y-8">
@@ -28,23 +28,23 @@ export const LibraryPage = () => {
       </section>
       <section className="grid gap-6 md:grid-cols-2">
         {isLoading && <p className="text-sm text-slate-400">{t("library.loading")}</p>}
-        {data?.map((exercise) => (
+        {data?.map((task) => (
           <article
-            key={exercise.id}
+            key={task.id}
             className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg"
           >
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{exercise.skill_domain}</p>
-                <h3 className="text-xl font-semibold">{exercise.title}</h3>
+                <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{task.skill_domain}</p>
+                <h3 className="text-xl font-semibold">{task.title}</h3>
               </div>
               <span className="rounded-full bg-teal-500/10 px-3 py-1 text-xs text-teal-200">
-                {t("library.difficulty", { difficulty: exercise.difficulty })}
+                {t("library.difficulty", { difficulty: task.base_difficulty })}
               </span>
             </div>
-            <p className="mt-4 text-sm text-slate-300">{exercise.description}</p>
+            <p className="mt-4 text-sm text-slate-300">{task.description}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              {exercise.tags.map((tag) => (
+              {task.tags.map((tag) => (
                 <span key={tag} className="rounded-full border border-white/10 px-3 py-1 text-xs">
                   {tag}
                 </span>
@@ -52,13 +52,13 @@ export const LibraryPage = () => {
             </div>
             <div className="mt-6 flex gap-3">
               <Link
-                to={`/exercises/${exercise.id}`}
+                to={`/tasks/${task.id}`}
                 className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
               >
                 {t("library.viewDetails")}
               </Link>
               <Link
-                to={`/practice/${exercise.id}`}
+                to={`/practice/${task.id}`}
                 className="rounded-full border border-white/20 px-4 py-2 text-sm"
               >
                 {t("library.startPractice")}

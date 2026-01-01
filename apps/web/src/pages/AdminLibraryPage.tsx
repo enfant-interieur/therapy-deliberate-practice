@@ -1,21 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  useGetExercisesQuery,
-  useGetExerciseQuery,
-  useImportExerciseMutation,
-  useParseExerciseMutation,
-  useUpdateExerciseMutation
+  useGetAdminTaskQuery,
+  useGetAdminTasksQuery,
+  useImportTaskMutation,
+  useParseTaskMutation,
+  useUpdateTaskMutation
 } from "../store/api";
-import type { DeliberatePracticeTaskV2, Exercise, ExerciseContentV2 } from "@deliberate/shared";
-import { deliberatePracticeTaskV2Schema, exerciseSchema } from "@deliberate/shared";
+import type { DeliberatePracticeTaskV2, Task, TaskCriterion, TaskExample } from "@deliberate/shared";
+import { deliberatePracticeTaskV2Schema } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
-
-const emptyContent = (): ExerciseContentV2 => ({
-  criteria: [],
-  roleplay_sets: [],
-  example_dialogues: [],
-  patient_cues: []
-});
 
 const updateArrayItem = <T,>(
   items: T[],
@@ -31,410 +24,200 @@ const parseTags = (value: string) =>
 
 const joinTags = (tags: string[]) => tags.join(", ");
 
-const autoLinkStatements = (content: ExerciseContentV2): ExerciseContentV2 => {
-  const criteriaKeywords = content.criteria.map((criterion) => ({
-    id: criterion.id,
-    keywords: `${criterion.label} ${criterion.description}`
-      .toLowerCase()
-      .split(/\\W+/)
-      .filter((word) => word.length > 3)
-  }));
-  const cueKeywords = content.patient_cues.map((cue) => ({
-    id: cue.id,
-    keywords: `${cue.label} ${cue.text}`
-      .toLowerCase()
-      .split(/\\W+/)
-      .filter((word) => word.length > 3)
-  }));
-
-  const updatedSets = content.roleplay_sets.map((set) => ({
-    ...set,
-    statements: set.statements.map((statement) => {
-      const text = statement.text.toLowerCase();
-      const matchedCriteria = criteriaKeywords
-        .filter((criterion) => criterion.keywords.some((word) => text.includes(word)))
-        .map((criterion) => criterion.id);
-      const matchedCues = cueKeywords
-        .filter((cue) => cue.keywords.some((word) => text.includes(word)))
-        .map((cue) => cue.id);
-      return {
-        ...statement,
-        criterion_ids: matchedCriteria.length ? matchedCriteria : content.criteria.map((c) => c.id),
-        cue_ids: matchedCues
-      };
-    })
-  }));
-  return { ...content, roleplay_sets: updatedSets };
+type CriteriaEditorProps = {
+  criteria: TaskCriterion[];
+  onChange: (criteria: TaskCriterion[]) => void;
 };
 
-type ContentEditorProps = {
-  content: ExerciseContentV2;
-  onChange: (content: ExerciseContentV2) => void;
-};
-
-const ContentEditor = ({ content, onChange }: ContentEditorProps) => {
+const CriteriaEditor = ({ criteria, onChange }: CriteriaEditorProps) => {
   const { t } = useTranslation();
   return (
-    <div className="space-y-6">
-      <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.criteria")}</h4>
-        {content.criteria.map((criterion, index) => (
-          <div key={criterion.id} className="grid gap-2 md:grid-cols-2">
-            <input
-              className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder={t("admin.content.labelPlaceholder")}
-              value={criterion.label}
-              onChange={(event) =>
-                onChange({
-                  ...content,
-                  criteria: updateArrayItem(content.criteria, index, (item) => ({
-                    ...item,
-                    label: event.target.value
-                  }))
-                })
-              }
-            />
-            <input
-              className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder={t("admin.content.descriptionPlaceholder")}
-              value={criterion.description}
-              onChange={(event) =>
-                onChange({
-                  ...content,
-                  criteria: updateArrayItem(content.criteria, index, (item) => ({
-                    ...item,
-                    description: event.target.value
-                  }))
-                })
-              }
-            />
-          </div>
-        ))}
-        <button
-          type="button"
-          className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
-          onClick={() =>
-            onChange({
-              ...content,
-              criteria: [
-                ...content.criteria,
-                { id: `criterion-${content.criteria.length + 1}`, label: "", description: "" }
-              ]
-            })
-          }
-        >
-          {t("admin.content.addCriterion")}
-        </button>
-      </div>
-
-      <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.roleplaySets")}</h4>
-        {content.roleplay_sets.map((set, setIndex) => (
-          <div key={set.id} className="space-y-3 rounded-xl border border-white/10 p-3">
-            <input
-              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder={t("admin.content.setLabelPlaceholder")}
-              value={set.label}
-              onChange={(event) =>
-                onChange({
-                  ...content,
-                  roleplay_sets: updateArrayItem(content.roleplay_sets, setIndex, (item) => ({
-                    ...item,
-                    label: event.target.value
-                  }))
-                })
-              }
-            />
-            <div className="space-y-2">
-              {set.statements.map((statement, statementIndex) => (
-                <div key={statement.id} className="grid gap-2 md:grid-cols-4">
-                  <select
-                    className="rounded-xl border border-white/10 bg-slate-950/60 px-2 py-2 text-sm text-white"
-                    value={statement.difficulty}
-                    onChange={(event) =>
-                      onChange({
-                        ...content,
-                        roleplay_sets: updateArrayItem(content.roleplay_sets, setIndex, (item) => ({
-                          ...item,
-                          statements: updateArrayItem(item.statements, statementIndex, (entry) => ({
-                            ...entry,
-                            difficulty: event.target.value as ExerciseContentV2["roleplay_sets"][number]["statements"][number]["difficulty"]
-                          }))
-                        }))
-                      })
-                    }
-                  >
-                    <option value="beginner">{t("admin.content.difficulty.beginner")}</option>
-                    <option value="intermediate">{t("admin.content.difficulty.intermediate")}</option>
-                    <option value="advanced">{t("admin.content.difficulty.advanced")}</option>
-                  </select>
-                  <input
-                    className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-                    placeholder={t("admin.content.clientStatementPlaceholder")}
-                    value={statement.text}
-                    onChange={(event) =>
-                      onChange({
-                        ...content,
-                        roleplay_sets: updateArrayItem(content.roleplay_sets, setIndex, (item) => ({
-                          ...item,
-                          statements: updateArrayItem(item.statements, statementIndex, (entry) => ({
-                            ...entry,
-                            text: event.target.value
-                          }))
-                        }))
-                      })
-                    }
-                  />
-                  <input
-                    className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
-                    placeholder={t("admin.content.criterionIdsPlaceholder")}
-                    value={(statement.criterion_ids ?? []).join(", ")}
-                    onChange={(event) =>
-                      onChange({
-                        ...content,
-                        roleplay_sets: updateArrayItem(content.roleplay_sets, setIndex, (item) => ({
-                          ...item,
-                          statements: updateArrayItem(item.statements, statementIndex, (entry) => ({
-                            ...entry,
-                            criterion_ids: parseTags(event.target.value)
-                          }))
-                        }))
-                      })
-                    }
-                  />
-                  <input
-                    className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
-                    placeholder={t("admin.content.cueIdsPlaceholder")}
-                    value={(statement.cue_ids ?? []).join(", ")}
-                    onChange={(event) =>
-                      onChange({
-                        ...content,
-                        roleplay_sets: updateArrayItem(content.roleplay_sets, setIndex, (item) => ({
-                          ...item,
-                          statements: updateArrayItem(item.statements, statementIndex, (entry) => ({
-                            ...entry,
-                            cue_ids: parseTags(event.target.value)
-                          }))
-                        }))
-                      })
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-            <button
-              type="button"
-              className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
-              onClick={() =>
-                onChange({
-                  ...content,
-                  roleplay_sets: updateArrayItem(content.roleplay_sets, setIndex, (item) => ({
-                    ...item,
-                    statements: [
-                      ...item.statements,
-                      {
-                        id: `statement-${item.statements.length + 1}`,
-                        difficulty: "beginner",
-                        text: ""
-                      }
-                    ]
-                  }))
-                })
-              }
-            >
-              {t("admin.content.addStatement")}
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
-          onClick={() =>
-            onChange({
-              ...content,
-              roleplay_sets: [
-                ...content.roleplay_sets,
-                { id: `set-${content.roleplay_sets.length + 1}`, label: "", statements: [] }
-              ]
-            })
-          }
-        >
-          {t("admin.content.addRoleplaySet")}
-        </button>
-      </div>
-
-      <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.exampleDialogues")}</h4>
-        {content.example_dialogues.map((dialogue, index) => (
-          <div key={dialogue.id} className="space-y-2 rounded-xl border border-white/10 p-3">
-            <input
-              className="w-full rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder={t("admin.content.dialogueLabelPlaceholder")}
-              value={dialogue.label}
-              onChange={(event) =>
-                onChange({
-                  ...content,
-                  example_dialogues: updateArrayItem(content.example_dialogues, index, (item) => ({
-                    ...item,
-                    label: event.target.value
-                  }))
-                })
-              }
-            />
-            {dialogue.turns.map((turn, turnIndex) => (
-              <div key={`${dialogue.id}-${turnIndex}`} className="grid gap-2 md:grid-cols-4">
-                <select
-                  className="rounded-xl border border-white/10 bg-slate-950/60 px-2 py-2 text-sm text-white"
-                  value={turn.role}
-                  onChange={(event) =>
-                    onChange({
-                      ...content,
-                      example_dialogues: updateArrayItem(content.example_dialogues, index, (item) => ({
-                        ...item,
-                        turns: updateArrayItem(item.turns, turnIndex, (entry) => ({
-                          ...entry,
-                          role: event.target.value as ExerciseContentV2["example_dialogues"][number]["turns"][number]["role"]
-                        }))
-                      }))
-                    })
-                  }
-                >
-                  <option value="client">{t("admin.content.role.client")}</option>
-                  <option value="therapist">{t("admin.content.role.therapist")}</option>
-                </select>
-                <input
-                  className="md:col-span-3 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-                  placeholder={t("admin.content.turnPlaceholder")}
-                  value={turn.text}
-                  onChange={(event) =>
-                    onChange({
-                      ...content,
-                      example_dialogues: updateArrayItem(content.example_dialogues, index, (item) => ({
-                        ...item,
-                        turns: updateArrayItem(item.turns, turnIndex, (entry) => ({
-                          ...entry,
-                          text: event.target.value
-                        }))
-                      }))
-                    })
-                  }
-                />
-              </div>
-            ))}
-            <button
-              type="button"
-              className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
-              onClick={() =>
-                onChange({
-                  ...content,
-                  example_dialogues: updateArrayItem(content.example_dialogues, index, (item) => ({
-                    ...item,
-                    turns: [...item.turns, { role: "client", text: "" }]
-                  }))
-                })
-              }
-            >
-              {t("admin.content.addTurn")}
-            </button>
-          </div>
-        ))}
-        <button
-          type="button"
-          className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
-          onClick={() =>
-            onChange({
-              ...content,
-              example_dialogues: [
-                ...content.example_dialogues,
-                { id: `dialogue-${content.example_dialogues.length + 1}`, label: "", turns: [] }
-              ]
-            })
-          }
-        >
-          {t("admin.content.addDialogue")}
-        </button>
-      </div>
-
-      <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-        <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.patientCues")}</h4>
-        {content.patient_cues.map((cue, index) => (
-          <div key={cue.id} className="grid gap-2 md:grid-cols-3">
-            <input
-              className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder={t("admin.content.cueLabelPlaceholder")}
-              value={cue.label}
-              onChange={(event) =>
-                onChange({
-                  ...content,
-                  patient_cues: updateArrayItem(content.patient_cues, index, (item) => ({
-                    ...item,
-                    label: event.target.value
-                  }))
-                })
-              }
-            />
-            <input
-              className="md:col-span-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
-              placeholder={t("admin.content.cueTextPlaceholder")}
-              value={cue.text}
-              onChange={(event) =>
-                onChange({
-                  ...content,
-                  patient_cues: updateArrayItem(content.patient_cues, index, (item) => ({
-                    ...item,
-                    text: event.target.value
-                  }))
-                })
-              }
-            />
-          </div>
-        ))}
-        <button
-          type="button"
-          className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
-          onClick={() =>
-            onChange({
-              ...content,
-              patient_cues: [
-                ...content.patient_cues,
-                { id: `cue-${content.patient_cues.length + 1}`, label: "", text: "" }
-              ]
-            })
-          }
-        >
-          {t("admin.content.addCue")}
-        </button>
-      </div>
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+      <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.criteria")}</h4>
+      {criteria.map((criterion, index) => (
+        <div key={criterion.id} className="grid gap-2 md:grid-cols-3">
+          <input
+            className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            placeholder={t("admin.content.criterionIdPlaceholder")}
+            value={criterion.id}
+            onChange={(event) =>
+              onChange(
+                updateArrayItem(criteria, index, (item) => ({
+                  ...item,
+                  id: event.target.value
+                }))
+              )
+            }
+          />
+          <input
+            className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            placeholder={t("admin.content.labelPlaceholder")}
+            value={criterion.label}
+            onChange={(event) =>
+              onChange(
+                updateArrayItem(criteria, index, (item) => ({
+                  ...item,
+                  label: event.target.value
+                }))
+              )
+            }
+          />
+          <input
+            className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            placeholder={t("admin.content.descriptionPlaceholder")}
+            value={criterion.description}
+            onChange={(event) =>
+              onChange(
+                updateArrayItem(criteria, index, (item) => ({
+                  ...item,
+                  description: event.target.value
+                }))
+              )
+            }
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
+        onClick={() =>
+          onChange([
+            ...criteria,
+            { id: `c${criteria.length + 1}`, label: "", description: "" }
+          ])
+        }
+      >
+        {t("admin.content.addCriterion")}
+      </button>
     </div>
   );
 };
 
+type ExamplesEditorProps = {
+  examples: TaskExample[];
+  onChange: (examples: TaskExample[]) => void;
+};
+
+const ExamplesEditor = ({ examples, onChange }: ExamplesEditorProps) => {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+      <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.examples")}</h4>
+      {examples.map((example, index) => (
+        <div key={example.id} className="grid gap-2 md:grid-cols-6">
+          <input
+            className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            placeholder={t("admin.content.exampleIdPlaceholder")}
+            value={example.id}
+            onChange={(event) =>
+              onChange(
+                updateArrayItem(examples, index, (item) => ({
+                  ...item,
+                  id: event.target.value
+                }))
+              )
+            }
+          />
+          <input
+            className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            placeholder={t("admin.content.difficultyPlaceholder")}
+            type="number"
+            min={1}
+            max={5}
+            value={example.difficulty}
+            onChange={(event) =>
+              onChange(
+                updateArrayItem(examples, index, (item) => ({
+                  ...item,
+                  difficulty: Number(event.target.value)
+                }))
+              )
+            }
+          />
+          <input
+            className="rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            placeholder={t("admin.content.severityPlaceholder")}
+            value={example.severity_label ?? ""}
+            onChange={(event) =>
+              onChange(
+                updateArrayItem(examples, index, (item) => ({
+                  ...item,
+                  severity_label: event.target.value || null
+                }))
+              )
+            }
+          />
+          <input
+            className="md:col-span-3 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
+            placeholder={t("admin.content.patientTextPlaceholder")}
+            value={example.patient_text}
+            onChange={(event) =>
+              onChange(
+                updateArrayItem(examples, index, (item) => ({
+                  ...item,
+                  patient_text: event.target.value
+                }))
+              )
+            }
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        className="rounded-full border border-white/10 px-3 py-1 text-xs text-slate-200"
+        onClick={() =>
+          onChange([
+            ...examples,
+            {
+              id: `ex${examples.length + 1}`,
+              difficulty: 3,
+              patient_text: "",
+              severity_label: null
+            }
+          ])
+        }
+      >
+        {t("admin.content.addExample")}
+      </button>
+    </div>
+  );
+};
+
+const toEditableTask = (task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] }) => ({
+  ...task,
+  general_objective: task.general_objective ?? "",
+  criteria: task.criteria ?? [],
+  examples: task.examples ?? []
+});
+
 export const AdminLibraryPage = () => {
   const { t } = useTranslation();
   const [search, setSearch] = useState("");
-  const [selectedExerciseId, setSelectedExerciseId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [freeText, setFreeText] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [taskDraft, setTaskDraft] = useState<DeliberatePracticeTaskV2 | null>(null);
   const [taskJson, setTaskJson] = useState("");
   const [taskError, setTaskError] = useState<string | null>(null);
-  const [exerciseDraft, setExerciseDraft] = useState<Exercise | null>(null);
-  const [exerciseError, setExerciseError] = useState<string | null>(null);
+  const [editableTask, setEditableTask] = useState<
+    (Task & { criteria: TaskCriterion[]; examples: TaskExample[] }) | null
+  >(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { data: exercises } = useGetExercisesQuery({ q: search });
-  const { data: selectedExercise } = useGetExerciseQuery(selectedExerciseId ?? "", {
-    skip: !selectedExerciseId
+  const { data: tasks } = useGetAdminTasksQuery();
+  const { data: selectedTask } = useGetAdminTaskQuery(selectedTaskId ?? "", {
+    skip: !selectedTaskId
   });
-  const [parseExercise, parseState] = useParseExerciseMutation();
-  const [importExercise, importState] = useImportExerciseMutation();
-  const [updateExercise, updateState] = useUpdateExerciseMutation();
+  const [parseTask, parseState] = useParseTaskMutation();
+  const [importTask, importState] = useImportTaskMutation();
+  const [updateTask, updateState] = useUpdateTaskMutation();
 
   useEffect(() => {
-    if (selectedExercise) {
-      setExerciseDraft(selectedExercise);
-      setExerciseError(null);
+    if (selectedTask) {
+      setEditableTask(toEditableTask(selectedTask));
+      setSaveError(null);
     }
-  }, [selectedExercise]);
+  }, [selectedTask]);
 
   useEffect(() => {
     if (taskDraft) {
@@ -442,28 +225,19 @@ export const AdminLibraryPage = () => {
     }
   }, [taskDraft]);
 
-  const filteredExercises = useMemo(() => {
-    if (!exercises) return [];
-    return exercises.filter((exercise) =>
-      exercise.title.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [exercises, search]);
+  const filteredTasks = useMemo(() => {
+    if (!tasks) return [];
+    return tasks.filter((task) => task.title.toLowerCase().includes(search.toLowerCase()));
+  }, [tasks, search]);
 
   const handleParse = async () => {
     setTaskError(null);
     try {
-      const result = await parseExercise({
+      const result = await parseTask({
         free_text: freeText || undefined,
         source_url: sourceUrl || undefined
       }).unwrap();
-      const enriched: DeliberatePracticeTaskV2 = {
-        ...result,
-        content: {
-          ...result.content,
-          source: { text: freeText || null, url: sourceUrl || null }
-        }
-      };
-      setTaskDraft(enriched);
+      setTaskDraft(result);
     } catch (error) {
       setTaskError((error as Error).message ?? t("admin.createFromText.errorFallback"));
     }
@@ -488,53 +262,20 @@ export const AdminLibraryPage = () => {
       return;
     }
     try {
-      await importExercise({ task_v2: validated.data }).unwrap();
+      await importTask({ task_v2: validated.data }).unwrap();
       setTaskError(null);
     } catch (error) {
       setTaskError((error as Error).message ?? t("admin.task.importFailed"));
     }
   };
 
-  const handleRegenerateCues = async () => {
-    if (!taskDraft) return;
-    const text =
-      taskDraft.content.source?.text ??
-      taskDraft.content.roleplay_sets
-        .flatMap((set) => set.statements.map((statement) => statement.text))
-        .join("\\n");
+  const handleSaveTask = async () => {
+    if (!editableTask) return;
     try {
-      const result = await parseExercise({ free_text: text }).unwrap();
-      setTaskDraft({ ...taskDraft, content: { ...taskDraft.content, patient_cues: result.content.patient_cues } });
+      await updateTask({ id: editableTask.id, task: editableTask }).unwrap();
+      setSaveError(null);
     } catch (error) {
-      setTaskError((error as Error).message ?? t("admin.task.regenerateFailed"));
-    }
-  };
-
-  const handleAutoLink = () => {
-    if (!taskDraft) return;
-    setTaskDraft({ ...taskDraft, content: autoLinkStatements(taskDraft.content) });
-  };
-
-  const handleSaveExercise = async () => {
-    if (!exerciseDraft) return;
-    const content = exerciseDraft.content ?? emptyContent();
-    const exerciseToSave: Exercise = {
-      ...exerciseDraft,
-      content,
-      criteria: content.criteria,
-      tags: exerciseDraft.tags ?? [],
-      example_good_response: exerciseDraft.example_good_response ?? null
-    };
-    const validated = exerciseSchema.safeParse(exerciseToSave);
-    if (!validated.success) {
-      setExerciseError(validated.error.message);
-      return;
-    }
-    try {
-      await updateExercise({ id: exerciseDraft.id, exercise: validated.data }).unwrap();
-      setExerciseError(null);
-    } catch (error) {
-      setExerciseError((error as Error).message ?? t("admin.edit.saveFailed"));
+      setSaveError((error as Error).message ?? t("admin.edit.saveFailed"));
     }
   };
 
@@ -554,19 +295,19 @@ export const AdminLibraryPage = () => {
             onChange={(event) => setSearch(event.target.value)}
           />
           <div className="space-y-2 rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-            <h3 className="text-sm font-semibold text-teal-200">{t("admin.exercisesTitle")}</h3>
-            {filteredExercises.map((exercise) => (
+            <h3 className="text-sm font-semibold text-teal-200">{t("admin.tasksTitle")}</h3>
+            {filteredTasks.map((task) => (
               <button
                 type="button"
-                key={exercise.id}
+                key={task.id}
                 className={`w-full rounded-xl px-3 py-2 text-left text-sm ${
-                  exercise.id === selectedExerciseId
+                  task.id === selectedTaskId
                     ? "bg-teal-500/20 text-white"
                     : "bg-slate-950/40 text-slate-200"
                 }`}
-                onClick={() => setSelectedExerciseId(exercise.id)}
+                onClick={() => setSelectedTaskId(task.id)}
               >
-                {exercise.title}
+                {task.title}
               </button>
             ))}
           </div>
@@ -606,11 +347,11 @@ export const AdminLibraryPage = () => {
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
                     placeholder={t("admin.task.titlePlaceholder")}
-                    value={taskDraft.task.name}
+                    value={taskDraft.task.title}
                     onChange={(event) =>
                       setTaskDraft({
                         ...taskDraft,
-                        task: { ...taskDraft.task, name: event.target.value }
+                        task: { ...taskDraft.task, title: event.target.value }
                       })
                     }
                   />
@@ -638,28 +379,31 @@ export const AdminLibraryPage = () => {
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder={t("admin.task.difficultyLabelPlaceholder")}
-                    value={taskDraft.task.skill_difficulty_label ?? ""}
-                    onChange={(event) =>
-                      setTaskDraft({
-                        ...taskDraft,
-                        task: { ...taskDraft.task, skill_difficulty_label: event.target.value }
-                      })
-                    }
-                  />
-                  <input
-                    className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
                     placeholder={t("admin.task.difficultyNumericPlaceholder")}
                     type="number"
                     min={1}
                     max={5}
-                    value={taskDraft.task.skill_difficulty_numeric}
+                    value={taskDraft.task.base_difficulty}
                     onChange={(event) =>
                       setTaskDraft({
                         ...taskDraft,
                         task: {
                           ...taskDraft.task,
-                          skill_difficulty_numeric: Number(event.target.value)
+                          base_difficulty: Number(event.target.value)
+                        }
+                      })
+                    }
+                  />
+                  <input
+                    className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
+                    placeholder={t("admin.task.generalObjectivePlaceholder")}
+                    value={taskDraft.task.general_objective ?? ""}
+                    onChange={(event) =>
+                      setTaskDraft({
+                        ...taskDraft,
+                        task: {
+                          ...taskDraft.task,
+                          general_objective: event.target.value
                         }
                       })
                     }
@@ -677,27 +421,15 @@ export const AdminLibraryPage = () => {
                   />
                 </div>
 
-                <ContentEditor
-                  content={taskDraft.content}
-                  onChange={(updated) => setTaskDraft({ ...taskDraft, content: updated })}
+                <CriteriaEditor
+                  criteria={taskDraft.criteria}
+                  onChange={(criteria) => setTaskDraft({ ...taskDraft, criteria })}
                 />
 
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className="rounded-full border border-white/10 px-4 py-2 text-xs text-white"
-                    onClick={handleRegenerateCues}
-                  >
-                    {t("admin.task.regenerateCues")}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-full border border-white/10 px-4 py-2 text-xs text-white"
-                    onClick={handleAutoLink}
-                  >
-                    {t("admin.task.autoLink")}
-                  </button>
-                </div>
+                <ExamplesEditor
+                  examples={taskDraft.examples}
+                  onChange={(examples) => setTaskDraft({ ...taskDraft, examples })}
+                />
 
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold text-teal-200">{t("admin.task.rawJson")}</h4>
@@ -732,69 +464,99 @@ export const AdminLibraryPage = () => {
               <h3 className="text-lg font-semibold">{t("admin.edit.title")}</h3>
               <p className="text-sm text-slate-400">{t("admin.edit.subtitle")}</p>
             </div>
-            {exerciseDraft ? (
+            {editableTask ? (
               <div className="space-y-6">
                 <div className="grid gap-3 md:grid-cols-2">
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
                     placeholder={t("admin.task.titlePlaceholder")}
-                    value={exerciseDraft.title}
+                    value={editableTask.title}
                     onChange={(event) =>
-                      setExerciseDraft({ ...exerciseDraft, title: event.target.value })
+                      setEditableTask({ ...editableTask, title: event.target.value })
                     }
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
                     placeholder={t("admin.task.skillDomainPlaceholder")}
-                    value={exerciseDraft.skill_domain}
+                    value={editableTask.skill_domain}
                     onChange={(event) =>
-                      setExerciseDraft({ ...exerciseDraft, skill_domain: event.target.value })
+                      setEditableTask({ ...editableTask, skill_domain: event.target.value })
                     }
                   />
                   <textarea
                     className="md:col-span-2 h-20 rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-sm text-white"
                     placeholder={t("admin.task.descriptionPlaceholder")}
-                    value={exerciseDraft.description}
+                    value={editableTask.description}
                     onChange={(event) =>
-                      setExerciseDraft({ ...exerciseDraft, description: event.target.value })
+                      setEditableTask({ ...editableTask, description: event.target.value })
                     }
                   />
                   <input
                     className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
-                    placeholder={t("admin.task.tagsPlaceholder")}
-                    value={joinTags(exerciseDraft.tags)}
+                    placeholder={t("admin.task.difficultyNumericPlaceholder")}
+                    type="number"
+                    min={1}
+                    max={5}
+                    value={editableTask.base_difficulty}
                     onChange={(event) =>
-                      setExerciseDraft({ ...exerciseDraft, tags: parseTags(event.target.value) })
+                      setEditableTask({
+                        ...editableTask,
+                        base_difficulty: Number(event.target.value)
+                      })
+                    }
+                  />
+                  <input
+                    className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
+                    placeholder={t("admin.task.generalObjectivePlaceholder")}
+                    value={editableTask.general_objective ?? ""}
+                    onChange={(event) =>
+                      setEditableTask({
+                        ...editableTask,
+                        general_objective: event.target.value
+                      })
+                    }
+                  />
+                  <input
+                    className="md:col-span-2 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 text-sm text-white"
+                    placeholder={t("admin.task.tagsPlaceholder")}
+                    value={joinTags(editableTask.tags)}
+                    onChange={(event) =>
+                      setEditableTask({
+                        ...editableTask,
+                        tags: parseTags(event.target.value)
+                      })
                     }
                   />
                   <label className="flex items-center gap-2 text-sm text-slate-200">
                     <input
                       type="checkbox"
-                      checked={exerciseDraft.is_published}
+                      checked={editableTask.is_published}
                       onChange={(event) =>
-                        setExerciseDraft({ ...exerciseDraft, is_published: event.target.checked })
+                        setEditableTask({
+                          ...editableTask,
+                          is_published: event.target.checked
+                        })
                       }
                     />
                     {t("admin.edit.publishLabel")}
                   </label>
                 </div>
 
-                <ContentEditor
-                  content={exerciseDraft.content ?? emptyContent()}
-                  onChange={(updated) =>
-                    setExerciseDraft({
-                      ...exerciseDraft,
-                      content: updated,
-                      criteria: updated.criteria
-                    })
-                  }
+                <CriteriaEditor
+                  criteria={editableTask.criteria}
+                  onChange={(criteria) => setEditableTask({ ...editableTask, criteria })}
                 />
 
-                {exerciseError && <p className="text-sm text-rose-400">{exerciseError}</p>}
+                <ExamplesEditor
+                  examples={editableTask.examples}
+                  onChange={(examples) => setEditableTask({ ...editableTask, examples })}
+                />
+
+                {saveError && <p className="text-sm text-rose-400">{saveError}</p>}
                 <button
                   type="button"
                   className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
-                  onClick={handleSaveExercise}
+                  onClick={handleSaveTask}
                   disabled={updateState.isLoading}
                 >
                   {updateState.isLoading ? t("admin.edit.saving") : t("admin.edit.save")}

@@ -24,10 +24,13 @@ export const HistoryPage = () => {
             >
               <div>
                 <p className="text-sm font-semibold">
-                  {t("history.exerciseLabel", { id: attempt.exercise_id })}
+                  {attempt.task_title}
                 </p>
                 <p className="text-xs text-slate-400">
                   {t("history.completedLabel", { date: attempt.completed_at })}
+                </p>
+                <p className="text-xs text-slate-400">
+                  {t("history.exampleDifficulty", { difficulty: attempt.example_difficulty })}
                 </p>
               </div>
               <div className="text-right">

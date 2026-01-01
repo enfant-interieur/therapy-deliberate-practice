@@ -7,7 +7,13 @@ export const ensureSchema = (dbPath: string) => {
   sqlite.exec(
     "CREATE TABLE IF NOT EXISTS _migrations (name TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)"
   );
-  const migrationDir = path.resolve(process.cwd(), "infra/migrations");
+  const migrationCandidates = [
+    path.resolve(process.cwd(), "apps/worker/migrations"),
+    path.resolve(process.cwd(), "../worker/migrations")
+  ];
+  const migrationDir =
+    migrationCandidates.find((candidate) => fs.existsSync(candidate)) ??
+    path.resolve(process.cwd(), "apps/worker/migrations");
   const migrations = fs
     .readdirSync(migrationDir)
     .filter((file) => file.endsWith(".sql"))
