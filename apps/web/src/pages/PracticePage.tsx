@@ -66,7 +66,7 @@ export const PracticePage = () => {
   const [patientCacheKey, setPatientCacheKey] = useState<string | null>(null);
   const [patientSpeaking, setPatientSpeaking] = useState(false);
   const [canRecord, setCanRecord] = useState(true);
-  const [hidePatientText, setHidePatientText] = useState(false);
+  const [hidePatientText, setHidePatientText] = useState(true);
   const [autoPlayPatientAudio, setAutoPlayPatientAudio] = useState(true);
   const [patientAudioError, setPatientAudioError] = useState<string | null>(null);
   const [patientPlay, setPatientPlay] = useState(false);
@@ -407,7 +407,6 @@ export const PracticePage = () => {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient prompt</p>
-                  <h3 className="mt-2 text-2xl font-semibold text-white">Scenario</h3>
                 </div>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase text-slate-300">
                   {t("practice.itemProgress", {
@@ -443,7 +442,6 @@ export const PracticePage = () => {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Patient audio</p>
-                  <h3 className="mt-2 text-2xl font-semibold text-white">Real-time session</h3>
                 </div>
                 <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs uppercase text-slate-300">
                   {t("practice.itemProgress", {
