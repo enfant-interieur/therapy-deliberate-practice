@@ -16,6 +16,12 @@ export type EnvBindings = {
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
   SUPABASE_JWT_SECRET?: string;
+  R2_ACCOUNT_ID?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
+  R2_BUCKET?: string;
+  R2_PUBLIC_BASE_URL?: string;
+  R2_S3_ENDPOINT?: string;
 };
 
 export type RuntimeEnv = {
@@ -34,6 +40,12 @@ export type RuntimeEnv = {
   supabaseUrl: string;
   supabaseAnonKey: string;
   supabaseJwtSecret: string;
+  r2AccountId: string;
+  r2AccessKeyId: string;
+  r2SecretAccessKey: string;
+  r2Bucket: string;
+  r2PublicBaseUrl: string;
+  r2S3Endpoint: string;
 };
 
 export type NodeRuntimeEnv = RuntimeEnv & {
@@ -68,7 +80,13 @@ export const resolveEnv = (bindings: EnvBindings): RuntimeEnv => ({
   localLlmModel: bindings.LOCAL_LLM_MODEL ?? "mlx-community/Mistral-7B-Instruct-v0.2",
   supabaseUrl: bindings.SUPABASE_URL ?? "",
   supabaseAnonKey: bindings.SUPABASE_ANON_KEY ?? "",
-  supabaseJwtSecret: bindings.SUPABASE_JWT_SECRET ?? ""
+  supabaseJwtSecret: bindings.SUPABASE_JWT_SECRET ?? "",
+  r2AccountId: bindings.R2_ACCOUNT_ID ?? "",
+  r2AccessKeyId: bindings.R2_ACCESS_KEY_ID ?? "",
+  r2SecretAccessKey: bindings.R2_SECRET_ACCESS_KEY ?? "",
+  r2Bucket: bindings.R2_BUCKET ?? "",
+  r2PublicBaseUrl: bindings.R2_PUBLIC_BASE_URL ?? "",
+  r2S3Endpoint: bindings.R2_S3_ENDPOINT ?? ""
 });
 
 export const resolveNodeEnv = (): NodeRuntimeEnv => ({
@@ -87,7 +105,13 @@ export const resolveNodeEnv = (): NodeRuntimeEnv => ({
     LOCAL_LLM_MODEL: process.env.LOCAL_LLM_MODEL,
     SUPABASE_URL: process.env.SUPABASE_URL,
     SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY,
-    SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET
+    SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
+    R2_ACCOUNT_ID: process.env.R2_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID: process.env.R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY: process.env.R2_SECRET_ACCESS_KEY,
+    R2_BUCKET: process.env.R2_BUCKET,
+    R2_PUBLIC_BASE_URL: process.env.R2_PUBLIC_BASE_URL,
+    R2_S3_ENDPOINT: process.env.R2_S3_ENDPOINT
   }),
   dbPath: process.env.DB_PATH ?? "./infra/local.db"
 });

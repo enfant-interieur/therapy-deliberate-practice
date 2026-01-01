@@ -1,6 +1,6 @@
 import { jwtVerify } from "jose";
 import type { MiddlewareHandler } from "hono";
-import type { ApiDatabase } from "../app";
+import type { ApiDatabase } from "../db/types";
 import type { RuntimeEnv } from "../env";
 import { users, userSettings } from "../db/schema";
 

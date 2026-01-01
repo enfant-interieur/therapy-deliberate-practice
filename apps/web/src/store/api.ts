@@ -136,6 +136,12 @@ export const api = createApi({
       query: (body) => ({ url: "/practice/run", method: "POST", body }),
       invalidatesTags: ["Attempt"]
     }),
+    prefetchPatientAudio: builder.mutation<
+      { cache_key: string; status: "ready" | "generating"; audio_url?: string; retry_after_ms?: number },
+      { exercise_id: string; practice_mode: "real_time"; statement_id?: string }
+    >({
+      query: (body) => ({ url: "/practice/patient-audio/prefetch", method: "POST", body })
+    }),
     getAttempts: builder.query<
       Array<{ id: string; task_id: string; task_title: string; example_id: string; example_difficulty: number; overall_score: number; overall_pass: boolean; completed_at: string }>,
       { task_id?: string }
@@ -164,5 +170,6 @@ export const {
   useParseTaskMutation,
   useImportTaskMutation,
   useRunPracticeMutation,
+  usePrefetchPatientAudioMutation,
   useGetAttemptsQuery
 } = api;

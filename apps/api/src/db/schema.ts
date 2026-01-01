@@ -177,3 +177,26 @@ export const userSettings = sqliteTable("user_settings", {
   updated_at: integer("updated_at").notNull(),
   created_at: integer("created_at").notNull()
 });
+
+export const ttsAssets = sqliteTable(
+  "tts_assets",
+  {
+    id: text("id").primaryKey(),
+    cache_key: text("cache_key").notNull(),
+    text: text("text").notNull(),
+    voice: text("voice").notNull(),
+    model: text("model").notNull(),
+    format: text("format").notNull(),
+    r2_key: text("r2_key").notNull(),
+    bytes: integer("bytes"),
+    content_type: text("content_type").notNull(),
+    etag: text("etag"),
+    status: text("status").notNull(),
+    error: text("error"),
+    created_at: integer("created_at").notNull(),
+    updated_at: integer("updated_at").notNull()
+  },
+  (table) => ({
+    cacheKeyIdx: uniqueIndex("tts_assets_cache_key_idx").on(table.cache_key)
+  })
+);

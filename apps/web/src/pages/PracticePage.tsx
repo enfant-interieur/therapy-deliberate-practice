@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { useGetTaskQuery, useRunPracticeMutation, useStartSessionMutation } from "../store/api";
+import {
+  useGetTaskQuery,
+  usePrefetchPatientAudioMutation,
+  useRunPracticeMutation,
+  useStartSessionMutation
+} from "../store/api";
 import { PatientCanvas } from "../components/PatientCanvas";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
@@ -36,22 +41,37 @@ export const PracticePage = () => {
   const { data: task } = useGetTaskQuery(taskId ?? "");
   const [startSession, { isLoading: isStartingSession }] = useStartSessionMutation();
   const [runPractice, { isLoading }] = useRunPracticeMutation();
+  const [prefetchPatientAudio] = usePrefetchPatientAudioMutation();
   const [error, setError] = useState<string | null>(null);
   const [responseErrors, setResponseErrors] = useState<
     Array<{ stage: string; message: string }> | null
   >(null);
   const [nextDifficulty, setNextDifficulty] = useState<number | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
+  const [practiceMode, setPracticeMode] = useState<"standard" | "real_time">("standard");
+  const [patientAudioStatus, setPatientAudioStatus] = useState<
+    "idle" | "generating" | "ready" | "error"
+  >("idle");
+  const [patientAudioUrl, setPatientAudioUrl] = useState<string | null>(null);
+  const [patientCacheKey, setPatientCacheKey] = useState<string | null>(null);
+  const [patientSpeaking, setPatientSpeaking] = useState(false);
+  const [canRecord, setCanRecord] = useState(true);
+  const [hidePatientText, setHidePatientText] = useState(true);
+  const [autoPlayPatientAudio, setAutoPlayPatientAudio] = useState(true);
+  const [patientAudioError, setPatientAudioError] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const patientAudioRef = useRef<HTMLAudioElement | null>(null);
   const dispatch = useAppDispatch();
   const practice = useAppSelector((state) => state.practice);
   const settings = useAppSelector((state) => state.settings);
   const currentItem = practice.sessionItems[practice.currentIndex];
+  const currentExampleId = currentItem?.example_id;
   const criterionMap = useMemo(() => {
     const entries = task?.criteria?.map((criterion) => [criterion.id, criterion]) ?? [];
     return new Map(entries);
   }, [task?.criteria]);
+  const canStartRecording = practiceMode === "standard" || canRecord;
 
   useEffect(() => {
     return () => {
@@ -124,9 +144,82 @@ export const PracticePage = () => {
     );
   }, [practice.currentIndex, practice.sessionId, practice.sessionItems, taskId]);
 
+  useEffect(() => {
+    setPatientAudioStatus("idle");
+    setPatientAudioUrl(null);
+    setPatientCacheKey(null);
+    setPatientAudioError(null);
+    setPatientSpeaking(false);
+    setCanRecord(practiceMode === "standard");
+    if (practiceMode === "standard" && patientAudioRef.current) {
+      patientAudioRef.current.pause();
+      patientAudioRef.current.currentTime = 0;
+    }
+  }, [practiceMode, currentExampleId]);
+
+  useEffect(() => {
+    if (practiceMode !== "real_time" || !taskId || !currentExampleId) return;
+    let cancelled = false;
+    const runPrefetch = async () => {
+      setPatientAudioStatus("generating");
+      setPatientAudioError(null);
+      setCanRecord(false);
+      let attempts = 0;
+      while (attempts < 10 && !cancelled) {
+        attempts += 1;
+        try {
+          const result = await prefetchPatientAudio({
+            exercise_id: taskId,
+            practice_mode: "real_time",
+            statement_id: currentExampleId
+          }).unwrap();
+          if (cancelled) return;
+          setPatientCacheKey(result.cache_key);
+          if (result.status === "ready" && result.audio_url) {
+            setPatientAudioStatus("ready");
+            setPatientAudioUrl(result.audio_url);
+            return;
+          }
+          setPatientAudioStatus("generating");
+          const retryAfter = result.retry_after_ms ?? 500;
+          await new Promise((resolve) => setTimeout(resolve, retryAfter));
+        } catch (err) {
+          if (cancelled) return;
+          setPatientAudioStatus("error");
+          setPatientAudioError("Unable to prepare patient audio.");
+          setCanRecord(true);
+          return;
+        }
+      }
+      if (!cancelled) {
+        setPatientAudioStatus("error");
+        setPatientAudioError("Patient audio took too long to generate.");
+        setCanRecord(true);
+      }
+    };
+    runPrefetch();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentExampleId, practiceMode, prefetchPatientAudio, taskId]);
+
+  useEffect(() => {
+    if (practiceMode !== "real_time") return;
+    if (!autoPlayPatientAudio) return;
+    if (patientAudioStatus !== "ready") return;
+    if (!patientAudioRef.current) return;
+    patientAudioRef.current
+      .play()
+      .catch(() => setPatientAudioError("Autoplay was blocked. Tap play to begin."));
+  }, [autoPlayPatientAudio, patientAudioStatus, practiceMode, patientAudioUrl]);
+
   const startRecording = async () => {
     setError(null);
     setResponseErrors(null);
+    if (practiceMode === "real_time" && !canRecord) {
+      setError("Wait for the patient audio to finish before recording.");
+      return;
+    }
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const recorder = new MediaRecorder(stream);
     chunksRef.current = [];
@@ -165,10 +258,19 @@ export const PracticePage = () => {
         return;
       }
       const base64 = await blobToBase64(blob, t("practice.error.readAudio"));
+      const turnContext =
+        practiceMode === "real_time"
+          ? {
+              patient_cache_key: patientCacheKey ?? undefined,
+              patient_statement_id: currentExampleId
+            }
+          : undefined;
       const result = await runPractice({
         session_item_id: currentItem.session_item_id,
         audio: base64,
-        mode: settings.aiMode
+        mode: settings.aiMode,
+        practice_mode: practiceMode,
+        turn_context: turnContext
       }).unwrap();
       setRequestId(result.requestId ?? null);
       setResponseErrors(result.errors ?? null);
@@ -221,23 +323,138 @@ export const PracticePage = () => {
         <div className="space-y-6">
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
             <h2 className="text-2xl font-semibold">{t("practice.title")}</h2>
-            <p className="mt-2 text-sm text-slate-300">
-              {currentItem?.patient_text ?? t("practice.loadingScenario")}
-            </p>
-            <p className="mt-3 text-xs uppercase text-slate-400">
-              {t("practice.itemProgress", {
-                index: practice.currentIndex + 1,
-                total: practice.sessionItems.length || 0
-              })}
-            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  practiceMode === "standard"
+                    ? "bg-teal-400 text-slate-950"
+                    : "border border-white/20 text-slate-200"
+                }`}
+                onClick={() => setPracticeMode("standard")}
+              >
+                Standard
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                  practiceMode === "real_time"
+                    ? "bg-teal-400 text-slate-950"
+                    : "border border-white/20 text-slate-200"
+                }`}
+                onClick={() => setPracticeMode("real_time")}
+              >
+                Real Time Mode
+              </button>
+            </div>
+            {practiceMode === "real_time" && (
+              <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-200">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={autoPlayPatientAudio}
+                    onChange={(event) => setAutoPlayPatientAudio(event.target.checked)}
+                  />
+                  Auto-play patient audio
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={hidePatientText}
+                    onChange={(event) => setHidePatientText(event.target.checked)}
+                  />
+                  Hide patient text (audio only)
+                </label>
+              </div>
+            )}
           </div>
+
+          {practiceMode === "standard" ? (
+            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+              <h3 className="text-lg font-semibold">Scenario</h3>
+              <p className="mt-2 text-sm text-slate-300">
+                {currentItem?.patient_text ?? t("practice.loadingScenario")}
+              </p>
+              <p className="mt-3 text-xs uppercase text-slate-400">
+                {t("practice.itemProgress", {
+                  index: practice.currentIndex + 1,
+                  total: practice.sessionItems.length || 0
+                })}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Patient</h3>
+                <span className="text-xs uppercase text-slate-400">
+                  {t("practice.itemProgress", {
+                    index: practice.currentIndex + 1,
+                    total: practice.sessionItems.length || 0
+                  })}
+                </span>
+              </div>
+              {!hidePatientText && (
+                <p className="mt-2 text-sm text-slate-300">
+                  {currentItem?.patient_text ?? t("practice.loadingScenario")}
+                </p>
+              )}
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs uppercase text-slate-400">
+                <button
+                  type="button"
+                  className="rounded-full border border-white/20 px-3 py-1 text-xs"
+                  onClick={() => setHidePatientText((prev) => !prev)}
+                >
+                  {hidePatientText ? "Show transcript" : "Hide transcript"}
+                </button>
+                {patientSpeaking && <span className="text-amber-200">Patient speaking…</span>}
+              </div>
+              {patientAudioStatus === "generating" && (
+                <p className="mt-3 text-sm text-slate-300">Generating patient audio…</p>
+              )}
+              {patientAudioError && <p className="mt-3 text-sm text-rose-300">{patientAudioError}</p>}
+              {patientAudioUrl && (
+                <div className="mt-4 space-y-3">
+                  <audio
+                    ref={patientAudioRef}
+                    className="w-full"
+                    controls
+                    src={patientAudioUrl}
+                    onPlay={() => {
+                      setPatientSpeaking(true);
+                      setCanRecord(false);
+                    }}
+                    onPause={() => setPatientSpeaking(false)}
+                    onEnded={() => {
+                      setPatientSpeaking(false);
+                      setCanRecord(true);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    className="rounded-full border border-white/20 px-4 py-2 text-xs"
+                    onClick={() =>
+                      patientAudioRef.current
+                        ?.play()
+                        .catch(() => setPatientAudioError("Unable to play patient audio."))
+                    }
+                  >
+                    Play patient
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
             <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("practice.responseLabel")}</p>
+            {practiceMode === "real_time" && !canRecord && (
+              <p className="mt-2 text-xs text-slate-400">Listen to the patient before recording.</p>
+            )}
             <div className="mt-4 flex flex-wrap gap-3">
               {practice.recordingState !== "recording" ? (
                 <button
                   className="rounded-full bg-teal-400 px-6 py-2 text-sm font-semibold text-slate-950"
                   onClick={startRecording}
+                  disabled={!canStartRecording}
                 >
                   {t("practice.startRecording")}
                 </button>
@@ -322,7 +539,7 @@ export const PracticePage = () => {
                   onClick={handleNextExample}
                   disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
                 >
-                  {t("practice.nextExample")}
+                  {practiceMode === "real_time" ? "Next patient turn" : t("practice.nextExample")}
                 </button>
               )}
             </div>

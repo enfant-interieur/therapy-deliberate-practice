@@ -4,6 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.958.0",
+    "@aws-sdk/lib-storage": "^3.958.0",
+    "@aws-sdk/s3-request-presigner": "^3.958.0",
     "@deliberate/shared": "*",
     "@hono/node-server": "^1.13.4",
     "better-sqlite3": "^12.5.0",

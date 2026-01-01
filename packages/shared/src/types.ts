@@ -101,6 +101,11 @@ export type PracticeRunInput = {
   attempt_id?: string;
   audio: string;
   mode?: "local_prefer" | "openai_only" | "local_only";
+  practice_mode?: "standard" | "real_time";
+  turn_context?: {
+    patient_cache_key?: string;
+    patient_statement_id?: string;
+  };
 };
 
 export type PracticeRunError = {

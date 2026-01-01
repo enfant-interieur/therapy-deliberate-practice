@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import {
@@ -8,6 +8,7 @@ import {
   taskCriteria,
   taskExamples,
   tasks,
+  ttsAssets,
   userSettings,
   userTaskProgress,
   users
@@ -27,18 +28,22 @@ import {
 import { selectLlmProvider, selectSttProvider } from "./providers";
 import { attemptJsonRepair } from "./utils/jsonRepair";
 import type { ProviderMode, RuntimeEnv } from "./env";
-import type { DrizzleD1Database } from "drizzle-orm/d1";
-import type { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import type { ApiDatabase } from "./db/types";
 import { createAdminAuth, resolveAdminStatus } from "./middleware/adminAuth";
 import { createUserAuth } from "./middleware/userAuth";
 import { decryptOpenAiKey, encryptOpenAiKey } from "./utils/crypto";
 import { createLogger, log, makeRequestId, safeError, safeTruncate } from "./utils/logger";
-
-export type ApiDatabase = DrizzleD1Database | BetterSQLite3Database;
+import { createR2Client } from "./utils/r2";
+import { OpenAITtsProvider } from "./providers/tts";
+import { OPENAI_TTS_FORMAT, OPENAI_TTS_MODEL } from "./providers/models";
+import { getOrCreateTtsAsset, type TtsStorage } from "./services/ttsService";
 
 export type ApiDependencies = {
   env: RuntimeEnv;
   db: ApiDatabase;
+  tts?: {
+    storage?: TtsStorage;
+  };
 };
 
 const stripHtml = (html: string) =>
@@ -59,6 +64,7 @@ const slugify = (value: string) =>
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 10;
 const rateLimitBuckets = new Map<string, { count: number; resetAt: number }>();
+const MAX_TTS_TEXT_LENGTH = 2000;
 
 const checkRateLimit = (key: string) => {
   const now = Date.now();
@@ -112,11 +118,12 @@ const normalizeTask = (row: typeof tasks.$inferSelect): Task => ({
   parent_task_id: row.parent_task_id ?? null
 });
 
-export const createApiApp = ({ env, db }: ApiDependencies) => {
+export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
   const app = new Hono();
   const adminAuth = createAdminAuth(env);
   const userAuth = createUserAuth(env, db);
   const logger = createLogger({ service: "api" });
+  const ttsStorage = tts?.storage ?? createR2Client(env);
 
   const getUserSettingsRow = async (userId: string) => {
     const [settings] = await db
@@ -449,6 +456,161 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
   app.use("/api/v1/attempts/*", userAuth);
   app.use("/api/v1/practice/*", userAuth);
   app.use("/api/v1/sessions/*", userAuth);
+  app.use("/api/v1/tts/*", userAuth);
+
+  const ttsConfigReady =
+    Boolean(env.r2Bucket) &&
+    Boolean(env.r2AccessKeyId) &&
+    Boolean(env.r2SecretAccessKey) &&
+    (Boolean(env.r2S3Endpoint) || Boolean(env.r2AccountId));
+
+  const handleTtsRequest = async (c: Context) => {
+    const requestId = c.get("requestId");
+    const cacheKey = c.req.param("cacheKey");
+    const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
+      log(level, event, { requestId, cache_key: cacheKey, ...fields });
+
+    if (!ttsConfigReady) {
+      logEvent("error", "tts.config.missing");
+      return c.json({ error: "TTS storage is not configured." }, 500);
+    }
+
+    const [asset] = await db
+      .select()
+      .from(ttsAssets)
+      .where(eq(ttsAssets.cache_key, cacheKey))
+      .limit(1);
+
+    if (!asset || asset.status !== "ready") {
+      return c.json({ error: "TTS asset not found." }, 404);
+    }
+
+    try {
+      const object = await ttsStorage.getObject(env.r2Bucket, asset.r2_key);
+      const headers: Record<string, string> = {
+        "Content-Type": asset.content_type ?? object.contentType,
+        "Cache-Control": "private, max-age=31536000, immutable"
+      };
+      if (object.etag) {
+        headers.ETag = object.etag;
+      }
+      if (c.req.method === "HEAD") {
+        return c.body(null, 200, headers);
+      }
+      return c.body(object.body, 200, headers);
+    } catch (error) {
+      logEvent("error", "tts.fetch.error", { error: safeError(error) });
+      return c.json({ error: "TTS asset unavailable." }, 404);
+    }
+  };
+
+  app.get("/api/v1/tts/:cacheKey", handleTtsRequest);
+  app.head("/api/v1/tts/:cacheKey", handleTtsRequest);
+
+  app.post("/api/v1/practice/patient-audio/prefetch", async (c) => {
+    const requestId = c.get("requestId");
+    const user = c.get("user");
+    const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
+      log(level, event, { requestId, userId: user?.id ?? null, ...fields });
+
+    if (!ttsConfigReady) {
+      logEvent("error", "tts.config.missing");
+      return c.json({ error: "TTS storage is not configured." }, 500);
+    }
+    if (!env.openaiApiKey) {
+      logEvent("error", "tts.openai_key_missing");
+      return c.json({ error: "OpenAI API key is not configured." }, 500);
+    }
+
+    const schema = z.object({
+      exercise_id: z.string(),
+      practice_mode: z.literal("real_time"),
+      statement_id: z.string().optional()
+    });
+    const body = await c.req.json().catch(() => null);
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      logEvent("warn", "tts.prefetch.invalid_input");
+      return c.json({ error: "Invalid prefetch payload." }, 400);
+    }
+
+    const { exercise_id: exerciseId, statement_id: statementId } = parsed.data;
+    let patientText: string | null = null;
+
+    if (statementId) {
+      const [example] = await db
+        .select()
+        .from(taskExamples)
+        .where(eq(taskExamples.id, statementId))
+        .limit(1);
+      if (!example || example.task_id !== exerciseId) {
+        return c.json({ error: "Statement not found for exercise." }, 404);
+      }
+      patientText = example.patient_text;
+    } else {
+      const [example] = await db
+        .select()
+        .from(taskExamples)
+        .where(eq(taskExamples.task_id, exerciseId))
+        .orderBy(taskExamples.difficulty)
+        .limit(1);
+      if (!example) {
+        return c.json({ error: "Exercise has no patient prompt." }, 404);
+      }
+      patientText = example.patient_text;
+    }
+
+    if (patientText.length > MAX_TTS_TEXT_LENGTH) {
+      logEvent("warn", "tts.prefetch.text_too_long", { text_length: patientText.length });
+      return c.json({ error: "Patient text too long for TTS." }, 400);
+    }
+
+    const ttsProvider = OpenAITtsProvider(
+      {
+        apiKey: env.openaiApiKey,
+        model: OPENAI_TTS_MODEL,
+        voice: "alloy",
+        format: OPENAI_TTS_FORMAT
+      },
+      logEvent
+    );
+
+    try {
+      const result = await getOrCreateTtsAsset(
+        db,
+        env,
+        ttsStorage,
+        ttsProvider,
+        {
+          text: patientText,
+          voice: ttsProvider.voice,
+          model: ttsProvider.model,
+          format: ttsProvider.format
+        },
+        logEvent
+      );
+
+      if (result.status === "generating") {
+        return c.json(
+          {
+            cache_key: result.cacheKey,
+            status: "generating",
+            retry_after_ms: result.retryAfterMs
+          },
+          202
+        );
+      }
+
+      return c.json({
+        cache_key: result.cacheKey,
+        audio_url: result.audioUrl,
+        status: "ready"
+      });
+    } catch (error) {
+      logEvent("error", "tts.prefetch.error", { error: safeError(error) });
+      return c.json({ error: "TTS generation failed." }, 500);
+    }
+  });
 
   app.post("/api/v1/admin/parse-task", async (c) => {
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_parse_task" });
@@ -1249,7 +1411,13 @@ export const createApiApp = ({ env, db }: ApiDependencies) => {
             stt: sttDuration,
             llm: llmDuration,
             total: sttDuration + (llmDuration ?? 0)
-          }
+          },
+          practice: input.practice_mode
+            ? {
+                mode: input.practice_mode,
+                turn_context: input.turn_context ?? null
+              }
+            : undefined
         };
         const evaluationPayload = scoringResult ?? {};
         const overallScore = scoringResult?.overall.score ?? 0;
