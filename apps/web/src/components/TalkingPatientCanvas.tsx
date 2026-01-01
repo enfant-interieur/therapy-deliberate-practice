@@ -67,6 +67,12 @@ export const TalkingPatientCanvas = ({
     if (!canvas) return;
 
     const color = reaction ? emotionColors[reaction.emotion] : emotionColors.neutral;
+    canvas.style.backgroundColor = "transparent";
+    canvas.style.border = "0";
+    canvas.style.display = "block";
+    canvas.style.height = "100%";
+    canvas.style.width = "100%";
+    canvas.style.borderRadius = "24px";
     canvas.style.boxShadow = `0 0 40px rgba(${(color >> 16) & 255}, ${(color >> 8) & 255}, ${
       color & 255
     }, 0.35)`;
@@ -75,7 +81,7 @@ export const TalkingPatientCanvas = ({
   return (
     <div
       ref={ref}
-      className="rounded-3xl bg-slate-900/60 p-4 overflow-hidden"
+      className="rounded-3xl bg-transparent overflow-hidden"
     />
   );
 };

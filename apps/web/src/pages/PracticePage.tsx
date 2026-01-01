@@ -464,7 +464,7 @@ export const PracticePage = () => {
                   </button>
                 </div>
               </div>
-              <p className="mt-6 text-2xl font-semibold leading-relaxed text-slate-100 md:text-3xl">
+              <p className="mt-6 text-2xl font-light leading-relaxed text-slate-100 md:text-3xl">
                 {currentItem?.patient_text ?? t("practice.loadingScenario")}
               </p>
             </div>
@@ -527,7 +527,7 @@ export const PracticePage = () => {
                 </div>
               </div>
               {!hidePatientText && (
-                <p className="mt-6 text-2xl font-semibold leading-relaxed text-slate-100 md:text-3xl">
+                <p className="mt-6 text-2xl font-light leading-relaxed text-slate-100 md:text-3xl">
                   {currentItem?.patient_text ?? t("practice.loadingScenario")}
                 </p>
               )}
@@ -549,11 +549,11 @@ export const PracticePage = () => {
                   onDone={() => setPatientPlay(false)}
                 />
                 {patientAudioStatus === "generating" && (
-                  <p className="text-sm text-slate-300">Generating patient audio…</p>
-                )}
-                {patientAudioError && (
-                  <p className="text-sm text-rose-300">{patientAudioError}</p>
-                )}
+                <p className="text-sm font-light text-slate-300">Generating patient audio…</p>
+              )}
+              {patientAudioError && (
+                  <p className="text-sm font-light text-rose-300">{patientAudioError}</p>
+              )}
                 {patientAudioUrl && (
                   <div className="space-y-3">
                     <audio
@@ -625,7 +625,7 @@ export const PracticePage = () => {
             {practice.audioBlobRef && (
               <audio className="audio-player mt-4 w-full" controls src={practice.audioBlobRef} />
             )}
-            {error && <p className="mt-3 text-sm text-rose-300">{error}</p>}
+            {error && <p className="mt-3 text-sm font-light text-rose-300">{error}</p>}
           </div>
           <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
             <div className="flex items-center justify-between">
@@ -638,11 +638,13 @@ export const PracticePage = () => {
                 {t("practice.copyTranscript")}
               </button>
             </div>
-            <p className="mt-3 text-sm text-slate-200 whitespace-pre-wrap">
+            <p className="mt-3 text-sm font-light text-slate-200 whitespace-pre-wrap">
               {practice.transcript || t("practice.transcriptPlaceholder")}
             </p>
             {requestId && (
-              <p className="mt-3 text-xs text-slate-400">{t("practice.requestId", { id: requestId })}</p>
+              <p className="mt-3 text-xs font-light text-slate-400">
+                {t("practice.requestId", { id: requestId })}
+              </p>
             )}
           </div>
           {(responseErrors?.length ?? 0) > 0 && (
