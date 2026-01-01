@@ -89,6 +89,33 @@ export const PracticePage = () => {
     const entries = task?.criteria?.map((criterion) => [criterion.id, criterion]) ?? [];
     return new Map(entries);
   }, [task?.criteria]);
+  const scoreMap = useMemo(() => {
+    const entries = practice.evaluation?.criterion_scores.map((score) => [score.criterion_id, score]) ?? [];
+    return new Map(entries);
+  }, [practice.evaluation?.criterion_scores]);
+  const overallScore = practice.evaluation?.overall.score;
+  const scrollToScoringMatrix = useCallback(() => {
+    const target = document.getElementById("practice-scoring-matrix");
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+  const scoreTone = (score?: number) => {
+    if (typeof score !== "number") {
+      return "border-white/10 bg-white/5 text-slate-300";
+    }
+    if (score >= 4) {
+      return "border-emerald-400/60 bg-emerald-400/10 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.45)]";
+    }
+    if (score >= 3) {
+      return "border-teal-300/60 bg-teal-400/10 text-teal-200 shadow-[0_0_12px_rgba(45,212,191,0.45)]";
+    }
+    if (score >= 2) {
+      return "border-amber-300/60 bg-amber-400/10 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.4)]";
+    }
+    if (score >= 1) {
+      return "border-orange-400/60 bg-orange-400/10 text-orange-200 shadow-[0_0_12px_rgba(251,146,60,0.4)]";
+    }
+    return "border-rose-400/60 bg-rose-400/10 text-rose-200 shadow-[0_0_12px_rgba(248,113,113,0.4)]";
+  };
   const canStartRecording = practiceMode === "standard" || canRecord;
   const sessionIndexKey = useCallback(
     (sessionId: string) => `practiceSessionProgress:${sessionId}`,
@@ -616,26 +643,65 @@ export const PracticePage = () => {
             )}
             {error && <p className="mt-3 text-sm font-light text-rose-300">{error}</p>}
           </div>
-          <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{t("practice.transcriptTitle")}</h3>
+          {practice.evaluation && (
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-slate-950/80 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h3 className="text-lg font-semibold">{t("practice.coachFeedback")}</h3>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${scoreTone(
+                    practice.evaluation.overall.score
+                  )}`}
+                >
+                  Overall {practice.evaluation.overall.score}/4
+                </span>
+              </div>
+              <p className="mt-3 text-sm text-slate-300">{practice.evaluation.overall.summary_feedback}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {practice.evaluation.overall.what_to_improve_next.map((tip) => (
+                  <span
+                    key={tip}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200"
+                  >
+                    {tip}
+                  </span>
+                ))}
+              </div>
+              {typeof nextDifficulty === "number" && (
+                <p className="mt-3 text-xs text-slate-400">
+                  {t("practice.recommendedDifficulty", { difficulty: nextDifficulty })}
+                </p>
+              )}
               <button
-                className="rounded-full border border-white/20 px-4 py-1 text-xs"
-                onClick={() => practice.transcript && navigator.clipboard.writeText(practice.transcript)}
-                disabled={!practice.transcript}
+                type="button"
+                className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm"
+                onClick={handleNextExample}
+                disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
               >
-                {t("practice.copyTranscript")}
+                {practiceMode === "real_time" ? "Next patient turn" : t("practice.nextExample")}
               </button>
             </div>
-            <p className="mt-3 text-sm font-light text-slate-200 whitespace-pre-wrap">
-              {practice.transcript || t("practice.transcriptPlaceholder")}
-            </p>
-            {requestId && (
-              <p className="mt-3 text-xs font-light text-slate-400">
-                {t("practice.requestId", { id: requestId })}
+          )}
+          {practice.transcript && (
+            <div className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">{t("practice.transcriptTitle")}</h3>
+                <button
+                  className="rounded-full border border-white/20 px-4 py-1 text-xs"
+                  onClick={() => practice.transcript && navigator.clipboard.writeText(practice.transcript)}
+                >
+                  {t("practice.copyTranscript")}
+                </button>
+              </div>
+              <p className="mt-3 text-sm font-light text-slate-200 whitespace-pre-wrap">
+                {practice.transcript}
               </p>
-            )}
-          </div>
+              {requestId && (
+                <p className="mt-3 text-xs font-light text-slate-400">
+                  {t("practice.requestId", { id: requestId })}
+                </p>
+              )}
+            </div>
+          )}
           {(responseErrors?.length ?? 0) > 0 && (
             <div className="rounded-3xl border border-rose-400/30 bg-rose-500/10 p-6">
               <h3 className="text-lg font-semibold text-rose-100">{t("practice.snagTitle")}</h3>
@@ -693,8 +759,19 @@ export const PracticePage = () => {
                 {task?.criteria?.map((criterion, index) => (
                   <div
                     key={criterion.id}
-                    className="rounded-2xl border border-white/10 bg-slate-900/50 p-4"
+                    className="relative rounded-2xl border border-white/10 bg-slate-900/50 p-4"
                   >
+                    {practice.evaluation && (
+                      <button
+                        type="button"
+                        onClick={scrollToScoringMatrix}
+                        className={`absolute right-3 top-3 rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] transition hover:scale-[1.02] ${scoreTone(
+                          scoreMap.get(criterion.id)?.score
+                        )}`}
+                      >
+                        {scoreMap.get(criterion.id)?.score ?? "--"}/4
+                      </button>
+                    )}
                     <div className="flex items-center gap-3">
                       <span className="flex h-7 w-7 items-center justify-center rounded-full border border-teal-300/40 bg-teal-400/10 text-xs font-semibold text-teal-200 shadow-[0_0_12px_rgba(45,212,191,0.35)]">
                         {index + 1}
@@ -708,10 +785,29 @@ export const PracticePage = () => {
                   <p className="text-xs text-slate-400">No criteria available.</p>
                 )}
               </div>
+              {practice.evaluation && (
+                <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm font-semibold text-white">Overall score</p>
+                    <button
+                      type="button"
+                      onClick={scrollToScoringMatrix}
+                      className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] transition hover:scale-[1.02] ${scoreTone(
+                        overallScore
+                      )}`}
+                    >
+                      {overallScore ?? "--"}/4
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-slate-300">
+                    {practice.evaluation.overall.pass ? "On track." : "Needs refinement."}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-            <h2 className="text-lg font-semibold">{t("practice.title")}</h2>
+            <h2 className="text-lg font-semibold">Practice Mode</h2>
             <div className="mt-4 flex flex-wrap gap-3">
               <button
                 type="button"
@@ -722,7 +818,7 @@ export const PracticePage = () => {
                 }`}
                 onClick={() => setPracticeMode("standard")}
               >
-                Standard
+                Text
               </button>
               <button
                 type="button"
@@ -733,7 +829,7 @@ export const PracticePage = () => {
                 }`}
                 onClick={() => setPracticeMode("real_time")}
               >
-                Real Time Mode
+                Audio
               </button>
             </div>
             {practiceMode === "real_time" && (
@@ -846,39 +942,11 @@ export const PracticePage = () => {
               })}
             </div>
           </details>
-          {practice.evaluation && (
-            <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-              <h3 className="text-lg font-semibold">{t("practice.coachFeedback")}</h3>
-              <p className="mt-3 text-sm text-slate-300">{practice.evaluation.overall.summary_feedback}</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {practice.evaluation.overall.what_to_improve_next.map((tip) => (
-                  <span key={tip} className="rounded-full border border-white/10 px-3 py-1 text-xs">
-                    {tip}
-                  </span>
-                ))}
-              </div>
-              {typeof nextDifficulty === "number" && (
-                <p className="mt-3 text-xs text-slate-400">
-                  {t("practice.recommendedDifficulty", { difficulty: nextDifficulty })}
-                </p>
-              )}
-              {practice.evaluation && (
-                <button
-                  type="button"
-                  className="mt-4 rounded-full border border-white/20 px-4 py-2 text-sm"
-                  onClick={handleNextExample}
-                  disabled={practice.currentIndex + 1 >= practice.sessionItems.length}
-                >
-                  {practiceMode === "real_time" ? "Next patient turn" : t("practice.nextExample")}
-                </button>
-              )}
-            </div>
-          )}
         </div>
       </section>
 
       {practice.evaluation && (
-        <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
+        <section id="practice-scoring-matrix" className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
           <h3 className="text-lg font-semibold">{t("practice.scoringTitle")}</h3>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             {practice.evaluation.criterion_scores.map((score) => {
