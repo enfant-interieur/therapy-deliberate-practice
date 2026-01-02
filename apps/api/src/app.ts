@@ -870,7 +870,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       {
         apiKey: openaiApiKey,
         model: OPENAI_TTS_MODEL,
-        voice: "alloy",
+        voice: "marin",
         format: OPENAI_TTS_FORMAT
       },
       logEvent

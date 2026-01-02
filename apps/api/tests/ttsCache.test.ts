@@ -5,8 +5,8 @@ import { buildTtsCacheKey, normalizeTtsText } from "../src/utils/ttsCache";
 test("buildTtsCacheKey is deterministic across whitespace", async () => {
   const input = {
     text: "Hello   there\nfriend",
-    model: "tts-1",
-    voice: "alloy",
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
     format: "mp3"
   };
   const first = await buildTtsCacheKey(input);
