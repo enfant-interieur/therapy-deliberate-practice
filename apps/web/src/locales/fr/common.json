@@ -728,6 +728,7 @@
       "importJson": "Importer JSON",
       "parseText": "Analyser le texte",
       "duplicate": "Dupliquer",
+      "translate": "Traduire",
       "delete": "Supprimer",
       "close": "Fermer",
       "cancel": "Annuler",
@@ -800,9 +801,17 @@
       "created": "Tâche créée",
       "deleted": "Tâche supprimée",
       "duplicated": "Tâche dupliquée",
+      "translated": "Tâche traduite",
       "imported": "Tâche importée",
       "jsonApplied": "JSON appliqué",
       "jsonValid": "JSON valide"
+    },
+    "translate": {
+      "title": "Traduire la tâche",
+      "description": "Créer une nouvelle copie traduite avec OpenAI.",
+      "languageLabel": "Traduire en",
+      "sameLanguageError": "Choisissez une autre langue.",
+      "translating": "Traduction en cours..."
     },
     "parse": {
       "title": "Analyser le texte",

@@ -169,6 +169,14 @@ export const api = createApi({
       query: ({ id }) => ({ url: `/admin/tasks/${id}/duplicate`, method: "POST" }),
       invalidatesTags: ["Task"]
     }),
+    translateTask: builder.mutation<{ id: string; slug: string }, { id: string; targetLanguage: string }>({
+      query: ({ id, targetLanguage }) => ({
+        url: `/admin/tasks/${id}/translate`,
+        method: "POST",
+        body: { target_language: targetLanguage }
+      }),
+      invalidatesTags: ["Task"]
+    }),
     parseTask: builder.mutation<
       DeliberatePracticeTaskV2,
       { free_text?: string; source_url?: string | null; parse_mode?: ParseMode }
@@ -232,6 +240,7 @@ export const {
   useCreateTaskMutation,
   useDeleteTaskMutation,
   useDuplicateTaskMutation,
+  useTranslateTaskMutation,
   useParseTaskMutation,
   useImportTaskMutation,
   useRunPracticeMutation,

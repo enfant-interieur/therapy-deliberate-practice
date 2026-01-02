@@ -16,7 +16,9 @@ type TaskEditorPanelProps = {
   task: EditableTask;
   onChange: (task: EditableTask) => void;
   onDuplicate: () => void;
+  onTranslate: () => void;
   onDelete: () => void;
+  isTranslating?: boolean;
   errors: ValidationErrors;
 };
 
@@ -28,7 +30,15 @@ const sectionIds = [
   { id: "examples", label: "admin.sections.examples" }
 ];
 
-export const TaskEditorPanel = ({ task, onChange, onDuplicate, onDelete, errors }: TaskEditorPanelProps) => {
+export const TaskEditorPanel = ({
+  task,
+  onChange,
+  onDuplicate,
+  onTranslate,
+  onDelete,
+  isTranslating = false,
+  errors
+}: TaskEditorPanelProps) => {
   const { t } = useTranslation();
 
   const updateTask = (patch: Partial<EditableTask>) => onChange({ ...task, ...patch });
@@ -66,6 +76,9 @@ export const TaskEditorPanel = ({ task, onChange, onDuplicate, onDelete, errors 
           <div className="flex items-center gap-2">
             <Button type="button" variant="secondary" onClick={onDuplicate}>
               {t("admin.actions.duplicate")}
+            </Button>
+            <Button type="button" variant="secondary" onClick={onTranslate} disabled={isTranslating}>
+              {isTranslating ? t("admin.translate.translating") : t("admin.actions.translate")}
             </Button>
             <Button type="button" variant="danger" onClick={onDelete}>
               {t("admin.actions.delete")}

@@ -7,11 +7,13 @@ import { Button, Card, SectionHeader } from "../components/admin/AdminUi";
 import { ConfirmDialog } from "../components/admin/ConfirmDialog";
 import { RightInspectorPanel } from "../components/admin/RightInspectorPanel";
 import { TaskEditorPanel, type EditableTask } from "../components/admin/TaskEditorPanel";
+import { TranslateTaskDialog } from "../components/admin/TranslateTaskDialog";
 import { ToastProvider, useToast } from "../components/admin/ToastProvider";
 import {
   useDeleteTaskMutation,
   useDuplicateTaskMutation,
   useGetAdminTaskQuery,
+  useTranslateTaskMutation,
   useUpdateTaskMutation
 } from "../store/api";
 
@@ -90,11 +92,14 @@ const AdminTaskEditPageContent = () => {
   const [activeTab, setActiveTab] = useState<"preview" | "json" | "meta">("preview");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [translateOpen, setTranslateOpen] = useState(false);
+  const [translateLanguage, setTranslateLanguage] = useState("fr");
 
   const { data: task, isFetching } = useGetAdminTaskQuery(id ?? "", { skip: !id });
   const [updateTask, updateState] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
   const [duplicateTask] = useDuplicateTaskMutation();
+  const [translateTask, translateState] = useTranslateTaskMutation();
 
   useEffect(() => {
     if (!task) return;
@@ -150,6 +155,24 @@ const AdminTaskEditPageContent = () => {
     try {
       const result = await duplicateTask({ id: draftTask.id }).unwrap();
       pushToast({ title: t("admin.toast.duplicated"), tone: "success" });
+      navigate(`/admin/tasks/${result.id}`);
+    } catch (error) {
+      pushToast({ title: t("admin.toast.error"), message: (error as Error).message, tone: "error" });
+    }
+  };
+
+  const handleOpenTranslate = () => {
+    if (!draftTask) return;
+    setTranslateLanguage(draftTask.language === "en" ? "fr" : "en");
+    setTranslateOpen(true);
+  };
+
+  const handleTranslate = async () => {
+    if (!draftTask) return;
+    try {
+      const result = await translateTask({ id: draftTask.id, targetLanguage: translateLanguage }).unwrap();
+      pushToast({ title: t("admin.toast.translated"), tone: "success" });
+      setTranslateOpen(false);
       navigate(`/admin/tasks/${result.id}`);
     } catch (error) {
       pushToast({ title: t("admin.toast.error"), message: (error as Error).message, tone: "error" });
@@ -231,7 +254,9 @@ const AdminTaskEditPageContent = () => {
               task={draftTask}
               onChange={setDraftTask}
               onDuplicate={handleDuplicate}
+              onTranslate={handleOpenTranslate}
               onDelete={() => setConfirmDelete(true)}
+              isTranslating={translateState.isLoading}
               errors={validationErrors}
             />
           </div>
@@ -278,6 +303,16 @@ const AdminTaskEditPageContent = () => {
         }}
         onCancel={() => setConfirmDelete(false)}
         tone="danger"
+      />
+
+      <TranslateTaskDialog
+        open={translateOpen}
+        currentLanguage={draftTask?.language ?? "en"}
+        targetLanguage={translateLanguage}
+        onTargetLanguageChange={setTranslateLanguage}
+        onCancel={() => setTranslateOpen(false)}
+        onConfirm={handleTranslate}
+        isLoading={translateState.isLoading}
       />
     </div>
   );

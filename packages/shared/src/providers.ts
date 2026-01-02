@@ -1,4 +1,4 @@
-import type { EvaluationResult, EvaluationInput, ParseMode } from "./types";
+import type { DeliberatePracticeTaskV2, EvaluationResult, EvaluationInput, ParseMode } from "./types";
 import type { LlmParseResult } from "./schemas";
 
 export type TranscriptSegment = {
@@ -37,4 +37,8 @@ export type LlmProvider = {
   healthCheck: () => Promise<boolean>;
   evaluateDeliberatePractice: (input: EvaluationInput) => Promise<EvaluationResult>;
   parseExercise: (input: { sourceText: string; parseMode?: ParseMode }) => Promise<LlmParseResult>;
+  translateTask: (input: {
+    source: DeliberatePracticeTaskV2;
+    targetLanguage: string;
+  }) => Promise<DeliberatePracticeTaskV2>;
 };

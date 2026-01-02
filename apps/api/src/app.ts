@@ -1266,6 +1266,134 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     return c.json({ id: newTaskId, slug });
   });
 
+  app.post("/api/v1/admin/tasks/:id/translate", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_translate_task" });
+    const id = c.req.param("id");
+    const body = await c.req.json();
+    const schema = z.object({
+      target_language: z.enum(["en", "fr"])
+    });
+    const data = schema.parse(body);
+    const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    if (!taskRow) return c.json({ error: "Not found" }, 404);
+    if (data.target_language === taskRow.language) {
+      return c.json({ error: "Target language matches task language" }, 400);
+    }
+
+    const criteriaRows = await db
+      .select()
+      .from(taskCriteria)
+      .where(eq(taskCriteria.task_id, id))
+      .orderBy(taskCriteria.sort_order);
+    const exampleRows = await db
+      .select()
+      .from(taskExamples)
+      .where(eq(taskExamples.task_id, id));
+
+    if (!env.openaiApiKey) {
+      logServerError("admin.translate_task.openai_key_missing", new Error("OpenAI key missing"), {
+        requestId: c.get("requestId")
+      });
+      return c.json({ error: "OpenAI key missing" }, 500);
+    }
+
+    let llmProvider;
+    try {
+      const selection = await selectLlmProvider("openai_only", env, env.openaiApiKey);
+      llmProvider = selection.provider;
+    } catch (error) {
+      log.error("LLM provider selection failed", { error: safeError(error) });
+      return c.json({ error: "OpenAI LLM unavailable" }, 500);
+    }
+
+    let translated;
+    try {
+      translated = await llmProvider.translateTask({
+        source: {
+          version: "2.1",
+          task: {
+            title: taskRow.title,
+            description: taskRow.description,
+            skill_domain: taskRow.skill_domain,
+            base_difficulty: taskRow.base_difficulty,
+            general_objective: taskRow.general_objective ?? null,
+            tags: taskRow.tags as Task["tags"],
+            language: taskRow.language
+          },
+          criteria: criteriaRows.map((criterion) => ({
+            id: criterion.id,
+            label: criterion.label,
+            description: criterion.description,
+            rubric: criterion.rubric ?? undefined
+          })),
+          examples: exampleRows.map((example) => ({
+            id: example.id,
+            difficulty: example.difficulty,
+            severity_label: example.severity_label ?? null,
+            patient_text: example.patient_text,
+            language: example.language ?? taskRow.language,
+            meta: example.meta ?? null
+          }))
+        },
+        targetLanguage: data.target_language
+      });
+    } catch (error) {
+      log.error("LLM translation failed", { error: safeError(error) });
+      return c.json({ error: "OpenAI translation failed" }, 500);
+    }
+
+    const now = Date.now();
+    const newTaskId = nanoid();
+    const slug = await ensureUniqueSlug(slugify(translated.task.title));
+
+    await db.insert(tasks).values({
+      id: newTaskId,
+      slug,
+      title: translated.task.title,
+      description: translated.task.description,
+      skill_domain: translated.task.skill_domain,
+      base_difficulty: translated.task.base_difficulty,
+      general_objective: translated.task.general_objective ?? null,
+      tags: translated.task.tags,
+      language: data.target_language,
+      is_published: taskRow.is_published,
+      parent_task_id: taskRow.id,
+      created_at: now,
+      updated_at: now
+    });
+
+    if (translated.criteria.length) {
+      await db.insert(taskCriteria).values(
+        translated.criteria.map((criterion, index) => ({
+          task_id: newTaskId,
+          id: criterion.id,
+          label: criterion.label,
+          description: criterion.description,
+          rubric: criterion.rubric ?? null,
+          sort_order: index
+        }))
+      );
+    }
+
+    if (translated.examples.length) {
+      await db.insert(taskExamples).values(
+        translated.examples.map((example) => ({
+          id: nanoid(),
+          task_id: newTaskId,
+          difficulty: example.difficulty,
+          severity_label: example.severity_label ?? null,
+          patient_text: example.patient_text,
+          language: example.language ?? data.target_language,
+          meta: example.meta ?? null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
+
+    return c.json({ id: newTaskId, slug });
+  });
+
   app.put("/api/v1/admin/tasks/:id", async (c) => {
     const id = c.req.param("id");
     const body = await c.req.json();

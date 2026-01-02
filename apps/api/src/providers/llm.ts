@@ -2,12 +2,13 @@ import type {
   LlmProvider,
   EvaluationInput,
   EvaluationResult,
-  LlmParseResult
+  LlmParseResult,
+  DeliberatePracticeTaskV2
 } from "@deliberate/shared";
 import type { RuntimeEnv } from "../env";
 import type { LogFn } from "../utils/logger";
 import { safeTruncate } from "../utils/logger";
-import { evaluationResultSchema, llmParseSchema } from "@deliberate/shared";
+import { deliberatePracticeTaskV2Schema, evaluationResultSchema, llmParseSchema } from "@deliberate/shared";
 import { createStructuredResponse } from "./openaiResponses";
 import { OPENAI_LLM_MODEL } from "./models";
 
@@ -52,6 +53,9 @@ export const LocalMlxLlmProvider = (env: RuntimeEnv, logger?: LogFn): LlmProvide
   },
   parseExercise: async (_input) => {
     throw new Error("Local LLM does not support task parsing.");
+  },
+  translateTask: async (_input) => {
+    throw new Error("Local LLM does not support task translation.");
   }
 });
 
@@ -179,6 +183,52 @@ LANGUAGE:
       return result.value;
     } catch (error) {
       logger?.("error", "llm.parse.http_error", {
+        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
+        duration_ms: Date.now() - start,
+        error: safeTruncate(String(error), 200)
+      });
+      throw error;
+    }
+  },
+  translateTask: async ({
+    source,
+    targetLanguage
+  }): Promise<DeliberatePracticeTaskV2> => {
+    if (!apiKey) {
+      throw new Error("OpenAI key missing");
+    }
+    const start = Date.now();
+    logger?.("info", "llm.translate.http_start", {
+      provider: { kind: "openai", model: OPENAI_LLM_MODEL },
+      target_language: targetLanguage
+    });
+    const systemPrompt = `You are a meticulous translation engine for psychotherapy deliberate-practice tasks.
+Translate the provided JSON into ${targetLanguage}.
+Return STRICT JSON ONLY that matches the DeliberatePracticeTaskV2 schema. No markdown. No commentary. No trailing commas. No extra keys.
+
+Translation rules:
+- Translate all human-readable strings: task title, description, skill_domain, general_objective, tags, criterion label/description, rubric anchors, example patient_text, severity_label.
+- Preserve all ids and numeric values exactly as provided.
+- Do NOT reorder arrays.
+- Set task.language and each example.language to "${targetLanguage}".`;
+    try {
+      const result = await createStructuredResponse<DeliberatePracticeTaskV2>({
+        apiKey,
+        model: OPENAI_LLM_MODEL,
+        temperature: 0.2,
+        instructions: systemPrompt,
+        input: JSON.stringify(source),
+        schemaName: "DeliberatePracticeTaskV2",
+        schema: deliberatePracticeTaskV2Schema
+      });
+      logger?.("info", "llm.translate.http_ok", {
+        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
+        duration_ms: Date.now() - start,
+        response_id: result.responseId
+      });
+      return result.value;
+    } catch (error) {
+      logger?.("error", "llm.translate.http_error", {
         provider: { kind: "openai", model: OPENAI_LLM_MODEL },
         duration_ms: Date.now() - start,
         error: safeTruncate(String(error), 200)
