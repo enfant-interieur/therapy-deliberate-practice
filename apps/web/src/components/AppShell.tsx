@@ -200,6 +200,10 @@ export const AppShell = () => {
     await supabase.auth.signOut();
   };
 
+  const openAiSetup = () => {
+    setShowAiSetup(true);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
       <AiSetupModal
@@ -227,6 +231,9 @@ export const AppShell = () => {
                 {t("appShell.nav.admin")}
               </NavLink>
             )}
+            <NavLink to="/help" className={linkClass}>
+              {t("appShell.nav.help")}
+            </NavLink>
             <label className="sr-only" htmlFor="language-select">
               {t("appShell.language.label")}
             </label>
@@ -315,7 +322,7 @@ export const AppShell = () => {
         </div>
       </header>
       <main className="mx-auto max-w-6xl px-6 py-10">
-        <Outlet />
+        <Outlet context={{ openAiSetup }} />
       </main>
     </div>
   );

@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { Navigate, createBrowserRouter } from "react-router-dom";
 import { AppShell } from "./components/AppShell";
 import { AdminRouteGuard } from "./components/AdminRouteGuard";
 import { UserRouteGuard } from "./components/UserRouteGuard";
@@ -13,6 +13,11 @@ import { AdminParseTaskPage } from "./pages/AdminParseTaskPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { HelpLayout } from "./pages/help/HelpLayout";
+import { GettingStarted } from "./pages/help/pages/GettingStarted";
+import { HowItWorks } from "./pages/help/pages/HowItWorks";
+import { DeliberatePractice } from "./pages/help/pages/DeliberatePractice";
+import { About } from "./pages/help/pages/About";
 
 export const router = createBrowserRouter([
   {
@@ -85,6 +90,17 @@ export const router = createBrowserRouter([
             <AdminTaskEditPage />
           </AdminRouteGuard>
         )
+      },
+      {
+        path: "help",
+        element: <HelpLayout />,
+        children: [
+          { index: true, element: <Navigate to="getting-started" replace /> },
+          { path: "getting-started", element: <GettingStarted /> },
+          { path: "how-it-works", element: <HowItWorks /> },
+          { path: "deliberate-practice", element: <DeliberatePractice /> },
+          { path: "about", element: <About /> }
+        ]
       }
     ]
   }
