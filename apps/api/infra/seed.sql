@@ -174,3 +174,182 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
 );
+
+-- =====================================================================================
+-- ================================== FRENCH (fr) ======================================
+-- =====================================================================================
+
+-- ---------- Tasks (fr) ----------
+INSERT INTO tasks (
+  id, slug, title, description, skill_domain, base_difficulty, general_objective, tags, language, is_published, parent_task_id, created_at, updated_at
+) VALUES
+(
+  'task_limited_reparenting_fr',
+  'limited-reparenting-fr',
+  'Reparentage limité',
+  'S’entraîner à offrir chaleur, validation et un soutien nourrissant adapté, tout en maintenant des limites thérapeutiques claires et en favorisant l’autonomie.',
+  'Schema Therapy',
+  3,
+  'Offrir un soutien émotionnel accordé, nommer le besoin non satisfait, proposer une dose de réassurance cadrée, puis aider la personne à mobiliser ses ressources d’Adulte sain.',
+  '["schema-therapy","limited-reparenting","boundaries","attachment"]',
+  'fr',
+  1,
+  'task_limited_reparenting',
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'task_disarming_critic_fr',
+  'disarming-the-critic-fr',
+  'Désarmer le critique',
+  'S’entraîner à identifier le critique intérieur, à l’externaliser, à valider sa fonction protectrice et à renforcer une posture d’Adulte sain compatissante.',
+  'Schema Therapy',
+  3,
+  'Aider la personne à repérer le langage en mode Critique, à s’en désidentifier, à comprendre sa fonction et ses coûts, puis à répondre par une alternative compatissante et ancrée dans la réalité.',
+  '["schema-therapy","inner-critic","compassion","modes"]',
+  'fr',
+  1,
+  'task_disarming_critic',
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+);
+
+-- ---------- Criteria: Reparentage limité (fr) ----------
+INSERT INTO task_criteria (task_id, id, label, description, rubric, sort_order) VALUES
+(
+  'task_limited_reparenting_fr','c1','Valider l’émotion et le besoin',
+  'Nommer avec justesse l’émotion et le besoin sous-jacent non satisfait, sans minimiser ni se précipiter pour « réparer ».',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Ne repère pas l’émotion/le besoin ou les invalide."},{"score":2,"meaning":"Identifie partiellement l’émotion ou le besoin ; accordage limité."},{"score":4,"meaning":"Nomme clairement l’émotion et le besoin non satisfait avec chaleur et précision."}]}',
+  1
+),
+(
+  'task_limited_reparenting_fr','c2','Offrir une réassurance cadrée',
+  'Proposer chaleur et réassurance de façon mesurée, soutenant la sécurité sans renforcer la dépendance.',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Peu ou pas de chaleur/réassurance ; posture trop détachée ou trop sauveuse."},{"score":2,"meaning":"Réassurance présente mais cadre/limites peu clairs."},{"score":4,"meaning":"Réassurance chaleureuse et soutenante, avec des limites appropriées."}]}',
+  2
+),
+(
+  'task_limited_reparenting_fr','c3','Maintenir les limites thérapeutiques',
+  'Poser des limites bienveillantes et claires lorsque la demande de réassurance ou l’urgence tire la relation.',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Évite les limites ou devient rigide/défensif."},{"score":2,"meaning":"Évoque des limites mais sans clarté."},{"score":4,"meaning":"Énonce des limites clairement et avec compassion, en expliquant le sens/le rationnel."}]}',
+  3
+),
+(
+  'task_limited_reparenting_fr','c4','Soutenir l’autonomie de l’Adulte sain',
+  'Aider la personne à accéder à des compétences d’adaptation, d’auto-apaisement ou à une action guidée par les valeurs afin de réduire la dépendance au thérapeute.',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Pas de soutien à l’autonomie ; le thérapeute prend le relais."},{"score":2,"meaning":"Propose une suggestion générique."},{"score":4,"meaning":"Construit en collaboration une étape concrète qui renforce le fonctionnement de l’Adulte sain."}]}',
+  4
+);
+
+-- ---------- Criteria: Désarmer le critique (fr) ----------
+INSERT INTO task_criteria (task_id, id, label, description, rubric, sort_order) VALUES
+(
+  'task_disarming_critic_fr','c1','Repérer le langage en mode Critique',
+  'Repérer l’auto-jugement dur et le refléter comme un schéma (ton, absolus, insultes, catastrophisation).',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Ne repère pas le langage du Critique."},{"score":2,"meaning":"Le repère mais le reflet est faible."},{"score":4,"meaning":"Identifie clairement le langage en mode Critique et son impact."}]}',
+  1
+),
+(
+  'task_disarming_critic_fr','c2','Externaliser le Critique',
+  'Aider la personne à se séparer du Critique (le nommer, lui donner une voix), en réduisant la fusion.',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Reste fusionné au contenu ; argumente uniquement sur les faits."},{"score":2,"meaning":"Séparation partielle mais inconstante."},{"score":4,"meaning":"Externalisation solide qui augmente la prise de perspective et la liberté de choix."}]}',
+  2
+),
+(
+  'task_disarming_critic_fr','c3','Valider la fonction et le coût',
+  'Reconnaître l’intention protectrice du Critique tout en clarifiant ses coûts émotionnels et comportementaux.',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Invalide ou confronte durement ; ne repère pas la fonction."},{"score":2,"meaning":"Évoque la fonction ou le coût, mais pas les deux."},{"score":4,"meaning":"Équilibre empathie pour la fonction et vision claire des coûts."}]}',
+  3
+),
+(
+  'task_disarming_critic_fr','c4','Renforcer une réponse compatissante',
+  'Évoquer une voix alternative compatissante et ancrée dans la réalité, et proposer un bref pas de pratique.',
+  '{"score_min":0,"score_max":4,"anchors":[{"score":0,"meaning":"Aucune posture alternative n’est proposée."},{"score":2,"meaning":"Propose de la réassurance sans plan de pratique."},{"score":4,"meaning":"Construit une réponse compatissante crédible et une micro-pratique concrète."}]}',
+  4
+);
+
+-- ---------- Examples: Reparentage limité (fr) (difficulty 1–5) ----------
+INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text, language, meta, created_at, updated_at) VALUES
+(
+  'ex_lr_1_fr','task_limited_reparenting_fr',1,'léger',
+  'Après nos séances, je me remets tout le temps en question. Une partie de moi aimerait que vous me disiez simplement que je l’ai fait « comme il faut ».',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_lr_2_fr','task_limited_reparenting_fr',2,'modéré',
+  'Quand je n’ai pas de réponse rapidement, je pars en vrille. Je sais que vous êtes occupé·e, mais j’ai l’impression de ne pas compter.',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_lr_3_fr','task_limited_reparenting_fr',3,'modéré-élevé',
+  'J’ai honte de le dire, mais j’ai vraiment besoin que vous me rassuriez maintenant. Si vous ne pouvez pas, je ne sais pas quoi faire de ces émotions.',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_lr_4_fr','task_limited_reparenting_fr',4,'élevé',
+  'Je déteste avoir besoin de quelqu’un. Mais cette semaine je suis tellement seul·e que je me surprends à penser que vous êtes la seule personne vraiment sûre. Est-ce qu’on peut se parler plus souvent ?',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_lr_5_fr','task_limited_reparenting_fr',5,'très élevé',
+  'Quand vous posez des limites, je le vis comme un rejet. Je me mets en colère puis j’ai honte. Je veux que vous me promettiez que vous ne partirez pas, mais je me déteste aussi de le demander.',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+);
+
+-- ---------- Examples: Désarmer le critique (fr) (difficulty 1–5) ----------
+INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text, language, meta, created_at, updated_at) VALUES
+(
+  'ex_dc_1_fr','task_disarming_critic_fr',1,'léger',
+  'J’ai fait une petite erreur dans un e-mail et je n’arrête pas de penser : « Sérieusement ? C’est si difficile d’être compétent·e ? »',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_dc_2_fr','task_disarming_critic_fr',2,'modéré',
+  'Quand quelqu’un me fait un retour, mon cerveau part direct : « Évidemment qu’ils voient que tu n’es pas à la hauteur. »',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_dc_3_fr','task_disarming_critic_fr',3,'modéré-élevé',
+  'C’est comme s’il y avait une voix qui énumère tout ce qui ne va pas chez moi. Elle dit que je suis paresseux·se, égoïste et une déception.',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_dc_4_fr','task_disarming_critic_fr',4,'élevé',
+  'Même quand je réussis, la voix dit que c’était de la chance et que je vais être démasqué·e. Je finis par travailler jusqu’à l’épuisement pour lui prouver le contraire.',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ex_dc_5_fr','task_disarming_critic_fr',5,'très élevé',
+  'Quand je suis stressé·e, le critique devient vicieux : « Tu gâches tout. Personne ne te choisirait s’ils te connaissaient vraiment. » Je me sens petit·e et figé·e quand ça arrive.',
+  'fr',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+);
