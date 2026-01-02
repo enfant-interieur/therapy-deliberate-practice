@@ -27,7 +27,7 @@ export type TtsServiceInput = {
   text: string;
   voice: string;
   model: string;
-  format: "mp3" | "wav";
+  format: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
 };
 
 export type TtsServiceResult =

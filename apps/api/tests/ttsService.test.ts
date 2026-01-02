@@ -80,8 +80,8 @@ test("getOrCreateTtsAsset returns generating when a request is in progress", asy
   });
   const provider = {
     kind: "openai" as const,
-    model: "tts-1",
-    voice: "alloy",
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
     format: "mp3" as const,
     healthCheck: async () => true,
     synthesize: async () => synthesizePromise
@@ -102,14 +102,14 @@ test("getOrCreateTtsAsset returns generating when a request is in progress", asy
     env,
     storage,
     provider,
-    { text: "Hello there", voice: "alloy", model: "tts-1", format: "mp3" }
+    { text: "Hello there", voice: "marin", model: "gpt-4o-mini-tts", format: "mp3" }
   );
   const secondResult = await getOrCreateTtsAsset(
     db,
     env,
     storage,
     provider,
-    { text: "Hello there", voice: "alloy", model: "tts-1", format: "mp3" }
+    { text: "Hello there", voice: "marin", model: "gpt-4o-mini-tts", format: "mp3" }
   );
 
   assert.equal(secondResult.status, "generating");
@@ -143,10 +143,10 @@ test("tts route returns 404 when not ready and 200 when ready", async () => {
     id: "asset-1",
     cache_key: "cache-missing",
     text: "Hello",
-    voice: "alloy",
-    model: "tts-1",
+    voice: "marin",
+    model: "gpt-4o-mini-tts",
     format: "mp3",
-    r2_key: "tts/tts-1/alloy/cache-missing.mp3",
+    r2_key: "tts/gpt-4o-mini-tts/marin/cache-missing.mp3",
     bytes: null,
     content_type: "audio/mpeg",
     etag: null,
@@ -165,10 +165,10 @@ test("tts route returns 404 when not ready and 200 when ready", async () => {
     id: "asset-2",
     cache_key: "cache-ready",
     text: "Hello",
-    voice: "alloy",
-    model: "tts-1",
+    voice: "marin",
+    model: "gpt-4o-mini-tts",
     format: "mp3",
-    r2_key: "tts/tts-1/alloy/cache-ready.mp3",
+    r2_key: "tts/gpt-4o-mini-tts/marin/cache-ready.mp3",
     bytes: 3,
     content_type: "audio/mpeg",
     etag: "etag",

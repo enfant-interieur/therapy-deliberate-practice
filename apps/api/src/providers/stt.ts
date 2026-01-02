@@ -86,10 +86,16 @@ export const OpenAISttProvider = (
     if (!apiKey) {
       throw new Error("OpenAI key missing");
     }
+    const model = opts?.model ?? OPENAI_STT_MODEL;
+    const isDiarize = model === "gpt-4o-transcribe-diarize";
+    const responseFormat = opts?.responseFormat ?? (isDiarize ? "diarized_json" : undefined);
     const start = Date.now();
-    logger?.("info", "stt.transcribe.http_start", {
-      provider: { kind: "openai", model: OPENAI_STT_MODEL }
-    });
+    const logContext = {
+      provider: { kind: "openai", model },
+      ...(opts?.model ? { model_override: opts.model } : {}),
+      ...(responseFormat ? { response_format: responseFormat } : {})
+    };
+    logger?.("info", "stt.transcribe.http_start", logContext);
     const response = await fetch("https://api.openai.com/v1/audio/transcriptions", {
       method: "POST",
       headers: {
@@ -97,7 +103,22 @@ export const OpenAISttProvider = (
       },
       body: (() => {
         const form = new FormData();
-        form.append("model", OPENAI_STT_MODEL);
+        form.append("model", model);
+        if (opts?.prompt && (model === "gpt-4o-mini-transcribe" || model === "gpt-4o-transcribe")) {
+          form.append("prompt", opts.prompt);
+        }
+        if (responseFormat && responseFormat !== "json") {
+          form.append("response_format", responseFormat);
+        }
+        if (isDiarize && responseFormat === "diarized_json") {
+          form.append("chunking_strategy", opts?.chunkingStrategy ?? "auto");
+          opts?.knownSpeakerNames?.forEach((name) => {
+            form.append("known_speaker_names[]", name);
+          });
+          opts?.knownSpeakerReferences?.forEach((reference) => {
+            form.append("known_speaker_references[]", reference);
+          });
+        }
         const filename = mimeTypeToFilename(opts?.mimeType);
         form.append(
           "file",
@@ -112,18 +133,43 @@ export const OpenAISttProvider = (
     if (!response.ok) {
       const body = safeTruncate(await response.text(), 200);
       logger?.("error", "stt.transcribe.http_error", {
-        provider: { kind: "openai", model: OPENAI_STT_MODEL },
+        ...logContext,
         duration_ms: Date.now() - start,
         status: response.status,
         body
       });
       throw new Error(`OpenAI STT failed (${response.status})`);
     }
-    const data = (await response.json()) as { text: string };
+    if (responseFormat === "text") {
+      const text = await response.text();
+      logger?.("info", "stt.transcribe.http_ok", {
+        provider: { kind: "openai", model },
+        duration_ms: Date.now() - start
+      });
+      return { text };
+    }
+    const data = (await response.json()) as {
+      text?: string;
+      segments?: Array<Record<string, unknown> & { text?: string }>;
+    };
+    if (isDiarize && responseFormat === "diarized_json") {
+      const segments = Array.isArray(data.segments)
+        ? data.segments.map((segment) => ({ ...segment, text: segment.text ?? "" }))
+        : undefined;
+      const text =
+        data.text ??
+        segments?.map((segment) => segment.text).filter((value) => value.length > 0).join("\n") ??
+        "";
+      logger?.("info", "stt.transcribe.http_ok", {
+        provider: { kind: "openai", model },
+        duration_ms: Date.now() - start
+      });
+      return segments ? { text, segments } : { text };
+    }
     logger?.("info", "stt.transcribe.http_ok", {
-      provider: { kind: "openai", model: OPENAI_STT_MODEL },
+      provider: { kind: "openai", model },
       duration_ms: Date.now() - start
     });
-    return { text: data.text };
+    return { text: data.text ?? "" };
   }
 });
