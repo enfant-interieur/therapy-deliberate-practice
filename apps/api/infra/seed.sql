@@ -1,6 +1,44 @@
-PRAGMA foreign_keys=ON;
+PRAGMA defer_foreign_keys=ON;
+PRAGMA foreign_keys=OFF;
+-- ============================================================
+-- Reset (delete only) for tasks + related collections (en + fr)
+-- Safe to run even if rows do not exist.
+-- ============================================================
 
--- ---------- Tasks ----------
+-- ---------- Delete children first ----------
+DELETE FROM task_examples
+WHERE task_id IN (
+  'task_limited_reparenting',
+  'task_disarming_critic',
+  'task_limited_reparenting_fr',
+  'task_disarming_critic_fr'
+);
+
+DELETE FROM task_criteria
+WHERE task_id IN (
+  'task_limited_reparenting',
+  'task_disarming_critic',
+  'task_limited_reparenting_fr',
+  'task_disarming_critic_fr'
+);
+
+-- ---------- Delete tasks (delete fr children before en parents) ----------
+DELETE FROM tasks
+WHERE id IN (
+  'task_limited_reparenting_fr',
+  'task_disarming_critic_fr'
+);
+
+DELETE FROM tasks
+WHERE id IN (
+  'task_limited_reparenting',
+  'task_disarming_critic'
+);
+
+-- ============================================================
+-- Seed tasks + related collections (en + fr)
+-- ============================================================
+
 INSERT INTO tasks (
   id, slug, title, description, skill_domain, base_difficulty, general_objective, tags, language, is_published, parent_task_id, created_at, updated_at
 ) VALUES

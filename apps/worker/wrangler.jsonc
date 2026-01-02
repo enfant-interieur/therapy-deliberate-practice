@@ -34,19 +34,18 @@
       "binding": "deliberate_practice_audio"
     }
   ],
-  // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, SUPABASE_JWT_SECRET
+  // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, SUPABASE_JWT_SECRET,
+  //    "ADMIN_EMAILS": "",
+  //    "ADMIN_GROUPS": "",
+  //  "AI_MODE": "local_prefer",
+  //  "LOCAL_STT_URL": "http://localhost:7001",
+  //  "LOCAL_LLM_URL": "http://localhost:7002",
+  // "LOCAL_LLM_MODEL": "mlx-community/Mistral-7B-Instruct-v0.2",
   "vars": {
-    "AI_MODE": "local_prefer",
     "SUPABASE_URL": "https://swwnxedbhwfhfoogghqs.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3d254ZWRiaHdmaGZvb2dnaHFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NzAsImV4cCI6MjA4Mjc2MDc3MH0.GxWdmheN1dp3ZunMxfSec4gkNUJXalO00BDOJ4l7_-4",
-    "LOCAL_STT_URL": "http://localhost:7001",
-    "LOCAL_LLM_URL": "http://localhost:7002",
-    "LOCAL_LLM_MODEL": "mlx-community/Mistral-7B-Instruct-v0.2",
     "ENV": "production",
     "R2_BUCKET": "deliberate-practice-audio",
-    "ADMIN_EMAILS": "",
-    "ADMIN_GROUPS": "",
-    "CF_ACCESS_AUD": "",
     "BYPASS_ADMIN_AUTH": "false",
     "DEV_ADMIN_TOKEN": ""
   }
