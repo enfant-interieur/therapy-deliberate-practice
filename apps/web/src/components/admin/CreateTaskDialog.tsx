@@ -53,8 +53,6 @@ export const CreateTaskDialog = ({
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  if (!open) return null;
-
   const reset = () => {
     setPayload(emptyPayload());
     setJsonValue("");
@@ -98,6 +96,8 @@ export const CreateTaskDialog = ({
     window.addEventListener("keydown", handleKeydown);
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [open]);
+
+  if (!open) return null;
 
   const handleCreate = () => {
     if (mode === "json") {

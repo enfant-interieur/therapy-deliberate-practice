@@ -382,6 +382,39 @@
   "admin": {
     "title": "Admin Library",
     "subtitle": "Parse new tasks with OpenAI, edit content, and import into the library.",
+    "portal": {
+      "kicker": "Admin Portal",
+      "title": "Admin home",
+      "subtitle": "Search the library or jump straight into new task creation.",
+      "searchKicker": "Search",
+      "searchTitle": "Search tasks",
+      "searchSubtitle": "Find tasks by title before jumping into edits.",
+      "searchAction": "Search library",
+      "quickKicker": "Quick actions",
+      "quickTitle": "Create a task",
+      "quickSubtitle": "Start from scratch, parsed text, or import JSON.",
+      "addTaskAction": "Add task",
+      "addTaskTitle": "Add a new task",
+      "addTaskSubtitle": "Choose how you want to start your next task.",
+      "manualKicker": "Manual",
+      "manualTitle": "Create manually",
+      "manualDescription": "Start with a blank task and fill in the details yourself.",
+      "manualAction": "Create manually",
+      "parsedKicker": "Parsed text",
+      "parsedTitle": "Start from parsed text",
+      "parsedDescription": "Paste free text or a source URL and review the parsed draft.",
+      "parsedAction": "Parse text"
+    },
+    "library": {
+      "kicker": "Admin library",
+      "title": "Task library",
+      "subtitle": "Search, filter, and open tasks for editing.",
+      "backToPortal": "Back to portal",
+      "searchAction": "Search",
+      "showAdvanced": "Show advanced filters",
+      "hideAdvanced": "Hide advanced filters",
+      "results": "{{count}} results"
+    },
     "searchPlaceholder": "Search tasks",
     "tasksTitle": "Tasks",
     "createFromText": {
@@ -417,11 +450,15 @@
     "edit": {
       "title": "Edit existing task",
       "subtitle": "Select a task from the list to update metadata and content.",
+      "kicker": "Task editor",
+      "pageTitle": "Edit task",
+      "pageSubtitle": "Update task details, criteria, and examples in a focused view.",
       "save": "Save changes",
       "saving": "Saving...",
       "selectPrompt": "Select a task to edit.",
       "publishLabel": "Published",
-      "saveFailed": "Failed to save"
+      "saveFailed": "Failed to save",
+      "notFound": "We couldn't find that task."
     },
     "content": {
       "criteria": "Criteria",
@@ -472,7 +509,10 @@
       "cancel": "Cancel",
       "create": "Create",
       "discard": "Discard",
-      "save": "Save"
+      "save": "Save",
+      "backToLibrary": "Back to library",
+      "backToPortal": "Back to portal",
+      "reset": "Reset"
     },
     "status": {
       "loading": "Loading",
@@ -542,7 +582,38 @@
     },
     "parse": {
       "title": "Parse from text",
-      "subtitle": "Paste content and let the parser extract task structure."
+      "subtitle": "Paste content and let the parser extract task structure.",
+      "kicker": "Parsing studio",
+      "pageTitle": "Parse task from text",
+      "pageSubtitle": "Review the parsed draft carefully before creating the task.",
+      "inputs": {
+        "freeText": "Free text",
+        "sourceUrl": "Source URL (optional)",
+        "parseMode": "Parse mode"
+      },
+      "mode": {
+        "original": "Original generation",
+        "exact": "Exact parsing"
+      },
+      "reviewKicker": "Review",
+      "reviewTitle": "Parsed result",
+      "reviewSubtitle": "Validate the JSON and confirm it looks right.",
+      "reviewEmpty": "Parse content to see a draft task summary and JSON preview.",
+      "reviewConfirm": "I reviewed this and it looks correct.",
+      "showJson": "Show JSON",
+      "hideJson": "Hide JSON",
+      "createAction": "Create task",
+      "summary": {
+        "criteria": "Criteria",
+        "examples": "Examples",
+        "tags": "Tags"
+      },
+      "validationPass": "Schema valid",
+      "validationFail": "Schema issues",
+      "validationValid": "Schema validation passed.",
+      "validationInvalid": "Schema validation failed.",
+      "validationEmpty": "Run the parser to validate the schema.",
+      "createdToast": "Task created from parsed text"
     },
     "import": {
       "title": "Import JSON",

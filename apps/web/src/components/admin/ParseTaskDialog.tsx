@@ -39,7 +39,14 @@ export const ParseTaskDialog = ({
   const [result, setResult] = useState<DeliberatePracticeTaskV2 | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  if (!open) return null;
+  const handleClose = () => {
+    setFreeText("");
+    setSourceUrl("");
+    setParseMode("original");
+    setResult(null);
+    setError(null);
+    onClose();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -73,14 +80,7 @@ export const ParseTaskDialog = ({
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [open]);
 
-  const handleClose = () => {
-    setFreeText("");
-    setSourceUrl("");
-    setParseMode("original");
-    setResult(null);
-    setError(null);
-    onClose();
-  };
+  if (!open) return null;
 
   const handleParse = async () => {
     setError(null);

@@ -17,7 +17,11 @@ export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: Impor
   const [error, setError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  if (!open) return null;
+  const handleClose = () => {
+    setJsonValue("");
+    setError(null);
+    onClose();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -51,11 +55,7 @@ export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: Impor
     return () => window.removeEventListener("keydown", handleKeydown);
   }, [open]);
 
-  const handleClose = () => {
-    setJsonValue("");
-    setError(null);
-    onClose();
-  };
+  if (!open) return null;
 
   const handleImport = async () => {
     try {

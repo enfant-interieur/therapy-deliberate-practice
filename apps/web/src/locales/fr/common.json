@@ -382,6 +382,39 @@
   "admin": {
     "title": "Bibliothèque admin",
     "subtitle": "Analysez de nouvelles tâches avec OpenAI, modifiez le contenu et importez-les dans la bibliothèque.",
+    "portal": {
+      "kicker": "Portail admin",
+      "title": "Accueil admin",
+      "subtitle": "Recherchez la bibliothèque ou lancez une nouvelle création.",
+      "searchKicker": "Recherche",
+      "searchTitle": "Rechercher des tâches",
+      "searchSubtitle": "Trouvez des tâches par titre avant de les modifier.",
+      "searchAction": "Rechercher",
+      "quickKicker": "Actions rapides",
+      "quickTitle": "Créer une tâche",
+      "quickSubtitle": "Démarrez manuellement, depuis un texte analysé ou importez un JSON.",
+      "addTaskAction": "Ajouter une tâche",
+      "addTaskTitle": "Ajouter une nouvelle tâche",
+      "addTaskSubtitle": "Choisissez comment démarrer votre prochaine tâche.",
+      "manualKicker": "Manuel",
+      "manualTitle": "Créer manuellement",
+      "manualDescription": "Commencez avec une tâche vierge et complétez les détails.",
+      "manualAction": "Créer manuellement",
+      "parsedKicker": "Texte analysé",
+      "parsedTitle": "Commencer à partir d'un texte analysé",
+      "parsedDescription": "Collez un texte libre ou une URL source et examinez le brouillon.",
+      "parsedAction": "Analyser le texte"
+    },
+    "library": {
+      "kicker": "Bibliothèque admin",
+      "title": "Bibliothèque de tâches",
+      "subtitle": "Recherchez, filtrez et ouvrez des tâches à modifier.",
+      "backToPortal": "Retour au portail",
+      "searchAction": "Rechercher",
+      "showAdvanced": "Afficher les filtres avancés",
+      "hideAdvanced": "Masquer les filtres avancés",
+      "results": "{{count}} résultats"
+    },
     "searchPlaceholder": "Rechercher des tâches",
     "tasksTitle": "Tâches",
     "createFromText": {
@@ -417,11 +450,15 @@
     "edit": {
       "title": "Modifier une tâche existante",
       "subtitle": "Sélectionnez une tâche dans la liste pour mettre à jour les métadonnées et le contenu.",
+      "kicker": "Éditeur de tâches",
+      "pageTitle": "Modifier la tâche",
+      "pageSubtitle": "Mettez à jour les détails, critères et exemples dans une vue dédiée.",
       "save": "Enregistrer les modifications",
       "saving": "Enregistrement...",
       "selectPrompt": "Sélectionnez une tâche à modifier.",
       "publishLabel": "Publié",
-      "saveFailed": "Échec de l'enregistrement"
+      "saveFailed": "Échec de l'enregistrement",
+      "notFound": "Impossible de trouver cette tâche."
     },
     "content": {
       "criteria": "Critères",
@@ -472,7 +509,10 @@
       "cancel": "Annuler",
       "create": "Créer",
       "discard": "Ignorer",
-      "save": "Enregistrer"
+      "save": "Enregistrer",
+      "backToLibrary": "Retour à la bibliothèque",
+      "backToPortal": "Retour au portail",
+      "reset": "Réinitialiser"
     },
     "status": {
       "loading": "Chargement",
@@ -542,7 +582,38 @@
     },
     "parse": {
       "title": "Analyser le texte",
-      "subtitle": "Collez du contenu et laissez l'analyseur structurer la tâche."
+      "subtitle": "Collez du contenu et laissez l'analyseur structurer la tâche.",
+      "kicker": "Atelier d'analyse",
+      "pageTitle": "Analyser une tâche",
+      "pageSubtitle": "Vérifiez attentivement le brouillon avant de créer la tâche.",
+      "inputs": {
+        "freeText": "Texte libre",
+        "sourceUrl": "URL source (facultatif)",
+        "parseMode": "Mode d'analyse"
+      },
+      "mode": {
+        "original": "Génération originale",
+        "exact": "Analyse exacte"
+      },
+      "reviewKicker": "Revue",
+      "reviewTitle": "Résultat analysé",
+      "reviewSubtitle": "Validez le JSON et confirmez que tout est correct.",
+      "reviewEmpty": "Analysez du contenu pour voir un résumé et un aperçu JSON.",
+      "reviewConfirm": "J'ai vérifié et cela semble correct.",
+      "showJson": "Afficher le JSON",
+      "hideJson": "Masquer le JSON",
+      "createAction": "Créer la tâche",
+      "summary": {
+        "criteria": "Critères",
+        "examples": "Exemples",
+        "tags": "Tags"
+      },
+      "validationPass": "Schéma valide",
+      "validationFail": "Problèmes de schéma",
+      "validationValid": "Validation du schéma réussie.",
+      "validationInvalid": "Échec de la validation du schéma.",
+      "validationEmpty": "Lancez l'analyse pour valider le schéma.",
+      "createdToast": "Tâche créée à partir du texte analysé"
     },
     "import": {
       "title": "Importer JSON",

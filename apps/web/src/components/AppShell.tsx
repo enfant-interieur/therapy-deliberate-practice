@@ -226,7 +226,7 @@ export const AppShell = () => {
               {t("appShell.nav.history")}
             </NavLink>
             {isAdmin && (
-              <NavLink to="/admin/library" className={linkClass}>
+              <NavLink to="/admin" className={linkClass}>
                 {t("appShell.nav.admin")}
               </NavLink>
             )}
