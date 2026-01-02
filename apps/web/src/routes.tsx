@@ -18,6 +18,7 @@ import { GettingStarted } from "./pages/help/pages/GettingStarted";
 import { HowItWorks } from "./pages/help/pages/HowItWorks";
 import { DeliberatePractice } from "./pages/help/pages/DeliberatePractice";
 import { About } from "./pages/help/pages/About";
+import { LocalSuite } from "./pages/help/pages/LocalSuite";
 
 export const router = createBrowserRouter([
   {
@@ -99,7 +100,8 @@ export const router = createBrowserRouter([
           { path: "getting-started", element: <GettingStarted /> },
           { path: "how-it-works", element: <HowItWorks /> },
           { path: "deliberate-practice", element: <DeliberatePractice /> },
-          { path: "about", element: <About /> }
+          { path: "about", element: <About /> },
+          { path: "local-suite", element: <LocalSuite /> }
         ]
       }
     ]

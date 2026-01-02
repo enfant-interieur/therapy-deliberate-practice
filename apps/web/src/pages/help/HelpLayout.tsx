@@ -49,6 +49,16 @@ const helpPages = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M12 12v4m8-4a8 8 0 1 1-16 0a8 8 0 0 1 16 0Z" />
       </svg>
     )
+  },
+  {
+    slug: "local-suite",
+    title: "Local Suite",
+    description: "Download the local launcher and browse supported models.",
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M4 12h16M4 17h10" />
+      </svg>
+    )
   }
 ];
 

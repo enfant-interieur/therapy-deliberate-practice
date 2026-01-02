@@ -1,6 +1,6 @@
 # Local Runtime Suite
 
-The Local Runtime Suite ships a desktop launcher, a local OpenAI-compatible gateway, and a static model catalog site.
+The Local Runtime Suite ships a desktop launcher and a local OpenAI-compatible gateway.
 
 ## Quickstart
 
@@ -55,5 +55,3 @@ Fix: brew install ffmpeg
 
 - `./tools/dev.sh` launches the gateway with auto-reload.
 - `./tools/dev.ps1` is the PowerShell equivalent on Windows.
-- `python tools/gen_models_json.py` generates `site/public/models.json`.
-

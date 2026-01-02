@@ -32,9 +32,3 @@ jobs:
           cd services/local-runtime-suite
           source .venv/bin/activate
           python -m local_runtime.core.loader --validate
-      - name: Generate models.json
-        run: |
-          cd services/local-runtime-suite
-          source .venv/bin/activate
-          python tools/gen_models_json.py
-          git diff --exit-code

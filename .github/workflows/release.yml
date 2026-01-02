@@ -16,23 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Build site
-        run: |
-          cd services/local-runtime-suite/site
-          npm install
-          npm run build
-      - name: Generate releases manifest
-        run: |
-          cd services/local-runtime-suite
-          python tools/gen_releases_manifest.py
       - name: Build desktop
         run: |
           cd services/local-runtime-suite/desktop
           npm install
           npm run build
-      - name: Upload assets
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            services/local-runtime-suite/site/dist/**
-            services/local-runtime-suite/site/public/releases.json
