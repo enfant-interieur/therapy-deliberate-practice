@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  local-runtime-suite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install gateway deps
+        run: |
+          cd services/local-runtime-suite
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -e python[dev]
+      - name: Lint gateway
+        run: |
+          cd services/local-runtime-suite
+          source .venv/bin/activate
+          ruff check python/local_runtime
+      - name: Validate model specs
+        run: |
+          cd services/local-runtime-suite
+          source .venv/bin/activate
+          python -m local_runtime.core.loader --validate
+      - name: Generate models.json
+        run: |
+          cd services/local-runtime-suite
+          source .venv/bin/activate
+          python tools/gen_models_json.py
+          git diff --exit-code
