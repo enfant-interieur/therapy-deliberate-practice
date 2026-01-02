@@ -97,7 +97,7 @@ export const IconButton = ({
 }) => (
   <button
     aria-label={label}
-    className={`${buttonBase} h-9 w-9 rounded-full px-0 ${buttonVariants[variant]} ${className}`}
+    className={`${buttonBase} h-10 w-10 rounded-full px-0 ${buttonVariants[variant]} ${className}`}
     {...props}
   >
     {icon}

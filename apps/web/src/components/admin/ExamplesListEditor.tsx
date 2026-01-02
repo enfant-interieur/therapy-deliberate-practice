@@ -4,26 +4,26 @@ import { useTranslation } from "react-i18next";
 import { Badge, Button, IconButton, Input, Label, Textarea } from "./AdminUi";
 
 const ArrowUp = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 19V5m0 0l-6 6m6-6l6 6" strokeLinecap="round" />
   </svg>
 );
 
 const ArrowDown = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 5v14m0 0l-6-6m6 6l6-6" strokeLinecap="round" />
   </svg>
 );
 
 const DuplicateIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M8 8h10v10H8z" />
     <path d="M6 16H4V4h12v2" />
   </svg>
 );
 
 const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M4 7h16" strokeLinecap="round" />
     <path d="M9 7V5h6v2" strokeLinecap="round" />
     <path d="M8 7l1 12h6l1-12" strokeLinecap="round" />

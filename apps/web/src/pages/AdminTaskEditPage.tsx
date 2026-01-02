@@ -89,6 +89,7 @@ const AdminTaskEditPageContent = () => {
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"preview" | "json" | "meta">("preview");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   const { data: task, isFetching } = useGetAdminTaskQuery(id ?? "", { skip: !id });
   const [updateTask, updateState] = useUpdateTaskMutation();
@@ -199,6 +200,9 @@ const AdminTaskEditPageContent = () => {
             subtitle={t("admin.edit.pageSubtitle")}
           />
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={() => setInspectorOpen(true)} disabled={!draftTask}>
+              {t("admin.inspector.kicker")}
+            </Button>
             <Button variant="secondary" onClick={() => navigate("/admin/library")}>
               {t("admin.actions.backToLibrary")}
             </Button>
@@ -222,17 +226,28 @@ const AdminTaskEditPageContent = () => {
         )}
 
         {draftTask && (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="space-y-6">
-              <TaskEditorPanel
-                task={draftTask}
-                onChange={setDraftTask}
-                onDuplicate={handleDuplicate}
-                onDelete={() => setConfirmDelete(true)}
-                errors={validationErrors}
-              />
+          <div className="space-y-6">
+            <TaskEditorPanel
+              task={draftTask}
+              onChange={setDraftTask}
+              onDuplicate={handleDuplicate}
+              onDelete={() => setConfirmDelete(true)}
+              errors={validationErrors}
+            />
+          </div>
+        )}
+      </div>
+
+      {inspectorOpen && (
+        <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/70 backdrop-blur">
+          <div className="flex h-full w-full max-w-md flex-col bg-slate-950 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+              <p className="text-sm font-semibold text-white">{t("admin.inspector.kicker")}</p>
+              <Button variant="ghost" onClick={() => setInspectorOpen(false)}>
+                {t("admin.actions.close")}
+              </Button>
             </div>
-            <div className="lg:sticky lg:top-24">
+            <div className="flex-1 overflow-hidden p-4">
               <RightInspectorPanel
                 task={draftTask}
                 activeTab={activeTab}
@@ -248,8 +263,8 @@ const AdminTaskEditPageContent = () => {
               />
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmDelete}
