@@ -12,25 +12,59 @@ import {
   useParseTaskMutation,
   useUpdateTaskMutation
 } from "../../store/api";
-import { Card, SectionHeader, Button, Input, Badge } from "./AdminUi";
-import { TaskListPanel, type TaskFilters } from "./TaskListPanel";
+import { Badge, Button, Card, Input, Label, SectionHeader, Select, Textarea } from "./AdminUi";
+import { TaskListPanel } from "./TaskListPanel";
 import { TaskEditorPanel, type EditableTask } from "./TaskEditorPanel";
-import { RightInspectorPanel } from "./RightInspectorPanel";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ToastProvider, useToast } from "./ToastProvider";
 import { CreateTaskDialog, type CreateTaskPayload } from "./CreateTaskDialog";
-import { ParseTaskDialog } from "./ParseTaskDialog";
 import { ImportTaskDialog } from "./ImportTaskDialog";
 
-const toEditableTask = (task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] }) => ({
+const toEditableTask = (task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] }): EditableTask => ({
   ...task,
   general_objective: task.general_objective ?? "",
   criteria: task.criteria ?? [],
   examples: task.examples ?? []
 });
 
-const serializeTask = (task: EditableTask | null) =>
-  task ? JSON.stringify(task) : "";
+const createDraftFromParsed = (parsed: DeliberatePracticeTaskV2): EditableTask => ({
+  id: `draft-${Date.now()}`,
+  slug: "draft",
+  title: parsed.task.title,
+  description: parsed.task.description,
+  skill_domain: parsed.task.skill_domain,
+  base_difficulty: parsed.task.base_difficulty,
+  general_objective: parsed.task.general_objective ?? "",
+  tags: parsed.task.tags ?? [],
+  is_published: false,
+  parent_task_id: null,
+  created_at: Date.now(),
+  updated_at: Date.now(),
+  criteria: parsed.criteria ?? [],
+  examples: parsed.examples ?? []
+});
+
+const toCreatePayload = (task: EditableTask): CreateTaskPayload => ({
+  title: task.title,
+  skill_domain: task.skill_domain,
+  description: task.description,
+  base_difficulty: task.base_difficulty,
+  general_objective: task.general_objective ?? "",
+  tags: task.tags,
+  is_published: task.is_published,
+  criteria: task.criteria,
+  examples: task.examples
+});
+
+const serializeTask = (task: EditableTask | null) => (task ? JSON.stringify(task) : "");
+
+type TaskFilters = {
+  search: string;
+  published: "all" | "published" | "draft";
+  skillDomain: string;
+  sort: "updated" | "alpha";
+  tag: string;
+};
 
 const defaultFilters: TaskFilters = {
   search: "",
@@ -108,6 +142,462 @@ const filterTasks = (tasks: Task[], filters: TaskFilters) => {
     });
 };
 
+type AdminLibraryHeaderProps = {
+  filters: TaskFilters;
+  onFiltersChange: (filters: TaskFilters) => void;
+  advancedOpen: boolean;
+  onToggleAdvanced: () => void;
+  tasksLoading: boolean;
+  selectedStatus: string;
+  selectedLoading: boolean;
+  onCreate: () => void;
+  onImport: () => void;
+  domainOptions: string[];
+  tagOptions: string[];
+};
+
+const ChevronIcon = ({ open }: { open: boolean }) => (
+  <svg
+    viewBox="0 0 20 20"
+    className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
+    <path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
+const AdminLibraryHeader = ({
+  filters,
+  onFiltersChange,
+  advancedOpen,
+  onToggleAdvanced,
+  tasksLoading,
+  selectedStatus,
+  selectedLoading,
+  onCreate,
+  onImport,
+  domainOptions,
+  tagOptions
+}: AdminLibraryHeaderProps) => {
+  const { t } = useTranslation();
+
+  return (
+    <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/80 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4">
+        <SectionHeader
+          kicker={t("admin.header.kicker")}
+          title={t("admin.header.title")}
+          subtitle={t("admin.header.subtitle")}
+        />
+        <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+            <Input
+              className="w-full sm:w-[320px] lg:w-[440px]"
+              aria-label={t("admin.searchPlaceholder")}
+              placeholder={t("admin.searchPlaceholder")}
+              value={filters.search}
+              onChange={(event) => onFiltersChange({ ...filters, search: event.target.value })}
+            />
+            <Button
+              variant="secondary"
+              type="button"
+              className="justify-between gap-2"
+              onClick={onToggleAdvanced}
+            >
+              <span>Advanced</span>
+              <ChevronIcon open={advancedOpen} />
+            </Button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" onClick={onCreate}>
+              {t("admin.actions.newTask")}
+            </Button>
+            <Button variant="secondary" onClick={onImport}>
+              {t("admin.actions.importJson")}
+            </Button>
+          </div>
+        </div>
+      </div>
+      <div className="mx-auto max-w-7xl space-y-4 px-4 pb-4">
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
+          <Badge className="border-teal-400/40 text-teal-100">
+            {tasksLoading ? t("admin.status.loading") : t("admin.status.ready")}
+          </Badge>
+          <span>{t("admin.status.selected", { id: selectedStatus })}</span>
+          {selectedLoading && <span>{t("admin.status.loadingTask")}</span>}
+        </div>
+        {advancedOpen && (
+          <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
+            <div className="grid gap-3 md:grid-cols-4">
+              <Select
+                value={filters.published}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    published: event.target.value as TaskFilters["published"]
+                  })
+                }
+              >
+                <option value="all">{t("admin.list.filters.publishedAll")}</option>
+                <option value="published">{t("admin.list.filters.published")}</option>
+                <option value="draft">{t("admin.list.filters.draft")}</option>
+              </Select>
+              <Select
+                value={filters.skillDomain}
+                onChange={(event) => onFiltersChange({ ...filters, skillDomain: event.target.value })}
+              >
+                <option value="">{t("admin.list.filters.domainAll")}</option>
+                {domainOptions.map((domain) => (
+                  <option key={domain} value={domain}>
+                    {domain}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={filters.tag}
+                onChange={(event) => onFiltersChange({ ...filters, tag: event.target.value })}
+              >
+                <option value="">{t("admin.list.filters.tagAll")}</option>
+                {tagOptions.map((tag) => (
+                  <option key={tag} value={tag}>
+                    {tag}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={filters.sort}
+                onChange={(event) =>
+                  onFiltersChange({ ...filters, sort: event.target.value as TaskFilters["sort"] })
+                }
+              >
+                <option value="updated">{t("admin.list.filters.sortUpdated")}</option>
+                <option value="alpha">{t("admin.list.filters.sortAlpha")}</option>
+              </Select>
+            </div>
+          </div>
+        )}
+      </div>
+    </header>
+  );
+};
+
+type TaskSummaryCardProps = {
+  task: EditableTask | null;
+  onOpenInspector: () => void;
+};
+
+const TaskSummaryCard = ({ task, onOpenInspector }: TaskSummaryCardProps) => {
+  const { t } = useTranslation();
+
+  if (!task) {
+    return (
+      <Card className="p-6 text-sm text-slate-400">
+        <p className="font-semibold text-white">{t("admin.edit.selectPrompt")}</p>
+        <p className="mt-2">{t("admin.list.empty")}</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="space-y-4 p-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
+          {t("admin.inspector.kicker")}
+        </p>
+        <h3 className="text-lg font-semibold text-white">{task.title}</h3>
+        <p className="text-sm text-slate-400">{task.skill_domain}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Badge>{t("admin.editor.difficulty", { difficulty: task.base_difficulty })}</Badge>
+        <Badge className={task.is_published ? "border-teal-400/40 text-teal-100" : "border-amber-400/40 text-amber-100"}>
+          {task.is_published ? t("admin.editor.published") : t("admin.editor.draft")}
+        </Badge>
+        {task.tags.slice(0, 3).map((tag) => (
+          <Badge key={tag}>{tag}</Badge>
+        ))}
+      </div>
+      <p className="text-sm text-slate-300 line-clamp-3">{task.description}</p>
+      <Button variant="primary" onClick={onOpenInspector}>
+        Open inspector
+      </Button>
+    </Card>
+  );
+};
+
+type ParseFromTextPanelProps = {
+  freeText: string;
+  sourceUrl: string;
+  onFreeTextChange: (value: string) => void;
+  onSourceUrlChange: (value: string) => void;
+  onParse: () => void;
+  isParsing: boolean;
+  error: string | null;
+  result: DeliberatePracticeTaskV2 | null;
+  jsonPreviewOpen: boolean;
+  onTogglePreview: () => void;
+  onApplyToEditor: () => void;
+  onImport: () => void;
+  onReset: () => void;
+};
+
+const ParseFromTextPanel = ({
+  freeText,
+  sourceUrl,
+  onFreeTextChange,
+  onSourceUrlChange,
+  onParse,
+  isParsing,
+  error,
+  result,
+  jsonPreviewOpen,
+  onTogglePreview,
+  onApplyToEditor,
+  onImport,
+  onReset
+}: ParseFromTextPanelProps) => {
+  const { t } = useTranslation();
+  const jsonPreview = useMemo(() => (result ? JSON.stringify(result, null, 2) : ""), [result]);
+
+  return (
+    <Card className="space-y-6 p-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">Parse</p>
+        <h3 className="text-lg font-semibold text-white">{t("admin.parse.title")}</h3>
+        <p className="text-sm text-slate-400">{t("admin.parse.subtitle")}</p>
+      </div>
+      <div className="space-y-3">
+        <Label>{t("admin.createFromText.placeholderText")}</Label>
+        <Textarea
+          className="min-h-[260px]"
+          value={freeText}
+          onChange={(event) => onFreeTextChange(event.target.value)}
+          placeholder={t("admin.createFromText.placeholderText")}
+        />
+        <p className="text-xs text-slate-400">{t("admin.parse.subtitle")}</p>
+      </div>
+      <div className="space-y-2">
+        <Label>{t("admin.createFromText.placeholderUrl")}</Label>
+        <Input
+          value={sourceUrl}
+          onChange={(event) => onSourceUrlChange(event.target.value)}
+          placeholder="https://"
+        />
+      </div>
+      {error && <p className="text-xs text-rose-300">{error}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="primary" onClick={onParse} disabled={isParsing}>
+          {isParsing ? t("admin.createFromText.parsing") : t("admin.createFromText.parse")}
+        </Button>
+        <Button variant="secondary" onClick={onReset}>
+          Reset
+        </Button>
+      </div>
+      {result && (
+        <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-white">Review draft</p>
+              <p className="text-xs text-slate-400">Confirm before importing or editing.</p>
+            </div>
+            <Button variant="secondary" onClick={onTogglePreview}>
+              {jsonPreviewOpen ? "Hide JSON" : "Show JSON"}
+            </Button>
+          </div>
+          {jsonPreviewOpen && (
+            <pre className="mt-4 max-h-56 overflow-auto rounded-xl border border-white/10 bg-slate-950/80 p-3 text-xs text-slate-200">
+              {jsonPreview}
+            </pre>
+          )}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button variant="primary" onClick={onApplyToEditor}>
+              Apply to editor
+            </Button>
+            <Button variant="secondary" onClick={onImport}>
+              {t("admin.task.import")}
+            </Button>
+            <Button variant="ghost" onClick={onReset}>
+              Reset
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+};
+
+type ManualJsonPanelProps = {
+  jsonValue: string;
+  jsonEditable: boolean;
+  jsonError: string | null;
+  open: boolean;
+  onToggle: () => void;
+  onJsonChange: (value: string) => void;
+  onToggleEditable: (editable: boolean) => void;
+  onApplyJson: () => void;
+  onFormatJson: () => void;
+  onValidateJson: () => void;
+  disabled: boolean;
+};
+
+const ManualJsonPanel = ({
+  jsonValue,
+  jsonEditable,
+  jsonError,
+  open,
+  onToggle,
+  onJsonChange,
+  onToggleEditable,
+  onApplyJson,
+  onFormatJson,
+  onValidateJson,
+  disabled
+}: ManualJsonPanelProps) => {
+  const { t } = useTranslation();
+
+  return (
+    <Card className="space-y-4 p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold text-white">{t("admin.inspector.jsonTitle")}</p>
+          <p className="text-xs text-slate-400">{t("admin.inspector.jsonSubtitle")}</p>
+        </div>
+        <Button variant="secondary" onClick={onToggle}>
+          {open ? "Hide" : "Show"}
+        </Button>
+      </div>
+      {open && (
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-xs text-slate-300">
+            <input
+              type="checkbox"
+              checked={jsonEditable}
+              onChange={(event) => onToggleEditable(event.target.checked)}
+              disabled={disabled}
+            />
+            {t("admin.inspector.editable")}
+          </label>
+          <Textarea
+            className="min-h-[220px] font-mono text-xs"
+            value={jsonValue}
+            onChange={(event) => onJsonChange(event.target.value)}
+            readOnly={!jsonEditable || disabled}
+          />
+          {jsonError && <p className="text-xs text-rose-300">{jsonError}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="secondary" onClick={onFormatJson} disabled={disabled}>
+              {t("admin.inspector.format")}
+            </Button>
+            <Button type="button" variant="secondary" onClick={onValidateJson} disabled={disabled}>
+              {t("admin.inspector.validate")}
+            </Button>
+            <Button type="button" variant="primary" onClick={onApplyJson} disabled={disabled}>
+              {t("admin.inspector.apply")}
+            </Button>
+          </div>
+        </div>
+      )}
+      {disabled && <p className="text-xs text-slate-500">{t("admin.edit.selectPrompt")}</p>}
+    </Card>
+  );
+};
+
+type TaskInspectorDrawerProps = {
+  open: boolean;
+  task: EditableTask | null;
+  onClose: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onSave: () => void;
+  isSaving: boolean;
+  hasValidationErrors: boolean;
+  errors: ValidationErrors;
+  onChange: (task: EditableTask) => void;
+};
+
+const TaskInspectorDrawer = ({
+  open,
+  task,
+  onClose,
+  onDuplicate,
+  onDelete,
+  onSave,
+  isSaving,
+  hasValidationErrors,
+  errors,
+  onChange
+}: TaskInspectorDrawerProps) => {
+  const { t } = useTranslation();
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/70 backdrop-blur">
+      <div className="flex h-full w-full max-w-3xl flex-col bg-slate-950 shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
+              {t("admin.inspector.kicker")}
+            </p>
+            <h2 className="text-lg font-semibold text-white">
+              {task ? task.title : t("admin.inspector.empty")}
+            </h2>
+          </div>
+          <Button variant="ghost" onClick={onClose}>
+            {t("admin.actions.close")}
+          </Button>
+        </div>
+        <div className="flex-1 overflow-auto px-6 py-6">
+          {!task && (
+            <Card className="p-6 text-center text-sm text-slate-400">
+              {t("admin.edit.selectPrompt")}
+            </Card>
+          )}
+          {task && (
+            <div className="space-y-6">
+              <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs text-slate-400">
+                <div className="flex flex-wrap gap-3">
+                  <span>{t("admin.inspector.taskId")}: {task.id}</span>
+                  <span>{t("admin.inspector.slug")}: {task.slug}</span>
+                </div>
+              </div>
+              <TaskEditorPanel
+                task={task}
+                onChange={onChange}
+                onDuplicate={onDuplicate}
+                onDelete={onDelete}
+                errors={errors}
+              />
+            </div>
+          )}
+        </div>
+        <div className="border-t border-white/10 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              {hasValidationErrors && (
+                <p className="text-xs text-rose-300">{t("admin.save.validationError")}</p>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={onClose}>
+                {t("admin.actions.close")}
+              </Button>
+              <Button
+                variant="primary"
+                onClick={onSave}
+                disabled={isSaving || hasValidationErrors || !task}
+              >
+                {isSaving ? t("admin.edit.saving") : t("admin.edit.save")}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const AdminTasksPageContent = () => {
   const { t } = useTranslation();
   const { pushToast } = useToast();
@@ -117,16 +607,23 @@ const AdminTasksPageContent = () => {
   const [pendingTaskId, setPendingTaskId] = useState<string | null>(null);
   const [draftTask, setDraftTask] = useState<EditableTask | null>(null);
   const [baseTask, setBaseTask] = useState<EditableTask | null>(null);
-  const [rightTab, setRightTab] = useState<"preview" | "json" | "meta">("preview");
   const [jsonValue, setJsonValue] = useState("");
   const [jsonEditable, setJsonEditable] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
-  const [showParse, setShowParse] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [draftMode, setDraftMode] = useState<"existing" | "new">("existing");
+  const [parseText, setParseText] = useState("");
+  const [parseSourceUrl, setParseSourceUrl] = useState("");
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [parseResult, setParseResult] = useState<DeliberatePracticeTaskV2 | null>(null);
+  const [parsePreviewOpen, setParsePreviewOpen] = useState(false);
+  const [manualJsonOpen, setManualJsonOpen] = useState(false);
 
   const { data: tasks = [], isLoading: tasksLoading } = useGetAdminTasksQuery();
   const { data: selectedTask, isFetching: selectedLoading } = useGetAdminTaskQuery(
@@ -152,6 +649,7 @@ const AdminTasksPageContent = () => {
       setBaseTask(editable);
       setJsonValue(JSON.stringify(editable, null, 2));
       setJsonError(null);
+      setDraftMode("existing");
     }
   }, [selectedTask]);
 
@@ -184,6 +682,16 @@ const AdminTasksPageContent = () => {
     () => filterTasks(tasks, { ...filters, search: debouncedSearch }),
     [tasks, filters, debouncedSearch]
   );
+  const domainOptions = useMemo(() => {
+    const values = new Set<string>();
+    tasks.forEach((task) => values.add(task.skill_domain));
+    return Array.from(values).sort();
+  }, [tasks]);
+  const tagOptions = useMemo(() => {
+    const values = new Set<string>();
+    tasks.forEach((task) => task.tags.forEach((tag) => values.add(tag)));
+    return Array.from(values).sort();
+  }, [tasks]);
 
   const requestSelectTask = (id: string) => {
     if (isDirty) {
@@ -226,6 +734,12 @@ const AdminTasksPageContent = () => {
   const handleSave = async () => {
     if (!draftTask) return false;
     try {
+      if (draftMode === "new") {
+        const created = await createTask(toCreatePayload(draftTask)).unwrap();
+        setSelectedTaskId(created.id);
+        pushToast({ title: t("admin.toast.created"), tone: "success" });
+        return true;
+      }
       await updateTask({ id: draftTask.id, task: draftTask }).unwrap();
       setBaseTask(draftTask);
       pushToast({ title: t("admin.toast.saved"), tone: "success" });
@@ -255,7 +769,7 @@ const AdminTasksPageContent = () => {
   };
 
   const handleDuplicateTask = async () => {
-    if (!draftTask) return;
+    if (!draftTask || draftMode === "new") return;
     try {
       const result = await duplicateTask({ id: draftTask.id }).unwrap();
       setSelectedTaskId(result.id);
@@ -271,12 +785,22 @@ const AdminTasksPageContent = () => {
 
   const handleDeleteTask = async () => {
     if (!draftTask) return;
+    if (draftMode === "new") {
+      setSelectedTaskId(null);
+      setDraftTask(null);
+      setBaseTask(null);
+      setConfirmDelete(false);
+      setInspectorOpen(false);
+      setDraftMode("existing");
+      return;
+    }
     try {
       await deleteTask({ id: draftTask.id }).unwrap();
       setSelectedTaskId(null);
       setDraftTask(null);
       setBaseTask(null);
       setConfirmDelete(false);
+      setInspectorOpen(false);
       pushToast({ title: t("admin.toast.deleted"), tone: "success" });
     } catch (error) {
       pushToast({
@@ -287,17 +811,22 @@ const AdminTasksPageContent = () => {
     }
   };
 
-  const handleParse = async (payload: { free_text?: string; source_url?: string }) => {
+  const handleParse = async () => {
+    setParseError(null);
     try {
-      const result = await parseTask(payload).unwrap();
-      return result;
+      const result = await parseTask({
+        free_text: parseText || undefined,
+        source_url: parseSourceUrl || undefined
+      }).unwrap();
+      setParseResult(result);
+      setParsePreviewOpen(true);
     } catch (error) {
+      setParseError((error as Error).message);
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
         tone: "error"
       });
-      return null;
     }
   };
 
@@ -347,52 +876,50 @@ const AdminTasksPageContent = () => {
     }
   };
 
+  const handleApplyParsedToEditor = () => {
+    if (!parseResult) return;
+    const draft = createDraftFromParsed(parseResult);
+    setDraftTask(draft);
+    setBaseTask(draft);
+    setSelectedTaskId(null);
+    setDraftMode("new");
+    setJsonValue(JSON.stringify(draft, null, 2));
+    setJsonEditable(false);
+    setJsonError(null);
+    setInspectorOpen(true);
+  };
+
+  const handleResetParse = () => {
+    setParseText("");
+    setParseSourceUrl("");
+    setParseError(null);
+    setParseResult(null);
+    setParsePreviewOpen(false);
+  };
+
   const selectedStatus = draftTask ? draftTask.id : t("admin.status.none");
 
   return (
-    <div className="min-h-screen space-y-6">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-slate-950/80 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-4">
-          <SectionHeader
-            kicker={t("admin.header.kicker")}
-            title={t("admin.header.title")}
-            subtitle={t("admin.header.subtitle")}
-          />
-          <div className="flex flex-wrap items-center gap-2">
-            <Input
-              className="w-56"
-              aria-label={t("admin.searchPlaceholder")}
-              placeholder={t("admin.searchPlaceholder")}
-              value={filters.search}
-              onChange={(event) => setFilters({ ...filters, search: event.target.value })}
-            />
-            <Button variant="secondary" onClick={() => setShowCreate(true)}>
-              {t("admin.actions.newTask")}
-            </Button>
-            <Button variant="secondary" onClick={() => setShowImport(true)}>
-              {t("admin.actions.importJson")}
-            </Button>
-            <Button variant="primary" onClick={() => setShowParse(true)}>
-              {t("admin.actions.parseText")}
-            </Button>
-          </div>
-        </div>
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 pb-4 text-xs text-slate-400">
-          <Badge className="border-teal-400/40 text-teal-100">
-            {tasksLoading ? t("admin.status.loading") : t("admin.status.ready")}
-          </Badge>
-          <span>{t("admin.status.selected", { id: selectedStatus })}</span>
-          {selectedLoading && <span>{t("admin.status.loadingTask")}</span>}
-        </div>
-      </header>
+    <div className="min-h-screen space-y-6 pb-20">
+      <AdminLibraryHeader
+        filters={filters}
+        onFiltersChange={setFilters}
+        advancedOpen={advancedOpen}
+        onToggleAdvanced={() => setAdvancedOpen((prev) => !prev)}
+        tasksLoading={tasksLoading}
+        selectedStatus={selectedStatus}
+        selectedLoading={selectedLoading}
+        onCreate={() => setShowCreate(true)}
+        onImport={() => setShowImport(true)}
+        domainOptions={domainOptions}
+        tagOptions={tagOptions}
+      />
 
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 pb-20 md:grid-cols-[minmax(0,1fr)_320px] lg:grid-cols-[280px_minmax(0,1fr)_360px]">
+      <div className="mx-auto grid max-w-7xl gap-6 px-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <div className="hidden lg:block">
           <TaskListPanel
             tasks={filteredTasks}
             selectedTaskId={selectedTaskId}
-            filters={filters}
-            onFiltersChange={setFilters}
             onSelectTask={requestSelectTask}
             isLoading={tasksLoading}
           />
@@ -407,35 +934,68 @@ const AdminTasksPageContent = () => {
               <Badge className="border-teal-400/40 text-teal-100">{draftTask.title}</Badge>
             )}
           </div>
-          {draftTask ? (
-            <TaskEditorPanel
-              task={draftTask}
-              onChange={setDraftTask}
-              onDuplicate={handleDuplicateTask}
-              onDelete={() => setConfirmDelete(true)}
-              errors={validationErrors}
-            />
-          ) : (
-            <Card className="p-10 text-center text-sm text-slate-400">
-              {t("admin.edit.selectPrompt")}
-            </Card>
-          )}
-        </div>
 
-        <div className="hidden md:block">
-          <RightInspectorPanel
-            task={draftTask}
-            activeTab={rightTab}
-            onTabChange={setRightTab}
-            jsonValue={jsonValue}
-            jsonEditable={jsonEditable}
-            jsonError={jsonError}
-            onJsonChange={setJsonValue}
-            onToggleEditable={setJsonEditable}
-            onApplyJson={handleApplyJson}
-            onFormatJson={handleFormatJson}
-            onValidateJson={handleValidateJson}
-          />
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="space-y-6">
+              <ParseFromTextPanel
+                freeText={parseText}
+                sourceUrl={parseSourceUrl}
+                onFreeTextChange={setParseText}
+                onSourceUrlChange={setParseSourceUrl}
+                onParse={handleParse}
+                isParsing={parseState.isLoading}
+                error={parseError}
+                result={parseResult}
+                jsonPreviewOpen={parsePreviewOpen}
+                onTogglePreview={() => setParsePreviewOpen((prev) => !prev)}
+                onApplyToEditor={handleApplyParsedToEditor}
+                onImport={() => parseResult && handleImport(parseResult)}
+                onReset={handleResetParse}
+              />
+              <ManualJsonPanel
+                jsonValue={jsonValue}
+                jsonEditable={jsonEditable}
+                jsonError={jsonError}
+                open={manualJsonOpen}
+                onToggle={() => setManualJsonOpen((prev) => !prev)}
+                onJsonChange={setJsonValue}
+                onToggleEditable={setJsonEditable}
+                onApplyJson={handleApplyJson}
+                onFormatJson={handleFormatJson}
+                onValidateJson={handleValidateJson}
+                disabled={!draftTask}
+              />
+            </div>
+
+            <div className="space-y-6">
+              <TaskSummaryCard
+                task={draftTask}
+                onOpenInspector={() => setInspectorOpen(true)}
+              />
+              <Card className="space-y-4 p-6">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
+                    {t("admin.list.kicker")}
+                  </p>
+                  <h3 className="text-lg font-semibold text-white">{t("admin.list.title")}</h3>
+                </div>
+                <div className="space-y-2 text-sm text-slate-300">
+                  <p>{t("admin.list.count", { count: filteredTasks.length })}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {filteredTasks.slice(0, 3).map((task) => (
+                      <Badge key={task.id}>{task.title}</Badge>
+                    ))}
+                    {filteredTasks.length > 3 && (
+                      <Badge>+{filteredTasks.length - 3}</Badge>
+                    )}
+                  </div>
+                </div>
+                <Button variant="secondary" onClick={() => setListOpen(true)}>
+                  {t("admin.list.open")}
+                </Button>
+              </Card>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -470,8 +1030,6 @@ const AdminTasksPageContent = () => {
             <TaskListPanel
               tasks={filteredTasks}
               selectedTaskId={selectedTaskId}
-              filters={filters}
-              onFiltersChange={setFilters}
               onSelectTask={requestSelectTask}
               onClose={() => setListOpen(false)}
               isLoading={tasksLoading}
@@ -480,21 +1038,25 @@ const AdminTasksPageContent = () => {
         </div>
       )}
 
+      <TaskInspectorDrawer
+        open={inspectorOpen}
+        task={draftTask}
+        onClose={() => setInspectorOpen(false)}
+        onDuplicate={handleDuplicateTask}
+        onDelete={() => setConfirmDelete(true)}
+        onSave={handleSave}
+        isSaving={updateState.isLoading}
+        hasValidationErrors={hasValidationErrors}
+        errors={validationErrors}
+        onChange={setDraftTask}
+      />
+
       <CreateTaskDialog
         open={showCreate}
-        canDuplicate={Boolean(draftTask)}
+        canDuplicate={Boolean(draftTask) && draftMode === "existing"}
         onClose={() => setShowCreate(false)}
         onCreate={handleCreate}
         onDuplicate={handleDuplicateTask}
-      />
-
-      <ParseTaskDialog
-        open={showParse}
-        onClose={() => setShowParse(false)}
-        onParse={handleParse}
-        onImport={handleImport}
-        isParsing={parseState.isLoading}
-        isImporting={importState.isLoading}
       />
 
       <ImportTaskDialog

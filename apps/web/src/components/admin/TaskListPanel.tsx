@@ -1,21 +1,10 @@
-import { useMemo } from "react";
 import type { Task } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
-import { Badge, Button, Card, Input, Select } from "./AdminUi";
-
-export type TaskFilters = {
-  search: string;
-  published: "all" | "published" | "draft";
-  skillDomain: string;
-  sort: "updated" | "alpha";
-  tag: string;
-};
+import { Badge, Button, Card } from "./AdminUi";
 
 type TaskListPanelProps = {
   tasks: Task[];
   selectedTaskId: string | null;
-  filters: TaskFilters;
-  onFiltersChange: (filters: TaskFilters) => void;
   onSelectTask: (id: string) => void;
   onClose?: () => void;
   isLoading?: boolean;
@@ -24,8 +13,6 @@ type TaskListPanelProps = {
 export const TaskListPanel = ({
   tasks,
   selectedTaskId,
-  filters,
-  onFiltersChange,
   onSelectTask,
   onClose,
   isLoading
@@ -35,21 +22,6 @@ export const TaskListPanel = ({
     if (difficulty <= 2) return t("admin.list.difficulty.easy");
     if (difficulty <= 4) return t("admin.list.difficulty.medium");
     return t("admin.list.difficulty.hard");
-  };
-  const domains = useMemo(() => {
-    const values = new Set<string>();
-    tasks.forEach((task) => values.add(task.skill_domain));
-    return Array.from(values);
-  }, [tasks]);
-
-  const tagOptions = useMemo(() => {
-    const values = new Set<string>();
-    tasks.forEach((task) => task.tags.forEach((tag) => values.add(tag)));
-    return Array.from(values);
-  }, [tasks]);
-
-  const updateFilters = (patch: Partial<TaskFilters>) => {
-    onFiltersChange({ ...filters, ...patch });
   };
 
   return (
@@ -66,42 +38,6 @@ export const TaskListPanel = ({
             {t("admin.list.close")}
           </Button>
         )}
-      </div>
-      <Input
-        value={filters.search}
-        aria-label={t("admin.searchPlaceholder")}
-        placeholder={t("admin.searchPlaceholder")}
-        onChange={(event) => updateFilters({ search: event.target.value })}
-      />
-      <div className="grid gap-3">
-        <Select value={filters.published} onChange={(event) => updateFilters({ published: event.target.value as TaskFilters["published"] })}>
-          <option value="all">{t("admin.list.filters.publishedAll")}</option>
-          <option value="published">{t("admin.list.filters.published")}</option>
-          <option value="draft">{t("admin.list.filters.draft")}</option>
-        </Select>
-        <Select
-          value={filters.skillDomain}
-          onChange={(event) => updateFilters({ skillDomain: event.target.value })}
-        >
-          <option value="">{t("admin.list.filters.domainAll")}</option>
-          {domains.map((domain) => (
-            <option key={domain} value={domain}>
-              {domain}
-            </option>
-          ))}
-        </Select>
-        <Select value={filters.tag} onChange={(event) => updateFilters({ tag: event.target.value })}>
-          <option value="">{t("admin.list.filters.tagAll")}</option>
-          {tagOptions.map((tag) => (
-            <option key={tag} value={tag}>
-              {tag}
-            </option>
-          ))}
-        </Select>
-        <Select value={filters.sort} onChange={(event) => updateFilters({ sort: event.target.value as TaskFilters["sort"] })}>
-          <option value="updated">{t("admin.list.filters.sortUpdated")}</option>
-          <option value="alpha">{t("admin.list.filters.sortAlpha")}</option>
-        </Select>
       </div>
       <div className="flex items-center justify-between text-xs text-slate-400">
         <span>
