@@ -390,7 +390,8 @@
       "back": "Back",
       "next": "Next",
       "choosePath": "Choose a path",
-      "changePath": "Change path"
+      "changePath": "Change path",
+      "openSettings": "Open settings"
     },
     "side": {
       "title": "Quick checklist",

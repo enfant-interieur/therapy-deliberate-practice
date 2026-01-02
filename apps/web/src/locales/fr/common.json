@@ -390,7 +390,8 @@
       "back": "Retour",
       "next": "Suivant",
       "choosePath": "Choisir une option",
-      "changePath": "Changer d'option"
+      "changePath": "Changer d'option",
+      "openSettings": "Ouvrir les paramètres"
     },
     "side": {
       "title": "Checklist rapide",

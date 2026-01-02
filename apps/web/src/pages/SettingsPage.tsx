@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 import {
   useDeleteOpenAiKeyMutation,
   useGetMeSettingsQuery,
@@ -14,6 +15,7 @@ export const SettingsPage = () => {
   const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { data, isLoading, isError } = useGetMeSettingsQuery();
+  const location = useLocation();
   const settings = useAppSelector((state) => state.settings);
   const [saveSettings, { isLoading: isSavingSettings }] = useUpdateMeSettingsMutation();
   const [updateKey, { isLoading: isSavingKey }] = useUpdateOpenAiKeyMutation();
@@ -29,6 +31,7 @@ export const SettingsPage = () => {
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [keyStatus, setKeyStatus] = useState<string | null>(null);
   const [validationStatus, setValidationStatus] = useState<string | null>(null);
+  const openAiKeyRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (data) {
@@ -42,6 +45,17 @@ export const SettingsPage = () => {
     setLocalLlmUrl(settings.localEndpoints.llm);
     setStoreAudio(settings.privacy.storeAudio);
   }, [settings.aiMode, settings.localEndpoints.llm, settings.localEndpoints.stt, settings.privacy.storeAudio]);
+
+  useEffect(() => {
+    if (location.hash !== "#openai-key") return;
+    const input = openAiKeyRef.current;
+    if (!input) return;
+    const focusTimer = window.setTimeout(() => {
+      input.focus();
+      input.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 0);
+    return () => window.clearTimeout(focusTimer);
+  }, [location.hash]);
 
   const handleSaveSettings = async () => {
     setSaveStatus(null);
@@ -210,11 +224,13 @@ export const SettingsPage = () => {
           </span>
         </div>
 
-        <div className="mt-6 space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center">
-            <input
-              className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-              type={showKey ? "text" : "password"}
+          <div className="mt-6 space-y-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <input
+                id="openai-key"
+                ref={openAiKeyRef}
+                className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
+                type={showKey ? "text" : "password"}
               placeholder={t("settings.openAi.placeholder")}
               value={openAiKey}
               onChange={(event) => setOpenAiKey(event.target.value)}
