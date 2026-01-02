@@ -11,11 +11,14 @@
     "dev:web": "npm run dev -w apps/web",
     "dev:worker": "npm run dev -w apps/worker -- --port 8787",
     "dev:api": "npm run dev -w apps/api",
+    "dev:local": "npm run dev:gateway -w services/local-runtime-suite",
     "dev:old": "npm run build -w apps/web && npm run dev:worker",
     "dev:worker:old": "npm run dev -w apps/worker",
     "build": "npm run build -w apps/web && npm run build -w apps/api && npm run build -w apps/worker",
+    "build:local": "npm run build:desktop -w services/local-runtime-suite && npm run build:site -w services/local-runtime-suite",
     "deploy:prod": "npm run build -w apps/web && npm run deploy:ci -w apps/worker",
     "lint": "npm run lint -w apps/web",
+    "lint:local": "npm run lint:gateway -w services/local-runtime-suite",
     "format": "prettier --write ."
   },
   "devDependencies": {

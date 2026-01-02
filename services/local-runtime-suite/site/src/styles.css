@@ -1,0 +1,117 @@
+:root {
+  font-family: "Inter", system-ui, sans-serif;
+  color: #0b0b0f;
+  background: #f7f7fb;
+}
+
+body {
+  margin: 0;
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 32px;
+  padding: 32px;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.06);
+}
+
+.hero h1 {
+  margin: 0 0 8px;
+  font-size: 36px;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.button {
+  background: #1d4ed8;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.pill {
+  background: #e0e7ff;
+  color: #3730a3;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.catalog {
+  margin-top: 40px;
+}
+
+.catalog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.catalog-header input {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid #dcdde4;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 20px;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.06);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card h3 {
+  margin: 0 0 6px;
+}
+
+.meta {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.tags {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tags span {
+  background: #f1f5f9;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+}

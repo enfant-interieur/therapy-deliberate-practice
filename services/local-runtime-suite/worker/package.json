@@ -1,0 +1,8 @@
+{
+  "name": "local-runtime-site-worker",
+  "private": true,
+  "version": "0.1.0",
+  "devDependencies": {
+    "wrangler": "^3.59.0"
+  }
+}
