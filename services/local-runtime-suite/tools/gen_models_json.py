@@ -21,7 +21,7 @@ def main() -> None:
         output.append(model.spec.model_dump())
     WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
     path = WEB_PUBLIC / "models.json"
-    path.write_text(json.dumps({"models": output}, indent=2))
+    path.write_text(f"{json.dumps({'models': output}, indent=2)}\n")
     print(f"Wrote {path}")
 
 
