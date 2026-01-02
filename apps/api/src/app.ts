@@ -920,7 +920,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const schema = z.object({
       free_text: z.string().optional().default(""),
       source_url: z.string().nullable().optional(),
-      parse_mode: z.enum(["original", "exact"]).default("exact")
+      parse_mode: z.enum(["original", "exact", "partial_prompt"]).default("exact")
     });
     const data = schema.parse(body);
     log.info("Parse task request received", {

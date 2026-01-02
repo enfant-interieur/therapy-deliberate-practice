@@ -38,6 +38,10 @@ export const ParseTaskDialog = ({
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DeliberatePracticeTaskV2 | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const isPartialPrompt = parseMode === "partial_prompt";
+  const freeTextLabel = isPartialPrompt
+    ? "Instruction prompt"
+    : t("admin.createFromText.placeholderText");
 
   const handleClose = () => {
     setFreeText("");
@@ -119,12 +123,17 @@ export const ParseTaskDialog = ({
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <Label>{t("admin.createFromText.placeholderText")}</Label>
+            <Label>{freeTextLabel}</Label>
             <Textarea
               className="min-h-[140px]"
               value={freeText}
               onChange={(event) => setFreeText(event.target.value)}
             />
+            {isPartialPrompt && (
+              <p className="text-xs text-slate-400">
+                Provide instructions for the task you want generated (not source material to parse).
+              </p>
+            )}
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>{t("admin.createFromText.placeholderUrl")}</Label>
@@ -135,6 +144,7 @@ export const ParseTaskDialog = ({
             <Select value={parseMode} onChange={(event) => setParseMode(event.target.value as ParseMode)}>
               <option value="original">Original Generation</option>
               <option value="exact">Exact parsing</option>
+              <option value="partial_prompt">From partial prompt</option>
             </Select>
           </div>
         </div>

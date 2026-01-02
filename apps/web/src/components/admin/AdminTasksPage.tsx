@@ -371,6 +371,10 @@ const ParseFromTextPanel = ({
 }: ParseFromTextPanelProps) => {
   const { t } = useTranslation();
   const jsonPreview = useMemo(() => (result ? JSON.stringify(result, null, 2) : ""), [result]);
+  const isPartialPrompt = parseMode === "partial_prompt";
+  const freeTextLabel = isPartialPrompt
+    ? "Instruction prompt"
+    : t("admin.createFromText.placeholderText");
 
   return (
     <Card className="space-y-6 p-6">
@@ -380,13 +384,18 @@ const ParseFromTextPanel = ({
         <p className="text-sm text-slate-400">{t("admin.parse.subtitle")}</p>
       </div>
       <div className="space-y-3">
-        <Label>{t("admin.createFromText.placeholderText")}</Label>
+        <Label>{freeTextLabel}</Label>
         <Textarea
           className="min-h-[260px]"
           value={freeText}
           onChange={(event) => onFreeTextChange(event.target.value)}
           placeholder={t("admin.createFromText.placeholderText")}
         />
+        {isPartialPrompt && (
+          <p className="text-xs text-slate-400">
+            Provide instructions for the task you want generated (not source material to parse).
+          </p>
+        )}
         <p className="text-xs text-slate-400">{t("admin.parse.subtitle")}</p>
       </div>
       <div className="space-y-2">
@@ -402,6 +411,7 @@ const ParseFromTextPanel = ({
         <Select value={parseMode} onChange={(event) => onParseModeChange(event.target.value as ParseMode)}>
           <option value="original">Original Generation</option>
           <option value="exact">Exact parsing</option>
+          <option value="partial_prompt">From partial prompt</option>
         </Select>
       </div>
       {error && <p className="text-xs text-rose-300">{error}</p>}

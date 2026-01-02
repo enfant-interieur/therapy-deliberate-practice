@@ -164,7 +164,92 @@ RUBRIC REQUIREMENTS (for each criterion):
 LANGUAGE:
 - Keep the generated content in the same language as the source when possible.
 - Also set the task language field accordingly (see schema).`;
-    const systemPrompt = input.parseMode === "original" ? originalPrompt : exactPrompt;
+    const partialPromptPrompt = `You are a task generation engine for a psychotherapy deliberate-practice platform.
+The user input is an instruction prompt for creating a NEW deliberate-practice task (not source material to extract or paraphrase).
+
+Output constraints:
+- Return STRICT JSON ONLY that matches the required schema. No markdown. No commentary. No trailing commas. No extra keys.
+- Use null for unknown fields, and [] for empty arrays.
+- Keep content clinically plausible and conservative when details are missing.
+- Include a task, criteria with rubrics, and patient examples.
+- Include top-level "version": "2.1".
+- Create stable ids:
+  - criterion ids: "c1", "c2", ...
+  - example ids: "ex1", "ex2", ...
+
+Criteria requirements:
+- Each criterion must include a rubric.
+- score_min must be 0, score_max must be 4.
+- Provide anchors for scores 0, 2, 4 at minimum (1 and 3 optional).
+- Anchors must describe observable therapist behavior.
+- If the prompt does not specify a number of criteria, produce 4–6 criteria.
+
+Examples requirements:
+- Generate patient examples as short statements.
+- If the user requests N examples (e.g., "generate 10 valid examples"), output exactly N examples.
+- Otherwise, default to 5 examples.
+- Difficulties must be integers 1..5.
+- For N > 5, distribute difficulties roughly evenly across 1..5 (cycle 1..5 as needed).
+
+Language:
+- Generate content in the language implied by the prompt and set task.language accordingly.
+
+The following is an example of valid output structure. Do not copy its content unless requested. Do not output the example.
+{
+  "version": "2.1",
+  "task": {
+    "title": "Limited Reparenting",
+    "description": "Practice offering warmth, validation, and appropriate nurturance while maintaining clear therapeutic boundaries and fostering autonomy.",
+    "skill_domain": "Schema Therapy",
+    "base_difficulty": 3,
+    "general_objective": "Offer emotionally attuned support, name the unmet need, provide a bounded dose of reassurance, and guide the client back to their Healthy Adult resources.",
+    "tags": ["schema-therapy", "limited-reparenting", "boundaries", "attachment"],
+    "language": "en"
+  },
+  "criteria": [
+    {
+      "id": "c1",
+      "label": "Validate emotion and need",
+      "description": "Accurately name the emotion and the underlying unmet need without minimizing or rushing to fix.",
+      "rubric": {
+        "score_min": 0,
+        "score_max": 4,
+        "anchors": [
+          { "score": 0, "meaning": "Misses or dismisses the emotion/need." },
+          { "score": 2, "meaning": "Names emotion or need partially, limited attunement." },
+          { "score": 4, "meaning": "Clearly names emotion and unmet need with warmth and precision." }
+        ]
+      }
+    },
+    {
+      "id": "c2",
+      "label": "Provide bounded nurturance",
+      "description": "Offer warmth/reassurance in a measured way that supports safety without fostering dependency.",
+      "rubric": {
+        "score_min": 0,
+        "score_max": 4,
+        "anchors": [
+          { "score": 0, "meaning": "No warmth or reassurance; overly detached or overly rescuing." },
+          { "score": 2, "meaning": "Some reassurance but unclear bounds." },
+          { "score": 4, "meaning": "Warm, supportive reassurance with appropriate limits." }
+        ]
+      }
+    }
+  ],
+  "examples": [
+    { "id": "ex1", "difficulty": 1, "severity_label": "mild", "patient_text": "I keep second-guessing myself after our sessions. Part of me wishes you could just tell me I did it “right.”" },
+    { "id": "ex2", "difficulty": 2, "severity_label": "moderate", "patient_text": "When I don’t hear back quickly, I start spiraling. I know you’re busy, but it feels like I don’t matter." },
+    { "id": "ex3", "difficulty": 3, "severity_label": "moderate-high", "patient_text": "I’m embarrassed to say this, but I really need you to reassure me right now. If you can’t, I don’t know what I’ll do with these feelings." },
+    { "id": "ex4", "difficulty": 4, "severity_label": "high", "patient_text": "I hate needing anyone. But I’m so alone this week that I caught myself thinking you’re the only safe person. Can we talk more often?" },
+    { "id": "ex5", "difficulty": 5, "severity_label": "very high", "patient_text": "If you set limits with me, it feels like rejection. I get angry and then ashamed. I want you to promise you won’t leave, but I also hate myself for asking." }
+  ]
+}`;
+    const systemPrompt =
+      input.parseMode === "original"
+        ? originalPrompt
+        : input.parseMode === "partial_prompt"
+          ? partialPromptPrompt
+          : exactPrompt;
     try {
       const result = await createStructuredResponse<LlmParseResult>({
         apiKey,

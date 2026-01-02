@@ -25,6 +25,10 @@ const AdminParseTaskPageContent = () => {
   const [result, setResult] = useState<DeliberatePracticeTaskV2 | null>(null);
   const [reviewed, setReviewed] = useState(false);
   const [jsonVisible, setJsonVisible] = useState(false);
+  const isPartialPrompt = parseMode === "partial_prompt";
+  const freeTextLabel = isPartialPrompt
+    ? "Instruction prompt"
+    : t("admin.parse.inputs.freeText");
 
   const [parseTask, parseState] = useParseTaskMutation();
   const [importTask, importState] = useImportTaskMutation();
@@ -94,13 +98,18 @@ const AdminParseTaskPageContent = () => {
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)]">
           <Card className="space-y-6 p-6">
             <div className="space-y-2">
-              <Label>{t("admin.parse.inputs.freeText")}</Label>
+              <Label>{freeTextLabel}</Label>
               <Textarea
                 className="min-h-[240px]"
                 value={freeText}
                 onChange={(event) => setFreeText(event.target.value)}
                 placeholder={t("admin.createFromText.placeholderText")}
               />
+              {isPartialPrompt && (
+                <p className="text-xs text-slate-400">
+                  Provide instructions for the task you want generated (not source material to parse).
+                </p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>{t("admin.parse.inputs.sourceUrl")}</Label>
@@ -118,6 +127,7 @@ const AdminParseTaskPageContent = () => {
               >
                 <option value="original">{t("admin.parse.mode.original")}</option>
                 <option value="exact">{t("admin.parse.mode.exact")}</option>
+                <option value="partial_prompt">From partial prompt</option>
               </Select>
             </div>
             {error && <p className="text-xs text-rose-300">{error}</p>}

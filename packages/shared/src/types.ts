@@ -7,7 +7,7 @@ export type CriterionRubric = {
   }>;
 };
 
-export type ParseMode = "original" | "exact";
+export type ParseMode = "original" | "exact" | "partial_prompt";
 
 export type TaskCriterion = {
   id: string;
