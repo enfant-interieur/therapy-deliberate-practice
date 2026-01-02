@@ -97,7 +97,7 @@ export const llmParseSchema = z.object({
       severity_label: z.string().nullable(),
       patient_text: z.string(),
       language: z.string().optional(),
-      meta: z.record(z.unknown()).nullable().optional()
+      meta: z.object({}).nullable().optional()
     })
   )
 });
