@@ -32,6 +32,7 @@ export const taskExampleSchema = z.object({
   difficulty: z.number().min(1).max(5),
   severity_label: z.string().nullable().optional(),
   patient_text: z.string(),
+  language: z.string().optional(),
   meta: z.record(z.unknown()).nullable().optional(),
   created_at: z.number().optional(),
   updated_at: z.number().optional()
@@ -46,6 +47,7 @@ export const taskSchema = z.object({
   base_difficulty: z.number().min(1).max(5),
   general_objective: z.string().nullable().optional(),
   tags: z.array(z.string()),
+  language: z.string().default("en"),
   is_published: z.boolean(),
   parent_task_id: z.string().nullable().optional(),
   created_at: z.number(),
@@ -62,7 +64,8 @@ export const deliberatePracticeTaskV2Schema = z.object({
     skill_domain: z.string(),
     base_difficulty: z.number().min(1).max(5),
     general_objective: z.string().nullable().optional(),
-    tags: z.array(z.string())
+    tags: z.array(z.string()),
+    language: z.string().default("en")
   }),
   criteria: z.array(taskCriterionSchema),
   examples: z.array(taskExampleSchema)
@@ -76,7 +79,8 @@ export const llmParseSchema = z.object({
     base_difficulty: z.number().min(1).max(5),
     description: z.string(),
     general_objective: z.string().nullable(),
-    tags: z.array(z.string())
+    tags: z.array(z.string()),
+    language: z.string().default("en")
   }),
   criteria: z.array(
     z.object({
@@ -92,6 +96,7 @@ export const llmParseSchema = z.object({
       difficulty: z.number().min(1).max(5),
       severity_label: z.string().nullable(),
       patient_text: z.string(),
+      language: z.string().optional(),
       meta: z.record(z.unknown()).nullable().optional()
     })
   )

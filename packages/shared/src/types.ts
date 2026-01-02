@@ -7,6 +7,8 @@ export type CriterionRubric = {
   }>;
 };
 
+export type ParseMode = "original" | "exact";
+
 export type TaskCriterion = {
   id: string;
   label: string;
@@ -20,6 +22,7 @@ export type TaskExample = {
   difficulty: number;
   severity_label?: string | null;
   patient_text: string;
+  language?: string;
   meta?: Record<string, unknown> | null;
   created_at?: number;
   updated_at?: number;
@@ -34,6 +37,7 @@ export type Task = {
   base_difficulty: number;
   general_objective?: string | null;
   tags: string[];
+  language: string;
   is_published: boolean;
   parent_task_id?: string | null;
   created_at: number;
@@ -51,6 +55,7 @@ export type DeliberatePracticeTaskV2 = {
     base_difficulty: number;
     general_objective?: string | null;
     tags: string[];
+    language: string;
   };
   criteria: TaskCriterion[];
   examples: TaskExample[];

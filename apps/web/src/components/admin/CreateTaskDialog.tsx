@@ -9,6 +9,7 @@ export type CreateTaskPayload = {
   base_difficulty: number;
   general_objective?: string | null;
   tags: string[];
+  language: string;
   is_published: boolean;
   criteria?: Array<{ id: string; label: string; description: string }>;
   examples?: Array<{
@@ -34,6 +35,7 @@ const emptyPayload = (): CreateTaskPayload => ({
   base_difficulty: 3,
   general_objective: "",
   tags: [],
+  language: "en",
   is_published: false
 });
 
@@ -215,6 +217,16 @@ export const CreateTaskDialog = ({
                   })
                 }
               />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("appShell.language.label")}</Label>
+              <Select
+                value={payload.language}
+                onChange={(event) => setPayload({ ...payload, language: event.target.value })}
+              >
+                <option value="en">{t("appShell.language.english")}</option>
+                <option value="fr">{t("appShell.language.french")}</option>
+              </Select>
             </div>
           </div>
           <div className="space-y-2">

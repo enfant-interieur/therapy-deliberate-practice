@@ -2,7 +2,7 @@ PRAGMA foreign_keys=ON;
 
 -- ---------- Tasks ----------
 INSERT INTO tasks (
-  id, slug, title, description, skill_domain, base_difficulty, general_objective, tags, is_published, parent_task_id, created_at, updated_at
+  id, slug, title, description, skill_domain, base_difficulty, general_objective, tags, language, is_published, parent_task_id, created_at, updated_at
 ) VALUES
 (
   'task_limited_reparenting',
@@ -13,6 +13,7 @@ INSERT INTO tasks (
   3,
   'Offer emotionally attuned support, name the unmet need, provide a bounded dose of reassurance, and guide the client back to their Healthy Adult resources.',
   '["schema-therapy","limited-reparenting","boundaries","attachment"]',
+  'en',
   1,
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
@@ -27,6 +28,7 @@ INSERT INTO tasks (
   3,
   'Help the client notice critic-mode language, separate from it, understand its function and costs, and respond with a compassionate, reality-based alternative.',
   '["schema-therapy","inner-critic","compassion","modes"]',
+  'en',
   1,
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
@@ -88,10 +90,11 @@ INSERT INTO task_criteria (task_id, id, label, description, rubric, sort_order) 
 );
 
 -- ---------- Examples: Limited Reparenting (difficulty 1–5) ----------
-INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text, meta, created_at, updated_at) VALUES
+INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text, language, meta, created_at, updated_at) VALUES
 (
   'ex_lr_1','task_limited_reparenting',1,'mild',
   'I keep second-guessing myself after our sessions. Part of me wishes you could just tell me I did it “right.”',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -99,6 +102,7 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_lr_2','task_limited_reparenting',2,'moderate',
   'When I don’t hear back quickly, I start spiraling. I know you’re busy, but it feels like I don’t matter.',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -106,6 +110,7 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_lr_3','task_limited_reparenting',3,'moderate-high',
   'I’m embarrassed to say this, but I really need you to reassure me right now. If you can’t, I don’t know what I’ll do with these feelings.',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -113,6 +118,7 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_lr_4','task_limited_reparenting',4,'high',
   'I hate needing anyone. But I’m so alone this week that I caught myself thinking you’re the only safe person. Can we talk more often?',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -120,16 +126,18 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_lr_5','task_limited_reparenting',5,'very high',
   'If you set limits with me, it feels like rejection. I get angry and then ashamed. I want you to promise you won’t leave, but I also hate myself for asking.',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
 );
 
 -- ---------- Examples: Disarming the Critic (difficulty 1–5) ----------
-INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text, meta, created_at, updated_at) VALUES
+INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text, language, meta, created_at, updated_at) VALUES
 (
   'ex_dc_1','task_disarming_critic',1,'mild',
   'I made a small mistake in an email and I can’t stop thinking, “Seriously? How hard is it to be competent?”',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -137,6 +145,7 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_dc_2','task_disarming_critic',2,'moderate',
   'When someone gives me feedback, my brain instantly goes, “Of course they see you’re not good enough.”',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -144,6 +153,7 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_dc_3','task_disarming_critic',3,'moderate-high',
   'It’s like there’s a voice that keeps listing everything wrong with me. It says I’m lazy, selfish, and a disappointment.',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -151,6 +161,7 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_dc_4','task_disarming_critic',4,'high',
   'Even when I succeed, the voice says it was luck and I’ll get exposed. I end up working until I’m exhausted to prove it wrong.',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000
@@ -158,6 +169,7 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_dc_5','task_disarming_critic',5,'very high',
   'When I’m stressed, the critic gets vicious: “You ruin everything. Nobody would choose you if they really knew you.” I feel small and frozen when it shows up.',
+  'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,
   CAST(strftime('%s','now') AS INTEGER) * 1000

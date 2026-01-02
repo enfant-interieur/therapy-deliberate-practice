@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { DeliberatePracticeTaskV2 } from "@deliberate/shared";
+import type { DeliberatePracticeTaskV2, ParseMode } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
-import { Button, Label, Textarea, Input } from "./AdminUi";
+import { Button, Label, Textarea, Input, Select } from "./AdminUi";
 
 const SummaryRow = ({ label, value }: { label: string; value: string }) => (
   <div>
@@ -15,7 +15,11 @@ type ParseTaskDialogProps = {
   isParsing: boolean;
   isImporting: boolean;
   onClose: () => void;
-  onParse: (payload: { free_text?: string; source_url?: string }) => Promise<DeliberatePracticeTaskV2 | null>;
+  onParse: (payload: {
+    free_text?: string;
+    source_url?: string;
+    parse_mode?: ParseMode;
+  }) => Promise<DeliberatePracticeTaskV2 | null>;
   onImport: (payload: DeliberatePracticeTaskV2) => Promise<void>;
 };
 
@@ -30,6 +34,7 @@ export const ParseTaskDialog = ({
   const { t } = useTranslation();
   const [freeText, setFreeText] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [parseMode, setParseMode] = useState<ParseMode>("original");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DeliberatePracticeTaskV2 | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -71,6 +76,7 @@ export const ParseTaskDialog = ({
   const handleClose = () => {
     setFreeText("");
     setSourceUrl("");
+    setParseMode("original");
     setResult(null);
     setError(null);
     onClose();
@@ -80,7 +86,8 @@ export const ParseTaskDialog = ({
     setError(null);
     const parsed = await onParse({
       free_text: freeText || undefined,
-      source_url: sourceUrl || undefined
+      source_url: sourceUrl || undefined,
+      parse_mode: parseMode
     });
     if (!parsed) {
       setError(t("admin.createFromText.errorFallback"));
@@ -123,6 +130,13 @@ export const ParseTaskDialog = ({
             <Label>{t("admin.createFromText.placeholderUrl")}</Label>
             <Input value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} />
           </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label>Parse mode</Label>
+            <Select value={parseMode} onChange={(event) => setParseMode(event.target.value as ParseMode)}>
+              <option value="original">Original Generation</option>
+              <option value="exact">Exact parsing</option>
+            </Select>
+          </div>
         </div>
         {error && <p className="mt-3 text-xs text-rose-300">{error}</p>}
         <div className="mt-6 flex justify-end gap-2">
@@ -146,6 +160,7 @@ export const ParseTaskDialog = ({
                 label={t("admin.content.criteria")}
                 value={String(result.criteria.length)}
               />
+              <SummaryRow label="Language" value={result.task.language ?? "en"} />
             </div>
             <div className="mt-4 flex justify-end">
               <Button variant="primary" onClick={handleImport} disabled={isImporting}>

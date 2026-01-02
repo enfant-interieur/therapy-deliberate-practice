@@ -60,6 +60,67 @@ const stripHtml = (html: string) =>
     .replace(/\s+/g, " ")
     .trim();
 
+const inferLanguage = (text: string) => {
+  const hasAccent = /[àâçéèêëîïôùûüÿœæ]/i.test(text);
+  if (hasAccent) return "fr";
+  const frenchWords = new Set([
+    "je",
+    "tu",
+    "il",
+    "elle",
+    "nous",
+    "vous",
+    "ils",
+    "elles",
+    "pas",
+    "mais",
+    "avec",
+    "pour",
+    "dans",
+    "être",
+    "et",
+    "ou",
+    "où",
+    "ça",
+    "cette",
+    "ces",
+    "au",
+    "aux",
+    "des",
+    "une",
+    "un",
+    "du",
+    "de",
+    "mon",
+    "ma",
+    "mes",
+    "ton",
+    "ta",
+    "tes",
+    "son",
+    "sa",
+    "ses",
+    "leur",
+    "leurs",
+    "comme",
+    "parce",
+    "que",
+    "qui",
+    "quoi"
+  ]);
+  const tokens = text
+    .toLowerCase()
+    .replace(/[^a-zà-ÿœæ]+/g, " ")
+    .split(" ")
+    .filter(Boolean);
+  let hits = 0;
+  for (const token of tokens) {
+    if (frenchWords.has(token)) hits += 1;
+    if (hits >= 3) return "fr";
+  }
+  return "en";
+};
+
 const slugify = (value: string) =>
   value
     .toLowerCase()
@@ -857,12 +918,14 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const body = await c.req.json();
     const schema = z.object({
       free_text: z.string().optional().default(""),
-      source_url: z.string().nullable().optional()
+      source_url: z.string().nullable().optional(),
+      parse_mode: z.enum(["original", "exact"]).default("exact")
     });
     const data = schema.parse(body);
     log.info("Parse task request received", {
       hasSourceUrl: Boolean(data.source_url),
-      hasFreeText: Boolean(data.free_text?.trim())
+      hasFreeText: Boolean(data.free_text?.trim()),
+      parseMode: data.parse_mode
     });
     let sourceText = data.free_text?.trim() ?? "";
     if (!sourceText && data.source_url) {
@@ -878,6 +941,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       log.warn("Parse task missing source text");
       return c.json({ error: "Provide free_text or source_url" }, 400);
     }
+    const inferredLanguage = inferLanguage(sourceText);
     if (!env.openaiApiKey) {
       logServerError("admin.parse_task.openai_key_missing", new Error("OpenAI key missing"), {
         requestId: c.get("requestId")
@@ -895,13 +959,28 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
     let parsed;
     try {
-      parsed = await llmProvider.parseExercise({ sourceText });
+      parsed = await llmProvider.parseExercise({
+        sourceText,
+        parseMode: data.parse_mode
+      });
     } catch (error) {
       log.error("LLM parse failed", { error: safeError(error) });
       return c.json({ error: "OpenAI parse failed" }, 500);
     }
 
-    const validated = deliberatePracticeTaskV2Schema.safeParse(parsed);
+    const normalizedParsed = {
+      ...parsed,
+      task: {
+        ...parsed.task,
+        language: inferredLanguage
+      },
+      examples: parsed.examples.map((example) => ({
+        ...example,
+        language: example.language ?? inferredLanguage
+      }))
+    };
+
+    const validated = deliberatePracticeTaskV2Schema.safeParse(normalizedParsed);
     if (!validated.success) {
       log.warn("Mapped parse response failed validation");
       return c.json(
@@ -928,6 +1007,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     });
     const data = schema.parse(body);
     const parsedTask = data.task_v2;
+    const taskLanguage = parsedTask.task.language ?? "en";
     const taskId = data.task_overrides?.id ?? nanoid();
     const slug = data.task_overrides?.slug ?? slugify(parsedTask.task.title);
     const now = Date.now();
@@ -943,6 +1023,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           base_difficulty: parsedTask.task.base_difficulty,
           general_objective: parsedTask.task.general_objective ?? null,
           tags: parsedTask.task.tags,
+          language: taskLanguage,
           is_published: data.task_overrides?.is_published ?? existing.is_published,
           updated_at: now
         })
@@ -968,6 +1049,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           difficulty: example.difficulty,
           severity_label: example.severity_label ?? null,
           patient_text: example.patient_text,
+          language: example.language ?? taskLanguage,
           meta: example.meta ?? null,
           created_at: now,
           updated_at: now
@@ -986,6 +1068,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       base_difficulty: parsedTask.task.base_difficulty,
       general_objective: parsedTask.task.general_objective ?? null,
       tags: parsedTask.task.tags,
+      language: taskLanguage,
       is_published: data.task_overrides?.is_published ?? false,
       parent_task_id: null,
       created_at: now,
@@ -1010,6 +1093,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         difficulty: example.difficulty,
         severity_label: example.severity_label ?? null,
         patient_text: example.patient_text,
+        language: example.language ?? taskLanguage,
         meta: example.meta ?? null,
         created_at: now,
         updated_at: now
@@ -1031,6 +1115,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     base_difficulty: z.number().min(1).max(5),
     general_objective: z.string().nullable().optional(),
     tags: z.array(z.string()),
+    language: z.string().optional(),
     is_published: z.boolean().optional(),
     criteria: z.array(taskCriterionSchema).optional(),
     examples: z.array(taskExampleSchema).optional()
@@ -1042,6 +1127,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const now = Date.now();
     const taskId = nanoid();
     const slug = await ensureUniqueSlug(slugify(parsed.title));
+    const taskLanguage = parsed.language ?? "en";
 
     await db.insert(tasks).values({
       id: taskId,
@@ -1052,6 +1138,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       base_difficulty: parsed.base_difficulty,
       general_objective: parsed.general_objective ?? null,
       tags: parsed.tags,
+      language: taskLanguage,
       is_published: parsed.is_published ?? false,
       parent_task_id: null,
       created_at: now,
@@ -1079,6 +1166,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           difficulty: example.difficulty,
           severity_label: example.severity_label ?? null,
           patient_text: example.patient_text,
+          language: example.language ?? taskLanguage,
           meta: example.meta ?? null,
           created_at: now,
           updated_at: now
@@ -1166,6 +1254,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           difficulty: example.difficulty,
           severity_label: example.severity_label ?? null,
           patient_text: example.patient_text,
+          language: example.language,
           meta: example.meta ?? null,
           created_at: now,
           updated_at: now
@@ -1186,6 +1275,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       })
       .parse(body);
     const now = Date.now();
+    const taskLanguage = parsed.language ?? "en";
     await db
       .update(tasks)
       .set({
@@ -1196,6 +1286,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         base_difficulty: parsed.base_difficulty,
         general_objective: parsed.general_objective ?? null,
         tags: parsed.tags,
+        language: taskLanguage,
         is_published: parsed.is_published,
         parent_task_id: parsed.parent_task_id ?? null,
         updated_at: now
@@ -1224,6 +1315,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           difficulty: example.difficulty,
           severity_label: example.severity_label ?? null,
           patient_text: example.patient_text,
+          language: example.language ?? taskLanguage,
           meta: example.meta ?? null,
           created_at: now,
           updated_at: now

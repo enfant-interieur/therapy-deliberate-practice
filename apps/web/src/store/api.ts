@@ -3,6 +3,7 @@ import type {
   PracticeRunInput,
   PracticeRunResponse,
   DeliberatePracticeTaskV2,
+  ParseMode,
   Task,
   TaskCriterion,
   TaskExample,
@@ -170,7 +171,7 @@ export const api = createApi({
     }),
     parseTask: builder.mutation<
       DeliberatePracticeTaskV2,
-      { free_text?: string; source_url?: string | null }
+      { free_text?: string; source_url?: string | null; parse_mode?: ParseMode }
     >({
       query: (body) => ({ url: "/admin/parse-task", method: "POST", body })
     }),

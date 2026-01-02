@@ -17,6 +17,7 @@ export const tasks = sqliteTable(
     base_difficulty: integer("base_difficulty").notNull(),
     general_objective: text("general_objective"),
     tags: text("tags", { mode: "json" }).notNull(),
+    language: text("language").notNull().default("en"),
     is_published: integer("is_published", { mode: "boolean" }).notNull(),
     parent_task_id: text("parent_task_id"),
     created_at: integer("created_at").notNull(),
@@ -52,6 +53,7 @@ export const taskExamples = sqliteTable(
     difficulty: integer("difficulty").notNull(),
     severity_label: text("severity_label"),
     patient_text: text("patient_text").notNull(),
+    language: text("language").notNull().default("en"),
     meta: text("meta", { mode: "json" }),
     created_at: integer("created_at").notNull(),
     updated_at: integer("updated_at").notNull()

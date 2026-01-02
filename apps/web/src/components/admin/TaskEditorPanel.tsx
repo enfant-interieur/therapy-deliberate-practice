@@ -1,6 +1,6 @@
 import type { Task, TaskCriterion, TaskExample } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
-import { Badge, Button, Card, Input, Label, Textarea } from "./AdminUi";
+import { Badge, Button, Card, Input, Label, Select, Textarea } from "./AdminUi";
 import { CriteriaTableEditor } from "./CriteriaTableEditor";
 import { ExamplesListEditor } from "./ExamplesListEditor";
 
@@ -32,6 +32,15 @@ export const TaskEditorPanel = ({ task, onChange, onDuplicate, onDelete, errors 
   const { t } = useTranslation();
 
   const updateTask = (patch: Partial<EditableTask>) => onChange({ ...task, ...patch });
+  const updateLanguage = (language: string) =>
+    onChange({
+      ...task,
+      language,
+      examples: task.examples.map((example) => ({
+        ...example,
+        language
+      }))
+    });
 
   const scrollToSection = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -122,6 +131,16 @@ export const TaskEditorPanel = ({ task, onChange, onDuplicate, onDelete, errors 
               {errors.task?.base_difficulty && (
                 <p className="text-xs text-rose-300">{errors.task.base_difficulty}</p>
               )}
+            </div>
+            <div className="space-y-2">
+              <Label>{t("appShell.language.label")}</Label>
+              <Select
+                value={task.language}
+                onChange={(event) => updateLanguage(event.target.value)}
+              >
+                <option value="en">{t("appShell.language.english")}</option>
+                <option value="fr">{t("appShell.language.french")}</option>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>{t("admin.task.publishLabel")}</Label>

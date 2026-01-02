@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { DeliberatePracticeTaskV2, Task, TaskCriterion, TaskExample } from "@deliberate/shared";
+import type {
+  DeliberatePracticeTaskV2,
+  ParseMode,
+  Task,
+  TaskCriterion,
+  TaskExample
+} from "@deliberate/shared";
 import { taskSchema } from "@deliberate/shared";
 import {
   useCreateTaskMutation,
@@ -36,6 +42,7 @@ const createDraftFromParsed = (parsed: DeliberatePracticeTaskV2): EditableTask =
   base_difficulty: parsed.task.base_difficulty,
   general_objective: parsed.task.general_objective ?? "",
   tags: parsed.task.tags ?? [],
+  language: parsed.task.language ?? "en",
   is_published: false,
   parent_task_id: null,
   created_at: Date.now(),
@@ -51,6 +58,7 @@ const toCreatePayload = (task: EditableTask): CreateTaskPayload => ({
   base_difficulty: task.base_difficulty,
   general_objective: task.general_objective ?? "",
   tags: task.tags,
+  language: task.language,
   is_published: task.is_published,
   criteria: task.criteria,
   examples: task.examples
@@ -329,8 +337,10 @@ const TaskSummaryCard = ({ task, onOpenInspector }: TaskSummaryCardProps) => {
 type ParseFromTextPanelProps = {
   freeText: string;
   sourceUrl: string;
+  parseMode: ParseMode;
   onFreeTextChange: (value: string) => void;
   onSourceUrlChange: (value: string) => void;
+  onParseModeChange: (value: ParseMode) => void;
   onParse: () => void;
   isParsing: boolean;
   error: string | null;
@@ -345,8 +355,10 @@ type ParseFromTextPanelProps = {
 const ParseFromTextPanel = ({
   freeText,
   sourceUrl,
+  parseMode,
   onFreeTextChange,
   onSourceUrlChange,
+  onParseModeChange,
   onParse,
   isParsing,
   error,
@@ -385,6 +397,13 @@ const ParseFromTextPanel = ({
           placeholder="https://"
         />
       </div>
+      <div className="space-y-2">
+        <Label>Parse mode</Label>
+        <Select value={parseMode} onChange={(event) => onParseModeChange(event.target.value as ParseMode)}>
+          <option value="original">Original Generation</option>
+          <option value="exact">Exact parsing</option>
+        </Select>
+      </div>
       {error && <p className="text-xs text-rose-300">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={onParse} disabled={isParsing}>
@@ -410,6 +429,9 @@ const ParseFromTextPanel = ({
               {jsonPreview}
             </pre>
           )}
+          <p className="mt-3 text-xs text-slate-400">
+            Language: {result.task.language ?? "en"}
+          </p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button variant="primary" onClick={onApplyToEditor}>
               Apply to editor
@@ -620,6 +642,7 @@ const AdminTasksPageContent = () => {
   const [draftMode, setDraftMode] = useState<"existing" | "new">("existing");
   const [parseText, setParseText] = useState("");
   const [parseSourceUrl, setParseSourceUrl] = useState("");
+  const [parseMode, setParseMode] = useState<ParseMode>("original");
   const [parseError, setParseError] = useState<string | null>(null);
   const [parseResult, setParseResult] = useState<DeliberatePracticeTaskV2 | null>(null);
   const [parsePreviewOpen, setParsePreviewOpen] = useState(false);
@@ -816,7 +839,8 @@ const AdminTasksPageContent = () => {
     try {
       const result = await parseTask({
         free_text: parseText || undefined,
-        source_url: parseSourceUrl || undefined
+        source_url: parseSourceUrl || undefined,
+        parse_mode: parseMode
       }).unwrap();
       setParseResult(result);
       setParsePreviewOpen(true);
@@ -892,6 +916,7 @@ const AdminTasksPageContent = () => {
   const handleResetParse = () => {
     setParseText("");
     setParseSourceUrl("");
+    setParseMode("original");
     setParseError(null);
     setParseResult(null);
     setParsePreviewOpen(false);
@@ -940,8 +965,10 @@ const AdminTasksPageContent = () => {
               <ParseFromTextPanel
                 freeText={parseText}
                 sourceUrl={parseSourceUrl}
+                parseMode={parseMode}
                 onFreeTextChange={setParseText}
                 onSourceUrlChange={setParseSourceUrl}
+                onParseModeChange={setParseMode}
                 onParse={handleParse}
                 isParsing={parseState.isLoading}
                 error={parseError}
