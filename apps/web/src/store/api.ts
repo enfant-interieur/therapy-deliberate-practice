@@ -156,6 +156,18 @@ export const api = createApi({
       }),
       invalidatesTags: (_result, _err, { id }) => [{ type: "Task", id }, "Task"]
     }),
+    createTask: builder.mutation<{ id: string; slug: string }, Partial<Task> & { criteria?: TaskCriterion[]; examples?: TaskExample[] }>({
+      query: (body) => ({ url: "/admin/tasks", method: "POST", body }),
+      invalidatesTags: ["Task"]
+    }),
+    deleteTask: builder.mutation<{ status: string }, { id: string }>({
+      query: ({ id }) => ({ url: `/admin/tasks/${id}`, method: "DELETE" }),
+      invalidatesTags: (_result, _err, { id }) => [{ type: "Task", id }, "Task"]
+    }),
+    duplicateTask: builder.mutation<{ id: string; slug: string }, { id: string }>({
+      query: ({ id }) => ({ url: `/admin/tasks/${id}/duplicate`, method: "POST" }),
+      invalidatesTags: ["Task"]
+    }),
     parseTask: builder.mutation<
       DeliberatePracticeTaskV2,
       { free_text?: string; source_url?: string | null }
@@ -201,11 +213,14 @@ export const {
   useGetTaskQuery,
   useGetTaskExamplesQuery,
   useStartSessionMutation,
-    useGetPracticeSessionsQuery,
-    useGetPracticeSessionAttemptsQuery,
+  useGetPracticeSessionsQuery,
+  useGetPracticeSessionAttemptsQuery,
   useGetAdminTasksQuery,
   useGetAdminTaskQuery,
   useUpdateTaskMutation,
+  useCreateTaskMutation,
+  useDeleteTaskMutation,
+  useDuplicateTaskMutation,
   useParseTaskMutation,
   useImportTaskMutation,
   useRunPracticeMutation,

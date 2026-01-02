@@ -249,7 +249,10 @@
           "title": "Démarrez les serveurs LLM + TTS locaux",
           "description": "Lancez le script ci-dessous. Il détecte Apple Silicon et choisit automatiquement les modèles MLX.",
           "links": [
-            { "label": "Docs du script", "href": "https://github.com/albertbuchard/therapy-deliberate-practice" }
+            {
+              "label": "Docs du script",
+              "href": "https://github.com/albertbuchard/therapy-deliberate-practice"
+            }
           ]
         },
         {
@@ -261,9 +264,18 @@
             "Le script les référence par défaut."
           ],
           "links": [
-            { "label": "Qwen 3 4B MLX", "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit" },
-            { "label": "Qwen 3 4B Instruct", "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507" },
-            { "label": "Kokoro MLX TTS", "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16" }
+            {
+              "label": "Qwen 3 4B MLX",
+              "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit"
+            },
+            {
+              "label": "Qwen 3 4B Instruct",
+              "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
+            },
+            {
+              "label": "Kokoro MLX TTS",
+              "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16"
+            }
           ]
         },
         {
@@ -287,8 +299,14 @@
             "Vous pouvez révoquer la clé à tout moment dans OpenAI."
           ],
           "links": [
-            { "label": "Créer une clé API", "href": "https://platform.openai.com/api-keys" },
-            { "label": "Docs OpenAI", "href": "https://platform.openai.com/docs" }
+            {
+              "label": "Créer une clé API",
+              "href": "https://platform.openai.com/api-keys"
+            },
+            {
+              "label": "Docs OpenAI",
+              "href": "https://platform.openai.com/docs"
+            }
           ]
         },
         {
@@ -300,8 +318,14 @@
             "Consultez les usages dans le tableau de bord OpenAI."
           ],
           "links": [
-            { "label": "Créer un projet", "href": "https://platform.openai.com/settings/organization/projects" },
-            { "label": "Usage et limites", "href": "https://platform.openai.com/settings/organization/limits" }
+            {
+              "label": "Créer un projet",
+              "href": "https://platform.openai.com/settings/organization/projects"
+            },
+            {
+              "label": "Usage et limites",
+              "href": "https://platform.openai.com/settings/organization/limits"
+            }
           ]
         },
         {
@@ -381,7 +405,14 @@
       "import": "Enregistrer / Importer",
       "importing": "Importation...",
       "invalidJson": "JSON invalide",
-      "importFailed": "Échec de l'importation"
+      "importFailed": "Échec de l'importation",
+      "titleLabel": "Titre",
+      "skillDomainLabel": "Domaine",
+      "difficultyLabel": "Difficulté",
+      "publishLabel": "Publier",
+      "descriptionLabel": "Description",
+      "generalObjectiveLabel": "Objectif général",
+      "tagsLabel": "Tags"
     },
     "edit": {
       "title": "Modifier une tâche existante",
@@ -403,7 +434,162 @@
       "exampleIdPlaceholder": "ID de l'exemple",
       "patientTextPlaceholder": "Texte du patient",
       "difficultyPlaceholder": "Difficulté (1-5)",
-      "severityPlaceholder": "Niveau de gravité (facultatif)"
+      "severityPlaceholder": "Niveau de gravité (facultatif)",
+      "criteriaHint": "Définissez des critères mesurables avec des libellés clairs.",
+      "criterionId": "ID",
+      "label": "Libellé",
+      "description": "Description",
+      "actions": "Actions",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "duplicate": "Dupliquer",
+      "remove": "Supprimer",
+      "emptyCriteria": "Aucun critère pour l'instant.",
+      "examplesHint": "Ajoutez des exemples et ajustez la difficulté.",
+      "filterDifficulty": "Difficulté",
+      "filterAll": "Tous",
+      "exampleId": "ID exemple",
+      "difficulty": "Difficulté",
+      "severityLabel": "Niveau de sévérité",
+      "patientText": "Texte du patient",
+      "characters": "caractères",
+      "emptyExamples": "Aucun exemple pour l'instant.",
+      "examplePreview": "Exemple {{id}}",
+      "difficultyLabel": "Difficulté {{difficulty}}"
+    },
+    "header": {
+      "kicker": "Portail admin",
+      "title": "Bibliothèque de tâches",
+      "subtitle": "Gérez les tâches, critères et exemples avec précision."
+    },
+    "actions": {
+      "newTask": "Nouvelle tâche",
+      "importJson": "Importer JSON",
+      "parseText": "Analyser le texte",
+      "duplicate": "Dupliquer",
+      "delete": "Supprimer",
+      "close": "Fermer",
+      "cancel": "Annuler",
+      "create": "Créer",
+      "discard": "Ignorer",
+      "save": "Enregistrer"
+    },
+    "status": {
+      "loading": "Chargement",
+      "ready": "API prête",
+      "selected": "Sélection : {{id}}",
+      "loadingTask": "Chargement de la tâche...",
+      "none": "Aucune"
+    },
+    "list": {
+      "kicker": "Bibliothèque",
+      "title": "Tâches",
+      "close": "Fermer",
+      "open": "Parcourir les tâches",
+      "filters": {
+        "publishedAll": "Tous les statuts",
+        "published": "Publié",
+        "draft": "Brouillon",
+        "domainAll": "Tous les domaines",
+        "tagAll": "Tous les tags",
+        "sortUpdated": "Récemment modifié",
+        "sortAlpha": "Alphabétique"
+      },
+      "count": "{{count}} tâches",
+      "loading": "Chargement...",
+      "published": "Publié",
+      "draft": "Brouillon",
+      "empty": "Aucune tâche pour ces filtres.",
+      "difficulty": {
+        "easy": "Facile",
+        "medium": "Moyen",
+        "hard": "Difficile"
+      }
+    },
+    "editor": {
+      "kicker": "Éditeur",
+      "untitled": "Tâche sans titre",
+      "difficulty": "Difficulté {{difficulty}}",
+      "published": "Publié",
+      "draft": "Brouillon"
+    },
+    "sections": {
+      "overview": "Aperçu",
+      "description": "Description et objectif",
+      "tags": "Tags",
+      "criteria": "Critères",
+      "examples": "Exemples"
+    },
+    "save": {
+      "unsaved": "Modifications non enregistrées",
+      "validationError": "Corrigez les erreurs avant de sauvegarder."
+    },
+    "confirm": {
+      "unsavedTitle": "Modifications non enregistrées",
+      "unsavedDescription": "Des changements ne sont pas sauvegardés. Les ignorer ?",
+      "deleteTitle": "Supprimer la tâche",
+      "deleteDescription": "Supprimer '{{title}}' ? Cette action est irréversible."
+    },
+    "toast": {
+      "saved": "Enregistré",
+      "error": "Une erreur est survenue",
+      "created": "Tâche créée",
+      "deleted": "Tâche supprimée",
+      "duplicated": "Tâche dupliquée",
+      "imported": "Tâche importée",
+      "jsonApplied": "JSON appliqué",
+      "jsonValid": "JSON valide"
+    },
+    "parse": {
+      "title": "Analyser le texte",
+      "subtitle": "Collez du contenu et laissez l'analyseur structurer la tâche."
+    },
+    "import": {
+      "title": "Importer JSON",
+      "subtitle": "Collez un payload Task V2.",
+      "jsonLabel": "JSON de la tâche"
+    },
+    "create": {
+      "title": "Créer une tâche",
+      "subtitle": "Commencez avec un modèle.",
+      "templates": {
+        "blank": "Tâche vide",
+        "json": "Depuis JSON",
+        "duplicate": "Dupliquer la sélection"
+      },
+      "jsonLabel": "Payload JSON",
+      "jsonPlaceholder": "Collez un payload JSON pour préremplir",
+      "errors": {
+        "missingFields": "Veuillez remplir les champs requis."
+      }
+    },
+    "validation": {
+      "required": "Requis",
+      "duplicate": "Doit être unique",
+      "range": "Doit être entre {{min}} et {{max}}"
+    },
+    "inspector": {
+      "kicker": "Inspecteur",
+      "preview": "Aperçu",
+      "json": "JSON",
+      "meta": "Meta",
+      "empty": "Sélectionnez une tâche.",
+      "jsonTitle": "JSON de la tâche",
+      "jsonSubtitle": "Relire ou appliquer des modifications.",
+      "editable": "Éditable",
+      "format": "Formater",
+      "apply": "Appliquer",
+      "metaTitle": "Métadonnées",
+      "taskId": "ID tâche",
+      "slug": "Slug",
+      "createdAt": "Créé",
+      "updatedAt": "Modifié",
+      "counts": "Comptes",
+      "criteriaCount": "Critères : {{count}}",
+      "examplesByDifficulty": "Difficulté {{difficulty}} : {{count}}",
+      "validate": "Valider",
+      "copyId": "Copier l'ID",
+      "copyJson": "Copier le JSON"
     }
   }
 }

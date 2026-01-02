@@ -153,6 +153,18 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     hasOpenAiKey: Boolean(settings.openai_key_ciphertext && settings.openai_key_iv)
   });
 
+  const ensureUniqueSlug = async (baseSlug: string) => {
+    const normalizedBase = baseSlug || `task-${nanoid(6)}`;
+    let slug = normalizedBase;
+    let suffix = 1;
+    while (true) {
+      const [existing] = await db.select().from(tasks).where(eq(tasks.slug, slug)).limit(1);
+      if (!existing) return slug;
+      slug = `${normalizedBase}-${suffix}`;
+      suffix += 1;
+    }
+  };
+
   const ensureUserTaskProgress = async (userId: string, task: Task) => {
     const [existing] = await db
       .select()
@@ -1012,6 +1024,71 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     return c.json(rows.map((row) => normalizeTask(row)));
   });
 
+  const createTaskSchema = z.object({
+    title: z.string().min(1),
+    description: z.string().min(1),
+    skill_domain: z.string().min(1),
+    base_difficulty: z.number().min(1).max(5),
+    general_objective: z.string().nullable().optional(),
+    tags: z.array(z.string()),
+    is_published: z.boolean().optional(),
+    criteria: z.array(taskCriterionSchema).optional(),
+    examples: z.array(taskExampleSchema).optional()
+  });
+
+  app.post("/api/v1/admin/tasks", async (c) => {
+    const body = await c.req.json();
+    const parsed = createTaskSchema.parse(body);
+    const now = Date.now();
+    const taskId = nanoid();
+    const slug = await ensureUniqueSlug(slugify(parsed.title));
+
+    await db.insert(tasks).values({
+      id: taskId,
+      slug,
+      title: parsed.title,
+      description: parsed.description,
+      skill_domain: parsed.skill_domain,
+      base_difficulty: parsed.base_difficulty,
+      general_objective: parsed.general_objective ?? null,
+      tags: parsed.tags,
+      is_published: parsed.is_published ?? false,
+      parent_task_id: null,
+      created_at: now,
+      updated_at: now
+    });
+
+    if (parsed.criteria?.length) {
+      await db.insert(taskCriteria).values(
+        parsed.criteria.map((criterion, index) => ({
+          task_id: taskId,
+          id: criterion.id,
+          label: criterion.label,
+          description: criterion.description,
+          rubric: criterion.rubric ?? null,
+          sort_order: index
+        }))
+      );
+    }
+
+    if (parsed.examples?.length) {
+      await db.insert(taskExamples).values(
+        parsed.examples.map((example) => ({
+          id: example.id ?? nanoid(),
+          task_id: taskId,
+          difficulty: example.difficulty,
+          severity_label: example.severity_label ?? null,
+          patient_text: example.patient_text,
+          meta: example.meta ?? null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
+
+    return c.json({ id: taskId, slug });
+  });
+
   app.get("/api/v1/admin/tasks/:id", async (c) => {
     const id = c.req.param("id");
     const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
@@ -1038,6 +1115,65 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         meta: example.meta ?? null
       }))
     });
+  });
+
+  app.post("/api/v1/admin/tasks/:id/duplicate", async (c) => {
+    const id = c.req.param("id");
+    const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
+    if (!taskRow) return c.json({ error: "Not found" }, 404);
+
+    const criteriaRows = await db
+      .select()
+      .from(taskCriteria)
+      .where(eq(taskCriteria.task_id, id))
+      .orderBy(taskCriteria.sort_order);
+    const exampleRows = await db
+      .select()
+      .from(taskExamples)
+      .where(eq(taskExamples.task_id, id));
+
+    const now = Date.now();
+    const newTaskId = nanoid();
+    const slug = await ensureUniqueSlug(slugify(`${taskRow.title}-copy`));
+
+    await db.insert(tasks).values({
+      ...taskRow,
+      id: newTaskId,
+      slug,
+      title: `${taskRow.title} (Copy)`,
+      created_at: now,
+      updated_at: now
+    });
+
+    if (criteriaRows.length) {
+      await db.insert(taskCriteria).values(
+        criteriaRows.map((criterion) => ({
+          task_id: newTaskId,
+          id: criterion.id,
+          label: criterion.label,
+          description: criterion.description,
+          rubric: criterion.rubric ?? null,
+          sort_order: criterion.sort_order
+        }))
+      );
+    }
+
+    if (exampleRows.length) {
+      await db.insert(taskExamples).values(
+        exampleRows.map((example) => ({
+          id: nanoid(),
+          task_id: newTaskId,
+          difficulty: example.difficulty,
+          severity_label: example.severity_label ?? null,
+          patient_text: example.patient_text,
+          meta: example.meta ?? null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
+
+    return c.json({ id: newTaskId, slug });
   });
 
   app.put("/api/v1/admin/tasks/:id", async (c) => {
@@ -1096,6 +1232,14 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
 
     return c.json({ status: "updated" });
+  });
+
+  app.delete("/api/v1/admin/tasks/:id", async (c) => {
+    const id = c.req.param("id");
+    await db.delete(taskCriteria).where(eq(taskCriteria.task_id, id));
+    await db.delete(taskExamples).where(eq(taskExamples.task_id, id));
+    await db.delete(tasks).where(eq(tasks.id, id));
+    return c.json({ status: "deleted" });
   });
 
   app.get("/api/v1/me", async (c) => {

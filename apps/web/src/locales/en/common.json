@@ -249,7 +249,10 @@
           "title": "Start the local LLM + TTS servers",
           "description": "Run the script below. It detects Apple Silicon and chooses MLX models automatically.",
           "links": [
-            { "label": "Script docs", "href": "https://github.com/albertbuchard/therapy-deliberate-practice" }
+            {
+              "label": "Script docs",
+              "href": "https://github.com/albertbuchard/therapy-deliberate-practice"
+            }
           ]
         },
         {
@@ -261,9 +264,18 @@
             "The script will reference these by default."
           ],
           "links": [
-            { "label": "Qwen 3 4B MLX", "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit" },
-            { "label": "Qwen 3 4B Instruct", "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507" },
-            { "label": "Kokoro MLX TTS", "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16" }
+            {
+              "label": "Qwen 3 4B MLX",
+              "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit"
+            },
+            {
+              "label": "Qwen 3 4B Instruct",
+              "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
+            },
+            {
+              "label": "Kokoro MLX TTS",
+              "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16"
+            }
           ]
         },
         {
@@ -287,8 +299,14 @@
             "You can revoke the key anytime in OpenAI."
           ],
           "links": [
-            { "label": "Create API key", "href": "https://platform.openai.com/api-keys" },
-            { "label": "OpenAI docs", "href": "https://platform.openai.com/docs" }
+            {
+              "label": "Create API key",
+              "href": "https://platform.openai.com/api-keys"
+            },
+            {
+              "label": "OpenAI docs",
+              "href": "https://platform.openai.com/docs"
+            }
           ]
         },
         {
@@ -300,8 +318,14 @@
             "Review usage in the OpenAI dashboard anytime."
           ],
           "links": [
-            { "label": "Create a project", "href": "https://platform.openai.com/settings/organization/projects" },
-            { "label": "Usage & limits", "href": "https://platform.openai.com/settings/organization/limits" }
+            {
+              "label": "Create a project",
+              "href": "https://platform.openai.com/settings/organization/projects"
+            },
+            {
+              "label": "Usage & limits",
+              "href": "https://platform.openai.com/settings/organization/limits"
+            }
           ]
         },
         {
@@ -381,7 +405,14 @@
       "import": "Save / Import",
       "importing": "Importing...",
       "invalidJson": "Invalid JSON",
-      "importFailed": "Failed to import"
+      "importFailed": "Failed to import",
+      "titleLabel": "Title",
+      "skillDomainLabel": "Skill domain",
+      "difficultyLabel": "Difficulty",
+      "publishLabel": "Publish",
+      "descriptionLabel": "Description",
+      "generalObjectiveLabel": "General objective",
+      "tagsLabel": "Tags"
     },
     "edit": {
       "title": "Edit existing task",
@@ -403,7 +434,162 @@
       "exampleIdPlaceholder": "Example id",
       "patientTextPlaceholder": "Patient text",
       "difficultyPlaceholder": "Difficulty (1-5)",
-      "severityPlaceholder": "Severity label (optional)"
+      "severityPlaceholder": "Severity label (optional)",
+      "criteriaHint": "Define measurable coaching criteria with clear labels and explanations.",
+      "criterionId": "ID",
+      "label": "Label",
+      "description": "Description",
+      "actions": "Actions",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "duplicate": "Duplicate",
+      "remove": "Remove",
+      "emptyCriteria": "No criteria yet. Add your first criterion.",
+      "examplesHint": "Add training examples and adjust difficulty signals.",
+      "filterDifficulty": "Difficulty",
+      "filterAll": "All",
+      "exampleId": "Example ID",
+      "difficulty": "Difficulty",
+      "severityLabel": "Severity label",
+      "patientText": "Patient text",
+      "characters": "characters",
+      "emptyExamples": "No examples yet. Add an example to preview content.",
+      "examplePreview": "Example {{id}}",
+      "difficultyLabel": "Difficulty {{difficulty}}"
+    },
+    "header": {
+      "kicker": "Admin Portal",
+      "title": "Task Library",
+      "subtitle": "Manage tasks, criteria, and examples with precision control."
+    },
+    "actions": {
+      "newTask": "New task",
+      "importJson": "Import JSON",
+      "parseText": "Parse from text",
+      "duplicate": "Duplicate",
+      "delete": "Delete",
+      "close": "Close",
+      "cancel": "Cancel",
+      "create": "Create",
+      "discard": "Discard",
+      "save": "Save"
+    },
+    "status": {
+      "loading": "Loading",
+      "ready": "API ready",
+      "selected": "Selected: {{id}}",
+      "loadingTask": "Loading task...",
+      "none": "None"
+    },
+    "list": {
+      "kicker": "Library",
+      "title": "Tasks",
+      "close": "Close",
+      "open": "Browse tasks",
+      "filters": {
+        "publishedAll": "All publish states",
+        "published": "Published",
+        "draft": "Draft",
+        "domainAll": "All domains",
+        "tagAll": "All tags",
+        "sortUpdated": "Recently updated",
+        "sortAlpha": "Alphabetical"
+      },
+      "count": "{{count}} tasks",
+      "loading": "Loading...",
+      "published": "Published",
+      "draft": "Draft",
+      "empty": "No tasks match these filters.",
+      "difficulty": {
+        "easy": "Easy",
+        "medium": "Medium",
+        "hard": "Hard"
+      }
+    },
+    "editor": {
+      "kicker": "Editor",
+      "untitled": "Untitled task",
+      "difficulty": "Difficulty {{difficulty}}",
+      "published": "Published",
+      "draft": "Draft"
+    },
+    "sections": {
+      "overview": "Overview",
+      "description": "Description & objective",
+      "tags": "Tags",
+      "criteria": "Criteria",
+      "examples": "Examples"
+    },
+    "save": {
+      "unsaved": "Unsaved changes",
+      "validationError": "Fix validation errors before saving."
+    },
+    "confirm": {
+      "unsavedTitle": "Unsaved changes",
+      "unsavedDescription": "You have unsaved changes. Do you want to discard them?",
+      "deleteTitle": "Delete task",
+      "deleteDescription": "Delete '{{title}}'? This cannot be undone."
+    },
+    "toast": {
+      "saved": "Saved",
+      "error": "Something went wrong",
+      "created": "Task created",
+      "deleted": "Task deleted",
+      "duplicated": "Task duplicated",
+      "imported": "Task imported",
+      "jsonApplied": "JSON applied",
+      "jsonValid": "JSON valid"
+    },
+    "parse": {
+      "title": "Parse from text",
+      "subtitle": "Paste content and let the parser extract task structure."
+    },
+    "import": {
+      "title": "Import JSON",
+      "subtitle": "Paste a Deliberate Practice Task V2 payload.",
+      "jsonLabel": "Task JSON"
+    },
+    "create": {
+      "title": "Create new task",
+      "subtitle": "Start from a template and fill the essentials.",
+      "templates": {
+        "blank": "Blank task",
+        "json": "From JSON",
+        "duplicate": "Duplicate selected"
+      },
+      "jsonLabel": "Task JSON payload",
+      "jsonPlaceholder": "Paste a Task JSON payload to prefill fields",
+      "errors": {
+        "missingFields": "Please fill in all required fields."
+      }
+    },
+    "validation": {
+      "required": "Required",
+      "duplicate": "Must be unique",
+      "range": "Must be between {{min}} and {{max}}"
+    },
+    "inspector": {
+      "kicker": "Inspector",
+      "preview": "Preview",
+      "json": "JSON",
+      "meta": "Meta",
+      "empty": "Select a task to inspect.",
+      "jsonTitle": "Task JSON",
+      "jsonSubtitle": "Review or safely apply edits.",
+      "editable": "Editable",
+      "format": "Format",
+      "apply": "Apply",
+      "metaTitle": "Metadata",
+      "taskId": "Task id",
+      "slug": "Slug",
+      "createdAt": "Created",
+      "updatedAt": "Updated",
+      "counts": "Counts",
+      "criteriaCount": "Criteria: {{count}}",
+      "examplesByDifficulty": "Difficulty {{difficulty}}: {{count}}",
+      "validate": "Validate",
+      "copyId": "Copy ID",
+      "copyJson": "Copy JSON"
     }
   }
 }
