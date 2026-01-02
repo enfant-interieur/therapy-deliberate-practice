@@ -287,7 +287,17 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
               >
                 {t("aiSetup.actions.back")}
               </button>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {mode === "openai" && isLast && (
+                  <a
+                    href="/settings#openai-key"
+                    onClick={() => onClose("dismiss")}
+                    className="group inline-flex items-center gap-2 rounded-full border border-teal-300/40 bg-teal-500/10 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-teal-100 transition hover:-translate-y-0.5 hover:border-teal-200/80 hover:bg-teal-400/20"
+                  >
+                    {t("aiSetup.actions.openSettings")}
+                    <span className="text-base text-teal-200 transition group-hover:translate-x-1">→</span>
+                  </a>
+                )}
                 {mode !== "intro" && (
                   <button
                     type="button"
