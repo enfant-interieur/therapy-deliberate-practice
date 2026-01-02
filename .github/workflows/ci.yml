@@ -20,7 +20,7 @@ jobs:
       - name: Install node dependencies
         run: npm ci
       - name: Install local runtime dependencies
-        run: pip install -e services/local-runtime-suite/python
+        run: pip install -e services/local-runtime-suite/python[lint]
       - name: Lint local runtime
         run: ruff check services/local-runtime-suite/python
       - name: Validate model specs
