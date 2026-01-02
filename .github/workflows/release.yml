@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-tauri:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: npm ci
+      - name: Build web assets
+        run: npm run build -w apps/web
+      - name: Generate model catalog
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          tagName: ${{ github.ref_name }}
+          releaseName: "Local Runtime Suite ${{ github.ref_name }}"
+          releaseBody: "Automated release"
+          releaseDraft: false
+          prerelease: false
+          includeDebug: false
+          includeRelease: true

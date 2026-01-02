@@ -198,6 +198,10 @@
       "about": {
         "title": "About",
         "description": "Product overview and privacy posture."
+      },
+      "localSuite": {
+        "title": "Local Suite",
+        "description": "Download the desktop launcher and explore local models."
       }
     },
     "layout": {
@@ -375,6 +379,25 @@
       "callout": {
         "title": "Looking for version info?",
         "body": "Build details are available from your deployment environment. If you need a specific build hash, check your hosting dashboard or release notes."
+      }
+    },
+    "localSuite": {
+      "kicker": "Local runtime",
+      "title": "Local Suite",
+      "subtitle": "Run the gateway locally, download the desktop launcher, and choose the right model for each endpoint.",
+      "downloads": {
+        "title": "Desktop downloads",
+        "subtitle": "Grab the latest launcher builds from GitHub Releases.",
+        "ready": "Download",
+        "pending": "Coming soon",
+        "error": "Unable to load GitHub releases. Showing cached links."
+      },
+      "catalog": {
+        "title": "Available models",
+        "subtitle": "Search across all local and proxy-backed models validated by the gateway.",
+        "searchPlaceholder": "Search by name, endpoint, or provider",
+        "copy": "Copy ID",
+        "empty": "No models match this search yet."
       }
     }
   },

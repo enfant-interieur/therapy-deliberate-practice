@@ -1,0 +1,31 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "Local Runtime Suite",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "shell": {
+        "open": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": "all",
+      "identifier": "com.therapy.localruntime"
+    },
+    "windows": [
+      {
+        "title": "Local Runtime Suite",
+        "width": 1100,
+        "height": 720
+      }
+    ]
+  }
+}

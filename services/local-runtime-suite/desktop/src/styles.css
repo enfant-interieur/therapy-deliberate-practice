@@ -1,0 +1,130 @@
+:root {
+  color-scheme: dark;
+  font-family: "Inter", system-ui, sans-serif;
+  background: #0b1120;
+  color: #e2e8f0;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: radial-gradient(circle at top, rgba(45, 212, 191, 0.15), transparent 40%), #0b1120;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  font: inherit;
+}
+
+.container {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.panel {
+  border: 1px solid rgba(148, 163, 184, 0.15);
+  background: rgba(15, 23, 42, 0.85);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.3);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #5eead4;
+}
+
+.title {
+  font-size: 24px;
+  margin: 6px 0 0;
+}
+
+.badge {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: rgba(15, 118, 110, 0.25);
+  color: #99f6e4;
+  border: 1px solid rgba(94, 234, 212, 0.4);
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.btn {
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(30, 41, 59, 0.8);
+  color: inherit;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: #14b8a6;
+  color: #021f1d;
+  border-color: transparent;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.label {
+  font-size: 12px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+  color: inherit;
+}
+
+.log-box {
+  background: #020617;
+  border-radius: 12px;
+  padding: 12px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: #94a3b8;
+  height: 160px;
+  overflow-y: auto;
+  border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.disclosure {
+  border-left: 3px solid #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  padding: 12px;
+  border-radius: 12px;
+  color: #fde68a;
+  font-size: 13px;
+}

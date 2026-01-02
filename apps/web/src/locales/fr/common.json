@@ -198,6 +198,10 @@
       "about": {
         "title": "À propos",
         "description": "Aperçu du produit et posture de confidentialité."
+      },
+      "localSuite": {
+        "title": "Suite locale",
+        "description": "Téléchargez l'application de bureau et explorez les modèles locaux."
       }
     },
     "layout": {
@@ -375,6 +379,25 @@
       "callout": {
         "title": "Besoin des infos de version ?",
         "body": "Les détails de build sont disponibles via votre environnement de déploiement. Si vous avez besoin d'un hash de build, consultez votre tableau de bord d'hébergement ou les notes de version."
+      }
+    },
+    "localSuite": {
+      "kicker": "Exécution locale",
+      "title": "Suite locale",
+      "subtitle": "Exécutez la passerelle en local, téléchargez le launcher et choisissez le modèle adapté à chaque endpoint.",
+      "downloads": {
+        "title": "Téléchargements bureau",
+        "subtitle": "Récupérez les builds les plus récents depuis GitHub Releases.",
+        "ready": "Télécharger",
+        "pending": "Bientôt disponible",
+        "error": "Impossible de charger GitHub Releases. Affichage du cache."
+      },
+      "catalog": {
+        "title": "Modèles disponibles",
+        "subtitle": "Recherchez parmi les modèles locaux ou proxy validés par la passerelle.",
+        "searchPlaceholder": "Rechercher par nom, endpoint ou fournisseur",
+        "copy": "Copier l'identifiant",
+        "empty": "Aucun modèle ne correspond à cette recherche."
       }
     }
   },

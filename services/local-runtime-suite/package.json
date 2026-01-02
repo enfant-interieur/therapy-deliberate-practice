@@ -1,0 +1,11 @@
+{
+  "name": "@therapy/local-runtime-suite",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "bash tools/dev.sh",
+    "build": "python tools/gen_models_json.py",
+    "lint": "ruff check python && ruff format --check python",
+    "test": "pytest"
+  }
+}

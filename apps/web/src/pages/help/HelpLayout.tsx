@@ -57,6 +57,16 @@ export const HelpLayout = () => {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M12 12v4m8-4a8 8 0 1 1-16 0a8 8 0 0 1 16 0Z" />
           </svg>
         )
+      },
+      {
+        slug: "local-suite",
+        title: t("help.nav.localSuite.title"),
+        description: t("help.nav.localSuite.description"),
+        icon: (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M6 12h12M8 17h8" />
+          </svg>
+        )
       }
     ],
     [t]

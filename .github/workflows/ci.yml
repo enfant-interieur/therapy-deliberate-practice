@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install node dependencies
+        run: npm ci
+      - name: Install local runtime dependencies
+        run: pip install -e services/local-runtime-suite/python
+      - name: Lint local runtime
+        run: ruff check services/local-runtime-suite/python
+      - name: Validate model specs
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+      - name: Verify generated model catalog
+        run: git diff --exit-code apps/web/public/local-suite/models.json
