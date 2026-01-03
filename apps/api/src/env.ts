@@ -13,6 +13,14 @@ export type EnvBindings = {
   LOCAL_STT_URL?: string;
   LOCAL_LLM_URL?: string;
   LOCAL_LLM_MODEL?: string;
+  LOCAL_TTS_URL?: string;
+  LOCAL_TTS_MODEL?: string;
+  LOCAL_TTS_VOICE?: string;
+  LOCAL_TTS_FORMAT?: string;
+  OPENAI_TTS_MODEL?: string;
+  OPENAI_TTS_VOICE?: string;
+  OPENAI_TTS_FORMAT?: string;
+  OPENAI_TTS_INSTRUCTIONS?: string;
   SUPABASE_URL?: string;
   SUPABASE_ANON_KEY?: string;
   SUPABASE_JWT_SECRET?: string;
@@ -33,12 +41,29 @@ export type RuntimeEnv = {
   localSttUrl: string;
   localLlmUrl: string;
   localLlmModel: string;
+  localTtsUrl: string;
+  localTtsModel: string;
+  localTtsVoice: string;
+  localTtsFormat: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
+  openaiTtsModel: string;
+  openaiTtsVoice: string;
+  openaiTtsFormat: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
+  openaiTtsInstructions: string;
   supabaseUrl: string;
   supabaseAnonKey: string;
   supabaseJwtSecret: string;
   r2Bucket: string;
   r2PublicBaseUrl: string;
 };
+
+const ttsFormats = ["mp3", "opus", "aac", "flac", "wav", "pcm"] as const;
+const normalizeTtsFormat = (
+  value: string | undefined,
+  fallback: RuntimeEnv["localTtsFormat"]
+): RuntimeEnv["localTtsFormat"] =>
+  ttsFormats.includes(value as RuntimeEnv["localTtsFormat"])
+    ? (value as RuntimeEnv["localTtsFormat"])
+    : fallback;
 
 const normalizeMode = (value?: string): ProviderMode => {
   if (value === "openai_only" || value === "local_only") {
@@ -66,6 +91,15 @@ export const resolveEnv = (bindings: EnvBindings): RuntimeEnv => ({
   localSttUrl: bindings.LOCAL_STT_URL ?? "http://localhost:7001",
   localLlmUrl: bindings.LOCAL_LLM_URL ?? "http://localhost:7002",
   localLlmModel: bindings.LOCAL_LLM_MODEL ?? "mlx-community/Mistral-7B-Instruct-v0.2",
+  localTtsUrl: bindings.LOCAL_TTS_URL ?? "http://localhost:7003",
+  localTtsModel: bindings.LOCAL_TTS_MODEL ?? "mlx-community/Kokoro-82M-bf16",
+  localTtsVoice: bindings.LOCAL_TTS_VOICE ?? "af_bella",
+  localTtsFormat: normalizeTtsFormat(bindings.LOCAL_TTS_FORMAT, "mp3"),
+  openaiTtsModel: bindings.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts",
+  openaiTtsVoice: bindings.OPENAI_TTS_VOICE ?? "sage",
+  openaiTtsFormat: normalizeTtsFormat(bindings.OPENAI_TTS_FORMAT, "mp3"),
+  openaiTtsInstructions:
+    bindings.OPENAI_TTS_INSTRUCTIONS ?? "Speak like a patient in a therapy session.",
   supabaseUrl: bindings.SUPABASE_URL ?? "",
   supabaseAnonKey: bindings.SUPABASE_ANON_KEY ?? "",
   supabaseJwtSecret: bindings.SUPABASE_JWT_SECRET ?? "",

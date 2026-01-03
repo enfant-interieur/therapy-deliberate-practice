@@ -1,7 +1,10 @@
+import OpenAI from "openai";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { attemptJsonRepair } from "../utils/jsonRepair";
 import { safeTruncate } from "../utils/logger";
+import { getOpenAIClient } from "./openaiClient";
+import { createProviderError, getErrorRequestId } from "./providerErrors";
 
 type OpenAIResponseInput = {
   apiKey: string;
@@ -9,6 +12,7 @@ type OpenAIResponseInput = {
   instructions?: string;
   input: string;
   temperature?: number;
+  client?: OpenAI;
 };
 
 type StructuredResponseInput<T> = OpenAIResponseInput & {
@@ -19,11 +23,13 @@ type StructuredResponseInput<T> = OpenAIResponseInput & {
 type OpenAIResponseResult<T> = {
   value: T;
   responseId?: string;
+  responseObjectId?: string;
 };
 
 type OpenAITextResult = {
   text: string;
   responseId?: string;
+  responseObjectId?: string;
 };
 
 /*
@@ -36,13 +42,17 @@ type OpenAITextResult = {
   - Structured outputs are parsed/repair-attempted once and then validated with Zod as the final gate.
 */
 
-const openaiEndpoint = "https://api.openai.com/v1/responses";
+const getResponseRequestId = (response: unknown) => {
+  if (!response || typeof response !== "object") return undefined;
+  const record = response as { _request_id?: string; request_id?: string };
+  return record._request_id ?? record.request_id;
+};
 
-const getRequestId = (headers: Headers) =>
-  headers.get("x-request-id") ??
-  headers.get("openai-request-id") ??
-  headers.get("request-id") ??
-  undefined;
+const getResponseObjectId = (response: unknown) => {
+  if (!response || typeof response !== "object") return undefined;
+  const record = response as { id?: string };
+  return record.id;
+};
 
 const extractOutputText = (payload: unknown): string | null => {
   if (!payload || typeof payload !== "object") return null;
@@ -135,43 +145,55 @@ const buildStrictJsonSchema = (schema: z.ZodSchema<unknown>, schemaName: string)
   return root;
 };
 
+const toSdkError = (error: unknown, fallback: string) => {
+  const requestId = getErrorRequestId(error);
+  const status =
+    error && typeof error === "object" && "status" in error
+      ? (error as { status?: number }).status
+      : undefined;
+  const message =
+    error instanceof Error ? safeTruncate(error.message, 200) : safeTruncate(String(error), 200);
+  const prefix = status ? `${fallback} (${status})` : fallback;
+  return createProviderError(
+    `${prefix}${requestId ? ` [${requestId}]` : ""}: ${message}`,
+    {
+      requestId,
+      logFields: status ? { status } : undefined
+    }
+  );
+};
+
 export const createTextResponse = async ({
   apiKey,
   model,
   instructions,
   input,
-  temperature
+  temperature,
+  client
 }: OpenAIResponseInput): Promise<OpenAITextResult> => {
-  const response = await fetch(openaiEndpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const openai = client ?? getOpenAIClient(apiKey);
+  let response: unknown;
+  try {
+    response = await openai.responses.create({
       model,
       input,
       instructions,
       temperature
-    })
-  });
-
-  const responseId = getRequestId(response.headers);
-  if (!response.ok) {
-    const body = safeTruncate(await response.text(), 200);
-    throw new Error(
-      `OpenAI Responses failed (${response.status})${responseId ? ` [${responseId}]` : ""}: ${body}`
-    );
+    });
+  } catch (error) {
+    throw toSdkError(error, "OpenAI Responses failed");
   }
 
-  const payload = await response.json();
-  const text = extractOutputText(payload);
+  const responseId = getResponseRequestId(response);
+  const responseObjectId = getResponseObjectId(response);
+  const text = extractOutputText(response);
   if (!text) {
-    throw new Error(
-      `OpenAI Responses returned empty output${responseId ? ` [${responseId}]` : ""}`
+    throw createProviderError(
+      `OpenAI Responses returned empty output${responseId ? ` [${responseId}]` : ""}`,
+      { requestId: responseId }
     );
   }
-  return { text, responseId };
+  return { text, responseId, responseObjectId };
 };
 
 export const createStructuredResponse = async <T>({
@@ -181,16 +203,14 @@ export const createStructuredResponse = async <T>({
   input,
   temperature,
   schemaName,
-  schema
+  schema,
+  client
 }: StructuredResponseInput<T>): Promise<OpenAIResponseResult<T>> => {
   const jsonSchema = buildStrictJsonSchema(schema, schemaName);
-  const response = await fetch(openaiEndpoint, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const openai = client ?? getOpenAIClient(apiKey);
+  let response: unknown;
+  try {
+    response = await openai.responses.create({
       model,
       input,
       instructions,
@@ -203,22 +223,18 @@ export const createStructuredResponse = async <T>({
           strict: true
         }
       }
-    })
-  });
-
-  const responseId = getRequestId(response.headers);
-  if (!response.ok) {
-    const body = safeTruncate(await response.text(), 200);
-    throw new Error(
-      `OpenAI Responses failed (${response.status})${responseId ? ` [${responseId}]` : ""}: ${body}`
-    );
+    });
+  } catch (error) {
+    throw toSdkError(error, "OpenAI Responses failed");
   }
 
-  const payload = await response.json();
-  const rawText = extractOutputText(payload);
+  const responseId = getResponseRequestId(response);
+  const responseObjectId = getResponseObjectId(response);
+  const rawText = extractOutputText(response);
   if (!rawText) {
-    throw new Error(
-      `OpenAI Responses returned empty output${responseId ? ` [${responseId}]` : ""}`
+    throw createProviderError(
+      `OpenAI Responses returned empty output${responseId ? ` [${responseId}]` : ""}`,
+      { requestId: responseId }
     );
   }
 
@@ -230,22 +246,24 @@ export const createStructuredResponse = async <T>({
     if (repaired) {
       parsed = JSON.parse(repaired);
     } else {
-      throw new Error(
+      throw createProviderError(
         `OpenAI Responses returned invalid JSON${
           responseId ? ` [${responseId}]` : ""
-        }: ${safeTruncate(String(error), 120)}`
+        }: ${safeTruncate(String(error), 120)}`,
+        { requestId: responseId }
       );
     }
   }
 
   const validated = schema.safeParse(parsed);
   if (!validated.success) {
-    throw new Error(
+    throw createProviderError(
       `OpenAI Responses schema validation failed${
         responseId ? ` [${responseId}]` : ""
-      }: ${safeTruncate(validated.error.message, 200)}`
+      }: ${safeTruncate(validated.error.message, 200)}`,
+      { requestId: responseId }
     );
   }
 
-  return { value: validated.data, responseId };
+  return { value: validated.data, responseId, responseObjectId };
 };

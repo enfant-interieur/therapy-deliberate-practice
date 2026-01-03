@@ -3,7 +3,8 @@ import type {
   EvaluationInput,
   EvaluationResult,
   LlmParseResult,
-  DeliberatePracticeTaskV2
+  DeliberatePracticeTaskV2,
+  ParseMode
 } from "@deliberate/shared";
 import type { RuntimeEnv } from "../env";
 import type { LogFn } from "../utils/logger";
@@ -11,6 +12,7 @@ import { safeTruncate } from "../utils/logger";
 import { deliberatePracticeTaskV2Schema, evaluationResultSchema, llmParseSchema } from "@deliberate/shared";
 import { createStructuredResponse } from "./openaiResponses";
 import { OPENAI_LLM_MODEL } from "./models";
+import { BaseLlmProvider } from "./base";
 
 const healthCheck = async (url: string) => {
   try {
@@ -21,94 +23,71 @@ const healthCheck = async (url: string) => {
   }
 };
 
-export const LocalMlxLlmProvider = (env: RuntimeEnv, logger?: LogFn): LlmProvider => ({
-  kind: "local",
-  model: env.localLlmModel,
-  healthCheck: () => healthCheck(env.localLlmUrl),
-  evaluateDeliberatePractice: async (input) => {
-    const start = Date.now();
-    logger?.("info", "llm.evaluate.http_start", {
-      provider: { kind: "local", model: env.localLlmModel }
-    });
-    const response = await fetch(`${env.localLlmUrl}/evaluate`, {
+class LocalMlxLlmProviderImpl extends BaseLlmProvider {
+  constructor(private env: RuntimeEnv, logger?: LogFn) {
+    super("local", env.localLlmModel, logger);
+  }
+
+  healthCheck() {
+    return healthCheck(this.env.localLlmUrl);
+  }
+
+  protected async doEvaluateDeliberatePractice(input: EvaluationInput) {
+    const response = await fetch(`${this.env.localLlmUrl}/evaluate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input)
     });
     if (!response.ok) {
       const body = safeTruncate(await response.text(), 200);
-      logger?.("error", "llm.evaluate.http_error", {
-        provider: { kind: "local", model: env.localLlmModel },
-        duration_ms: Date.now() - start,
-        status: response.status,
-        body
-      });
-      throw new Error(`Local LLM failed (${response.status})`);
+      throw new Error(`Local LLM failed (${response.status}): ${body}`);
     }
-    logger?.("info", "llm.evaluate.http_ok", {
-      provider: { kind: "local", model: env.localLlmModel },
-      duration_ms: Date.now() - start
-    });
-    return response.json();
-  },
-  parseExercise: async (_input) => {
+    return { value: (await response.json()) as EvaluationResult };
+  }
+
+  protected async doParseExercise(_input: { sourceText: string; parseMode?: ParseMode }) {
     throw new Error("Local LLM does not support task parsing.");
-  },
-  translateTask: async (_input) => {
+  }
+
+  protected async doTranslateTask(_input: {
+    source: DeliberatePracticeTaskV2;
+    targetLanguage: string;
+  }) {
     throw new Error("Local LLM does not support task translation.");
   }
-});
+}
 
-export const OpenAILlmProvider = (
-  { apiKey }: { apiKey: string },
-  logger?: LogFn
-): LlmProvider => ({
-  kind: "openai",
-  model: OPENAI_LLM_MODEL,
-  healthCheck: async () => Boolean(apiKey),
-  evaluateDeliberatePractice: async (input: EvaluationInput) => {
-    if (!apiKey) {
-      throw new Error("OpenAI key missing");
-    }
-    const start = Date.now();
-    logger?.("info", "llm.evaluate.http_start", {
-      provider: { kind: "openai", model: OPENAI_LLM_MODEL }
-    });
+class OpenAILlmProviderImpl extends BaseLlmProvider {
+  constructor(private apiKey: string, logger?: LogFn) {
+    super("openai", OPENAI_LLM_MODEL, logger);
+  }
+
+  healthCheck() {
+    return Promise.resolve(Boolean(this.apiKey));
+  }
+
+  protected async doEvaluateDeliberatePractice(input: EvaluationInput) {
     const systemPrompt =
       "You are an evaluator for psychotherapy deliberate practice tasks. Return strict JSON only that matches EvaluationResult with criterion_scores.";
-    try {
-      const result = await createStructuredResponse<EvaluationResult>({
-        apiKey,
-        model: OPENAI_LLM_MODEL,
-        temperature: 0.2,
-        instructions: systemPrompt,
-        input: JSON.stringify(input),
-        schemaName: "EvaluationResult",
-        schema: evaluationResultSchema
-      });
-      logger?.("info", "llm.evaluate.http_ok", {
-        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
-        duration_ms: Date.now() - start,
-        response_id: result.responseId
-      });
-      return result.value;
-    } catch (error) {
-      logger?.("error", "llm.evaluate.http_error", {
-        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
-        duration_ms: Date.now() - start,
-        error: safeTruncate(String(error), 200)
-      });
-      throw error;
-    }
-  },
-  parseExercise: async (input): Promise<LlmParseResult> => {
-    if (!apiKey) {
-      throw new Error("OpenAI key missing");
-    }
-    const start = Date.now();
-    logger?.("info", "llm.parse.http_start", {
-      provider: { kind: "openai", model: OPENAI_LLM_MODEL }
+    const result = await createStructuredResponse<EvaluationResult>({
+      apiKey: this.apiKey,
+      model: OPENAI_LLM_MODEL,
+      temperature: 0.2,
+      instructions: systemPrompt,
+      input: JSON.stringify(input),
+      schemaName: "EvaluationResult",
+      schema: evaluationResultSchema
     });
+    return {
+      value: result.value,
+      requestId: result.responseId
+    };
+  }
+
+  protected async doParseExercise(input: {
+    sourceText: string;
+    parseMode?: ParseMode;
+  }): Promise<{ value: LlmParseResult; requestId?: string }> {
     const exactPrompt = `You are a meticulous content-to-JSON extractor for a psychotherapy deliberate-practice platform.
 Your ONLY job is to transform the provided free text into a single JSON object that matches the schema.
 Return STRICT JSON ONLY. No markdown. No commentary. No trailing commas. No extra keys.
@@ -250,43 +229,25 @@ The following is an example of valid output structure. Do not copy its content u
         : input.parseMode === "partial_prompt"
           ? partialPromptPrompt
           : exactPrompt;
-    try {
-      const result = await createStructuredResponse<LlmParseResult>({
-        apiKey,
-        model: OPENAI_LLM_MODEL,
-        temperature: 0.2,
-        instructions: systemPrompt,
-        input: input.sourceText,
-        schemaName: "DeliberatePracticeTask",
-        schema: llmParseSchema
-      });
-      logger?.("info", "llm.parse.http_ok", {
-        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
-        duration_ms: Date.now() - start,
-        response_id: result.responseId
-      });
-      return result.value;
-    } catch (error) {
-      logger?.("error", "llm.parse.http_error", {
-        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
-        duration_ms: Date.now() - start,
-        error: safeTruncate(String(error), 200)
-      });
-      throw error;
-    }
-  },
-  translateTask: async ({
+    const result = await createStructuredResponse<LlmParseResult>({
+      apiKey: this.apiKey,
+      model: OPENAI_LLM_MODEL,
+      temperature: 0.2,
+      instructions: systemPrompt,
+      input: input.sourceText,
+      schemaName: "DeliberatePracticeTask",
+      schema: llmParseSchema
+    });
+    return { value: result.value, requestId: result.responseId };
+  }
+
+  protected async doTranslateTask({
     source,
     targetLanguage
-  }): Promise<DeliberatePracticeTaskV2> => {
-    if (!apiKey) {
-      throw new Error("OpenAI key missing");
-    }
-    const start = Date.now();
-    logger?.("info", "llm.translate.http_start", {
-      provider: { kind: "openai", model: OPENAI_LLM_MODEL },
-      target_language: targetLanguage
-    });
+  }: {
+    source: DeliberatePracticeTaskV2;
+    targetLanguage: string;
+  }): Promise<{ value: DeliberatePracticeTaskV2; requestId?: string }> {
     const systemPrompt = `You are a meticulous translation engine for psychotherapy deliberate-practice tasks.
 Translate the provided JSON into ${targetLanguage}.
 Return STRICT JSON ONLY that matches the DeliberatePracticeTaskV2 schema. No markdown. No commentary. No trailing commas. No extra keys.
@@ -296,29 +257,23 @@ Translation rules:
 - Preserve all ids and numeric values exactly as provided.
 - Do NOT reorder arrays.
 - Set task.language and each example.language to "${targetLanguage}".`;
-    try {
-      const result = await createStructuredResponse<DeliberatePracticeTaskV2>({
-        apiKey,
-        model: OPENAI_LLM_MODEL,
-        temperature: 0.2,
-        instructions: systemPrompt,
-        input: JSON.stringify(source),
-        schemaName: "DeliberatePracticeTaskV2",
-        schema: deliberatePracticeTaskV2Schema
-      });
-      logger?.("info", "llm.translate.http_ok", {
-        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
-        duration_ms: Date.now() - start,
-        response_id: result.responseId
-      });
-      return result.value;
-    } catch (error) {
-      logger?.("error", "llm.translate.http_error", {
-        provider: { kind: "openai", model: OPENAI_LLM_MODEL },
-        duration_ms: Date.now() - start,
-        error: safeTruncate(String(error), 200)
-      });
-      throw error;
-    }
+    const result = await createStructuredResponse<DeliberatePracticeTaskV2>({
+      apiKey: this.apiKey,
+      model: OPENAI_LLM_MODEL,
+      temperature: 0.2,
+      instructions: systemPrompt,
+      input: JSON.stringify(source),
+      schemaName: "DeliberatePracticeTaskV2",
+      schema: deliberatePracticeTaskV2Schema
+    });
+    return { value: result.value, requestId: result.responseId };
   }
-});
+}
+
+export const LocalMlxLlmProvider = (env: RuntimeEnv, logger?: LogFn): LlmProvider =>
+  new LocalMlxLlmProviderImpl(env, logger);
+
+export const OpenAILlmProvider = (
+  { apiKey }: { apiKey: string },
+  logger?: LogFn
+): LlmProvider => new OpenAILlmProviderImpl(apiKey, logger);

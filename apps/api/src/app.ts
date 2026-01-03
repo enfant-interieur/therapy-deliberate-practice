@@ -40,8 +40,7 @@ import {
   safeError,
   safeTruncate
 } from "./utils/logger";
-import { OpenAITtsProvider } from "./providers/tts";
-import { OPENAI_TTS_FORMAT, OPENAI_TTS_INSTRUCTIONS, OPENAI_TTS_MODEL } from "./providers/models";
+import { selectTtsProvider } from "./providers";
 import { getOrCreateTtsAsset, type TtsStorage } from "./services/ttsService";
 
 export type ApiDependencies = {
@@ -889,28 +888,26 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       return c.json({ error: "Settings not found." }, 404);
     }
 
+    const mode = (settings.ai_mode ?? env.aiMode) as ProviderMode;
     let openaiApiKey = env.openaiApiKey;
     if (settings.openai_key_ciphertext && settings.openai_key_iv) {
       if (!env.openaiKeyEncryptionSecret) {
-        logServerError(
-          "tts.prefetch.encryption_secret_missing",
-          new Error("OPENAI_KEY_ENCRYPTION_SECRET is not configured."),
-          { requestId, userId: user?.id ?? null }
-        );
-        return c.json({ error: "OPENAI_KEY_ENCRYPTION_SECRET is not configured." }, 500);
+        if (mode === "openai_only") {
+          logServerError(
+            "tts.prefetch.encryption_secret_missing",
+            new Error("OPENAI_KEY_ENCRYPTION_SECRET is not configured."),
+            { requestId, userId: user?.id ?? null }
+          );
+          return c.json({ error: "OPENAI_KEY_ENCRYPTION_SECRET is not configured." }, 500);
+        }
+        logEvent("warn", "tts.prefetch.encryption_secret_missing");
+        openaiApiKey = "";
+      } else {
+        openaiApiKey = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
+          ciphertextB64: settings.openai_key_ciphertext,
+          ivB64: settings.openai_key_iv
+        });
       }
-      openaiApiKey = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
-        ciphertextB64: settings.openai_key_ciphertext,
-        ivB64: settings.openai_key_iv
-      });
-    }
-
-    if (!openaiApiKey) {
-      logEvent("warn", "tts.openai_key_missing");
-      return c.json(
-        { error: "OpenAI API key is required to generate patient audio." },
-        400
-      );
     }
 
     const schema = z.object({
@@ -956,16 +953,22 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       return c.json({ error: "Patient text too long for TTS." }, 400);
     }
 
-    const ttsProvider = OpenAITtsProvider(
-      {
-        apiKey: openaiApiKey,
-        model: OPENAI_TTS_MODEL,
-        voice: "sage",
-        format: OPENAI_TTS_FORMAT,
-        instructions: OPENAI_TTS_INSTRUCTIONS
-      },
-      logEvent
-    );
+    let ttsProvider;
+    logEvent("info", "tts.select.start", { mode });
+    try {
+      const ttsSelection = await selectTtsProvider(mode, env, openaiApiKey, logEvent);
+      ttsProvider = ttsSelection.provider;
+      logEvent("info", "tts.select.ok", {
+        selected: { kind: ttsProvider.kind, model: ttsProvider.model },
+        health: ttsSelection.health
+      });
+    } catch (error) {
+      logEvent("error", "tts.select.error", { error: safeError(error) });
+      return c.json(
+        { error: (error as Error).message || "TTS unavailable." },
+        502
+      );
+    }
 
     try {
       const result = await getOrCreateTtsAsset(
