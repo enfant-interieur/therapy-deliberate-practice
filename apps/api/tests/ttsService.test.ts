@@ -7,6 +7,7 @@ import { createApiApp } from "../src/app";
 import { ttsAssets } from "../src/db/schema";
 import type { RuntimeEnv } from "../src/env";
 import { getOrCreateTtsAsset } from "../src/services/ttsService";
+import { buildTtsCacheKey, buildTtsR2Key } from "../src/utils/ttsCache";
 
 const createEnv = (): RuntimeEnv => ({
   aiMode: "local_prefer",
@@ -21,6 +22,14 @@ const createEnv = (): RuntimeEnv => ({
   localSttUrl: "http://localhost:7001",
   localLlmUrl: "http://localhost:7002",
   localLlmModel: "test-llm",
+  localTtsUrl: "http://localhost:7003",
+  localTtsModel: "test-tts",
+  localTtsVoice: "marin",
+  localTtsFormat: "mp3",
+  openaiTtsModel: "gpt-4o-mini-tts",
+  openaiTtsVoice: "marin",
+  openaiTtsFormat: "mp3",
+  openaiTtsInstructions: "Speak like a patient.",
   supabaseUrl: "",
   supabaseAnonKey: "",
   supabaseJwtSecret: "test-secret",
@@ -87,7 +96,7 @@ test("getOrCreateTtsAsset returns generating when a request is in progress", asy
     synthesize: async () => synthesizePromise
   };
   const storage = {
-    headObject: async () => ({ exists: true }),
+    headObject: async () => ({ exists: false }),
     putObject: async () => ({ etag: "etag" }),
     getObject: async () => ({
       body: new Uint8Array([1, 2, 3]),
@@ -116,6 +125,180 @@ test("getOrCreateTtsAsset returns generating when a request is in progress", asy
   resolveSynthesize?.({ bytes: new Uint8Array([9, 9, 9]), contentType: "audio/mpeg" });
   const firstResult = await firstPromise;
   assert.equal(firstResult.status, "ready");
+});
+
+test("getOrCreateTtsAsset returns ready when DB missing but R2 exists", async () => {
+  const { db } = setupDb();
+  const env = createEnv();
+  let synthesizeCalled = false;
+  const provider = {
+    kind: "openai" as const,
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
+    format: "mp3" as const,
+    healthCheck: async () => true,
+    synthesize: async () => {
+      synthesizeCalled = true;
+      return { bytes: new Uint8Array([1]), contentType: "audio/mpeg" };
+    }
+  };
+  const storage = {
+    headObject: async () => ({ exists: true, etag: "etag", size: 3 }),
+    putObject: async () => ({ etag: "etag" }),
+    getObject: async () => ({
+      body: new Uint8Array([1, 2, 3]),
+      contentType: "audio/mpeg",
+      etag: "etag",
+      contentLength: 3
+    })
+  };
+
+  const result = await getOrCreateTtsAsset(
+    db,
+    env,
+    storage,
+    provider,
+    { text: "Hello there", voice: "marin", model: "gpt-4o-mini-tts", format: "mp3" }
+  );
+
+  assert.equal(result.status, "ready");
+  assert.equal(synthesizeCalled, false);
+});
+
+test("getOrCreateTtsAsset regenerates when DB ready but R2 missing", async () => {
+  const { db } = setupDb();
+  const env = createEnv();
+  let synthesizeCalled = false;
+  const provider = {
+    kind: "openai" as const,
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
+    format: "mp3" as const,
+    healthCheck: async () => true,
+    synthesize: async () => {
+      synthesizeCalled = true;
+      return { bytes: new Uint8Array([4, 5, 6]), contentType: "audio/mpeg" };
+    }
+  };
+  const storage = {
+    headObject: async () => ({ exists: false }),
+    putObject: async () => ({ etag: "etag" }),
+    getObject: async () => ({
+      body: new Uint8Array([1, 2, 3]),
+      contentType: "audio/mpeg",
+      etag: "etag",
+      contentLength: 3
+    })
+  };
+
+  const { cacheKey } = await buildTtsCacheKey({
+    text: "Hello there",
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
+    format: "mp3"
+  });
+  const r2Key = buildTtsR2Key({
+    cacheKey,
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
+    format: "mp3"
+  });
+
+  await db.insert(ttsAssets).values({
+    id: "asset-ready",
+    cache_key: cacheKey,
+    text: "Hello there",
+    voice: "marin",
+    model: "gpt-4o-mini-tts",
+    format: "mp3",
+    r2_key: r2Key,
+    bytes: 3,
+    content_type: "audio/mpeg",
+    etag: "etag",
+    status: "ready",
+    error: null,
+    created_at: Date.now(),
+    updated_at: Date.now()
+  });
+
+  const result = await getOrCreateTtsAsset(
+    db,
+    env,
+    storage,
+    provider,
+    { text: "Hello there", voice: "marin", model: "gpt-4o-mini-tts", format: "mp3" }
+  );
+
+  assert.equal(result.status, "ready");
+  assert.equal(synthesizeCalled, true);
+});
+
+test("getOrCreateTtsAsset flips generating to ready when R2 exists", async () => {
+  const { db } = setupDb();
+  const env = createEnv();
+  let synthesizeCalled = false;
+  const provider = {
+    kind: "openai" as const,
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
+    format: "mp3" as const,
+    healthCheck: async () => true,
+    synthesize: async () => {
+      synthesizeCalled = true;
+      return { bytes: new Uint8Array([1]), contentType: "audio/mpeg" };
+    }
+  };
+  const storage = {
+    headObject: async () => ({ exists: true, etag: "etag", size: 3 }),
+    putObject: async () => ({ etag: "etag" }),
+    getObject: async () => ({
+      body: new Uint8Array([1, 2, 3]),
+      contentType: "audio/mpeg",
+      etag: "etag",
+      contentLength: 3
+    })
+  };
+
+  const { cacheKey } = await buildTtsCacheKey({
+    text: "Hello there",
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
+    format: "mp3"
+  });
+  const r2Key = buildTtsR2Key({
+    cacheKey,
+    model: "gpt-4o-mini-tts",
+    voice: "marin",
+    format: "mp3"
+  });
+
+  await db.insert(ttsAssets).values({
+    id: "asset-generating",
+    cache_key: cacheKey,
+    text: "Hello there",
+    voice: "marin",
+    model: "gpt-4o-mini-tts",
+    format: "mp3",
+    r2_key: r2Key,
+    bytes: null,
+    content_type: "audio/mpeg",
+    etag: null,
+    status: "generating",
+    error: null,
+    created_at: Date.now(),
+    updated_at: Date.now()
+  });
+
+  const result = await getOrCreateTtsAsset(
+    db,
+    env,
+    storage,
+    provider,
+    { text: "Hello there", voice: "marin", model: "gpt-4o-mini-tts", format: "mp3" }
+  );
+
+  assert.equal(result.status, "ready");
+  assert.equal(synthesizeCalled, false);
 });
 
 test("tts route returns 404 when not ready and 200 when ready", async () => {

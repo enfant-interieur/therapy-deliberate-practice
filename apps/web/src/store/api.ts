@@ -200,6 +200,26 @@ export const api = createApi({
     >({
       query: (body) => ({ url: "/practice/patient-audio/prefetch", method: "POST", body })
     }),
+    prefetchPatientAudioBatch: builder.mutation<
+      {
+        items: Array<{
+          statement_id: string;
+          cache_key: string;
+          status: "ready" | "generating";
+          audio_url?: string;
+          retry_after_ms?: number;
+        }>;
+        ready_count: number;
+        total_count: number;
+      },
+      { exercise_id: string; practice_mode: "real_time"; statement_ids: string[] }
+    >({
+      query: (body) => ({
+        url: "/practice/patient-audio/prefetch-batch",
+        method: "POST",
+        body
+      })
+    }),
     getAttempts: builder.query<
       Array<{
         id: string;
@@ -245,5 +265,6 @@ export const {
   useImportTaskMutation,
   useRunPracticeMutation,
   usePrefetchPatientAudioMutation,
+  usePrefetchPatientAudioBatchMutation,
   useGetAttemptsQuery
 } = api;
