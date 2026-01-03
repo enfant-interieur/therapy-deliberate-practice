@@ -822,6 +822,18 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
   app.use("/api/v1/sessions/*", userAuth);
 
   const ttsConfigReady = Boolean(env.r2Bucket);
+  const selectPatientTtsProvider = async (
+    mode: ProviderMode,
+    logEvent: (level: "debug" | "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void
+  ) => {
+    logEvent("info", "tts.select.start", { mode });
+    const ttsSelection = await selectTtsProvider(mode, env, env.openaiApiKey, logEvent);
+    logEvent("info", "tts.select.ok", {
+      selected: { kind: ttsSelection.provider.kind, model: ttsSelection.provider.model },
+      health: ttsSelection.health
+    });
+    return ttsSelection.provider;
+  };
 
   const handleTtsRequest = async (c: Context) => {
     const requestId = c.get("requestId");
@@ -851,10 +863,11 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       const object = await ttsStorage.getObject(env.r2Bucket, asset.r2_key);
       const headers: Record<string, string> = {
         "Content-Type": asset.content_type ?? object.contentType,
-        "Cache-Control": "private, max-age=31536000, immutable"
+        "Cache-Control": "public, max-age=31536000, immutable"
       };
-      if (object.etag) {
-        headers.ETag = object.etag;
+      const etag = asset.etag ?? object.etag;
+      if (etag) {
+        headers.ETag = etag;
       }
       if (c.req.method === "HEAD") {
         return c.body(null, 200, headers);
@@ -889,26 +902,6 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
 
     const mode = (settings.ai_mode ?? env.aiMode) as ProviderMode;
-    let openaiApiKey = env.openaiApiKey;
-    if (settings.openai_key_ciphertext && settings.openai_key_iv) {
-      if (!env.openaiKeyEncryptionSecret) {
-        if (mode === "openai_only") {
-          logServerError(
-            "tts.prefetch.encryption_secret_missing",
-            new Error("OPENAI_KEY_ENCRYPTION_SECRET is not configured."),
-            { requestId, userId: user?.id ?? null }
-          );
-          return c.json({ error: "OPENAI_KEY_ENCRYPTION_SECRET is not configured." }, 500);
-        }
-        logEvent("warn", "tts.prefetch.encryption_secret_missing");
-        openaiApiKey = "";
-      } else {
-        openaiApiKey = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
-          ciphertextB64: settings.openai_key_ciphertext,
-          ivB64: settings.openai_key_iv
-        });
-      }
-    }
 
     const schema = z.object({
       exercise_id: z.string(),
@@ -953,15 +946,9 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       return c.json({ error: "Patient text too long for TTS." }, 400);
     }
 
-    let ttsProvider;
-    logEvent("info", "tts.select.start", { mode });
+    let ttsProvider: Awaited<ReturnType<typeof selectPatientTtsProvider>>;
     try {
-      const ttsSelection = await selectTtsProvider(mode, env, openaiApiKey, logEvent);
-      ttsProvider = ttsSelection.provider;
-      logEvent("info", "tts.select.ok", {
-        selected: { kind: ttsProvider.kind, model: ttsProvider.model },
-        health: ttsSelection.health
-      });
+      ttsProvider = await selectPatientTtsProvider(mode, logEvent);
     } catch (error) {
       logEvent("error", "tts.select.error", { error: safeError(error) });
       return c.json(
@@ -1003,6 +990,124 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       });
     } catch (error) {
       logEvent("error", "tts.prefetch.error", { error: safeError(error) });
+      return c.json({ error: "TTS generation failed." }, 500);
+    }
+  });
+
+  app.post("/api/v1/practice/patient-audio/prefetch-batch", async (c) => {
+    const requestId = c.get("requestId");
+    const user = c.get("user");
+    const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
+      log(level, event, { requestId, userId: user?.id ?? null, ...fields });
+
+    if (!ttsConfigReady) {
+      logServerError("tts.config.missing", new Error("TTS storage is not configured."), {
+        requestId,
+        userId: user?.id ?? null
+      });
+      return c.json({ error: "TTS storage is not configured." }, 500);
+    }
+    const settings = await getUserSettingsRow(user.id);
+    if (!settings) {
+      logEvent("warn", "tts.prefetch.settings_missing");
+      return c.json({ error: "Settings not found." }, 404);
+    }
+
+    const schema = z.object({
+      exercise_id: z.string(),
+      practice_mode: z.literal("real_time"),
+      statement_ids: z.array(z.string()).min(1)
+    });
+    const body = await c.req.json().catch(() => null);
+    const parsed = schema.safeParse(body);
+    if (!parsed.success) {
+      logEvent("warn", "tts.prefetch_batch.invalid_input");
+      return c.json({ error: "Invalid prefetch payload." }, 400);
+    }
+
+    const { exercise_id: exerciseId, statement_ids: statementIds } = parsed.data;
+    const examples = await db
+      .select()
+      .from(taskExamples)
+      .where(and(eq(taskExamples.task_id, exerciseId), inArray(taskExamples.id, statementIds)));
+    const exampleMap = new Map(examples.map((example) => [example.id, example]));
+    if (exampleMap.size !== statementIds.length) {
+      return c.json({ error: "Statement not found for exercise." }, 404);
+    }
+
+    const tooLong = statementIds.find((statementId) => {
+      const text = exampleMap.get(statementId)?.patient_text ?? "";
+      return text.length > MAX_TTS_TEXT_LENGTH;
+    });
+    if (tooLong) {
+      logEvent("warn", "tts.prefetch_batch.text_too_long");
+      return c.json({ error: "Patient text too long for TTS." }, 400);
+    }
+
+    const mode = (settings.ai_mode ?? env.aiMode) as ProviderMode;
+    let ttsProvider: Awaited<ReturnType<typeof selectPatientTtsProvider>>;
+    try {
+      ttsProvider = await selectPatientTtsProvider(mode, logEvent);
+    } catch (error) {
+      logEvent("error", "tts.select.error", { error: safeError(error) });
+      return c.json(
+        { error: (error as Error).message || "TTS unavailable." },
+        502
+      );
+    }
+
+    try {
+      const results = await Promise.all(
+        statementIds.map(async (statementId) => {
+          const example = exampleMap.get(statementId);
+          if (!example) {
+            return {
+              statement_id: statementId,
+              cache_key: "",
+              status: "generating" as const,
+              retry_after_ms: 500
+            };
+          }
+          const result = await getOrCreateTtsAsset(
+            db,
+            env,
+            ttsStorage,
+            ttsProvider,
+            {
+              text: example.patient_text,
+              voice: ttsProvider.voice,
+              model: ttsProvider.model,
+              format: ttsProvider.format
+            },
+            logEvent
+          );
+
+          if (result.status === "ready") {
+            return {
+              statement_id: statementId,
+              cache_key: result.cacheKey,
+              status: "ready" as const,
+              audio_url: result.audioUrl
+            };
+          }
+
+          return {
+            statement_id: statementId,
+            cache_key: result.cacheKey,
+            status: "generating" as const,
+            retry_after_ms: result.retryAfterMs
+          };
+        })
+      );
+
+      const readyCount = results.filter((item) => item.status === "ready").length;
+      return c.json({
+        items: results,
+        ready_count: readyCount,
+        total_count: results.length
+      });
+    } catch (error) {
+      logEvent("error", "tts.prefetch_batch.error", { error: safeError(error) });
       return c.json({ error: "TTS generation failed." }, 500);
     }
   });
