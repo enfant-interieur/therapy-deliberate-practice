@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MinigameRound } from "../../../store/api";
 import { useStartMinigameRoundMutation, useSubmitMinigameRoundMutation } from "../../../store/api";
 import { useAudioRecorder } from "./useAudioRecorder";
-import { usePatientAudio } from "./usePatientAudio";
 import { useResponseTiming } from "./useResponseTiming";
+import type { PatientAudioBankHandle } from "../../../patientAudio/usePatientAudioBank";
 
 export type TurnState =
   | "idle"
@@ -25,6 +25,7 @@ type FfaTurnControllerOptions = {
   responseTimerSeconds?: number;
   maxResponseEnabled: boolean;
   maxResponseSeconds?: number;
+  patientAudio: PatientAudioBankHandle;
   onResult: (payload: {
     transcript?: string;
     evaluation?: unknown;
@@ -44,23 +45,30 @@ export const useFfaTurnController = ({
   responseTimerSeconds,
   maxResponseEnabled,
   maxResponseSeconds,
+  patientAudio,
   onResult
 }: FfaTurnControllerOptions) => {
   const [startRound] = useStartMinigameRoundMutation();
   const [submitRound] = useSubmitMinigameRoundMutation();
   const { recordingState, startRecording, stopRecording } = useAudioRecorder();
-  const patientAudio = usePatientAudio(audioElement);
+  const [patientEndedAt, setPatientEndedAt] = useState<number | null>(null);
+  const playTokenRef = useRef(0);
+  const entry = round
+    ? patientAudio.getEntry(round.task_id, round.example_id)
+    : undefined;
+  const audioStatus = entry?.status ?? "idle";
+  const audioError = entry?.error ?? null;
   const timing = useResponseTiming({
     responseTimerEnabled,
     responseTimerSeconds,
     maxResponseEnabled,
     maxResponseSeconds,
-    patientEndedAt: patientAudio.patientEndedAt
+    patientEndedAt
   });
   const [state, setState] = useState<TurnState>("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const startedRoundRef = useRef<string | null>(null);
-  const lastAudioStatusRef = useRef(patientAudio.status);
+  const lastAudioStatusRef = useRef(audioStatus);
   const autoStopRef = useRef(false);
 
   useEffect(() => {
@@ -71,17 +79,29 @@ export const useFfaTurnController = ({
       setSubmitError(null);
       timing.reset();
       autoStopRef.current = false;
+      setPatientEndedAt(null);
+      playTokenRef.current += 1;
+      if (audioElement) {
+        patientAudio.stop(audioElement);
+      }
     }
-  }, [round?.id, timing]);
+  }, [audioElement, patientAudio, round?.id, timing]);
 
   useEffect(() => {
-    if (patientAudio.status === "playing") {
+    if (!enabled || !round) return;
+    const controller = new AbortController();
+    void patientAudio.ensureReady(round.task_id, round.example_id, { signal: controller.signal });
+    return () => controller.abort();
+  }, [enabled, patientAudio, round]);
+
+  useEffect(() => {
+    if (audioStatus === "playing") {
       setState("patient_playing");
     }
     if (
       lastAudioStatusRef.current === "playing" &&
-      patientAudio.status !== "playing" &&
-      patientAudio.patientEndedAt
+      audioStatus !== "playing" &&
+      patientEndedAt
     ) {
       if (responseTimerEnabled && timing.responseCountdown != null && timing.responseCountdown > 0) {
         setState("awaiting_response_window");
@@ -89,10 +109,10 @@ export const useFfaTurnController = ({
         setState("patient_ready");
       }
     }
-    lastAudioStatusRef.current = patientAudio.status;
+    lastAudioStatusRef.current = audioStatus;
   }, [
-    patientAudio.patientEndedAt,
-    patientAudio.status,
+    audioStatus,
+    patientEndedAt,
     responseTimerEnabled,
     timing.responseCountdown
   ]);
@@ -109,10 +129,14 @@ export const useFfaTurnController = ({
     setState("patient_loading");
     await startRound({ sessionId, roundId: round.id });
     startedRoundRef.current = round.id;
-    await patientAudio.prefetch(round.task_id, round.example_id);
+    await patientAudio.ensureReady(round.task_id, round.example_id);
     setState("patient_ready");
-    await patientAudio.play();
-  }, [patientAudio, playerId, round, sessionId, startRound]);
+    const token = playTokenRef.current;
+    await patientAudio.play(round.task_id, round.example_id, audioElement, {
+      shouldPlay: () => playTokenRef.current === token,
+      onEnded: () => setPatientEndedAt(Date.now())
+    });
+  }, [audioElement, enabled, patientAudio, playerId, round, sessionId, startRound]);
 
   useEffect(() => {
     if (!round || !playerId || state !== "idle") return;
@@ -126,13 +150,21 @@ export const useFfaTurnController = ({
       await startRoundOrMatch();
     }
     setState("patient_ready");
-    await patientAudio.play();
-  }, [enabled, patientAudio, playerId, round, startRoundOrMatch]);
+    const token = playTokenRef.current;
+    await patientAudio.play(round.task_id, round.example_id, audioElement, {
+      shouldPlay: () => playTokenRef.current === token,
+      onEnded: () => setPatientEndedAt(Date.now())
+    });
+  }, [audioElement, enabled, patientAudio, playerId, round, startRoundOrMatch]);
 
   const stopPatient = useCallback(() => {
     if (!enabled) return;
-    patientAudio.stop();
-  }, [enabled, patientAudio]);
+    patientAudio.stop(audioElement);
+    setPatientEndedAt(Date.now());
+    if (round) {
+      patientAudio.bank.updateEntry(round.task_id, round.example_id, { status: "ready" });
+    }
+  }, [audioElement, enabled, patientAudio, round]);
 
   const startRecordingSafe = useCallback(async () => {
     if (!enabled || !round || !playerId) return;
@@ -234,13 +266,13 @@ export const useFfaTurnController = ({
     state,
     micMode,
     recordingState,
-    audioStatus: patientAudio.status,
-    audioError: patientAudio.error,
+    audioStatus,
+    audioError,
     submitError,
     responseCountdownLabel,
     maxDurationRemaining: timing.maxDurationRemaining,
     maxDurationProgress,
-    patientEndedAt: patientAudio.patientEndedAt,
+    patientEndedAt,
     startRoundOrMatch,
     playPatient,
     stopPatient,

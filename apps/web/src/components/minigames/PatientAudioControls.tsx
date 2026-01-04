@@ -1,4 +1,4 @@
-import type { PatientAudioStatus } from "./hooks/usePatientAudio";
+import type { PatientAudioStatus } from "../../patientAudio/PatientAudioBank";
 
 type PatientAudioControlsProps = {
   status: PatientAudioStatus;
@@ -9,7 +9,8 @@ type PatientAudioControlsProps = {
 
 const statusCopy: Record<PatientAudioStatus, string> = {
   idle: "Audio idle",
-  loading: "Preparing voice...",
+  generating: "Preparing voice...",
+  downloading: "Downloading voice...",
   ready: "Ready to play",
   playing: "Patient speaking",
   blocked: "Tap to play",
@@ -29,12 +30,12 @@ export const PatientAudioControls = ({
     <div className="flex flex-col items-center gap-3">
       <button
         onClick={() => (isPlaying ? onStop() : onPlay())}
-        disabled={status === "loading"}
+        disabled={status === "generating" || status === "downloading"}
         className={`group flex items-center gap-3 rounded-full border px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
           isPlaying
             ? "border-rose-300/60 bg-rose-500/20 text-rose-100 shadow-[0_0_25px_rgba(244,63,94,0.35)]"
             : "border-teal-300/60 bg-teal-500/20 text-teal-100 shadow-[0_0_25px_rgba(45,212,191,0.35)]"
-        } ${status === "loading" ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5 hover:border-white/40"}`}
+        } ${status === "generating" || status === "downloading" ? "cursor-not-allowed opacity-60" : "hover:-translate-y-0.5 hover:border-white/40"}`}
       >
         <span className="h-2 w-2 rounded-full bg-current shadow-[0_0_12px_currentColor]" />
         {isPlaying ? "Stop voice" : buttonLabel}

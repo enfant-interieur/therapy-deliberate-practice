@@ -2,13 +2,14 @@ import { useCallback, useState } from "react";
 import type { MinigameRound } from "../../../store/api";
 import { useStartMinigameRoundMutation, useSubmitMinigameRoundMutation } from "../../../store/api";
 import { useAudioRecorder } from "./useAudioRecorder";
-import { usePatientAudio } from "./usePatientAudio";
+import type { PatientAudioBankHandle } from "../../../patientAudio/usePatientAudioBank";
 
 type RoundRunnerOptions = {
   sessionId: string;
   round?: MinigameRound;
   playerId?: string;
   audioElement?: HTMLAudioElement | null;
+  patientAudio: PatientAudioBankHandle;
   onResult: (payload: {
     transcript?: string;
     evaluation?: unknown;
@@ -22,12 +23,17 @@ export const useMinigameRoundRunner = ({
   round,
   playerId,
   audioElement,
+  patientAudio,
   onResult
 }: RoundRunnerOptions) => {
   const [startRound] = useStartMinigameRoundMutation();
   const [submitRound] = useSubmitMinigameRoundMutation();
   const { recordingState, startRecording, stopRecording } = useAudioRecorder();
-  const { status, prefetch, play, error: audioError } = usePatientAudio(audioElement);
+  const entry = round
+    ? patientAudio.getEntry(round.task_id, round.example_id)
+    : undefined;
+  const audioStatus = entry?.status ?? "idle";
+  const audioError = entry?.error ?? null;
   const [status, setStatus] = useState<"idle" | "playing" | "ready" | "submitting" | "complete">(
     "idle"
   );
@@ -38,10 +44,10 @@ export const useMinigameRoundRunner = ({
     setSubmitError(null);
     await startRound({ sessionId, roundId: round.id });
     setStatus("playing");
-    await prefetch(round.task_id, round.example_id);
-    await play();
+    await patientAudio.ensureReady(round.task_id, round.example_id);
+    await patientAudio.play(round.task_id, round.example_id, audioElement);
     setStatus("ready");
-  }, [playerId, play, prefetch, round, sessionId, startRound]);
+  }, [audioElement, patientAudio, playerId, round, sessionId, startRound]);
 
   const stopAndSubmit = useCallback(async () => {
     if (!round || !playerId) return;
@@ -76,6 +82,7 @@ export const useMinigameRoundRunner = ({
     recordingState,
     isPlaying: status === "playing",
     audioError,
+    audioStatus,
     submitError,
     startTurn,
     startRecording,

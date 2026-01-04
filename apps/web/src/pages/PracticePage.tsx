@@ -6,8 +6,6 @@ import {
   useGetTaskQuery,
   useGetPracticeSessionsQuery,
   useGetPracticeSessionAttemptsQuery,
-  usePrefetchPatientAudioMutation,
-  usePrefetchPatientAudioBatchMutation,
   useRunPracticeMutation,
   useStartSessionMutation
 } from "../store/api";
@@ -23,6 +21,7 @@ import {
   setSessionAttempts,
   setSession,
 } from "../store/practiceSlice";
+import { usePatientAudioBank } from "../patientAudio/usePatientAudioBank";
 
 const blobToBase64 = (blob: Blob, errorMessage: string) =>
   new Promise<string>((resolve, reject) => {
@@ -60,17 +59,6 @@ const pickSupportedAudioMimeType = () => {
   return null;
 };
 
-type PatientAudioStatus = "idle" | "generating" | "ready" | "error";
-
-type PatientAudioEntry = {
-  status: PatientAudioStatus;
-  cacheKey?: string;
-  audioUrl?: string;
-  blobUrl?: string;
-  retryAfterMs?: number;
-  error?: string;
-};
-
 export const PracticePage = () => {
   const { t } = useTranslation();
   const { taskId } = useParams();
@@ -79,8 +67,7 @@ export const PracticePage = () => {
   const { data: task } = useGetTaskQuery({ id: taskId ?? "" });
   const [startSession, { isLoading: isStartingSession }] = useStartSessionMutation();
   const [runPractice] = useRunPracticeMutation();
-  const [prefetchPatientAudio] = usePrefetchPatientAudioMutation();
-  const [prefetchPatientAudioBatch] = usePrefetchPatientAudioBatchMutation();
+  const patientAudio = usePatientAudioBank({ loggerScope: "practice" });
   const dispatch = useAppDispatch();
   const practice = useAppSelector((state) => state.practice);
   const settings = useAppSelector((state) => state.settings);
@@ -103,9 +90,6 @@ export const PracticePage = () => {
   const [nextDifficulty, setNextDifficulty] = useState<number | null>(null);
   const [requestId, setRequestId] = useState<string | null>(null);
   const [practiceMode, setPracticeMode] = useState<"standard" | "real_time">("standard");
-  const [patientAudioByStatementId, setPatientAudioByStatementId] = useState<
-    Record<string, PatientAudioEntry>
-  >({});
   const [patientSpeaking, setPatientSpeaking] = useState(false);
   const [canRecord, setCanRecord] = useState(true);
   const [hidePatientText, setHidePatientText] = useState(true);
@@ -122,7 +106,6 @@ export const PracticePage = () => {
   const recorderMimeRef = useRef<string | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const patientAudioRef = useRef<HTMLAudioElement | null>(null);
-  const patientAudioByStatementIdRef = useRef<Record<string, PatientAudioEntry>>({});
   const warmupAbortRef = useRef<AbortController | null>(null);
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const previousTaskIdRef = useRef<string | null>(null);
@@ -137,9 +120,8 @@ export const PracticePage = () => {
   const currentItem = practice.sessionItems[practice.currentIndex];
   const currentExampleId = currentItem?.example_id;
   const patientLine = currentItem?.patient_text ?? "";
-  const currentAudioEntry = currentExampleId
-    ? patientAudioByStatementId[currentExampleId]
-    : undefined;
+  const currentAudioEntry =
+    currentExampleId && taskId ? patientAudio.getEntry(taskId, currentExampleId) : undefined;
   const patientAudioStatus = currentAudioEntry?.status ?? "idle";
   const patientAudioUrl = currentAudioEntry?.blobUrl ?? currentAudioEntry?.audioUrl ?? null;
   const patientCacheKey = currentAudioEntry?.cacheKey ?? null;
@@ -156,9 +138,12 @@ export const PracticePage = () => {
   const packReadyCount = useMemo(
     () =>
       sessionStatementIds.reduce((count, statementId) => {
-        return patientAudioByStatementId[statementId]?.status === "ready" ? count + 1 : count;
+        if (!taskId) return count;
+        return patientAudio.getEntry(taskId, statementId)?.status === "ready"
+          ? count + 1
+          : count;
       }, 0),
-    [patientAudioByStatementId, sessionStatementIds]
+    [patientAudio, sessionStatementIds, taskId]
   );
   const packProgressPercent =
     packTotalCount > 0 ? Math.round((packReadyCount / packTotalCount) * 100) : 0;
@@ -239,105 +224,12 @@ export const PracticePage = () => {
     };
   }, [practice.audioBlobRef]);
 
-  useEffect(() => {
-    patientAudioByStatementIdRef.current = patientAudioByStatementId;
-  }, [patientAudioByStatementId]);
-
-  const revokePatientAudioBlobs = useCallback(() => {
-    Object.values(patientAudioByStatementIdRef.current).forEach((entry) => {
-      if (entry.blobUrl) {
-        URL.revokeObjectURL(entry.blobUrl);
-      }
-    });
-  }, []);
-
-  const updatePatientAudioEntry = useCallback(
-    (statementId: string, entry: Partial<PatientAudioEntry>) => {
-      setPatientAudioByStatementId((prev) => {
-        const existing = prev[statementId] ?? { status: "idle" };
-        return {
-          ...prev,
-          [statementId]: {
-            ...existing,
-            ...entry
-          }
-        };
-      });
-    },
-    []
-  );
-
-  const waitWithAbort = useCallback((ms: number, signal?: AbortSignal) => {
-    return new Promise<void>((resolve) => {
-      if (!signal) {
-        window.setTimeout(resolve, ms);
-        return;
-      }
-      if (signal.aborted) {
-        resolve();
-        return;
-      }
-      const timeout = window.setTimeout(() => {
-        signal.removeEventListener("abort", onAbort);
-        resolve();
-      }, ms);
-      const onAbort = () => {
-        window.clearTimeout(timeout);
-        resolve();
-      };
-      signal.addEventListener("abort", onAbort, { once: true });
-    });
-  }, []);
-
-  const cachePatientAudio = useCallback(
-    async (
-      statementId: string,
-      audioUrl: string,
-      cacheKey: string,
-      signal?: AbortSignal
-    ) => {
-      if (signal?.aborted) return;
-      const existing = patientAudioByStatementIdRef.current[statementId];
-      if (existing?.blobUrl) return;
-
-      let response: Response | null = null;
-      if (typeof window !== "undefined" && "caches" in window) {
-        const cache = await caches.open("patient-audio-v1");
-        response = await cache.match(audioUrl);
-        if (!response) {
-          response = await fetch(audioUrl, { signal });
-          if (!response.ok) {
-            throw new Error("Failed to fetch patient audio.");
-          }
-          await cache.put(audioUrl, response.clone());
-        }
-      } else {
-        response = await fetch(audioUrl, { signal });
-        if (!response.ok) {
-          throw new Error("Failed to fetch patient audio.");
-        }
-      }
-
-      const blob = await response.clone().blob();
-      const blobUrl = URL.createObjectURL(blob);
-      updatePatientAudioEntry(statementId, {
-        status: "ready",
-        cacheKey,
-        audioUrl,
-        blobUrl,
-        error: undefined
-      });
-    },
-    [updatePatientAudioEntry]
-  );
-
   const resetSessionUI = useCallback(() => {
     setError(null);
     setResponseErrors(null);
     setNextDifficulty(null);
     setRequestId(null);
-    revokePatientAudioBlobs();
-    setPatientAudioByStatementId({});
+    patientAudio.bank.revokeAll();
     setPatientSpeaking(false);
     setPatientPlay(false);
     setCanRecord(practiceMode === "standard");
@@ -348,7 +240,7 @@ export const PracticePage = () => {
     transcriptionPromiseRef.current = null;
     transcriptionRequestRef.current = null;
     pendingResultRef.current = null;
-  }, [practiceMode, revokePatientAudioBlobs]);
+  }, [patientAudio.bank, practiceMode]);
 
   const startNewSession = useCallback(async () => {
     if (!taskId) return;
@@ -471,20 +363,19 @@ export const PracticePage = () => {
   }, [practice.sessionId]);
 
   useEffect(() => {
-    revokePatientAudioBlobs();
-    setPatientAudioByStatementId({});
+    patientAudio.bank.revokeAll();
     setIsWarmingPack(false);
     warmupAbortRef.current?.abort();
     prefetchAbortRef.current?.abort();
-  }, [practice.sessionId, revokePatientAudioBlobs]);
+  }, [patientAudio.bank, practice.sessionId]);
 
   useEffect(() => {
     return () => {
-      revokePatientAudioBlobs();
+      patientAudio.bank.revokeAll();
       warmupAbortRef.current?.abort();
       prefetchAbortRef.current?.abort();
     };
-  }, [revokePatientAudioBlobs]);
+  }, [patientAudio.bank]);
 
   useEffect(() => {
     setPatientSpeaking(false);
@@ -507,6 +398,13 @@ export const PracticePage = () => {
   }, [patientLine]);
 
   useEffect(() => {
+    if (practiceMode !== "real_time") return;
+    if (patientAudioStatus === "error") {
+      setCanRecord(true);
+    }
+  }, [patientAudioStatus, practiceMode]);
+
+  useEffect(() => {
     if (practiceMode === "real_time") return;
     warmupAbortRef.current?.abort();
     prefetchAbortRef.current?.abort();
@@ -515,80 +413,24 @@ export const PracticePage = () => {
 
   useEffect(() => {
     if (practiceMode !== "real_time" || !taskId || !currentExampleId) return;
-    const existing = patientAudioByStatementIdRef.current[currentExampleId];
-    if (existing?.status === "ready") {
-      return;
-    }
     const controller = new AbortController();
     prefetchAbortRef.current?.abort();
     prefetchAbortRef.current = controller;
 
     const runPrefetch = async () => {
       setCanRecord(false);
-      updatePatientAudioEntry(currentExampleId, { status: "generating", error: undefined });
-      let attempts = 0;
-      while (attempts < 10 && !controller.signal.aborted) {
-        attempts += 1;
-        try {
-          const result = await prefetchPatientAudio({
-            exercise_id: taskId,
-            practice_mode: "real_time",
-            statement_id: currentExampleId
-          }).unwrap();
-          if (controller.signal.aborted) return;
-
-          updatePatientAudioEntry(currentExampleId, {
-            cacheKey: result.cache_key,
-            status: result.status,
-            audioUrl: result.audio_url,
-            retryAfterMs: result.retry_after_ms,
-            error: undefined
-          });
-
-          if (result.status === "ready" && result.audio_url) {
-            await cachePatientAudio(
-              currentExampleId,
-              result.audio_url,
-              result.cache_key,
-              controller.signal
-            );
-            return;
-          }
-
-          const retryAfter = result.retry_after_ms ?? 500;
-          await waitWithAbort(retryAfter, controller.signal);
-        } catch (err) {
-          if (controller.signal.aborted) return;
-          updatePatientAudioEntry(currentExampleId, {
-            status: "error",
-            error: "Unable to prepare patient audio."
-          });
-          setCanRecord(true);
-          return;
-        }
-      }
-      if (!controller.signal.aborted) {
-        updatePatientAudioEntry(currentExampleId, {
-          status: "error",
-          error: "Patient audio took too long to generate."
-        });
-        setCanRecord(true);
-      }
+      await patientAudio.ensureReady(taskId, currentExampleId, { signal: controller.signal });
     };
 
-    runPrefetch();
+    runPrefetch().catch(() => {
+      if (!controller.signal.aborted) {
+        setCanRecord(true);
+      }
+    });
     return () => {
       controller.abort();
     };
-  }, [
-    cachePatientAudio,
-    currentExampleId,
-    practiceMode,
-    prefetchPatientAudio,
-    taskId,
-    updatePatientAudioEntry,
-    waitWithAbort
-  ]);
+  }, [currentExampleId, patientAudio, practiceMode, taskId]);
 
   useEffect(() => {
     if (practiceMode !== "real_time" || !taskId || packTotalCount === 0) {
@@ -603,58 +445,10 @@ export const PracticePage = () => {
     setIsWarmingPack(true);
 
     const runWarmup = async () => {
-      let pendingIds = new Set(sessionStatementIds);
-      while (!controller.signal.aborted && pendingIds.size > 0) {
-        const response = await prefetchPatientAudioBatch({
-          exercise_id: taskId,
-          practice_mode: "real_time",
-          statement_ids: Array.from(pendingIds)
-        }).unwrap();
-        if (controller.signal.aborted) return;
-
-        response.items.forEach((item) => {
-          if (item.status === "ready" && item.audio_url) {
-            updatePatientAudioEntry(item.statement_id, {
-              status: "ready",
-              cacheKey: item.cache_key,
-              audioUrl: item.audio_url,
-              error: undefined
-            });
-            void cachePatientAudio(
-              item.statement_id,
-              item.audio_url,
-              item.cache_key,
-              controller.signal
-            ).catch(() => {
-              updatePatientAudioEntry(item.statement_id, {
-                error: "Unable to cache patient audio."
-              });
-            });
-          } else {
-            updatePatientAudioEntry(item.statement_id, {
-              status: "generating",
-              cacheKey: item.cache_key,
-              retryAfterMs: item.retry_after_ms,
-              error: undefined
-            });
-          }
-        });
-
-        pendingIds = new Set(
-          response.items
-            .filter((item) => item.status !== "ready")
-            .map((item) => item.statement_id)
-        );
-        if (pendingIds.size === 0) break;
-
-        const retryAfter = Math.min(
-          ...response.items
-            .filter((item) => item.status !== "ready")
-            .map((item) => item.retry_after_ms ?? 500)
-        );
-        await waitWithAbort(retryAfter, controller.signal);
-      }
-
+      await patientAudio.warmup(
+        { [taskId]: sessionStatementIds },
+        { signal: controller.signal }
+      );
       if (!controller.signal.aborted) {
         setIsWarmingPack(false);
       }
@@ -670,14 +464,11 @@ export const PracticePage = () => {
       controller.abort();
     };
   }, [
-    cachePatientAudio,
     packTotalCount,
+    patientAudio,
     practiceMode,
-    prefetchPatientAudioBatch,
     sessionStatementIds,
     taskId,
-    updatePatientAudioEntry,
-    waitWithAbort
   ]);
 
   useEffect(() => {
@@ -685,19 +476,17 @@ export const PracticePage = () => {
     if (!autoPlayPatientAudio) return;
     if (patientAudioStatus !== "ready") return;
     if (!patientAudioRef.current) return;
-    patientAudioRef.current.play().catch(() => {
-      if (currentExampleId) {
-        updatePatientAudioEntry(currentExampleId, {
-          error: "Autoplay was blocked. Tap play to begin."
-        });
-      }
-    });
+    if (!taskId || !currentExampleId) return;
+    patientAudio
+      .play(taskId, currentExampleId, patientAudioRef.current)
+      .catch(() => null);
   }, [
     autoPlayPatientAudio,
     currentExampleId,
     patientAudioStatus,
+    patientAudio,
     practiceMode,
-    updatePatientAudioEntry
+    taskId
   ]);
 
   const beginTranscription = useCallback(
@@ -1338,15 +1127,31 @@ export const PracticePage = () => {
                         setPatientSpeaking(true);
                         setPatientPlay(true);
                         setCanRecord(false);
+                        if (taskId && currentExampleId) {
+                          patientAudio.bank.updateEntry(taskId, currentExampleId, {
+                            status: "playing",
+                            error: undefined
+                          });
+                        }
                       }}
                       onPause={() => {
                         setPatientSpeaking(false);
                         setPatientPlay(false);
+                        if (taskId && currentExampleId) {
+                          patientAudio.bank.updateEntry(taskId, currentExampleId, {
+                            status: "ready"
+                          });
+                        }
                       }}
                       onEnded={() => {
                         setPatientSpeaking(false);
                         setPatientPlay(false);
                         setCanRecord(true);
+                        if (taskId && currentExampleId) {
+                          patientAudio.bank.updateEntry(taskId, currentExampleId, {
+                            status: "ready"
+                          });
+                        }
                       }}
                     />
                   </div>

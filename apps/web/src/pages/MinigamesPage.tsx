@@ -14,6 +14,7 @@ import { VersusIntroOverlay } from "../components/minigames/VersusIntroOverlay";
 import { useFfaTurnController } from "../components/minigames/hooks/useFfaTurnController";
 import { useTdmMatchController } from "../components/minigames/hooks/useTdmMatchController";
 import { useFullscreen } from "../components/minigames/hooks/useFullscreen";
+import { usePatientAudioBank } from "../patientAudio/usePatientAudioBank";
 import {
   useAddMinigamePlayersMutation,
   useAddMinigameTeamsMutation,
@@ -41,6 +42,8 @@ const modeCopy = {
   tdm: "Team Deathmatch"
 };
 
+const WARMUP_AHEAD = 2;
+
 export const MinigamesPage = () => {
   const dispatch = useAppDispatch();
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -65,6 +68,7 @@ export const MinigamesPage = () => {
   const [fetchMinigameState, minigameState] = useLazyGetMinigameStateQuery();
   const [redrawRound] = useRedrawMinigameRoundMutation();
   const fullscreen = useFullscreen();
+  const patientAudio = usePatientAudioBank({ loggerScope: "minigames" });
 
   useEffect(() => {
     if (minigameState.data) {
@@ -117,6 +121,38 @@ export const MinigamesPage = () => {
     [minigames.currentRoundId, minigames.rounds]
   );
 
+  const warmupRounds = useMemo(() => {
+    if (!currentRound) return [];
+    const upcoming = [...minigames.rounds]
+      .filter((round) => round.status !== "completed")
+      .sort((a, b) => a.position - b.position);
+    const currentIndex = Math.max(
+      0,
+      upcoming.findIndex((round) => round.id === currentRound.id)
+    );
+    return upcoming.slice(currentIndex, currentIndex + 1 + WARMUP_AHEAD);
+  }, [currentRound, minigames.rounds]);
+
+  useEffect(() => {
+    if (warmupRounds.length === 0) return;
+    const grouped: Record<string, string[]> = {};
+    warmupRounds.forEach((round) => {
+      if (!grouped[round.task_id]) {
+        grouped[round.task_id] = [];
+      }
+      if (!grouped[round.task_id].includes(round.example_id)) {
+        grouped[round.task_id].push(round.example_id);
+      }
+    });
+    const controller = new AbortController();
+    void patientAudio.warmup(grouped, { signal: controller.signal });
+    return () => controller.abort();
+  }, [patientAudio, warmupRounds]);
+
+  useEffect(() => {
+    patientAudio.bank.revokeAll();
+  }, [minigames.session?.id, patientAudio.bank]);
+
   const timingSettings = useMemo(() => {
     const settings = (minigames.session?.settings ?? {}) as {
       response_timer_enabled?: boolean;
@@ -138,6 +174,7 @@ export const MinigamesPage = () => {
     round: currentRound,
     playerId: currentPlayerId,
     audioElement,
+    patientAudio,
     responseTimerEnabled: timingSettings.responseTimerEnabled,
     responseTimerSeconds: timingSettings.responseTimerSeconds,
     maxResponseEnabled: timingSettings.maxResponseEnabled,
@@ -174,6 +211,7 @@ export const MinigamesPage = () => {
     sessionId: minigames.session?.id ?? "",
     round: currentRound,
     audioElement,
+    patientAudio,
     responseTimerEnabled: timingSettings.responseTimerEnabled,
     responseTimerSeconds: timingSettings.responseTimerSeconds,
     maxResponseEnabled: timingSettings.maxResponseEnabled,
