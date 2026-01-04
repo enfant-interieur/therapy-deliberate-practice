@@ -120,10 +120,10 @@ export const MinigamesPage = () => {
     const nextForPlayer = minigames.rounds.find(
       (round) => round.status !== "completed" && round.player_a_id === currentPlayerId
     );
-    if (nextForPlayer) {
+    if (nextForPlayer && nextForPlayer.id !== minigames.currentRoundId) {
       dispatch(setCurrentRoundId(nextForPlayer.id));
     }
-  }, [currentPlayerId, dispatch, minigames.rounds, mode]);
+  }, [currentPlayerId, dispatch, minigames.currentRoundId, minigames.rounds, mode]);
 
   const currentRound = useMemo(
     () =>

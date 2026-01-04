@@ -108,7 +108,7 @@ export const useTdmMatchController = ({
     const controller = new AbortController();
     void ensureReady(round.task_id, round.example_id, { signal: controller.signal });
     return () => controller.abort();
-  }, [enabled, ensureReady, round]);
+  }, [enabled, ensureReady, round?.example_id, round?.task_id]);
 
   useEffect(() => {
     if (audioStatus === "playing") {
