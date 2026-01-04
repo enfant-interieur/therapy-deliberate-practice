@@ -444,10 +444,68 @@
     "localSuite": {
       "kicker": "Local runtime",
       "title": "Local Suite",
-      "subtitle": "Run the gateway locally, download the desktop launcher, and choose the right model for each endpoint.",
+      "subtitle": "Run local models with a cross-platform desktop launcher that exposes an OpenAI-compatible gateway.",
+      "overview": {
+        "title": "How Local Suite works",
+        "subtitle": "A desktop app runs the gateway on your machine and keeps the model layer observable, reliable, and offline-first.",
+        "cards": [
+          {
+            "title": "Cross-platform launcher",
+            "description": "Install the Local Suite app on macOS, Windows, or Linux to start, stop, and monitor local inference.",
+            "bullets": [
+              "One-click start with health checks.",
+              "Built-in doctor diagnostics.",
+              "No cloud calls required."
+            ]
+          },
+          {
+            "title": "OpenAI-compatible gateway",
+            "description": "A single Base URL exposes OpenAI-style endpoints for scoring and speech so the app can plug in seamlessly.",
+            "bullets": [
+              "POST /v1/responses for LLM scoring.",
+              "POST /v1/audio/speech for TTS.",
+              "POST /v1/audio/transcriptions for STT."
+            ]
+          },
+          {
+            "title": "Curated model catalog",
+            "description": "Browse pre-validated model options with hardware requirements, endpoint support, and tuning hints.",
+            "bullets": [
+              "Filter by endpoint, provider, and hardware.",
+              "Copy model IDs into Settings.",
+              "Track RAM/VRAM needs up front."
+            ]
+          }
+        ]
+      },
+      "paths": {
+        "title": "Choose your setup path",
+        "subtitle": "Most teams use Local Suite. Advanced users can bring their own models as long as endpoints match.",
+        "recommended": {
+          "kicker": "Recommended",
+          "title": "Use Local Suite (recommended)",
+          "body": "Download the desktop app, select a model set, and paste the Base URL into Settings.",
+          "cta": "Go to downloads"
+        },
+        "advanced": {
+          "kicker": "Advanced",
+          "title": "Advanced: use your own models",
+          "body": "Already running your own stack? As long as you expose the same endpoints, Therapy Studio can connect.",
+          "codeTitle": "Example gateway skeleton",
+          "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import JSONResponse, Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}\n\n@app.post(\"/v1/audio/translations\")\nasync def audio_translations(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}",
+          "cta": "See endpoint details"
+        }
+      },
       "downloads": {
         "title": "Desktop downloads",
-        "subtitle": "Grab the latest launcher builds from GitHub Releases.",
+        "subtitle": "macOS installs are delivered via the Mac App Store. Windows and Linux builds come from GitHub Releases.",
+        "labels": {
+          "windows": "Windows",
+          "macos": "Mac App Store",
+          "linux": "Linux"
+        },
+        "appStoreUrl": "https://apps.apple.com",
+        "appStoreAction": "View in App Store",
         "ready": "Download",
         "pending": "Coming soon",
         "error": "Unable to load GitHub releases. Showing cached links."
@@ -530,45 +588,33 @@
     "local": {
       "steps": [
         {
-          "title": "Start the local LLM + TTS servers",
-          "description": "Run the script below. It detects Apple Silicon and chooses MLX models automatically.",
+          "title": "Use Local Suite to run local models",
+          "description": "Local Suite is the cross-platform desktop launcher that runs the gateway and manages local inference.",
           "links": [
             {
-              "label": "Script docs",
-              "href": "https://github.com/albertbuchard/therapy-deliberate-practice"
+              "label": "Open Local Suite help",
+              "href": "/help/local-suite"
             }
           ]
         },
         {
-          "title": "Download the recommended models",
-          "description": "We use Qwen 4B for scoring and Kokoro/Chatterbox for TTS depending on your machine.",
+          "title": "Connect Therapy Studio to the gateway",
+          "description": "Start Local Suite, copy the Base URL, and paste it into Settings to enable local scoring and speech.",
           "bullets": [
-            "Apple Silicon: Qwen MLX + Kokoro MLX TTS.",
-            "Other GPUs: Qwen Instruct + Chatterbox multilingual TTS.",
-            "The script will reference these by default."
+            "Check the gateway health and model list in the desktop app.",
+            "Keep the Base URL consistent for both LLM and audio endpoints.",
+            "Switch AI mode to Local only or Local preferred."
+          ]
+        },
+        {
+          "title": "Advanced: run your own models",
+          "description": "If you already host models, expose OpenAI-compatible endpoints so the app can connect.",
+          "bullets": [
+            "Required endpoints: /v1/responses, /v1/audio/speech, /v1/audio/transcriptions.",
+            "Optional: /v1/audio/translations for multilingual audio.",
+            "Return standard OpenAI response shapes."
           ],
-          "links": [
-            {
-              "label": "Qwen 3 4B MLX",
-              "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit"
-            },
-            {
-              "label": "Qwen 3 4B Instruct",
-              "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
-            },
-            {
-              "label": "Kokoro MLX TTS",
-              "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16"
-            }
-          ]
-        },
-        {
-          "title": "Point the app to your local services",
-          "description": "Keep the defaults or adjust the URLs in Settings once the servers report healthy.",
-          "bullets": [
-            "LLM server: http://localhost:7002",
-            "TTS server: http://localhost:7003"
-          ]
+          "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}"
         }
       ]
     },

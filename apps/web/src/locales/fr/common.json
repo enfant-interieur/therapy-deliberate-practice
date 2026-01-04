@@ -444,10 +444,68 @@
     "localSuite": {
       "kicker": "Exécution locale",
       "title": "Suite locale",
-      "subtitle": "Exécutez la passerelle en local, téléchargez le launcher et choisissez le modèle adapté à chaque endpoint.",
+      "subtitle": "Exécutez des modèles locaux avec une application de bureau multiplateforme qui expose une passerelle compatible OpenAI.",
+      "overview": {
+        "title": "Comment fonctionne la Suite locale",
+        "subtitle": "Une app de bureau exécute la passerelle sur votre machine et rend la couche modèle observable, fiable et hors ligne.",
+        "cards": [
+          {
+            "title": "Launcher multiplateforme",
+            "description": "Installez la Suite locale sur macOS, Windows ou Linux pour démarrer, arrêter et surveiller l'inférence locale.",
+            "bullets": [
+              "Démarrage en un clic avec checks de santé.",
+              "Diagnostics intégrés.",
+              "Aucun appel cloud requis."
+            ]
+          },
+          {
+            "title": "Passerelle compatible OpenAI",
+            "description": "Une Base URL expose des endpoints type OpenAI pour l'évaluation et la voix.",
+            "bullets": [
+              "POST /v1/responses pour l'évaluation LLM.",
+              "POST /v1/audio/speech pour la TTS.",
+              "POST /v1/audio/transcriptions pour le STT."
+            ]
+          },
+          {
+            "title": "Catalogue de modèles",
+            "description": "Parcourez des modèles validés avec contraintes matérielles, endpoints et recommandations.",
+            "bullets": [
+              "Filtrer par endpoint, fournisseur et matériel.",
+              "Copier les IDs dans Paramètres.",
+              "Voir RAM/VRAM requises."
+            ]
+          }
+        ]
+      },
+      "paths": {
+        "title": "Choisissez votre parcours",
+        "subtitle": "La plupart des équipes utilisent la Suite locale. Les utilisateurs avancés peuvent apporter leurs modèles.",
+        "recommended": {
+          "kicker": "Recommandé",
+          "title": "Utiliser la Suite locale (recommandé)",
+          "body": "Téléchargez l'app, choisissez les modèles, puis collez la Base URL dans Paramètres.",
+          "cta": "Aller aux téléchargements"
+        },
+        "advanced": {
+          "kicker": "Avancé",
+          "title": "Avancé : utiliser vos propres modèles",
+          "body": "Vous avez déjà votre stack ? Il suffit d'exposer les mêmes endpoints.",
+          "codeTitle": "Exemple de passerelle",
+          "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import JSONResponse, Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}\n\n@app.post(\"/v1/audio/translations\")\nasync def audio_translations(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}",
+          "cta": "Voir les endpoints"
+        }
+      },
       "downloads": {
         "title": "Téléchargements bureau",
-        "subtitle": "Récupérez les builds les plus récents depuis GitHub Releases.",
+        "subtitle": "macOS est distribué via le Mac App Store. Windows et Linux passent par GitHub Releases.",
+        "labels": {
+          "windows": "Windows",
+          "macos": "Mac App Store",
+          "linux": "Linux"
+        },
+        "appStoreUrl": "https://apps.apple.com",
+        "appStoreAction": "Voir sur l'App Store",
         "ready": "Télécharger",
         "pending": "Bientôt disponible",
         "error": "Impossible de charger GitHub Releases. Affichage du cache."
@@ -530,45 +588,33 @@
     "local": {
       "steps": [
         {
-          "title": "Démarrez les serveurs LLM + TTS locaux",
-          "description": "Lancez le script ci-dessous. Il détecte Apple Silicon et choisit automatiquement les modèles MLX.",
+          "title": "Utilisez la Suite locale pour vos modèles",
+          "description": "La Suite locale est l'application multiplateforme qui exécute la passerelle et gère l'inférence locale.",
           "links": [
             {
-              "label": "Docs du script",
-              "href": "https://github.com/albertbuchard/therapy-deliberate-practice"
+              "label": "Ouvrir l'aide Suite locale",
+              "href": "/help/local-suite"
             }
           ]
         },
         {
-          "title": "Téléchargez les modèles recommandés",
-          "description": "Nous utilisons Qwen 4B pour l'évaluation et Kokoro/Chatterbox pour la TTS selon votre machine.",
+          "title": "Connectez Therapy Studio à la passerelle",
+          "description": "Démarrez la Suite locale, copiez la Base URL et collez-la dans Paramètres.",
           "bullets": [
-            "Apple Silicon : Qwen MLX + Kokoro MLX TTS.",
-            "Autres GPU : Qwen Instruct + Chatterbox TTS multilingue.",
-            "Le script les référence par défaut."
+            "Vérifiez l'état de santé et la liste des modèles.",
+            "Utilisez la même Base URL pour les endpoints LLM et audio.",
+            "Passez en mode IA Local only ou Local preferred."
+          ]
+        },
+        {
+          "title": "Avancé : exécuter vos propres modèles",
+          "description": "Si vous hébergez déjà vos modèles, exposez des endpoints compatibles OpenAI.",
+          "bullets": [
+            "Endpoints requis : /v1/responses, /v1/audio/speech, /v1/audio/transcriptions.",
+            "Optionnel : /v1/audio/translations pour l'audio multilingue.",
+            "Renvoyez les formats de réponse OpenAI."
           ],
-          "links": [
-            {
-              "label": "Qwen 3 4B MLX",
-              "href": "https://huggingface.co/Qwen/Qwen3-4B-MLX-4bit"
-            },
-            {
-              "label": "Qwen 3 4B Instruct",
-              "href": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507"
-            },
-            {
-              "label": "Kokoro MLX TTS",
-              "href": "https://huggingface.co/mlx-community/Kokoro-82M-bf16"
-            }
-          ]
-        },
-        {
-          "title": "Pointez l'application vers vos services locaux",
-          "description": "Conservez les valeurs par défaut ou ajustez les URLs dans les paramètres une fois les serveurs prêts.",
-          "bullets": [
-            "Serveur LLM : http://localhost:7002",
-            "Serveur TTS : http://localhost:7003"
-          ]
+          "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}"
         }
       ]
     },

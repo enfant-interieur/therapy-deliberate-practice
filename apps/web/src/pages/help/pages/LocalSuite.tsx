@@ -53,29 +53,39 @@ type DownloadLink = {
   label: string;
   os: "windows" | "macos" | "linux";
   href: string | null;
+  statusLabel?: string;
 };
-
-const DEFAULT_DOWNLOADS: DownloadLink[] = [
-  { label: "Windows", os: "windows", href: null },
-  { label: "macOS", os: "macos", href: null },
-  { label: "Linux", os: "linux", href: null }
-];
 
 const RELEASE_CACHE_KEY = "local-suite-release-assets";
 const RELEASE_CACHE_TTL_MS = 1000 * 60 * 10;
 
 export const LocalSuite = () => {
   const { t } = useTranslation();
-  const [downloads, setDownloads] = useState<DownloadLink[]>(DEFAULT_DOWNLOADS);
+  const baseDownloads = useMemo<DownloadLink[]>(
+    () => [
+      { label: t("help.localSuite.downloads.labels.windows"), os: "windows", href: null },
+      {
+        label: t("help.localSuite.downloads.labels.macos"),
+        os: "macos",
+        href: t("help.localSuite.downloads.appStoreUrl"),
+        statusLabel: t("help.localSuite.downloads.appStoreAction")
+      },
+      { label: t("help.localSuite.downloads.labels.linux"), os: "linux", href: null }
+    ],
+    [t]
+  );
+  const [downloads, setDownloads] = useState<DownloadLink[]>(baseDownloads);
   const [models, setModels] = useState<ModelSpec[]>([]);
   const [query, setQuery] = useState("");
   const [releaseError, setReleaseError] = useState<string | null>(null);
 
   useEffect(() => {
     const repo = import.meta.env.VITE_GITHUB_REPO || "therapy-deliberate-practice/therapy-deliberate-practice";
+    setDownloads(baseDownloads);
 
     const applyAssets = (assets: ReleaseAsset[]) => {
-      const mapped: DownloadLink[] = DEFAULT_DOWNLOADS.map((entry) => {
+      const mapped: DownloadLink[] = baseDownloads.map((entry) => {
+        if (entry.os === "macos") return entry;
         const match = assets.find((asset) => asset.name.toLowerCase().includes(entry.os));
         return { ...entry, href: match?.browser_download_url ?? null };
       });
@@ -109,7 +119,7 @@ export const LocalSuite = () => {
       .catch(() => {
         setReleaseError(t("help.localSuite.downloads.error"));
       });
-  }, [t]);
+  }, [baseDownloads, t]);
 
   useEffect(() => {
     fetch("/local-suite/models.json")
@@ -147,6 +157,67 @@ export const LocalSuite = () => {
       </header>
 
       <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-6">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-white">{t("help.localSuite.overview.title")}</p>
+          <p className="text-xs text-slate-400">{t("help.localSuite.overview.subtitle")}</p>
+        </div>
+        <div className="mt-5 grid gap-4 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <article key={`overview-${index}`} className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
+              <h3 className="text-sm font-semibold text-white">
+                {t(`help.localSuite.overview.cards.${index}.title`)}
+              </h3>
+              <p className="mt-2 text-xs text-slate-300">{t(`help.localSuite.overview.cards.${index}.description`)}</p>
+              <ul className="mt-3 space-y-2 text-xs text-slate-400">
+                {Array.from({ length: 3 }).map((_, bulletIndex) => (
+                  <li key={`overview-${index}-${bulletIndex}`} className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-teal-400" />
+                    <span>{t(`help.localSuite.overview.cards.${index}.bullets.${bulletIndex}`)}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-white">{t("help.localSuite.paths.title")}</p>
+          <p className="text-xs text-slate-400">{t("help.localSuite.paths.subtitle")}</p>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <article className="rounded-3xl border border-white/10 bg-slate-950/60 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-teal-300">
+              {t("help.localSuite.paths.recommended.kicker")}
+            </p>
+            <h3 className="mt-3 text-lg font-semibold text-white">{t("help.localSuite.paths.recommended.title")}</h3>
+            <p className="mt-2 text-sm text-slate-300">{t("help.localSuite.paths.recommended.body")}</p>
+            <a
+              href="#local-suite-downloads"
+              className="mt-4 inline-flex items-center gap-2 rounded-full border border-teal-300/40 bg-teal-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-teal-200 transition hover:-translate-y-0.5 hover:border-teal-200/70 hover:bg-teal-400/20"
+            >
+              {t("help.localSuite.paths.recommended.cta")}
+              <span className="text-base">→</span>
+            </a>
+          </article>
+          <article className="rounded-3xl border border-white/10 bg-slate-950/60 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+              {t("help.localSuite.paths.advanced.kicker")}
+            </p>
+            <h3 className="mt-3 text-lg font-semibold text-white">{t("help.localSuite.paths.advanced.title")}</h3>
+            <p className="mt-2 text-sm text-slate-300">{t("help.localSuite.paths.advanced.body")}</p>
+            <p className="mt-4 text-xs font-semibold uppercase tracking-[0.25em] text-slate-400">
+              {t("help.localSuite.paths.advanced.codeTitle")}
+            </p>
+            <pre className="mt-3 whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-[11px] text-teal-200">
+              {t("help.localSuite.paths.advanced.code")}
+            </pre>
+          </article>
+        </div>
+      </section>
+
+      <section id="local-suite-downloads" className="rounded-3xl border border-white/10 bg-slate-950/60 p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-white">{t("help.localSuite.downloads.title")}</p>
@@ -167,7 +238,7 @@ export const LocalSuite = () => {
             >
               <span>{download.label}</span>
               <span className="text-xs text-slate-400">
-                {download.href ? t("help.localSuite.downloads.ready") : t("help.localSuite.downloads.pending")}
+                {download.statusLabel ?? (download.href ? t("help.localSuite.downloads.ready") : t("help.localSuite.downloads.pending"))}
               </span>
             </a>
           ))}

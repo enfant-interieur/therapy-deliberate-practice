@@ -111,7 +111,6 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
       {
         title: t("aiSetup.local.steps.0.title"),
         description: t("aiSetup.local.steps.0.description"),
-        code: "python scripts/start_local_ai.py",
         links: [
           {
             label: t("aiSetup.local.steps.0.links.0.label"),
@@ -147,8 +146,10 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         description: t("aiSetup.local.steps.2.description"),
         bullets: [
           t("aiSetup.local.steps.2.bullets.0"),
-          t("aiSetup.local.steps.2.bullets.1")
-        ]
+          t("aiSetup.local.steps.2.bullets.1"),
+          t("aiSetup.local.steps.2.bullets.2")
+        ],
+        code: t("aiSetup.local.steps.2.code")
       }
     ],
     [t]
