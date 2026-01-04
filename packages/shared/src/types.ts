@@ -114,8 +114,10 @@ export type PracticeRunInput = {
   task_id?: string;
   example_id?: string;
   attempt_id?: string;
-  audio: string;
+  audio?: string;
   audio_mime?: string;
+  transcript_text?: string;
+  skip_scoring?: boolean;
   mode?: "local_prefer" | "openai_only" | "local_only";
   practice_mode?: "standard" | "real_time";
   turn_context?: {

@@ -19,7 +19,7 @@ import {
   userTaskProgress,
   users
 } from "./db/schema";
-import { and, count, desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
 import {
   deliberatePracticeTaskV2Schema,
   evaluationResultSchema,
@@ -28,6 +28,7 @@ import {
   taskExampleSchema,
   taskInteractionExampleSchema,
   taskSchema,
+  type SttProvider,
   type Task,
   type TaskCriterion,
   type TaskExample,
@@ -2228,20 +2229,34 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         }
       };
     }
-    const audioLength = input.audio?.length ?? 0;
-    const minAudioLength = 128;
-    if (!input.audio || audioLength < minAudioLength) {
-      logEvent("warn", "input.parse.error", {
-        reason: "audio_too_small",
-        audio_length: audioLength
-      });
+    const transcriptOverride = input.transcript_text?.trim() ?? "";
+    const usesProvidedTranscript = transcriptOverride.length > 0;
+    const usesAudioInput = Boolean(input.audio);
+    if (usesProvidedTranscript && !usesAudioInput && !input.attempt_id) {
       return {
         status: 400,
         payload: {
           requestId,
-          errors: [{ stage: "input", message: "Audio is missing or too short to evaluate." }]
+          errors: [{ stage: "input", message: "Provide attempt_id with transcript_text." }]
         }
       };
+    }
+    const audioLength = input.audio?.length ?? 0;
+    const minAudioLength = 128;
+    if (!usesProvidedTranscript) {
+      if (!input.audio || audioLength < minAudioLength) {
+        logEvent("warn", "input.parse.error", {
+          reason: "audio_too_small",
+          audio_length: audioLength
+        });
+        return {
+          status: 400,
+          payload: {
+            requestId,
+            errors: [{ stage: "input", message: "Audio is missing or too short to evaluate." }]
+          }
+        };
+      }
     }
     timings.input_parse = Date.now() - inputParseStart;
 
@@ -2388,74 +2403,120 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       meta: exampleRow.meta ?? null
     };
 
-    let sttProvider;
-    logEvent("info", "stt.select.start", { mode });
-    try {
-      const sttSelection = await selectSttProvider(mode, envWithOverrides, openaiApiKey, logEvent);
-      sttProvider = sttSelection.provider;
-      logEvent("info", "stt.select.ok", {
-        selected: { kind: sttProvider.kind, model: sttProvider.model },
-        health: sttSelection.health
-      });
-    } catch (error) {
-      logEvent("error", "stt.select.error", { error: safeError(error) });
-      return {
-        status: 502,
-        payload: {
-          requestId,
-          errors: [{ stage: "stt", message: (error as Error).message || "STT unavailable." }]
-        }
-      };
-    }
+    const [existingAttempt] = await db
+      .select({
+        id: attempts.id,
+        completed_at: attempts.completed_at,
+        evaluation: attempts.evaluation,
+        overall_score: attempts.overall_score,
+        overall_pass: attempts.overall_pass,
+        model_info: attempts.model_info
+      })
+      .from(attempts)
+      .where(eq(attempts.id, input.attempt_id ?? "__missing__"))
+      .limit(1);
+    const existingModelInfo =
+      existingAttempt?.model_info && typeof existingAttempt.model_info === "object"
+        ? (existingAttempt.model_info as {
+            provider?: {
+              stt?: { kind?: "local" | "openai"; model?: string };
+              llm?: { kind?: "local" | "openai"; model?: string } | null;
+            };
+            timing_ms?: { stt?: number; llm?: number; total?: number };
+            practice?: { mode?: string; turn_context?: unknown };
+          })
+        : undefined;
 
-    const sttStart = Date.now();
-    logEvent("info", "stt.transcribe.start", {
-      audio_length: audioLength,
-      provider: { kind: sttProvider.kind, model: sttProvider.model }
-    });
+    let sttProvider: SttProvider | null = null;
     let transcript: { text: string };
-    try {
-      transcript = await sttProvider.transcribe(input.audio, {
-        mimeType: input.audio_mime
+    let sttDuration: number | undefined;
+    let sttMeta: { kind: "local" | "openai"; model: string };
+    if (usesProvidedTranscript) {
+      transcript = { text: transcriptOverride };
+      sttMeta = existingModelInfo?.provider?.stt?.kind
+        ? {
+            kind: existingModelInfo.provider.stt.kind,
+            model: existingModelInfo.provider.stt.model ?? "unknown"
+          }
+        : { kind: "local", model: "manual" };
+      logEvent("info", "stt.transcribe.skipped", {
+        reason: "provided_transcript",
+        transcript_length: transcript.text?.length ?? 0
       });
-    } catch (error) {
-      const duration = Date.now() - sttStart;
-      logEvent("error", "stt.transcribe.error", {
-        duration_ms: duration,
-        error: safeError(error)
+    } else {
+      logEvent("info", "stt.select.start", { mode });
+      try {
+        const sttSelection = await selectSttProvider(mode, envWithOverrides, openaiApiKey, logEvent);
+        sttProvider = sttSelection.provider;
+        sttMeta = { kind: sttProvider.kind, model: sttProvider.model ?? "unknown" };
+        logEvent("info", "stt.select.ok", {
+          selected: { kind: sttProvider.kind, model: sttProvider.model },
+          health: sttSelection.health
+        });
+      } catch (error) {
+        logEvent("error", "stt.select.error", { error: safeError(error) });
+        return {
+          status: 502,
+          payload: {
+            requestId,
+            errors: [{ stage: "stt", message: (error as Error).message || "STT unavailable." }]
+          }
+        };
+      }
+
+      const sttStart = Date.now();
+      logEvent("info", "stt.transcribe.start", {
+        audio_length: audioLength,
+        provider: sttMeta
       });
-      return {
-        status: 502,
-        payload: {
-          requestId,
-          errors: [{ stage: "stt", message: "Transcription failed. Please try again." }]
-        }
-      };
+      try {
+        transcript = await sttProvider.transcribe(input.audio ?? "", {
+          mimeType: input.audio_mime
+        });
+      } catch (error) {
+        const duration = Date.now() - sttStart;
+        logEvent("error", "stt.transcribe.error", {
+          duration_ms: duration,
+          error: safeError(error)
+        });
+        return {
+          status: 502,
+          payload: {
+            requestId,
+            errors: [{ stage: "stt", message: "Transcription failed. Please try again." }]
+          }
+        };
+      }
+      sttDuration = Date.now() - sttStart;
+      timings.stt = sttDuration;
+      logEvent("info", "stt.transcribe.ok", {
+        duration_ms: sttDuration,
+        transcript_length: transcript.text?.length ?? 0,
+        transcript_preview: debugEnabled ? safeTruncate(transcript.text ?? "", 60) : undefined
+      });
     }
-    const sttDuration = Date.now() - sttStart;
-    timings.stt = sttDuration;
-    logEvent("info", "stt.transcribe.ok", {
-      duration_ms: sttDuration,
-      transcript_length: transcript.text?.length ?? 0,
-      transcript_preview: debugEnabled ? safeTruncate(transcript.text ?? "", 60) : undefined
-    });
 
     const attemptId = input.attempt_id ?? nanoid();
+    const skipScoring = Boolean(input.skip_scoring);
     let llmProvider;
-    logEvent("info", "llm.select.start", { mode });
-    try {
-      const llmSelection = await selectLlmProvider(mode, envWithOverrides, openaiApiKey, logEvent);
-      llmProvider = llmSelection.provider;
-      logEvent("info", "llm.select.ok", {
-        selected: { kind: llmProvider.kind, model: llmProvider.model },
-        health: llmSelection.health
-      });
-    } catch (error) {
-      logEvent("error", "llm.select.error", { error: safeError(error) });
-      errors.push({
-        stage: "scoring",
-        message: (error as Error).message || "LLM unavailable."
-      });
+    if (!skipScoring) {
+      logEvent("info", "llm.select.start", { mode });
+      try {
+        const llmSelection = await selectLlmProvider(mode, envWithOverrides, openaiApiKey, logEvent);
+        llmProvider = llmSelection.provider;
+        logEvent("info", "llm.select.ok", {
+          selected: { kind: llmProvider.kind, model: llmProvider.model },
+          health: llmSelection.health
+        });
+      } catch (error) {
+        logEvent("error", "llm.select.error", { error: safeError(error) });
+        errors.push({
+          stage: "scoring",
+          message: (error as Error).message || "LLM unavailable."
+        });
+      }
+    } else {
+      logEvent("info", "llm.evaluate.skipped", { reason: "skip_scoring" });
     }
 
     let evaluation: unknown;
@@ -2515,78 +2576,114 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
 
     let nextDifficulty: number | undefined;
-    let overallScore = 0;
-    let overallPass = false;
+    let overallScore = scoringResult?.overall.score ?? 0;
+    let overallPass = scoringResult?.overall.pass ?? false;
     if (transcript) {
       logEvent("info", "db.attempt.insert.start", { attemptId });
       try {
+        const sttTiming = usesProvidedTranscript ? existingModelInfo?.timing_ms?.stt : sttDuration;
+        const llmTiming = llmDuration ?? existingModelInfo?.timing_ms?.llm;
         const modelInfo = {
           provider: {
-            stt: { kind: sttProvider.kind, model: sttProvider.model },
-            llm: llmProvider ? { kind: llmProvider.kind, model: llmProvider.model } : null
+            stt: sttMeta,
+            llm: llmProvider
+              ? { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" }
+              : existingModelInfo?.provider?.llm ?? null
           },
           timing_ms: {
-            stt: sttDuration,
-            llm: llmDuration,
-            total: sttDuration + (llmDuration ?? 0)
+            stt: sttTiming,
+            llm: llmTiming,
+            total: (sttTiming ?? 0) + (llmTiming ?? 0)
           },
           practice: input.practice_mode
             ? {
                 mode: input.practice_mode,
                 turn_context: input.turn_context ?? null
               }
-            : undefined
+            : existingModelInfo?.practice
         };
-        const evaluationPayload = scoringResult ?? {};
-        overallScore = scoringResult?.overall.score ?? 0;
-        overallPass = scoringResult?.overall.pass ?? false;
         const transcriptText = transcript.text ?? "";
 
-        await db.insert(attempts).values({
-          id: attemptId,
-          user_id: user.id,
-          session_id: sessionId,
-          session_item_id: sessionItemId,
-          task_id: taskId,
-          example_id: exampleId,
-          started_at: Date.now(),
-          completed_at: Date.now(),
-          audio_ref: null,
-          transcript: transcriptText,
-          evaluation: evaluationPayload,
-          overall_pass: overallPass,
-          overall_score: overallScore,
-          model_info: modelInfo
-        });
-
-        const existingProgress = await ensureUserTaskProgress(user.id, task);
-        let updatedDifficulty = existingProgress.current_difficulty;
-        let nextStreak = existingProgress.streak;
-        if (overallPass && overallScore >= 3.2) {
-          updatedDifficulty = Math.min(5, updatedDifficulty + 1);
-          nextStreak += 1;
-        } else if (!overallPass || overallScore < 2.4) {
-          updatedDifficulty = Math.max(1, updatedDifficulty - 1);
-          nextStreak = 0;
-        }
-        nextDifficulty = updatedDifficulty;
-
         await db
-          .update(userTaskProgress)
-          .set({
-            current_difficulty: updatedDifficulty,
-            last_overall_score: overallScore,
-            last_pass: overallPass,
-            streak: nextStreak,
-            attempt_count: existingProgress.attempt_count + 1,
-            updated_at: Date.now()
+          .insert(attempts)
+          .values({
+            id: attemptId,
+            user_id: user.id,
+            session_id: sessionId,
+            session_item_id: sessionItemId,
+            task_id: taskId,
+            example_id: exampleId,
+            started_at: Date.now(),
+            completed_at: null,
+            audio_ref: null,
+            transcript: transcriptText,
+            evaluation: existingAttempt?.evaluation ?? {},
+            overall_pass: existingAttempt?.overall_pass ?? false,
+            overall_score: existingAttempt?.overall_score ?? 0,
+            model_info: modelInfo
           })
-          .where(
-            and(
-              eq(userTaskProgress.user_id, user.id),
-              eq(userTaskProgress.task_id, taskId)
-            )
-          );
+          .onConflictDoUpdate({
+            target: attempts.id,
+            set: {
+              transcript: transcriptText,
+              model_info: modelInfo
+            }
+          });
+
+        const shouldPersistScoring = Boolean(scoringResult);
+        let completedNow = false;
+        if (shouldPersistScoring) {
+          const completionUpdate = await db
+            .update(attempts)
+            .set({
+              completed_at: Date.now(),
+              evaluation: scoringResult,
+              overall_pass: overallPass,
+              overall_score: overallScore,
+              model_info: modelInfo
+            })
+            .where(and(eq(attempts.id, attemptId), isNull(attempts.completed_at)));
+          const completionChanges =
+            completionUpdate && typeof completionUpdate === "object"
+              ? typeof (completionUpdate as { changes?: number }).changes === "number"
+                ? (completionUpdate as { changes: number }).changes
+                : typeof (completionUpdate as { meta?: { changes?: number } }).meta?.changes === "number"
+                  ? (completionUpdate as { meta: { changes: number } }).meta.changes
+                  : 0
+              : 0;
+          completedNow = completionChanges > 0;
+        }
+
+        if (completedNow) {
+          const existingProgress = await ensureUserTaskProgress(user.id, task);
+          let updatedDifficulty = existingProgress.current_difficulty;
+          let nextStreak = existingProgress.streak;
+          if (overallPass && overallScore >= 3.2) {
+            updatedDifficulty = Math.min(5, updatedDifficulty + 1);
+            nextStreak += 1;
+          } else if (!overallPass || overallScore < 2.4) {
+            updatedDifficulty = Math.max(1, updatedDifficulty - 1);
+            nextStreak = 0;
+          }
+          nextDifficulty = updatedDifficulty;
+
+          await db
+            .update(userTaskProgress)
+            .set({
+              current_difficulty: updatedDifficulty,
+              last_overall_score: overallScore,
+              last_pass: overallPass,
+              streak: nextStreak,
+              attempt_count: existingProgress.attempt_count + 1,
+              updated_at: Date.now()
+            })
+            .where(
+              and(
+                eq(userTaskProgress.user_id, user.id),
+                eq(userTaskProgress.task_id, taskId)
+              )
+            );
+        }
 
         logEvent("info", "db.attempt.insert.ok", { attemptId });
       } catch (error) {
@@ -2598,6 +2695,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       }
     }
 
+    const responseSttDuration = sttDuration ?? existingModelInfo?.timing_ms?.stt ?? 0;
     const response = {
       requestId,
       attemptId,
@@ -2605,15 +2703,15 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       transcript: transcript
         ? {
             text: transcript.text,
-            provider: { kind: sttProvider.kind, model: sttProvider.model },
-            duration_ms: sttDuration
+            provider: sttMeta,
+            duration_ms: responseSttDuration
           }
         : undefined,
       scoring: scoringResult
         ? {
             evaluation: scoringResult,
             provider: llmProvider
-              ? { kind: llmProvider.kind, model: llmProvider.model }
+              ? { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" }
               : { kind: "openai", model: "unknown" },
             duration_ms: llmDuration ?? 0
           }
@@ -2623,8 +2721,10 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         ? {
             timings,
             selectedProviders: {
-              stt: { kind: sttProvider.kind, model: sttProvider.model },
-              llm: llmProvider ? { kind: llmProvider.kind, model: llmProvider.model } : null
+              stt: sttMeta,
+              llm: llmProvider
+                ? { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" }
+                : null
             }
           }
         : undefined
@@ -2638,7 +2738,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     } else {
       logEvent("info", "practice.run.ok", {
         attemptId,
-        total_duration_ms: sttDuration + (llmDuration ?? 0)
+        total_duration_ms: responseSttDuration + (llmDuration ?? 0)
       });
     }
 
@@ -3246,27 +3346,39 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const roundId = c.req.param("roundId");
     const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
       log(level, event, { requestId, userId: user?.id ?? null, ...fields });
-    const schema = z.object({
-      player_id: z.string(),
-      audio_base64: z.string(),
-      audio_mime: z.string().optional(),
-      mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional(),
-      practice_mode: z.enum(["standard", "real_time"]).optional(),
-      turn_context: z
-        .object({
-          patient_cache_key: z.string().optional(),
-          patient_statement_id: z.string().optional(),
-          timing: z
-            .object({
-              response_delay_ms: z.number().nullable().optional(),
-              response_duration_ms: z.number().nullable().optional(),
-              response_timer_seconds: z.number().optional(),
-              max_response_duration_seconds: z.number().optional()
-            })
-            .optional()
-        })
-        .optional()
-    });
+    const schema = z
+      .object({
+        player_id: z.string(),
+        audio_base64: z.string().optional(),
+        audio_mime: z.string().optional(),
+        transcript_text: z.string().optional(),
+        attempt_id: z.string().optional(),
+        skip_scoring: z.boolean().optional(),
+        mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional(),
+        practice_mode: z.enum(["standard", "real_time"]).optional(),
+        turn_context: z
+          .object({
+            patient_cache_key: z.string().optional(),
+            patient_statement_id: z.string().optional(),
+            timing: z
+              .object({
+                response_delay_ms: z.number().nullable().optional(),
+                response_duration_ms: z.number().nullable().optional(),
+                response_timer_seconds: z.number().optional(),
+                max_response_duration_seconds: z.number().optional()
+              })
+              .optional()
+          })
+          .optional()
+      })
+      .superRefine((data, ctx) => {
+        if (!data.audio_base64 && !data.transcript_text) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Provide audio_base64 or transcript_text."
+          });
+        }
+      });
     const body = await c.req.json().catch(() => null);
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
@@ -3295,6 +3407,9 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         example_id: round.example_id,
         audio: parsed.data.audio_base64,
         audio_mime: parsed.data.audio_mime,
+        transcript_text: parsed.data.transcript_text,
+        attempt_id: parsed.data.attempt_id,
+        skip_scoring: parsed.data.skip_scoring,
         mode: parsed.data.mode,
         practice_mode: parsed.data.practice_mode,
         turn_context: parsed.data.turn_context
@@ -3306,6 +3421,10 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     });
 
     if (runResult.status !== 200 || !runResult.attemptId) {
+      return c.json(runResult.payload, runResult.status);
+    }
+
+    if (parsed.data.skip_scoring) {
       return c.json(runResult.payload, runResult.status);
     }
 

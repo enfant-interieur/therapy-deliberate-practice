@@ -10,6 +10,7 @@ type RoundRunnerOptions = {
   playerId?: string;
   audioElement?: HTMLAudioElement | null;
   patientAudio: PatientAudioBankHandle;
+  onTranscript?: (payload: { transcript?: string; attemptId?: string }) => void;
   onResult: (payload: {
     transcript?: string;
     evaluation?: unknown;
@@ -24,6 +25,7 @@ export const useMinigameRoundRunner = ({
   playerId,
   audioElement,
   patientAudio,
+  onTranscript,
   onResult
 }: RoundRunnerOptions) => {
   const [startRound] = useStartMinigameRoundMutation();
@@ -55,12 +57,29 @@ export const useMinigameRoundRunner = ({
     if (!recorded) return;
     setStatus("submitting");
     try {
-      const response = await submitRound({
+      const transcriptionResponse = await submitRound({
         sessionId,
         roundId: round.id,
         player_id: playerId,
         audio_base64: recorded.base64,
         audio_mime: recorded.mimeType,
+        practice_mode: "real_time",
+        skip_scoring: true,
+        turn_context: { patient_statement_id: round.example_id }
+      }).unwrap();
+      onTranscript?.({
+        transcript: transcriptionResponse.transcript?.text,
+        attemptId: transcriptionResponse.attemptId
+      });
+      if (!transcriptionResponse.transcript?.text || !transcriptionResponse.attemptId) {
+        throw new Error("Transcription missing.");
+      }
+      const response = await submitRound({
+        sessionId,
+        roundId: round.id,
+        player_id: playerId,
+        transcript_text: transcriptionResponse.transcript.text,
+        attempt_id: transcriptionResponse.attemptId,
         practice_mode: "real_time",
         turn_context: { patient_statement_id: round.example_id }
       }).unwrap();
@@ -75,7 +94,7 @@ export const useMinigameRoundRunner = ({
       setSubmitError("Submission failed. Please try again.");
       setStatus("ready");
     }
-  }, [onResult, playerId, round, sessionId, stopRecording, submitRound]);
+  }, [onResult, onTranscript, playerId, round, sessionId, stopRecording, submitRound]);
 
   return {
     status,

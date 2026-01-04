@@ -236,6 +236,11 @@ export const MinigamesPage = () => {
     responseTimerSeconds: timingSettings.responseTimerSeconds,
     maxResponseEnabled: timingSettings.maxResponseEnabled,
     maxResponseSeconds: timingSettings.maxResponseSeconds,
+    onTranscript: (payload) => {
+      if (payload.transcript) {
+        setLastTranscript(payload.transcript);
+      }
+    },
     onResult: (payload) => {
       setLastTranscript(payload.transcript);
       const scoreFromEval =
@@ -277,6 +282,11 @@ export const MinigamesPage = () => {
     responseTimerSeconds: timingSettings.responseTimerSeconds,
     maxResponseEnabled: timingSettings.maxResponseEnabled,
     maxResponseSeconds: timingSettings.maxResponseSeconds,
+    onTranscript: (payload) => {
+      if (payload.transcript) {
+        setLastTranscript(payload.transcript);
+      }
+    },
     onResult: (payload) => {
       setLastTranscript(payload.transcript);
       const scoreFromEval =
@@ -448,7 +458,8 @@ export const MinigamesPage = () => {
   const canRedraw =
     mode === "tdm" &&
     controller.state !== "recording" &&
-    controller.state !== "submitting" &&
+    controller.state !== "transcribing" &&
+    controller.state !== "evaluating" &&
     controller.state !== "patient_playing";
 
   const currentScore = useMemo(() => {
@@ -480,6 +491,7 @@ export const MinigamesPage = () => {
         text={minigames.ui.transcriptHidden ? undefined : lastTranscript}
         hidden={minigames.ui.transcriptHidden}
         onToggle={() => dispatch(toggleTranscriptHidden())}
+        processingStage={controller.processingStage}
       />
 
       {isMobile ? (

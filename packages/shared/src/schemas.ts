@@ -198,30 +198,41 @@ export const evaluationResultSchema = z.object({
     .optional()
 });
 
-export const practiceRunInputSchema = z.object({
-  session_item_id: z.string().optional(),
-  task_id: z.string().optional(),
-  example_id: z.string().optional(),
-  attempt_id: z.string().optional(),
-  audio: z.string(),
-  audio_mime: z.string().optional(),
-  mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional(),
-  practice_mode: z.enum(["standard", "real_time"]).optional(),
-  turn_context: z
-    .object({
-      patient_cache_key: z.string().optional(),
-      patient_statement_id: z.string().optional(),
-      timing: z
-        .object({
-          response_delay_ms: z.number().nullable().optional(),
-          response_duration_ms: z.number().nullable().optional(),
-          response_timer_seconds: z.number().optional(),
-          max_response_duration_seconds: z.number().optional()
-        })
-        .optional()
-    })
-    .optional()
-});
+export const practiceRunInputSchema = z
+  .object({
+    session_item_id: z.string().optional(),
+    task_id: z.string().optional(),
+    example_id: z.string().optional(),
+    attempt_id: z.string().optional(),
+    audio: z.string().optional(),
+    audio_mime: z.string().optional(),
+    transcript_text: z.string().optional(),
+    skip_scoring: z.boolean().optional(),
+    mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional(),
+    practice_mode: z.enum(["standard", "real_time"]).optional(),
+    turn_context: z
+      .object({
+        patient_cache_key: z.string().optional(),
+        patient_statement_id: z.string().optional(),
+        timing: z
+          .object({
+            response_delay_ms: z.number().nullable().optional(),
+            response_duration_ms: z.number().nullable().optional(),
+            response_timer_seconds: z.number().optional(),
+            max_response_duration_seconds: z.number().optional()
+          })
+          .optional()
+      })
+      .optional()
+  })
+  .superRefine((data, ctx) => {
+    if (!data.audio && !data.transcript_text) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide audio or transcript_text."
+      });
+    }
+  });
 
 export const practiceRunResponseSchema = z.object({
   requestId: z.string(),

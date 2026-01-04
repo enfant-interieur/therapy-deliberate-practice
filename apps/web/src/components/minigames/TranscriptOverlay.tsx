@@ -1,11 +1,26 @@
+import { StatusPill } from "../StatusPill";
+
 type TranscriptOverlayProps = {
     text?: string;
     hidden: boolean;
     onToggle: () => void;
+    processingStage?: "transcribing" | "evaluating" | null;
 };
 
-export const TranscriptOverlay = ({ text, hidden, onToggle }: TranscriptOverlayProps) => {
+export const TranscriptOverlay = ({
+    text,
+    hidden,
+    onToggle,
+    processingStage = null
+}: TranscriptOverlayProps) => {
     const hasText = Boolean(text && text.trim().length > 0);
+    const statusLabel =
+        processingStage === "transcribing"
+            ? "Transcribing"
+            : processingStage === "evaluating"
+                ? "Evaluating"
+                : null;
+    const statusTone = processingStage === "evaluating" ? "warning" : "info";
 
     return (
         <div className="pointer-events-none fixed left-1/2 bottom-3 z-20 w-full -translate-x-1/2 px-6">
@@ -130,9 +145,13 @@ export const TranscriptOverlay = ({ text, hidden, onToggle }: TranscriptOverlayP
                             {/* Bottom “bar” stays visually anchored */}
                             <div className="mt-4 border-t border-white/10 bg-slate-950/40 px-5 py-3">
                                 <div className="flex items-center justify-between gap-3">
-                  <span className="truncate text-xs text-slate-300/80">
-                    {hasText ? "Ready" : "Listening…"}
-                  </span>
+                  {statusLabel ? (
+                      <StatusPill label={statusLabel} tone={statusTone} showSpinner />
+                  ) : (
+                      <span className="truncate text-xs text-slate-300/80">
+                        {hasText ? "Ready" : "Listening…"}
+                      </span>
+                  )}
                                     <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-slate-200/80">
                     Esc
                   </span>

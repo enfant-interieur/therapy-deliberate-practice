@@ -392,8 +392,11 @@ export const api = createApi({
         sessionId: string;
         roundId: string;
         player_id: string;
-        audio_base64: string;
+        audio_base64?: string;
         audio_mime?: string;
+        transcript_text?: string;
+        attempt_id?: string;
+        skip_scoring?: boolean;
         mode?: "local_prefer" | "openai_only" | "local_only";
         practice_mode?: "standard" | "real_time";
         turn_context?: {

@@ -14,7 +14,8 @@ export type MatchState =
   | "patient_playing"
   | "awaiting_response_window"
   | "recording"
-  | "submitting"
+  | "transcribing"
+  | "evaluating"
   | "between_players"
   | "complete";
 
@@ -29,6 +30,7 @@ type TdmMatchControllerOptions = {
   maxResponseEnabled: boolean;
   maxResponseSeconds?: number;
   patientAudio: PatientAudioBankHandle;
+  onTranscript?: (payload: { transcript?: string; attemptId?: string }) => void;
   onResult: (payload: {
     transcript?: string;
     evaluation?: unknown;
@@ -50,6 +52,7 @@ export const useTdmMatchController = ({
   maxResponseEnabled,
   maxResponseSeconds,
   patientAudio,
+  onTranscript,
   onResult
 }: TdmMatchControllerOptions) => {
   const [startRound] = useStartMinigameRoundMutation();
@@ -248,16 +251,45 @@ export const useTdmMatchController = ({
     if (!enabled || !round || !activePlayerId) return;
     const recorded = await stopRecording();
     if (!recorded) return;
-    setState("submitting");
+    setState("transcribing");
     recordResponseStop();
     const timingSnapshot = getTimingSnapshot();
     try {
-      const response = await submitRound({
+      const transcriptionResponse = await submitRound({
         sessionId,
         roundId: round.id,
         player_id: activePlayerId,
         audio_base64: recorded.base64,
         audio_mime: recorded.mimeType,
+        mode: aiMode,
+        practice_mode: "real_time",
+        skip_scoring: true,
+        turn_context: {
+          patient_cache_key: patientCacheKey,
+          patient_statement_id: round.example_id,
+          timing: {
+            response_delay_ms: timingSnapshot.responseDelayMs,
+            response_duration_ms: timingSnapshot.responseDurationMs,
+            response_timer_seconds: responseTimerEnabled ? responseTimerSeconds : undefined,
+            max_response_duration_seconds: maxResponseEnabled ? maxResponseSeconds : undefined
+          }
+        }
+      }).unwrap();
+      const parsedTranscript = normalizeSubmitResponse(transcriptionResponse);
+      onTranscript?.({
+        transcript: parsedTranscript.transcript,
+        attemptId: parsedTranscript.attemptId
+      });
+      if (!parsedTranscript.transcript || !parsedTranscript.attemptId) {
+        throw new Error("Transcription missing.");
+      }
+      setState("evaluating");
+      const response = await submitRound({
+        sessionId,
+        roundId: round.id,
+        player_id: activePlayerId,
+        transcript_text: parsedTranscript.transcript,
+        attempt_id: parsedTranscript.attemptId,
         mode: aiMode,
         practice_mode: "real_time",
         turn_context: {
@@ -302,6 +334,7 @@ export const useTdmMatchController = ({
     enabled,
     maxResponseEnabled,
     maxResponseSeconds,
+    onTranscript,
     onResult,
     patientCacheKey,
     responseTimerEnabled,
@@ -327,7 +360,7 @@ export const useTdmMatchController = ({
   const micMode = useMemo(() => {
     if (!round || !activePlayerId) return "disabled";
     if (state === "recording") return "stop";
-    if (state === "submitting") return "locked";
+    if (state === "transcribing" || state === "evaluating") return "locked";
     return "record";
   }, [activePlayerId, round, state]);
 
@@ -341,6 +374,9 @@ export const useTdmMatchController = ({
     return maxDurationRemaining / maxResponseSeconds;
   }, [maxDurationRemaining, maxResponseEnabled, maxResponseSeconds]);
 
+  const processingStage =
+    state === "transcribing" ? "transcribing" : state === "evaluating" ? "evaluating" : null;
+
   return {
     state,
     introOpen,
@@ -350,6 +386,7 @@ export const useTdmMatchController = ({
     audioStatus,
     audioError,
     submitError,
+    processingStage,
     responseCountdownLabel,
     maxDurationRemaining,
     maxDurationProgress,

@@ -10,6 +10,8 @@ import {
   useStartSessionMutation
 } from "../store/api";
 import { TalkingPatientCanvas } from "../components/TalkingPatientCanvas";
+import { StatusPill } from "../components/StatusPill";
+import { Spinner } from "../components/Spinner";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   resetSessionState,
@@ -104,12 +106,14 @@ export const PracticePage = () => {
   const [autoPlayPatientAudio, setAutoPlayPatientAudio] = useState(true);
   const [isWarmingPack, setIsWarmingPack] = useState(false);
   const [patientPlay, setPatientPlay] = useState(false);
-  const [isEvaluating, setIsEvaluating] = useState(false);
   const [transcriptExpanded, setTranscriptExpanded] = useState(false);
   const [transcriptionStatus, setTranscriptionStatus] = useState<
     "idle" | "transcribing" | "ready" | "error"
   >("idle");
   const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [evaluationStatus, setEvaluationStatus] = useState<
+    "idle" | "evaluating" | "ready" | "error"
+  >("idle");
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recorderMimeRef = useRef<string | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -128,6 +132,10 @@ export const PracticePage = () => {
     sessionItemId: string;
     result: PracticeRunResponse;
   } | null>(null);
+  const evaluationPromiseRef = useRef<Promise<PracticeRunResponse> | null>(null);
+  const evaluationRequestRef = useRef<string | null>(null);
+  const isEvaluating = evaluationStatus === "evaluating";
+  const isProcessing = transcriptionStatus === "transcribing" || isEvaluating;
   const currentItem = practice.sessionItems[practice.currentIndex];
   const currentExampleId = currentItem?.example_id;
   const patientLine = currentItem?.patient_text ?? "";
@@ -205,7 +213,7 @@ export const PracticePage = () => {
     }
     return "border-rose-400/60 bg-rose-400/10 text-rose-200 shadow-[0_0_12px_rgba(248,113,113,0.4)]";
   };
-  const canStartRecording = practiceMode === "standard" || canRecord;
+  const canStartRecording = (practiceMode === "standard" || canRecord) && !isProcessing;
   const patientKey =
     taskId && currentExampleId ? `${taskId}:${currentExampleId}` : null;
   const sessionIndexKey = useCallback(
@@ -364,6 +372,17 @@ export const PracticePage = () => {
       practice.currentIndex.toString()
     );
   }, [practice.currentIndex, practice.sessionId, sessionIndexKey]);
+
+  useEffect(() => {
+    setTranscriptionStatus(practice.transcript ? "ready" : "idle");
+    if (evaluationStatus !== "evaluating") {
+      setEvaluationStatus(practice.evaluation ? "ready" : "idle");
+    }
+    setTranscriptionError(null);
+    transcriptionPromiseRef.current = null;
+    evaluationPromiseRef.current = null;
+    pendingResultRef.current = null;
+  }, [evaluationStatus, practice.currentSessionItemId, practice.evaluation, practice.transcript]);
 
   useEffect(() => {
     if (!practice.sessionId) return;
@@ -529,6 +548,7 @@ export const PracticePage = () => {
       transcriptionRequestRef.current = transcriptionId;
       setTranscriptionStatus("transcribing");
       setTranscriptionError(null);
+      setEvaluationStatus("idle");
       setError(null);
       setResponseErrors(null);
       setNextDifficulty(null);
@@ -549,7 +569,8 @@ export const PracticePage = () => {
           audio_mime: mimeType ?? undefined,
           mode: settings.aiMode,
           practice_mode: practiceMode,
-          turn_context: turnContext
+          turn_context: turnContext,
+          skip_scoring: true
         }).unwrap();
         if (transcriptionRequestRef.current !== transcriptionId) {
           return result;
@@ -593,6 +614,75 @@ export const PracticePage = () => {
     ]
   );
 
+  const beginEvaluation = useCallback(
+    async (result?: PracticeRunResponse | null) => {
+      if (!currentItem) return null;
+      const evaluationId = `${currentItem.session_item_id}:${Date.now()}`;
+      evaluationRequestRef.current = evaluationId;
+      setEvaluationStatus("evaluating");
+      setError(null);
+      setResponseErrors(null);
+      const transcriptText = result?.transcript?.text ?? practice.transcript ?? "";
+      const attemptId = result?.attemptId ?? practice.currentAttemptId;
+      if (!transcriptText || !attemptId) {
+        setEvaluationStatus("error");
+        return null;
+      }
+      const promise = (async () => {
+        const turnContext =
+          practiceMode === "real_time"
+            ? {
+                patient_cache_key: patientCacheKey ?? undefined,
+                patient_statement_id: currentExampleId
+              }
+            : undefined;
+        const evaluationResult = await runPractice({
+          session_item_id: currentItem.session_item_id,
+          attempt_id: attemptId,
+          transcript_text: transcriptText,
+          mode: settings.aiMode,
+          practice_mode: practiceMode,
+          turn_context: turnContext
+        }).unwrap();
+        if (evaluationRequestRef.current !== evaluationId) {
+          return evaluationResult;
+        }
+        setRequestId(evaluationResult.requestId ?? null);
+        setResponseErrors(evaluationResult.errors ?? null);
+        setNextDifficulty(evaluationResult.next_recommended_difficulty ?? null);
+        dispatch(
+          setAttemptForItem({
+            sessionItemId: currentItem.session_item_id,
+            transcript: transcriptText,
+            evaluation: evaluationResult.scoring?.evaluation,
+            attemptId: evaluationResult.attemptId ?? attemptId
+          })
+        );
+        setEvaluationStatus(evaluationResult.scoring?.evaluation ? "ready" : "error");
+        return evaluationResult;
+      })();
+      evaluationPromiseRef.current = promise;
+      return promise.catch((err) => {
+        if (evaluationRequestRef.current !== evaluationId) {
+          throw err;
+        }
+        setEvaluationStatus("error");
+        throw err;
+      });
+    },
+    [
+      currentExampleId,
+      currentItem,
+      dispatch,
+      patientCacheKey,
+      practice.currentAttemptId,
+      practice.transcript,
+      practiceMode,
+      runPractice,
+      settings.aiMode
+    ]
+  );
+
   const startRecording = async () => {
     setError(null);
     setResponseErrors(null);
@@ -600,8 +690,11 @@ export const PracticePage = () => {
     setRequestId(null);
     setTranscriptionStatus("idle");
     setTranscriptionError(null);
+    setEvaluationStatus("idle");
     transcriptionPromiseRef.current = null;
     transcriptionRequestRef.current = null;
+    evaluationPromiseRef.current = null;
+    evaluationRequestRef.current = null;
     pendingResultRef.current = null;
     dispatch(setEvaluation(undefined));
     if (practiceMode === "real_time" && !canRecord) {
@@ -640,7 +733,13 @@ export const PracticePage = () => {
         URL.revokeObjectURL(practice.audioBlobRef);
       }
       dispatch(setAudioBlobRef({ url, mimeType: blob.type }));
-      void beginTranscription(blob, blob.type);
+      void beginTranscription(blob, blob.type)
+        .then((result) => {
+          if (result) {
+            void beginEvaluation(result).catch(() => null);
+          }
+        })
+        .catch(() => null);
     };
     recorderRef.current = recorder;
     recorder.start();
@@ -656,7 +755,6 @@ export const PracticePage = () => {
   const runEvaluation = async () => {
     if (!currentItem || !practice.audioBlobRef) return;
     try {
-      setIsEvaluating(true);
       setError(null);
       setResponseErrors(null);
       dispatch(setRecordingState("processing"));
@@ -668,24 +766,11 @@ export const PracticePage = () => {
           dispatch(setRecordingState("ready"));
           return;
         }
-        await beginTranscription(blob, practice.audioMime);
+        const result = await beginTranscription(blob, practice.audioMime);
+        await beginEvaluation(result);
       } else {
-        await transcriptionPromiseRef.current;
-      }
-      const pending = pendingResultRef.current;
-      if (pending && pending.sessionItemId === currentItem.session_item_id) {
-        const { result } = pending;
-        setRequestId(result.requestId ?? null);
-        setResponseErrors(result.errors ?? null);
-        setNextDifficulty(result.next_recommended_difficulty ?? null);
-        dispatch(
-          setAttemptForItem({
-            sessionItemId: currentItem.session_item_id,
-            transcript: result.transcript?.text,
-            evaluation: result.scoring?.evaluation,
-            attemptId: result.attemptId
-          })
-        );
+        const result = await transcriptionPromiseRef.current;
+        await beginEvaluation(result);
       }
       dispatch(setRecordingState("ready"));
     } catch (err) {
@@ -710,8 +795,6 @@ export const PracticePage = () => {
       }
       setError(message ?? t("practice.error.evaluateFailed"));
       dispatch(setRecordingState("ready"));
-    } finally {
-      setIsEvaluating(false);
     }
   };
 
@@ -1221,7 +1304,12 @@ export const PracticePage = () => {
                   onClick={startRecording}
                   disabled={!canStartRecording}
                 >
-                  {t("practice.startRecording")}
+                  <span className="flex items-center gap-2">
+                    {transcriptionStatus === "transcribing" && <Spinner size="sm" tone="slate" />}
+                    {transcriptionStatus === "transcribing"
+                      ? "Transcribing…"
+                      : t("practice.startRecording")}
+                  </span>
                 </button>
               ) : (
                 <button
@@ -1234,11 +1322,35 @@ export const PracticePage = () => {
               <button
                 className="rounded-full border border-white/20 px-6 py-2 text-sm"
                 onClick={runEvaluation}
-                disabled={!practice.audioBlobRef || isEvaluating || isStartingSession || !currentItem}
+                disabled={
+                  !practice.audioBlobRef ||
+                  transcriptionStatus === "transcribing" ||
+                  isEvaluating ||
+                  isStartingSession ||
+                  !currentItem
+                }
               >
-                {isEvaluating ? t("practice.evaluating") : t("practice.runEvaluation")}
+                <span className="flex items-center gap-2">
+                  {isEvaluating && <Spinner size="sm" tone="slate" />}
+                  {isEvaluating ? t("practice.evaluating") : t("practice.runEvaluation")}
+                </span>
               </button>
             </div>
+            {(transcriptionStatus === "transcribing" ||
+              evaluationStatus === "evaluating" ||
+              evaluationStatus === "error") && (
+              <div className="mt-3 flex flex-wrap gap-2 text-[10px] uppercase tracking-[0.2em]">
+                {transcriptionStatus === "transcribing" && (
+                  <StatusPill label="Transcribing" showSpinner />
+                )}
+                {evaluationStatus === "evaluating" && (
+                  <StatusPill label="Evaluation running" tone="warning" showSpinner spinnerTone="amber" />
+                )}
+                {evaluationStatus === "error" && (
+                  <StatusPill label="Evaluation issue" tone="danger" />
+                )}
+              </div>
+            )}
             {practice.audioBlobRef && (
               <audio className="audio-player mt-4 w-full" controls src={practice.audioBlobRef} />
             )}
@@ -1249,14 +1361,13 @@ export const PracticePage = () => {
                     {t("practice.transcriptTitle")}
                   </p>
                   {transcriptionStatus === "transcribing" && (
-                    <span className="rounded-full border border-teal-300/40 bg-teal-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-teal-200">
-                      Transcribing…
-                    </span>
+                    <StatusPill label="Transcribing" showSpinner />
                   )}
                   {transcriptionStatus === "error" && (
-                    <span className="rounded-full border border-rose-400/40 bg-rose-500/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-rose-200">
-                      Issue
-                    </span>
+                    <StatusPill label="Issue" tone="danger" />
+                  )}
+                  {evaluationStatus === "evaluating" && (
+                    <StatusPill label="Evaluating" tone="warning" showSpinner spinnerTone="amber" />
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
