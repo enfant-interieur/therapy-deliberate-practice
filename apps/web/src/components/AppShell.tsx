@@ -7,6 +7,7 @@ import { setAdminStatus, setUser } from "../store/authSlice";
 import { supabase } from "../supabase/client";
 import { hydrateSettings } from "../store/settingsSlice";
 import { AiSetupModal } from "./AiSetupModal";
+import { GameSelectModal } from "./minigames/GameSelectModal";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -24,6 +25,7 @@ export const AppShell = () => {
   const selectedLanguage = i18n.resolvedLanguage ?? i18n.language;
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [showAiSetup, setShowAiSetup] = useState(false);
+  const [isGameSelectOpen, setIsGameSelectOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const handledAuthSignatureRef = useRef<string>("");
 
@@ -216,6 +218,14 @@ export const AppShell = () => {
           }
         }}
       />
+      <GameSelectModal
+        open={isGameSelectOpen}
+        onClose={() => setIsGameSelectOpen(false)}
+        onSelect={(mode) => {
+          setIsGameSelectOpen(false);
+          navigate("/minigames", { state: { preselectedMode: mode } });
+        }}
+      />
       <header className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
@@ -231,8 +241,25 @@ export const AppShell = () => {
                 {t("appShell.nav.admin")}
               </NavLink>
             )}
-            <NavLink to="/help" className={linkClass}>
-              {t("appShell.nav.help")}
+            <button
+              type="button"
+              onClick={() => setIsGameSelectOpen(true)}
+              className="rounded-full px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
+            >
+              {t("appShell.nav.minigames")}
+            </button>
+            <NavLink
+              to="/help"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:border-white/20 hover:text-white"
+              aria-label={t("appShell.nav.help")}
+            >
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M9.09 9a3 3 0 1 1 5.83 1c0 2-3 2-3 4m.08 3.5h.02M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
+                />
+              </svg>
             </NavLink>
             <label className="sr-only" htmlFor="language-select">
               {t("appShell.language.label")}
@@ -302,6 +329,14 @@ export const AppShell = () => {
                       onClick={() => setIsUserMenuOpen(false)}
                     >
                       {t("appShell.nav.history")}
+                    </NavLink>
+                    <NavLink
+                      to="/help"
+                      className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-white/10"
+                      role="menuitem"
+                      onClick={() => setIsUserMenuOpen(false)}
+                    >
+                      {t("appShell.nav.help")}
                     </NavLink>
                     <button
                       type="button"

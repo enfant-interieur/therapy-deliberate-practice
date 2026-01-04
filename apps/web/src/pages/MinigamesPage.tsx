@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { GameSelectModal } from "../components/minigames/GameSelectModal";
 import { MinigameSetupModal } from "../components/minigames/MinigameSetupModal";
 import { AudioReactiveBackground } from "../components/minigames/AudioReactiveBackground";
@@ -37,6 +38,7 @@ const modeCopy = {
 export const MinigamesPage = () => {
   const dispatch = useAppDispatch();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const location = useLocation();
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const minigames = useAppSelector((state) => state.minigames);
   const [selectOpen, setSelectOpen] = useState(true);
@@ -45,6 +47,7 @@ export const MinigamesPage = () => {
   const [currentPlayerId, setCurrentPlayerId] = useState<string | undefined>(undefined);
   const [roundResultScore, setRoundResultScore] = useState<number | null>(null);
   const [lastTranscript, setLastTranscript] = useState<string | undefined>(undefined);
+  const handledPreselectRef = useRef(false);
 
   const [createSession] = useCreateMinigameSessionMutation();
   const [addTeams] = useAddMinigameTeamsMutation();
@@ -64,6 +67,16 @@ export const MinigamesPage = () => {
       setMode(minigames.session.game_type);
     }
   }, [minigames.session]);
+
+  useEffect(() => {
+    if (handledPreselectRef.current) return;
+    const state = location.state as { preselectedMode?: "ffa" | "tdm" } | null;
+    if (!state?.preselectedMode) return;
+    handledPreselectRef.current = true;
+    setMode(state.preselectedMode);
+    setSelectOpen(false);
+    setSetupOpen(true);
+  }, [location.state]);
 
   useEffect(() => {
     if (audioRef.current) {
