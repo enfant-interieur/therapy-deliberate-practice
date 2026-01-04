@@ -254,7 +254,7 @@ export const PracticePage = () => {
     setPatientSpeaking(false);
     setPatientPlay(false);
     setCanRecord(practiceMode === "standard");
-    setIsEvaluating(false);
+    setEvaluationStatus("idle");
     setTranscriptExpanded(false);
     setTranscriptionStatus("idle");
     setTranscriptionError(null);

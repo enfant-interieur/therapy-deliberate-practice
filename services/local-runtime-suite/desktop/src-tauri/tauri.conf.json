@@ -11,7 +11,9 @@
   },
   "app": {
     "security": {
-      "capabilities": ["default"],
+      "capabilities": [
+        "default"
+      ],
       "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*"
     },
     "windows": [
@@ -25,7 +27,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app"],
+    "targets": [
+      "app"
+    ],
     "category": "Utility",
     "icon": [
       "icons/icon.ico",
@@ -33,7 +37,7 @@
       "icons/icon.png"
     ],
     "resources": {
-      "resources/local_runtime/": "../../python/"
+      "../../python/": "resources/local_runtime/"
     },
     "macOS": {
       "signingIdentity": "Apple Distribution: YOUR TEAM (TEAMID)"
