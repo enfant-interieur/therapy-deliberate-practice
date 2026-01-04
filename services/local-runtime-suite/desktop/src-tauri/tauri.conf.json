@@ -25,14 +25,15 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app"],
+    "category": "Utility",
     "icon": [
       "icons/icon.ico",
       "icons/icon.icns",
       "icons/icon.png"
     ],
     "macOS": {
-      "signingIdentity": "Developer ID Application: YOUR TEAM (TEAMID)"
+      "signingIdentity": "Apple Distribution: YOUR TEAM (TEAMID)"
     }
   },
   "plugins": {
