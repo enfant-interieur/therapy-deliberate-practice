@@ -19,7 +19,7 @@ export const VersusIntroOverlay = ({
 }: VersusIntroOverlayProps) => {
   useEffect(() => {
     if (!open) return;
-    const timeout = window.setTimeout(() => onComplete(), 1600);
+    const timeout = window.setTimeout(() => onComplete(), 3600);
     return () => window.clearTimeout(timeout);
   }, [onComplete, open]);
 
