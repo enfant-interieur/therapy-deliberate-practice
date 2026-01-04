@@ -18,7 +18,7 @@ jobs:
   build-tauri:
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        os: [macos-latest, windows-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -26,7 +26,7 @@ jobs:
           # If manually dispatched with a tag, checkout that tag
           ref: ${{ inputs.tag || github.ref }}
       - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
