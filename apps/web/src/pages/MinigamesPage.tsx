@@ -30,6 +30,7 @@ import {
   resetMinigame,
   setCurrentRoundId,
   setEvaluationDrawerOpen,
+  setAppShellHidden,
   setMinigameState,
   toggleTranscriptHidden
 } from "../store/minigamesSlice";
@@ -69,6 +70,13 @@ export const MinigamesPage = () => {
   const [redrawRound] = useRedrawMinigameRoundMutation();
   const fullscreen = useFullscreen();
   const patientAudio = usePatientAudioBank({ loggerScope: "minigames" });
+
+  useEffect(() => {
+    dispatch(setAppShellHidden(true));
+    return () => {
+      dispatch(setAppShellHidden(false));
+    };
+  }, [dispatch]);
 
   useEffect(() => {
     if (minigameState.data) {

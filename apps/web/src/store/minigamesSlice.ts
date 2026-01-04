@@ -19,6 +19,7 @@ type MinigameState = {
     transcriptHidden: boolean;
     evaluationDrawerOpen: boolean;
     endGameOpen: boolean;
+    appShellHidden: boolean;
   };
 };
 
@@ -30,7 +31,8 @@ const initialState: MinigameState = {
   ui: {
     transcriptHidden: false,
     evaluationDrawerOpen: false,
-    endGameOpen: false
+    endGameOpen: false,
+    appShellHidden: false
   }
 };
 
@@ -48,6 +50,7 @@ const minigamesSlice = createSlice({
       state.ui.transcriptHidden = false;
       state.ui.evaluationDrawerOpen = false;
       state.ui.endGameOpen = false;
+      state.ui.appShellHidden = false;
     },
     setMinigameState(
       state,
@@ -122,6 +125,9 @@ const minigamesSlice = createSlice({
     },
     setEndGameOpen(state, action: PayloadAction<boolean>) {
       state.ui.endGameOpen = action.payload;
+    },
+    setAppShellHidden(state, action: PayloadAction<boolean>) {
+      state.ui.appShellHidden = action.payload;
     }
   }
 });
@@ -133,6 +139,7 @@ export const {
   addRoundResult,
   toggleTranscriptHidden,
   setEvaluationDrawerOpen,
-  setEndGameOpen
+  setEndGameOpen,
+  setAppShellHidden
 } = minigamesSlice.actions;
 export const minigamesReducer = minigamesSlice.reducer;
