@@ -67,7 +67,14 @@ export const PracticePage = () => {
   const { data: task } = useGetTaskQuery({ id: taskId ?? "" });
   const [startSession, { isLoading: isStartingSession }] = useStartSessionMutation();
   const [runPractice] = useRunPracticeMutation();
-  const patientAudio = usePatientAudioBank({ loggerScope: "practice" });
+  const {
+    bank: patientAudioBank,
+    ensureReady: ensurePatientAudioReady,
+    warmup: warmupPatientAudio,
+    play: playPatientAudio,
+    getEntry: getPatientAudioEntry,
+    progress: patientAudioProgress
+  } = usePatientAudioBank({ loggerScope: "practice" });
   const dispatch = useAppDispatch();
   const practice = useAppSelector((state) => state.practice);
   const settings = useAppSelector((state) => state.settings);
@@ -121,7 +128,7 @@ export const PracticePage = () => {
   const currentExampleId = currentItem?.example_id;
   const patientLine = currentItem?.patient_text ?? "";
   const currentAudioEntry =
-    currentExampleId && taskId ? patientAudio.getEntry(taskId, currentExampleId) : undefined;
+    currentExampleId && taskId ? getPatientAudioEntry(taskId, currentExampleId) : undefined;
   const patientAudioStatus = currentAudioEntry?.status ?? "idle";
   const patientAudioUrl = currentAudioEntry?.blobUrl ?? currentAudioEntry?.audioUrl ?? null;
   const patientCacheKey = currentAudioEntry?.cacheKey ?? null;
@@ -139,11 +146,11 @@ export const PracticePage = () => {
     () =>
       sessionStatementIds.reduce((count, statementId) => {
         if (!taskId) return count;
-        return patientAudio.getEntry(taskId, statementId)?.status === "ready"
+        return getPatientAudioEntry(taskId, statementId)?.status === "ready"
           ? count + 1
           : count;
       }, 0),
-    [patientAudio, sessionStatementIds, taskId]
+    [getPatientAudioEntry, patientAudioProgress, sessionStatementIds, taskId]
   );
   const packProgressPercent =
     packTotalCount > 0 ? Math.round((packReadyCount / packTotalCount) * 100) : 0;
@@ -229,7 +236,7 @@ export const PracticePage = () => {
     setResponseErrors(null);
     setNextDifficulty(null);
     setRequestId(null);
-    patientAudio.bank.revokeAll();
+    patientAudioBank.revokeAll();
     setPatientSpeaking(false);
     setPatientPlay(false);
     setCanRecord(practiceMode === "standard");
@@ -240,7 +247,7 @@ export const PracticePage = () => {
     transcriptionPromiseRef.current = null;
     transcriptionRequestRef.current = null;
     pendingResultRef.current = null;
-  }, [patientAudio.bank, practiceMode]);
+  }, [patientAudioBank, practiceMode]);
 
   const startNewSession = useCallback(async () => {
     if (!taskId) return;
@@ -363,19 +370,19 @@ export const PracticePage = () => {
   }, [practice.sessionId]);
 
   useEffect(() => {
-    patientAudio.bank.revokeAll();
+    patientAudioBank.revokeAll();
     setIsWarmingPack(false);
     warmupAbortRef.current?.abort();
     prefetchAbortRef.current?.abort();
-  }, [patientAudio.bank, practice.sessionId]);
+  }, [patientAudioBank, practice.sessionId]);
 
   useEffect(() => {
     return () => {
-      patientAudio.bank.revokeAll();
+      patientAudioBank.revokeAll();
       warmupAbortRef.current?.abort();
       prefetchAbortRef.current?.abort();
     };
-  }, [patientAudio.bank]);
+  }, [patientAudioBank]);
 
   useEffect(() => {
     setPatientSpeaking(false);
@@ -419,7 +426,7 @@ export const PracticePage = () => {
 
     const runPrefetch = async () => {
       setCanRecord(false);
-      await patientAudio.ensureReady(taskId, currentExampleId, { signal: controller.signal });
+      await ensurePatientAudioReady(taskId, currentExampleId, { signal: controller.signal });
     };
 
     runPrefetch().catch(() => {
@@ -430,7 +437,7 @@ export const PracticePage = () => {
     return () => {
       controller.abort();
     };
-  }, [currentExampleId, patientAudio, practiceMode, taskId]);
+  }, [currentExampleId, ensurePatientAudioReady, practiceMode, taskId]);
 
   useEffect(() => {
     if (practiceMode !== "real_time" || !taskId || packTotalCount === 0) {
@@ -445,7 +452,7 @@ export const PracticePage = () => {
     setIsWarmingPack(true);
 
     const runWarmup = async () => {
-      await patientAudio.warmup(
+      await warmupPatientAudio(
         { [taskId]: sessionStatementIds },
         { signal: controller.signal }
       );
@@ -465,7 +472,7 @@ export const PracticePage = () => {
     };
   }, [
     packTotalCount,
-    patientAudio,
+    warmupPatientAudio,
     practiceMode,
     sessionStatementIds,
     taskId,
@@ -477,14 +484,12 @@ export const PracticePage = () => {
     if (patientAudioStatus !== "ready") return;
     if (!patientAudioRef.current) return;
     if (!taskId || !currentExampleId) return;
-    patientAudio
-      .play(taskId, currentExampleId, patientAudioRef.current)
-      .catch(() => null);
+    playPatientAudio(taskId, currentExampleId, patientAudioRef.current).catch(() => null);
   }, [
     autoPlayPatientAudio,
     currentExampleId,
     patientAudioStatus,
-    patientAudio,
+    playPatientAudio,
     practiceMode,
     taskId
   ]);
