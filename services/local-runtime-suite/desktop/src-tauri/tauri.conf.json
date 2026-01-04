@@ -18,7 +18,12 @@
     "bundle": {
       "active": true,
       "targets": "all",
-      "identifier": "com.therapy.localruntime"
+      "identifier": "com.therapy.localruntime",
+      "icon": [
+        "icons/icon.ico",
+        "icons/icon.icns",
+        "icons/icon.png"
+      ]
     },
     "windows": [
       {
