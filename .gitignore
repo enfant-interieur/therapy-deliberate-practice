@@ -7,6 +7,7 @@ node_modules
 .DS_Store
 .idea
 .git
+git
 infra/local.db
 /apps/worker/.dev.vars
 /services/local-runtime-suite/desktop/src-tauri/target/
