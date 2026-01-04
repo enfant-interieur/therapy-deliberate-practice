@@ -468,14 +468,6 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       .select()
       .from(taskExamples)
       .where(eq(taskExamples.task_id, id));
-    const interactionRows = await db
-      .select()
-      .from(taskInteractionExamples)
-      .where(eq(taskInteractionExamples.task_id, id));
-    const interactionRows = await db
-      .select()
-      .from(taskInteractionExamples)
-      .where(eq(taskInteractionExamples.task_id, id));
     const interactionRows = includeInteractions
       ? await db
           .select()
