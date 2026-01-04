@@ -7,7 +7,10 @@ type EvaluationModalProps = {
   criteria: TaskCriterion[];
   previousScore?: number | null;
   roundScore?: number | null;
+  mode: "ffa" | "tdm";
   onClose: () => void;
+  onNextRound: () => void;
+  onAddPlayer?: () => void;
 };
 
 const scoreTone = (score?: number) => {
@@ -45,7 +48,10 @@ export const EvaluationModal = ({
   criteria,
   previousScore,
   roundScore,
-  onClose
+  mode,
+  onClose,
+  onNextRound,
+  onAddPlayer
 }: EvaluationModalProps) => {
   if (!open || !evaluation) return null;
   const criterionMap = new Map(criteria.map((criterion) => [criterion.id, criterion]));
@@ -87,13 +93,6 @@ export const EvaluationModal = ({
                 {delta.toFixed(1)} vs last round
               </span>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full border border-white/20 px-4 py-1 text-xs uppercase tracking-[0.2em] text-slate-200 transition hover:border-white/40"
-            >
-              Close
-            </button>
           </div>
         </div>
 
@@ -125,6 +124,32 @@ export const EvaluationModal = ({
               </div>
             );
           })}
+        </div>
+
+        <div className="mt-8 flex flex-wrap items-center justify-end gap-3">
+          {mode === "ffa" && onAddPlayer && (
+            <button
+              type="button"
+              onClick={onAddPlayer}
+              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/70 hover:border-white/30"
+            >
+              Add new player
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-white/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 transition hover:border-white/40"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            onClick={onNextRound}
+            className="rounded-full border border-teal-300/60 bg-teal-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-teal-100 hover:border-teal-200"
+          >
+            Next round
+          </button>
         </div>
       </div>
     </div>

@@ -13,6 +13,7 @@ export type MinigameController = {
   audioStatus: PatientAudioStatus;
   audioError?: string | null;
   patientEndedAt?: number | null;
+  processingStage?: "transcribing" | "evaluating" | null;
   playPatient: () => void;
   stopPatient: () => void;
   micMode: "record" | "stop" | "disabled" | "locked";
@@ -39,6 +40,11 @@ export type MinigameLayoutProps = {
   roundResultScore: number | null;
   roundResultPenalty: number | null;
   currentScore?: number | null;
+  transcriptEligible: boolean;
+  transcriptHidden: boolean;
+  transcriptText?: string;
+  transcriptProcessingStage?: "transcribing" | "evaluating" | null;
+  onToggleTranscript: () => void;
   onNextTurn?: () => void;
   onOpenEvaluation: () => void;
   onEndGame: () => void;

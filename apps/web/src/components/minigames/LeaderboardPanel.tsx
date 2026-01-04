@@ -5,6 +5,7 @@ type LeaderboardPanelProps = {
   players: MinigamePlayer[];
   teams: MinigameTeam[];
   results: MinigameRoundResult[];
+  variant?: "standalone" | "embedded";
 };
 
 const colorMap: Record<string, string> = {
@@ -16,7 +17,13 @@ const colorMap: Record<string, string> = {
   lime: "bg-lime-400/20 text-lime-100"
 };
 
-export const LeaderboardPanel = ({ mode, players, teams, results }: LeaderboardPanelProps) => {
+export const LeaderboardPanel = ({
+  mode,
+  players,
+  teams,
+  results,
+  variant = "standalone"
+}: LeaderboardPanelProps) => {
   const playerStats = players.map((player) => {
     const attempts = results.filter((result) => result.player_id === player.id);
     const average =
@@ -46,7 +53,13 @@ export const LeaderboardPanel = ({ mode, players, teams, results }: LeaderboardP
     .sort((a, b) => b.average - a.average);
 
   return (
-    <aside className="w-full rounded-3xl border border-white/10 bg-slate-900/60 p-4 shadow-[0_0_30px_rgba(15,23,42,0.4)] backdrop-blur md:w-80">
+    <aside
+      className={
+        variant === "standalone"
+          ? "w-full rounded-3xl border border-white/10 bg-slate-900/60 p-4 shadow-[0_0_30px_rgba(15,23,42,0.4)] backdrop-blur md:w-80"
+          : "w-full"
+      }
+    >
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white">Leaderboard</h3>
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70">

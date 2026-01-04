@@ -115,7 +115,6 @@ const minigamesSlice = createSlice({
           }
         }
       }
-      state.currentRoundId = state.rounds.find((entry) => entry.status !== "completed")?.id;
     },
     toggleTranscriptHidden(state) {
       state.ui.transcriptHidden = !state.ui.transcriptHidden;
