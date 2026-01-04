@@ -214,13 +214,22 @@ export const api = createApi({
       LeaderboardResponse,
       { tags?: string[]; skill_domain?: string | null; language?: string | null; limit?: number }
     >({
-      query: ({ tags, ...params }) => ({
-        url: "/leaderboard",
-        params: {
-          ...params,
-          ...(tags && tags.length > 0 ? { tags: tags.join(",") } : {})
+      query: ({ tags, skill_domain, language, limit }) => {
+        const params: Record<string, string | number> = {};
+        if (skill_domain) {
+          params.skill_domain = skill_domain;
         }
-      })
+        if (language) {
+          params.language = language;
+        }
+        if (limit) {
+          params.limit = limit;
+        }
+        if (tags && tags.length > 0) {
+          params.tags = tags.join(",");
+        }
+        return { url: "/leaderboard", params };
+      }
     }),
     startSession: builder.mutation<
       { session_id: string; items: PracticeSessionItem[] },

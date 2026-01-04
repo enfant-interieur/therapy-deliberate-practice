@@ -13,6 +13,13 @@ const defaultLimit = 50;
 const normalizeTags = (tags: string[]) =>
   Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean)));
 
+const normalizeParam = (value: string | null) => {
+  if (!value) return null;
+  const normalized = value.trim();
+  if (!normalized || normalized === "null" || normalized === "undefined") return null;
+  return normalized;
+};
+
 export const useLeaderboardFilters = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -21,8 +28,8 @@ export const useLeaderboardFilters = () => {
       ...searchParams.getAll("tag"),
       ...(searchParams.get("tags")?.split(",") ?? [])
     ]);
-    const skillDomain = searchParams.get("skill_domain") || null;
-    const language = searchParams.get("language") || null;
+    const skillDomain = normalizeParam(searchParams.get("skill_domain"));
+    const language = normalizeParam(searchParams.get("language"));
     const limitValue = Number(searchParams.get("limit"));
     const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : defaultLimit;
 
