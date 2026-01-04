@@ -64,9 +64,18 @@ const DEFAULT_DOWNLOADS: DownloadLink[] = [
 const RELEASE_CACHE_KEY = "local-suite-release-assets";
 const RELEASE_CACHE_TTL_MS = 1000 * 60 * 10;
 
+const applyMacAppStoreLink = (downloads: DownloadLink[], macosAppStoreUrl?: string | null) => {
+  const normalized = macosAppStoreUrl?.trim();
+  if (!normalized) return downloads;
+  return downloads.map((entry) => (entry.os === "macos" ? { ...entry, href: normalized } : entry));
+};
+
 export const LocalSuite = () => {
   const { t } = useTranslation();
-  const [downloads, setDownloads] = useState<DownloadLink[]>(DEFAULT_DOWNLOADS);
+  const macosAppStoreUrl = import.meta.env.VITE_MACOS_APP_STORE_URL as string | undefined;
+  const [downloads, setDownloads] = useState<DownloadLink[]>(() =>
+    applyMacAppStoreLink(DEFAULT_DOWNLOADS, macosAppStoreUrl)
+  );
   const [models, setModels] = useState<ModelSpec[]>([]);
   const [query, setQuery] = useState("");
   const [releaseError, setReleaseError] = useState<string | null>(null);
@@ -79,7 +88,7 @@ export const LocalSuite = () => {
         const match = assets.find((asset) => asset.name.toLowerCase().includes(entry.os));
         return { ...entry, href: match?.browser_download_url ?? null };
       });
-      setDownloads(mapped);
+      setDownloads(applyMacAppStoreLink(mapped, macosAppStoreUrl));
     };
 
     const cached = localStorage.getItem(RELEASE_CACHE_KEY);

@@ -443,7 +443,7 @@
       "subtitle": "Run the gateway locally, download the desktop launcher, and choose the right model for each endpoint.",
       "downloads": {
         "title": "Desktop downloads",
-        "subtitle": "Grab the latest launcher builds from GitHub Releases.",
+        "subtitle": "Download Windows/Linux builds from GitHub Releases. macOS is available in the Mac App Store.",
         "ready": "Download",
         "pending": "Coming soon",
         "error": "Unable to load GitHub releases. Showing cached links."

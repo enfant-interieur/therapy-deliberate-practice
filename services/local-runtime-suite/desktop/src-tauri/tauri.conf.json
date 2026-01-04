@@ -18,6 +18,7 @@
     "bundle": {
       "active": true,
       "targets": "all",
+      "category": "Utility",
       "identifier": "com.therapy.localruntime",
       "icon": [
         "icons/icon.ico",

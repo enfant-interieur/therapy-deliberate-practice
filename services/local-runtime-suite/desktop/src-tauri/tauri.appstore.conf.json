@@ -1,0 +1,15 @@
+{
+  "tauri": {
+    "bundle": {
+      "macOS": {
+        "entitlements": "./Entitlements.plist",
+        "files": {
+          "embedded.provisionprofile": "./embedded.provisionprofile"
+        },
+        "infoPlist": {
+          "ITSAppUsesNonExemptEncryption": false
+        }
+      }
+    }
+  }
+}

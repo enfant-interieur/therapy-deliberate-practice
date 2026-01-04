@@ -443,7 +443,7 @@
       "subtitle": "Exécutez la passerelle en local, téléchargez le launcher et choisissez le modèle adapté à chaque endpoint.",
       "downloads": {
         "title": "Téléchargements bureau",
-        "subtitle": "Récupérez les builds les plus récents depuis GitHub Releases.",
+        "subtitle": "Téléchargez Windows/Linux via GitHub Releases. macOS est disponible sur le Mac App Store.",
         "ready": "Télécharger",
         "pending": "Bientôt disponible",
         "error": "Impossible de charger GitHub Releases. Affichage du cache."
