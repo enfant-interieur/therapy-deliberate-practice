@@ -4,19 +4,17 @@ import { GameSelectModal } from "../components/minigames/GameSelectModal";
 import { MinigameSetupModal } from "../components/minigames/MinigameSetupModal";
 import { AudioReactiveBackground } from "../components/minigames/AudioReactiveBackground";
 import { TranscriptOverlay } from "../components/minigames/TranscriptOverlay";
-import { BigMicButton } from "../components/minigames/BigMicButton";
-import { LeaderboardPanel } from "../components/minigames/LeaderboardPanel";
-import { RoundHUD } from "../components/minigames/RoundHUD";
-import { RoundTaskCard } from "../components/minigames/RoundTaskCard";
 import { EvaluationDrawer } from "../components/minigames/EvaluationDrawer";
 import { EvaluationModal } from "../components/minigames/EvaluationModal";
-import { PatientAudioControls } from "../components/minigames/PatientAudioControls";
 import { NewPlayerDialog } from "../components/minigames/NewPlayerDialog";
 import { VersusIntroOverlay } from "../components/minigames/VersusIntroOverlay";
+import { DesktopMinigameLayout } from "../components/minigames/DesktopMinigameLayout";
+import { MobileMinigameLayout } from "../components/minigames/MobileMinigameLayout";
 import { useFfaTurnController } from "../components/minigames/hooks/useFfaTurnController";
 import { useTdmMatchController } from "../components/minigames/hooks/useTdmMatchController";
 import { useFullscreen } from "../components/minigames/hooks/useFullscreen";
 import { usePatientAudioBank } from "../patientAudio/usePatientAudioBank";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   useAddMinigamePlayersMutation,
   useAddMinigameTeamsMutation,
@@ -66,6 +64,7 @@ export const MinigamesPage = () => {
   const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
   const [evaluationModalData, setEvaluationModalData] = useState<EvaluationResult | null>(null);
   const handledPreselectRef = useRef(false);
+  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const [createSession] = useCreateMinigameSessionMutation();
   const [addTeams] = useAddMinigameTeamsMutation();
@@ -452,6 +451,24 @@ export const MinigamesPage = () => {
     controller.state !== "submitting" &&
     controller.state !== "patient_playing";
 
+  const currentScore = useMemo(() => {
+    if (!activePlayerId) return null;
+    return minigames.results
+      .filter((result) => result.player_id === activePlayerId)
+      .reduce((total, result) => total + result.overall_score, 0);
+  }, [activePlayerId, minigames.results]);
+
+  const previousScore = useMemo(() => {
+    if (!activePlayerId) return null;
+    const history = minigames.results
+      .filter((result) => result.player_id === activePlayerId)
+      .sort((a, b) => a.created_at - b.created_at);
+    if (history.length < 2) return null;
+    const previousEvaluation = history[history.length - 2].evaluation;
+    if (!previousEvaluation?.criterion_scores?.length) return null;
+    return previousEvaluation.criterion_scores.reduce((total, score) => total + score.score, 0);
+  }, [activePlayerId, minigames.results]);
+
   return (
     <div className="fixed inset-0 z-0 overflow-hidden bg-slate-950 text-white">
       <AudioReactiveBackground
@@ -465,168 +482,72 @@ export const MinigamesPage = () => {
         onToggle={() => dispatch(toggleTranscriptHidden())}
       />
 
-      <div className="pointer-events-none fixed inset-0 z-30">
-        <div className="pointer-events-auto fixed left-6 top-6 flex flex-col gap-3">
-          <div className="rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 shadow-[0_0_25px_rgba(15,23,42,0.5)] backdrop-blur">
-            <p className="text-xs uppercase tracking-[0.3em] text-teal-200/70">Minigames</p>
-            <h1 className="mt-1 text-xl font-semibold text-white">
-              {mode ? modeCopy[mode] : "Launch a minigame"}
-            </h1>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {minigames.session && (
-              <button
-                onClick={endGame}
-                className="rounded-full border border-rose-300/60 bg-rose-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-100 hover:border-rose-200"
-              >
-                End game
-              </button>
-            )}
-            <button
-              onClick={() => {
-                dispatch(resetMinigame());
-                setMode(null);
-                setSelectOpen(true);
-              }}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-white/40"
-            >
-              New game
-            </button>
-          </div>
-        </div>
-
-        <div className="pointer-events-auto fixed right-6 top-6 flex items-center gap-3">
-          {mode === "ffa" && minigames.session && (
-            <button
-              onClick={() => setNewPlayerOpen(true)}
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-white/40"
-            >
-              New player
-            </button>
-          )}
-          {mode === "tdm" && minigames.session && (
-            <button
-              onClick={handleRedraw}
-              disabled={!canRedraw}
-              className="rounded-full border border-violet-300/60 bg-violet-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-violet-100 disabled:opacity-50 hover:border-violet-200"
-            >
-              Redraw
-            </button>
-          )}
-          <button
-            onClick={fullscreen.toggle}
-            disabled={!fullscreen.isSupported}
-            className="group flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 disabled:cursor-not-allowed disabled:opacity-50 hover:border-white/40"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-              <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-              <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
-              <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-            </svg>
-            <span>{fullscreen.isFullscreen ? "Exit" : "Fullscreen"}</span>
-            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-white/60">
-              Esc
-            </span>
-          </button>
-        </div>
-      </div>
-
-      <div className="relative z-10 flex h-full flex-col justify-between gap-6 px-6 pb-8 pt-24">
-        <RoundHUD
-          round={currentRound}
-          player={currentPlayer}
+      {isMobile ? (
+        <MobileMinigameLayout
+          mode={mode}
+          modeCopy={modeCopy}
+          session={minigames.session}
           teams={minigames.teams}
-          onNextTurn={roundResultScore != null && controller.state === "complete" ? nextTurn : undefined}
+          players={minigames.players}
+          results={minigames.results}
+          currentRound={currentRound}
+          currentTask={currentTask}
+          currentPlayer={currentPlayer}
+          currentPlayerId={currentPlayerId}
+          onPlayerChange={setCurrentPlayerId}
+          controller={controller}
+          micLabel={micLabel}
+          roundResultScore={roundResultScore}
+          roundResultPenalty={roundResultPenalty}
+          currentScore={currentScore}
+          onNextTurn={
+            roundResultScore != null && controller.state === "complete" ? nextTurn : undefined
+          }
+          onOpenEvaluation={() => dispatch(setEvaluationDrawerOpen(true))}
+          onEndGame={endGame}
+          onNewGame={() => {
+            dispatch(resetMinigame());
+            setMode(null);
+            setSelectOpen(true);
+          }}
+          onNewPlayer={() => setNewPlayerOpen(true)}
+          onRedraw={handleRedraw}
+          canRedraw={canRedraw}
+          fullscreen={fullscreen}
         />
-        {minigames.session && (
-          <RoundTaskCard
-            title={currentTask?.title}
-            criteria={currentTask?.criteria ?? []}
-            visibilityMode={minigames.session.visibility_mode}
-          />
-        )}
-
-        {mode === "ffa" && minigames.players.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-slate-200">
-            <span className="uppercase tracking-[0.2em] text-slate-400">Current player</span>
-            <select
-              value={currentPlayerId}
-              onChange={(event) => setCurrentPlayerId(event.target.value)}
-              className="rounded-lg border border-white/10 bg-slate-900/60 px-3 py-1 text-xs text-white"
-            >
-              {minigames.players.map((player) => (
-                <option key={player.id} value={player.id}>
-                  {player.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
-        <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)_minmax(0,1fr)]">
-          <div className="hidden lg:block" />
-          <div className="flex min-w-[280px] flex-col items-center justify-center gap-6">
-            <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-5 py-4 text-center text-sm text-slate-200 shadow-[0_0_30px_rgba(15,23,42,0.4)] backdrop-blur">
-              {controller.audioError ?? "Patient audio is ready when you are."}
-            </div>
-            <PatientAudioControls
-              status={controller.audioStatus}
-              onPlay={controller.playPatient}
-              onStop={controller.stopPatient}
-              hasEnded={Boolean(controller.patientEndedAt)}
-            />
-            <BigMicButton
-              mode={controller.micMode}
-              subLabel={micLabel}
-              progress={controller.state === "recording" ? controller.maxDurationProgress : 0}
-              onRecord={controller.startRecording}
-              onStop={controller.stopAndSubmit}
-            />
-            {controller.submitError && (
-              <p className="text-xs text-rose-200">{controller.submitError}</p>
-            )}
-            {roundResultScore != null && controller.state === "complete" && (
-              <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-center">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                  Round complete
-                </p>
-                <p className="mt-2 text-2xl font-semibold text-teal-200">
-                  {roundResultScore.toFixed(2)}
-                </p>
-                {roundResultPenalty != null && roundResultPenalty > 0 && (
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-rose-200">
-                    Timing penalty -{roundResultPenalty.toFixed(2)}
-                  </p>
-                )}
-                <button
-                  onClick={() => dispatch(setEvaluationDrawerOpen(true))}
-                  className="mt-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs uppercase tracking-wide text-white/70 hover:border-white/30"
-                >
-                  View details
-                </button>
-              </div>
-            )}
-          </div>
-          <div className="flex justify-center lg:justify-end">
-            <LeaderboardPanel
-              mode={mode ?? "ffa"}
-              players={minigames.players}
-              teams={minigames.teams}
-              results={minigames.results}
-            />
-          </div>
-        </div>
-      </div>
+      ) : (
+        <DesktopMinigameLayout
+          mode={mode}
+          modeCopy={modeCopy}
+          session={minigames.session}
+          teams={minigames.teams}
+          players={minigames.players}
+          results={minigames.results}
+          currentRound={currentRound}
+          currentTask={currentTask}
+          currentPlayer={currentPlayer}
+          currentPlayerId={currentPlayerId}
+          onPlayerChange={setCurrentPlayerId}
+          controller={controller}
+          micLabel={micLabel}
+          roundResultScore={roundResultScore}
+          roundResultPenalty={roundResultPenalty}
+          onNextTurn={
+            roundResultScore != null && controller.state === "complete" ? nextTurn : undefined
+          }
+          onOpenEvaluation={() => dispatch(setEvaluationDrawerOpen(true))}
+          onEndGame={endGame}
+          onNewGame={() => {
+            dispatch(resetMinigame());
+            setMode(null);
+            setSelectOpen(true);
+          }}
+          onNewPlayer={() => setNewPlayerOpen(true)}
+          onRedraw={handleRedraw}
+          canRedraw={canRedraw}
+          fullscreen={fullscreen}
+        />
+      )}
 
       <GameSelectModal
         open={selectOpen}
@@ -652,6 +573,7 @@ export const MinigamesPage = () => {
         open={evaluationModalOpen}
         evaluation={evaluationModalData}
         criteria={evaluationTask?.criteria ?? []}
+        previousScore={previousScore}
         onClose={() => setEvaluationModalOpen(false)}
       />
       <NewPlayerDialog

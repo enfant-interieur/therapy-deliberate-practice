@@ -1,9 +1,12 @@
 import type { EvaluationResult, TaskCriterion } from "@deliberate/shared";
+import { useEvaluationScore } from "./hooks/useEvaluationScore";
 
 type EvaluationModalProps = {
   open: boolean;
   evaluation: EvaluationResult | null;
   criteria: TaskCriterion[];
+  previousScore?: number | null;
+  roundScore?: number | null;
   onClose: () => void;
 };
 
@@ -26,9 +29,30 @@ const scoreTone = (score?: number) => {
   return "border-rose-400/60 bg-rose-400/10 text-rose-200 shadow-[0_0_12px_rgba(248,113,113,0.4)]";
 };
 
-export const EvaluationModal = ({ open, evaluation, criteria, onClose }: EvaluationModalProps) => {
+const deltaTone = (tone: "positive" | "negative" | "neutral") => {
+  if (tone === "positive") {
+    return "border-emerald-400/50 bg-emerald-400/10 text-emerald-200";
+  }
+  if (tone === "negative") {
+    return "border-rose-400/50 bg-rose-400/10 text-rose-200";
+  }
+  return "border-white/10 bg-white/5 text-slate-300";
+};
+
+export const EvaluationModal = ({
+  open,
+  evaluation,
+  criteria,
+  previousScore,
+  roundScore,
+  onClose
+}: EvaluationModalProps) => {
   if (!open || !evaluation) return null;
   const criterionMap = new Map(criteria.map((criterion) => [criterion.id, criterion]));
+  const { total, delta, tone } = useEvaluationScore(evaluation.criterion_scores, {
+    previousScore,
+    roundScore
+  });
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6" onClick={onClose}>
@@ -48,8 +72,21 @@ export const EvaluationModal = ({ open, evaluation, criteria, onClose }: Evaluat
                 evaluation.overall.score
               )}`}
             >
-              Overall {evaluation.overall.score.toFixed(1)}/4
+              Round avg {evaluation.overall.score.toFixed(1)}/4
             </span>
+            <span className="rounded-full border border-white/10 bg-white/5 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-slate-200/80">
+              Total {total.toFixed(1)}
+            </span>
+            {delta != null && (
+              <span
+                className={`rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.3em] ${deltaTone(
+                  tone
+                )}`}
+              >
+                {delta > 0 ? "+" : ""}
+                {delta.toFixed(1)} vs last round
+              </span>
+            )}
             <button
               type="button"
               onClick={onClose}
