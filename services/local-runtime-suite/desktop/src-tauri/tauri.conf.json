@@ -35,7 +35,6 @@
     "resources": {
       "resources/local_runtime/": "../../python/"
     },
-    "externalBin": ["binaries/local-runtime-gateway"],
     "macOS": {
       "signingIdentity": "Apple Distribution: YOUR TEAM (TEAMID)"
     }

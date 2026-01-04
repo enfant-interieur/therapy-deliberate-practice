@@ -24,3 +24,5 @@ npm run build
 npm run sidecar:build
 npm run tauri:build
 ```
+
+`npm run tauri:build` uses `src-tauri/tauri.sidecar.conf.json` to bundle the gateway sidecar binary.

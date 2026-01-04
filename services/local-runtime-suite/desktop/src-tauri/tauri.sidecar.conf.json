@@ -1,0 +1,6 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "bundle": {
+    "externalBin": ["binaries/local-runtime-gateway"]
+  }
+}

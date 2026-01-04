@@ -543,7 +543,8 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
         .as_deref()
         .map(|mode| mode == "python")
         .unwrap_or(false);
-    let sidecar_available = resolve_sidecar_command(app).is_ok();
+    let sidecar_available =
+        resolve_sidecar_path(app).is_some() && resolve_sidecar_command(app).is_ok();
     let mode = if cfg!(debug_assertions) {
         if prefer_sidecar || (!prefer_python && sidecar_available) {
             GatewayLaunchMode::Sidecar
