@@ -23,8 +23,10 @@ export const SettingsPage = () => {
   const [validateKey, { isLoading: isValidatingKey }] = useValidateOpenAiKeyMutation();
 
   const [aiMode, setAiMode] = useState(settings.aiMode);
-  const [localSttUrl, setLocalSttUrl] = useState(settings.localEndpoints.stt);
-  const [localLlmUrl, setLocalLlmUrl] = useState(settings.localEndpoints.llm);
+  const [localAiBaseUrl, setLocalAiBaseUrl] = useState(settings.localAiBaseUrl ?? "");
+  const [localSttUrl, setLocalSttUrl] = useState("");
+  const [localLlmUrl, setLocalLlmUrl] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [storeAudio, setStoreAudio] = useState(settings.privacy.storeAudio);
   const [openAiKey, setOpenAiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
@@ -41,10 +43,44 @@ export const SettingsPage = () => {
 
   useEffect(() => {
     setAiMode(settings.aiMode);
-    setLocalSttUrl(settings.localEndpoints.stt);
-    setLocalLlmUrl(settings.localEndpoints.llm);
+    const llm = settings.localEndpoints.llm;
+    const stt = settings.localEndpoints.stt;
+    const baseUrl = settings.localAiBaseUrl ?? "";
+    if (baseUrl && (!llm || !stt)) {
+      setLocalAiBaseUrl(baseUrl);
+      setLocalLlmUrl("");
+      setLocalSttUrl("");
+      setShowAdvanced(false);
+    } else {
+      const getOrigin = (value: string) => {
+        try {
+          return new URL(value).origin;
+        } catch {
+          return null;
+        }
+      };
+      const llmOrigin = llm ? getOrigin(llm) : null;
+      const sttOrigin = stt ? getOrigin(stt) : null;
+      if (llmOrigin && sttOrigin && llmOrigin === sttOrigin) {
+        setLocalAiBaseUrl(llmOrigin);
+        setLocalLlmUrl("");
+        setLocalSttUrl("");
+        setShowAdvanced(false);
+      } else {
+        setLocalAiBaseUrl("");
+        setLocalLlmUrl(llm ?? "");
+        setLocalSttUrl(stt ?? "");
+        setShowAdvanced(Boolean(llm || stt));
+      }
+    }
     setStoreAudio(settings.privacy.storeAudio);
-  }, [settings.aiMode, settings.localEndpoints.llm, settings.localEndpoints.stt, settings.privacy.storeAudio]);
+  }, [
+    settings.aiMode,
+    settings.localAiBaseUrl,
+    settings.localEndpoints.llm,
+    settings.localEndpoints.stt,
+    settings.privacy.storeAudio
+  ]);
 
   useEffect(() => {
     if (location.hash !== "#openai-key") return;
@@ -60,10 +96,15 @@ export const SettingsPage = () => {
   const handleSaveSettings = async () => {
     setSaveStatus(null);
     try {
+      const trimmedBase = localAiBaseUrl.trim();
+      const trimmedLlm = localLlmUrl.trim();
+      const trimmedStt = localSttUrl.trim();
+      const hasOverrides = Boolean(trimmedLlm || trimmedStt);
       const result = await saveSettings({
         aiMode,
-        localSttUrl: localSttUrl.trim() ? localSttUrl.trim() : null,
-        localLlmUrl: localLlmUrl.trim() ? localLlmUrl.trim() : null,
+        localAiBaseUrl: !hasOverrides && trimmedBase ? trimmedBase : null,
+        localSttUrl: hasOverrides ? (trimmedStt ? trimmedStt : null) : null,
+        localLlmUrl: hasOverrides ? (trimmedLlm ? trimmedLlm : null) : null,
         storeAudio
       }).unwrap();
       dispatch(hydrateSettings(result));
@@ -154,27 +195,50 @@ export const SettingsPage = () => {
             </select>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-4">
             <div className="space-y-3">
-              <label className="text-sm font-semibold">{t("settings.localStt.label")}</label>
+              <label className="text-sm font-semibold">{t("settings.localAiBase.label")}</label>
               <input
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-                value={localSttUrl}
-                onChange={(event) => setLocalSttUrl(event.target.value)}
-                placeholder={t("settings.localStt.placeholder")}
+                value={localAiBaseUrl}
+                onChange={(event) => setLocalAiBaseUrl(event.target.value)}
+                placeholder={t("settings.localAiBase.placeholder")}
               />
-              <p className="text-xs text-slate-400">{t("settings.localStt.helper")}</p>
+              <p className="text-xs text-slate-400">{t("settings.localAiBase.helper")}</p>
             </div>
-            <div className="space-y-3">
-              <label className="text-sm font-semibold">{t("settings.localLlm.label")}</label>
-              <input
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-                value={localLlmUrl}
-                onChange={(event) => setLocalLlmUrl(event.target.value)}
-                placeholder={t("settings.localLlm.placeholder")}
-              />
-              <p className="text-xs text-slate-400">{t("settings.localLlm.helper")}</p>
+            <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-xs text-slate-300">
+              {t("settings.localAiBase.callout")}
             </div>
+            <button
+              className="text-left text-xs font-semibold text-teal-200 underline decoration-dashed"
+              onClick={() => setShowAdvanced((value) => !value)}
+            >
+              {showAdvanced ? t("settings.localAiBase.advancedHide") : t("settings.localAiBase.advancedShow")}
+            </button>
+            {showAdvanced ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-3">
+                  <label className="text-sm font-semibold">{t("settings.localAiBase.overrideLlmLabel")}</label>
+                  <input
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
+                    value={localLlmUrl}
+                    onChange={(event) => setLocalLlmUrl(event.target.value)}
+                    placeholder={t("settings.localAiBase.overrideLlmPlaceholder")}
+                  />
+                  <p className="text-xs text-slate-400">{t("settings.localAiBase.overrideLlmHelper")}</p>
+                </div>
+                <div className="space-y-3">
+                  <label className="text-sm font-semibold">{t("settings.localAiBase.overrideSttLabel")}</label>
+                  <input
+                    className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
+                    value={localSttUrl}
+                    onChange={(event) => setLocalSttUrl(event.target.value)}
+                    placeholder={t("settings.localAiBase.overrideSttPlaceholder")}
+                  />
+                  <p className="text-xs text-slate-400">{t("settings.localAiBase.overrideSttHelper")}</p>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/40 p-4">

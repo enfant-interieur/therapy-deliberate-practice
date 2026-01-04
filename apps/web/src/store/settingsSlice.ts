@@ -2,6 +2,7 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
 type SettingsState = {
   aiMode: "local_prefer" | "openai_only" | "local_only";
+  localAiBaseUrl: string | null;
   localEndpoints: {
     stt: string;
     llm: string;
@@ -14,9 +15,10 @@ type SettingsState = {
 
 const initialState: SettingsState = {
   aiMode: "local_prefer",
+  localAiBaseUrl: null,
   localEndpoints: {
-    stt: "http://localhost:7001",
-    llm: "http://localhost:7002"
+    stt: "http://127.0.0.1:8484",
+    llm: "http://127.0.0.1:8484"
   },
   privacy: {
     storeAudio: false
@@ -32,6 +34,7 @@ const settingsSlice = createSlice({
       state,
       action: PayloadAction<{
         aiMode: SettingsState["aiMode"];
+        localAiBaseUrl: string | null;
         localSttUrl: string;
         localLlmUrl: string;
         storeAudio: boolean;
@@ -39,6 +42,7 @@ const settingsSlice = createSlice({
       }>
     ) {
       state.aiMode = action.payload.aiMode;
+      state.localAiBaseUrl = action.payload.localAiBaseUrl ?? null;
       state.localEndpoints.stt = action.payload.localSttUrl;
       state.localEndpoints.llm = action.payload.localLlmUrl;
       state.privacy.storeAudio = action.payload.storeAudio;

@@ -335,13 +335,42 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     return settings ?? null;
   };
 
-  const normalizeSettings = (settings: typeof userSettings.$inferSelect) => ({
-    aiMode: settings.ai_mode,
-    localSttUrl: settings.local_stt_url ?? env.localSttUrl,
-    localLlmUrl: settings.local_llm_url ?? env.localLlmUrl,
-    storeAudio: settings.store_audio ?? false,
-    hasOpenAiKey: Boolean(settings.openai_key_ciphertext && settings.openai_key_iv)
-  });
+  const normalizeUrl = (value?: string | null) => {
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  const getOrigin = (value?: string | null) => {
+    if (!value) return null;
+    try {
+      return new URL(value).origin;
+    } catch {
+      return null;
+    }
+  };
+
+  const deriveLocalBaseUrl = (localLlmUrl?: string | null, localSttUrl?: string | null) => {
+    const llmOrigin = getOrigin(localLlmUrl);
+    const sttOrigin = getOrigin(localSttUrl);
+    if (llmOrigin && sttOrigin && llmOrigin === sttOrigin) {
+      return llmOrigin;
+    }
+    return null;
+  };
+
+  const normalizeSettings = (settings: typeof userSettings.$inferSelect) => {
+    const localSttUrl = settings.local_stt_url ?? env.localSttUrl;
+    const localLlmUrl = settings.local_llm_url ?? env.localLlmUrl;
+    return {
+      aiMode: settings.ai_mode,
+      localAiBaseUrl: deriveLocalBaseUrl(localLlmUrl, localSttUrl),
+      localSttUrl,
+      localLlmUrl,
+      storeAudio: settings.store_audio ?? false,
+      hasOpenAiKey: Boolean(settings.openai_key_ciphertext && settings.openai_key_iv)
+    };
+  };
 
   const ensureUniqueSlug = async (baseSlug: string) => {
     const normalizedBase = baseSlug || `task-${nanoid(6)}`;
@@ -2003,6 +2032,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     );
     const schema = z.object({
       aiMode: z.enum(["local_prefer", "openai_only", "local_only"]),
+      localAiBaseUrl: nullableUrl,
       localSttUrl: nullableUrl,
       localLlmUrl: nullableUrl,
       storeAudio: z.boolean()
@@ -2013,17 +2043,15 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       return c.json({ error: "Invalid settings payload", details: parsed.error.flatten() }, 400);
     }
     const data = parsed.data;
-    const normalizeUrl = (value?: string | null) => {
-      if (!value) return null;
-      const trimmed = value.trim();
-      return trimmed ? trimmed : null;
-    };
+    const normalizedBase = normalizeUrl(data.localAiBaseUrl);
+    const normalizedStt = normalizeUrl(data.localSttUrl) ?? normalizedBase;
+    const normalizedLlm = normalizeUrl(data.localLlmUrl) ?? normalizedBase;
     await db
       .update(userSettings)
       .set({
         ai_mode: data.aiMode,
-        local_stt_url: normalizeUrl(data.localSttUrl),
-        local_llm_url: normalizeUrl(data.localLlmUrl),
+        local_stt_url: normalizedStt,
+        local_llm_url: normalizedLlm,
         store_audio: data.storeAudio,
         updated_at: Date.now()
       })

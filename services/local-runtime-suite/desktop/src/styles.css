@@ -227,6 +227,11 @@ button {
   font-size: 13px;
 }
 
+.success-text {
+  color: #86efac;
+  font-size: 13px;
+}
+
 .log-box {
   background: #020617;
   border-radius: 12px;
@@ -237,6 +242,106 @@ button {
   height: 160px;
   overflow-y: auto;
   border: 1px solid rgba(148, 163, 184, 0.1);
+}
+
+.connection-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.connection-row {
+  display: grid;
+  gap: 10px;
+}
+
+.pill-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-btn {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+  color: inherit;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.helper-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.helper-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.helper-text {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.port-editor {
+  margin-top: 16px;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  padding-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.port-input {
+  width: 160px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(15, 23, 42, 0.9);
+  color: inherit;
+}
+
+.warning-banner,
+.error-banner {
+  margin-top: 12px;
+  border-radius: 12px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.warning-banner {
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: #fde68a;
+}
+
+.error-banner {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fecaca;
 }
 
 .disclosure {

@@ -151,7 +151,8 @@ export const AppShell = () => {
     if (!authChecked || !isAuthenticated || !settingsData) return;
     const dismissed = window.sessionStorage.getItem("aiSetupDismissed") === "1";
     if (dismissed) return;
-    const missingLocal = !settingsData.localLlmUrl || !settingsData.localSttUrl;
+    const missingLocal =
+      !settingsData.localAiBaseUrl && (!settingsData.localLlmUrl || !settingsData.localSttUrl);
     const missingOpenAi = !settingsData.hasOpenAiKey;
     if (missingLocal || missingOpenAi) {
       setShowAiSetup(true);

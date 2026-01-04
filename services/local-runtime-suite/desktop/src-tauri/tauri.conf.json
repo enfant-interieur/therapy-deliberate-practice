@@ -12,7 +12,7 @@
   "app": {
     "security": {
       "capabilities": ["default"],
-      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:8484"
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*"
     },
     "windows": [
       {
@@ -32,6 +32,7 @@
       "icons/icon.icns",
       "icons/icon.png"
     ],
+    "resources": ["resources/local_runtime/**"],
     "macOS": {
       "signingIdentity": "Apple Distribution: YOUR TEAM (TEAMID)"
     }

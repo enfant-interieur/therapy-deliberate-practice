@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 
@@ -19,6 +19,24 @@ type DoctorCheck = {
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
+type GatewayConnectionInfo = {
+  port: number;
+  base_url: string;
+  llm_url: string;
+  stt_url: string;
+  endpoints: {
+    health: string;
+    llm_example: string;
+    stt_example: string;
+  };
+};
+
+type GatewayConfig = {
+  port: number;
+  default_models: Record<string, string>;
+  prefer_local: boolean;
+};
+
 export const App = () => {
   const [status, setStatus] = useState("stopped");
   const [models, setModels] = useState<ModelSummary[]>([]);
@@ -27,7 +45,20 @@ export const App = () => {
   const [defaults, setDefaults] = useState({ llm: "", tts: "", stt: "" });
   const [preferLocal, setPreferLocal] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const baseUrl = "http://127.0.0.1:8484";
+  const [startError, setStartError] = useState<string | null>(null);
+  const [port, setPort] = useState(8484);
+  const [portInput, setPortInput] = useState("8484");
+  const [portSaveState, setPortSaveState] = useState<SaveState>("idle");
+  const [connectionInfo, setConnectionInfo] = useState<GatewayConnectionInfo | null>(null);
+  const [autoScroll, setAutoScroll] = useState(true);
+  const logBoxRef = useRef<HTMLDivElement | null>(null);
+  const baseUrl = connectionInfo?.base_url ?? `http://127.0.0.1:${port}`;
+  const llmUrl = connectionInfo?.llm_url ?? baseUrl;
+  const sttUrl = connectionInfo?.stt_url ?? baseUrl;
+  const healthUrl = connectionInfo?.endpoints.health ?? `${baseUrl}/health`;
+  const llmExample = connectionInfo?.endpoints.llm_example ?? `${baseUrl}/v1/responses`;
+  const sttExample =
+    connectionInfo?.endpoints.stt_example ?? `${baseUrl}/v1/audio/transcriptions`;
   const settingsUrl = "https://therapy-deliberate-practice.com/settings";
 
   const refreshStatus = async () => {
@@ -45,12 +76,31 @@ export const App = () => {
     setLogs(result.logs ?? []);
   };
 
+  const refreshConnectionInfo = async () => {
+    const result = await invoke<GatewayConnectionInfo>("gateway_connection_info");
+    setConnectionInfo(result);
+    setPort(result.port);
+    setPortInput(String(result.port));
+  };
+
+  const refreshConfig = async () => {
+    const result = await invoke<GatewayConfig>("gateway_config");
+    setPort(result.port);
+    setPortInput(String(result.port));
+    setPreferLocal(result.prefer_local);
+    setDefaults({
+      llm: result.default_models.responses ?? "",
+      tts: result.default_models["audio.speech"] ?? "",
+      stt: result.default_models["audio.transcriptions"] ?? ""
+    });
+  };
+
   const saveConfig = async () => {
     setSaveState("saving");
     try {
       await invoke("save_gateway_config", {
         payload: {
-          port: 8484,
+          port,
           default_models: {
             responses: defaults.llm,
             "audio.speech": defaults.tts,
@@ -60,9 +110,35 @@ export const App = () => {
         }
       });
       setSaveState("saved");
+      await refreshConnectionInfo();
     } catch (error) {
       console.error("Failed to save preferences", error);
       setSaveState("error");
+    }
+  };
+
+  const savePort = async () => {
+    const parsed = Number(portInput);
+    if (!Number.isInteger(parsed)) return;
+    setPortSaveState("saving");
+    try {
+      await invoke("save_gateway_config", {
+        payload: {
+          port: parsed,
+          default_models: {
+            responses: defaults.llm,
+            "audio.speech": defaults.tts,
+            "audio.transcriptions": defaults.stt
+          },
+          prefer_local: preferLocal
+        }
+      });
+      setPort(parsed);
+      setPortSaveState("saved");
+      await refreshConnectionInfo();
+    } catch (error) {
+      console.error("Failed to save port", error);
+      setPortSaveState("error");
     }
   };
 
@@ -71,27 +147,75 @@ export const App = () => {
     setDoctorChecks(result.checks ?? []);
   };
 
+  const startGateway = async () => {
+    setStartError(null);
+    try {
+      await invoke("start_gateway");
+      await refreshStatus();
+    } catch (error) {
+      const message =
+        typeof error === "string"
+          ? error
+          : error instanceof Error
+            ? error.message
+            : JSON.stringify(error);
+      setStartError(message);
+    }
+  };
+
+  const restartGateway = async () => {
+    await invoke("stop_gateway");
+    await startGateway();
+  };
+
+  const copyText = async (value: string) => {
+    await navigator.clipboard.writeText(value);
+  };
+
   useEffect(() => {
     refreshStatus();
     refreshModels();
     refreshLogs();
+    refreshConnectionInfo();
+    refreshConfig();
+    runDoctor();
   }, []);
 
   useEffect(() => {
     setSaveState("idle");
   }, [defaults.llm, defaults.tts, defaults.stt, preferLocal]);
 
+  useEffect(() => {
+    setPortSaveState("idle");
+  }, [portInput]);
+
+  useEffect(() => {
+    if (!autoScroll) return;
+    if (!logBoxRef.current) return;
+    logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+  }, [logs, autoScroll]);
+
   const llmOptions = models.filter((model) => model.metadata.api.endpoint === "responses");
   const ttsOptions = models.filter((model) => model.metadata.api.endpoint === "audio.speech");
   const sttOptions = models.filter((model) => model.metadata.api.endpoint.startsWith("audio."));
 
   const isGatewayRunning = status === "running";
+  const portValue = Number(portInput);
+  const portValid = Number.isInteger(portValue) && portValue >= 1024 && portValue <= 65535;
+  const portDirty = portValue !== port;
+  const doctorBlocking = doctorChecks.find(
+    (check) => check.status === "error" && ["local_runtime import", "Python executable"].includes(check.title)
+  );
+  const canStartGateway = !doctorBlocking;
   const canLoadModels = isGatewayRunning;
   const hasModels = models.length > 0;
   const canChooseDefaults = hasModels;
   const defaultsComplete = Boolean(defaults.llm && defaults.tts && defaults.stt);
   const canSave = defaultsComplete;
   const isSaved = saveState === "saved";
+  const moduleNotFound = logs.some((line) =>
+    line.includes("ModuleNotFoundError: No module named 'local_runtime'")
+  );
 
   let activeStep = 1;
   if (isGatewayRunning) activeStep = 2;
@@ -99,11 +223,15 @@ export const App = () => {
   if (defaultsComplete) activeStep = 4;
   if (isSaved) activeStep = 5;
 
+  const step1Description = doctorBlocking
+    ? `Blocked: ${doctorBlocking.details}`
+    : "Launch the local gateway so models can be discovered.";
+
   const steps = [
     {
       id: 1,
       title: "Start the gateway",
-      description: "Launch the local gateway so models can be discovered.",
+      description: step1Description,
       complete: isGatewayRunning
     },
     {
@@ -145,6 +273,112 @@ export const App = () => {
         <span className="badge">Status: {status}</span>
       </div>
 
+      <div className="panel connection">
+        <div className="header">
+          <div>
+            <div className="kicker">Connection</div>
+            <div className="title">Local gateway URLs</div>
+          </div>
+          <span className="badge">Port {port}</span>
+        </div>
+        <div className="connection-grid">
+          <div className="connection-row">
+            <div className="label">Base URL</div>
+            <div className="pill-row">
+              <div className="pill" title={baseUrl}>{baseUrl}</div>
+              <button className="icon-btn" onClick={() => copyText(baseUrl)}>
+                Copy
+              </button>
+            </div>
+          </div>
+          <div className="connection-row">
+            <div className="label">LLM URL</div>
+            <div className="pill-row">
+              <div className="pill" title={llmUrl}>{llmUrl}</div>
+              <button className="icon-btn" onClick={() => copyText(llmUrl)}>
+                Copy
+              </button>
+            </div>
+          </div>
+          <div className="connection-row">
+            <div className="label">STT URL</div>
+            <div className="pill-row">
+              <div className="pill" title={sttUrl}>{sttUrl}</div>
+              <button className="icon-btn" onClick={() => copyText(sttUrl)}>
+                Copy
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="helper-row">
+          <div>
+            <div className="helper-title">Where do I paste these?</div>
+            <div className="helper-text">Open Therapy Settings and paste the Base URL.</div>
+          </div>
+          <button className="btn" onClick={() => openUrl(settingsUrl)}>
+            Open Therapy Settings
+          </button>
+        </div>
+        <div className="button-row">
+          <button className="btn" onClick={() => openUrl(healthUrl)}>
+            Open health check
+          </button>
+          <button className="btn" onClick={() => copyText(llmExample)}>
+            Copy example LLM endpoint
+          </button>
+          <button className="btn" onClick={() => copyText(sttExample)}>
+            Copy example STT endpoint
+          </button>
+        </div>
+        <div className="port-editor">
+          <div>
+            <div className="label">Gateway port</div>
+            <input
+              className="port-input"
+              type="number"
+              min={1024}
+              max={65535}
+              value={portInput}
+              onChange={(event) => setPortInput(event.target.value)}
+            />
+            <div className="helper-text">
+              Choose a port between 1024-65535. This updates the gateway + URLs above.
+            </div>
+            {!portValid ? (
+              <div className="error-text">Enter a valid port between 1024 and 65535.</div>
+            ) : null}
+          </div>
+          <div className="button-row">
+            <button
+              className="btn primary"
+              onClick={savePort}
+              disabled={!portValid || portSaveState === "saving"}
+            >
+              {portSaveState === "saving" ? "Saving..." : "Save port"}
+            </button>
+            <button className="btn" onClick={() => setPortInput("8484")}>
+              Use 8484
+            </button>
+            {portSaveState === "error" ? (
+              <span className="error-text">Port save failed. Try again.</span>
+            ) : null}
+            {portSaveState === "saved" ? (
+              <span className="success-text">Port saved.</span>
+            ) : null}
+          </div>
+        </div>
+        {portDirty && isGatewayRunning ? (
+          <div className="warning-banner">
+            <div>
+              Port changed. Restart the gateway to apply the new port.
+            </div>
+            <button className="btn" onClick={restartGateway}>
+              Restart gateway
+            </button>
+          </div>
+        ) : null}
+      </div>
+
       <div className="panel wizard">
         <div className="header">
           <div>
@@ -182,20 +416,34 @@ export const App = () => {
           <p className="step-description">
             Launch the local gateway before loading models. You can stop it anytime.
           </p>
+          {doctorBlocking ? (
+            <div className="warning-banner">
+              <div>
+                {doctorBlocking.title}: {doctorBlocking.details}
+              </div>
+              {doctorBlocking.fix ? <div className="helper-text">Fix: {doctorBlocking.fix}</div> : null}
+              <button className="btn" onClick={runDoctor}>
+                Run doctor
+              </button>
+            </div>
+          ) : null}
           <div className="button-row">
-            <button className="btn primary" onClick={() => invoke("start_gateway").then(refreshStatus)}>
+            <button className="btn primary" onClick={startGateway} disabled={!canStartGateway}>
               Start gateway
             </button>
             <button className="btn" onClick={() => invoke("stop_gateway").then(refreshStatus)}>
               Stop gateway
             </button>
-          </div>
-          <div className="inline-row">
-            <span>Base URL: {baseUrl}</span>
-            <button className="btn" onClick={() => navigator.clipboard.writeText(baseUrl)}>
-              Copy base URL
+            <button className="btn" onClick={runDoctor}>
+              Run doctor
             </button>
           </div>
+          {startError ? (
+            <div className="error-banner">
+              <div>Gateway failed to start.</div>
+              <div className="helper-text">{startError}</div>
+            </div>
+          ) : null}
         </div>
 
         <div className={`step-card ${canLoadModels ? "" : "is-disabled"}`}>
@@ -346,11 +594,45 @@ export const App = () => {
             <div className="kicker">Logs</div>
             <div className="title">Gateway output</div>
           </div>
-          <button className="btn" onClick={refreshLogs}>
-            Refresh logs
-          </button>
+          <div className="button-row">
+            <button className="btn" onClick={refreshLogs}>
+              Refresh logs
+            </button>
+            <button className="btn" onClick={() => copyText(logs.join("\n"))} disabled={!logs.length}>
+              Copy logs
+            </button>
+            <button className="btn" onClick={() => setLogs([])} disabled={!logs.length}>
+              Clear logs
+            </button>
+            <button className="btn" onClick={() => setAutoScroll((value) => !value)}>
+              Auto-scroll: {autoScroll ? "On" : "Off"}
+            </button>
+          </div>
         </div>
-        <div className="log-box">
+        {moduleNotFound ? (
+          <div className="error-banner">
+            <div>
+              The gateway could not import <strong>local_runtime</strong>. The Python package is
+              missing from the expected path.
+            </div>
+            <div className="button-row">
+              <button className="btn" onClick={runDoctor}>
+                Run doctor
+              </button>
+              <button
+                className="btn"
+                onClick={() =>
+                  copyText(
+                    "Fix steps:\\n1) Set LOCAL_RUNTIME_ROOT to the local_runtime python package root.\\n2) Or bundle resources/local_runtime in the Tauri build.\\n3) Restart the gateway."
+                  )
+                }
+              >
+                Copy fix steps
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <div className="log-box" ref={logBoxRef}>
           {logs.length ? logs.join("\n") : "No logs yet."}
         </div>
       </div>
