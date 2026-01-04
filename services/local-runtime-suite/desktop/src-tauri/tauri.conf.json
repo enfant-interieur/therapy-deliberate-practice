@@ -1,36 +1,41 @@
 {
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "Local Runtime Suite",
+  "version": "0.1.0",
+  "identifier": "com.therapy.localruntime",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist"
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "Local Runtime Suite",
-    "version": "0.1.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "shell": {
-        "open": true
-      }
-    },
-    "bundle": {
-      "active": true,
-      "targets": "all",
-      "identifier": "com.therapy.localruntime",
-      "icon": [
-        "icons/icon.ico",
-        "icons/icon.icns",
-        "icons/icon.png"
-      ]
+  "app": {
+    "security": {
+      "capabilities": ["default"],
+      "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' http://127.0.0.1:8484"
     },
     "windows": [
       {
+        "label": "main",
         "title": "Local Runtime Suite",
         "width": 1100,
         "height": 720
       }
     ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.ico",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
+    "macOS": {
+      "signingIdentity": "Developer ID Application: YOUR TEAM (TEAMID)"
+    }
+  },
+  "plugins": {
+    "opener": {}
   }
 }
