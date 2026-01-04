@@ -35,6 +35,8 @@ jobs:
             libsoup2.4-dev \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
+            libssl-dev \
+            pkg-config \
             librsvg2-dev \
             patchelf
       - uses: actions/setup-node@v4
