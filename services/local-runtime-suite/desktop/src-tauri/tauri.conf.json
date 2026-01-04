@@ -32,7 +32,10 @@
       "icons/icon.icns",
       "icons/icon.png"
     ],
-    "resources": ["resources/local_runtime/**"],
+    "resources": {
+      "resources/local_runtime/": "../../python/"
+    },
+    "externalBin": ["binaries/local-runtime-gateway"],
     "macOS": {
       "signingIdentity": "Apple Distribution: YOUR TEAM (TEAMID)"
     }

@@ -11,6 +11,22 @@
           "url": "https://therapy-deliberate-practice.com/settings"
         }
       ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "local-runtime-gateway"
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "local-runtime-gateway"
+        }
+      ]
     }
   ]
 }

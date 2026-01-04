@@ -9,8 +9,18 @@ npm install
 npm run dev
 ```
 
+For desktop development with the embedded gateway sidecar:
+
+```bash
+pip install pyinstaller
+npm run sidecar:build
+npm run tauri:dev
+```
+
 ## Build
 
 ```bash
 npm run build
+npm run sidecar:build
+npm run tauri:build
 ```

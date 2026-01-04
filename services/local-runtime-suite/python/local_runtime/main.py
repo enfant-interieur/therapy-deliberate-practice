@@ -221,6 +221,7 @@ async def doctor() -> JSONResponse:
 
 def main() -> None:
     import argparse
+    import os
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Local runtime gateway")
@@ -232,7 +233,13 @@ def main() -> None:
     config = RuntimeConfig.load(config_path)
     if args.port is not None:
         config.port = args.port
-    uvicorn.run("local_runtime.main:app", host="127.0.0.1", port=config.port, reload=True)
+    reload_enabled = os.environ.get("LOCAL_RUNTIME_RELOAD", "").lower() in {"1", "true", "yes"}
+    uvicorn.run(
+        "local_runtime.main:app",
+        host="127.0.0.1",
+        port=config.port,
+        reload=reload_enabled,
+    )
 
 
 if __name__ == "__main__":
