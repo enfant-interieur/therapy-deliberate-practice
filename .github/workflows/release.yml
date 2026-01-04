@@ -34,6 +34,8 @@ jobs:
           python-version: "3.11"
       - name: Install dependencies
         run: npm ci --workspace services/local-runtime-suite/desktop
+      - name: Install local runtime dependencies
+        run: pip install -e services/local-runtime-suite/python
       - name: Generate model catalog
         run: python services/local-runtime-suite/tools/gen_models_json.py
       - name: Build Tauri app
