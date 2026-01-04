@@ -4,7 +4,8 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "services/*"
+    "services/*",
+    "services/local-runtime-suite/desktop"
   ],
   "scripts": {
     "dev": "npm run dev:worker & npm run dev:web",
