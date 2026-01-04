@@ -113,6 +113,9 @@ export const PracticePage = () => {
   const recorderMimeRef = useRef<string | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const patientAudioRef = useRef<HTMLAudioElement | null>(null);
+  const playTokenRef = useRef(0);
+  const playAbortRef = useRef<AbortController | null>(null);
+  const autoPlayedOnceRef = useRef<string | null>(null);
   const warmupAbortRef = useRef<AbortController | null>(null);
   const prefetchAbortRef = useRef<AbortController | null>(null);
   const previousTaskIdRef = useRef<string | null>(null);
@@ -202,6 +205,8 @@ export const PracticePage = () => {
     return "border-rose-400/60 bg-rose-400/10 text-rose-200 shadow-[0_0_12px_rgba(248,113,113,0.4)]";
   };
   const canStartRecording = practiceMode === "standard" || canRecord;
+  const patientKey =
+    taskId && currentExampleId ? `${taskId}:${currentExampleId}` : null;
   const sessionIndexKey = useCallback(
     (sessionId: string) => `practiceSessionProgress:${sessionId}`,
     []
@@ -247,6 +252,10 @@ export const PracticePage = () => {
     transcriptionPromiseRef.current = null;
     transcriptionRequestRef.current = null;
     pendingResultRef.current = null;
+    playAbortRef.current?.abort();
+    playAbortRef.current = null;
+    playTokenRef.current += 1;
+    autoPlayedOnceRef.current = null;
   }, [patientAudioBank, practiceMode]);
 
   const startNewSession = useCallback(async () => {
@@ -374,6 +383,10 @@ export const PracticePage = () => {
     setIsWarmingPack(false);
     warmupAbortRef.current?.abort();
     prefetchAbortRef.current?.abort();
+    playAbortRef.current?.abort();
+    playAbortRef.current = null;
+    playTokenRef.current += 1;
+    autoPlayedOnceRef.current = null;
   }, [patientAudioBank, practice.sessionId]);
 
   useEffect(() => {
@@ -381,6 +394,7 @@ export const PracticePage = () => {
       patientAudioBank.revokeAll();
       warmupAbortRef.current?.abort();
       prefetchAbortRef.current?.abort();
+      playAbortRef.current?.abort();
     };
   }, [patientAudioBank]);
 
@@ -394,11 +408,14 @@ export const PracticePage = () => {
     transcriptionPromiseRef.current = null;
     transcriptionRequestRef.current = null;
     pendingResultRef.current = null;
-    if (practiceMode === "standard" && patientAudioRef.current) {
-      patientAudioRef.current.pause();
-      patientAudioRef.current.currentTime = 0;
+    playTokenRef.current += 1;
+    autoPlayedOnceRef.current = null;
+    playAbortRef.current?.abort();
+    playAbortRef.current = null;
+    if (patientAudioRef.current) {
+      patientAudioBank.stop(patientAudioRef.current);
     }
-  }, [practiceMode, currentExampleId]);
+  }, [currentExampleId, patientAudioBank, practiceMode]);
 
   useEffect(() => {
     setPatientPlay(false);
@@ -484,12 +501,22 @@ export const PracticePage = () => {
     if (patientAudioStatus !== "ready") return;
     if (!patientAudioRef.current) return;
     if (!taskId || !currentExampleId) return;
-    playPatientAudio(taskId, currentExampleId, patientAudioRef.current).catch(() => null);
+    if (autoPlayedOnceRef.current === patientKey) return;
+    const controller = new AbortController();
+    playAbortRef.current?.abort();
+    playAbortRef.current = controller;
+    const token = (playTokenRef.current += 1);
+    autoPlayedOnceRef.current = patientKey;
+    playPatientAudio(taskId, currentExampleId, patientAudioRef.current, {
+      signal: controller.signal,
+      shouldPlay: () => playTokenRef.current === token
+    }).catch(() => null);
   }, [
     autoPlayPatientAudio,
     currentExampleId,
     patientAudioStatus,
     playPatientAudio,
+    patientKey,
     practiceMode,
     taskId
   ]);
@@ -1127,23 +1154,35 @@ export const PracticePage = () => {
                       ref={patientAudioRef}
                       className="audio-player w-full"
                       controls
+                      preload="auto"
+                      playsInline
                       src={patientAudioUrl}
                       onPlay={() => {
+                        playTokenRef.current += 1;
+                        playAbortRef.current?.abort();
+                        playAbortRef.current = null;
                         setPatientSpeaking(true);
                         setPatientPlay(true);
                         setCanRecord(false);
                         if (taskId && currentExampleId) {
-                          patientAudio.bank.updateEntry(taskId, currentExampleId, {
+                          patientAudioBank.updateEntry(taskId, currentExampleId, {
                             status: "playing",
                             error: undefined
                           });
                         }
                       }}
                       onPause={() => {
+                        playTokenRef.current += 1;
+                        playAbortRef.current?.abort();
+                        playAbortRef.current = null;
                         setPatientSpeaking(false);
                         setPatientPlay(false);
+                        setCanRecord(true);
+                        if (patientAudioRef.current) {
+                          patientAudioRef.current.currentTime = 0;
+                        }
                         if (taskId && currentExampleId) {
-                          patientAudio.bank.updateEntry(taskId, currentExampleId, {
+                          patientAudioBank.updateEntry(taskId, currentExampleId, {
                             status: "ready"
                           });
                         }
@@ -1152,8 +1191,11 @@ export const PracticePage = () => {
                         setPatientSpeaking(false);
                         setPatientPlay(false);
                         setCanRecord(true);
+                        playTokenRef.current += 1;
+                        playAbortRef.current?.abort();
+                        playAbortRef.current = null;
                         if (taskId && currentExampleId) {
-                          patientAudio.bank.updateEntry(taskId, currentExampleId, {
+                          patientAudioBank.updateEntry(taskId, currentExampleId, {
                             status: "ready"
                           });
                         }

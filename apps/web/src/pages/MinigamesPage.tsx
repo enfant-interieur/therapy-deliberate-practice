@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { GameSelectModal } from "../components/minigames/GameSelectModal";
 import { MinigameSetupModal } from "../components/minigames/MinigameSetupModal";
@@ -70,6 +70,15 @@ export const MinigamesPage = () => {
   const [redrawRound] = useRedrawMinigameRoundMutation();
   const fullscreen = useFullscreen();
   const patientAudio = usePatientAudioBank({ loggerScope: "minigames" });
+  const patientAudioRef = useRef(patientAudio);
+  const handleAudioRef = useCallback((node: HTMLAudioElement | null) => {
+    audioRef.current = node;
+    setAudioElement(node);
+  }, []);
+
+  useEffect(() => {
+    patientAudioRef.current = patientAudio;
+  }, [patientAudio]);
 
   useEffect(() => {
     dispatch(setAppShellHidden(true));
@@ -99,12 +108,6 @@ export const MinigamesPage = () => {
     setSelectOpen(false);
     setSetupOpen(true);
   }, [location.state]);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      setAudioElement(audioRef.current);
-    }
-  }, []);
 
   useEffect(() => {
     if (minigames.players.length && !currentPlayerId && mode === "ffa") {
@@ -140,11 +143,24 @@ export const MinigamesPage = () => {
     );
     return upcoming.slice(currentIndex, currentIndex + 1 + WARMUP_AHEAD);
   }, [currentRound, minigames.rounds]);
+  const warmupRoundsRef = useRef(warmupRounds);
+
+  const warmupKey = useMemo(() => {
+    if (warmupRounds.length === 0) return "";
+    return warmupRounds
+      .map((round) => `${round.task_id}:${round.example_id}`)
+      .join("|");
+  }, [warmupRounds]);
 
   useEffect(() => {
-    if (warmupRounds.length === 0) return;
+    warmupRoundsRef.current = warmupRounds;
+  }, [warmupRounds]);
+
+  useEffect(() => {
+    if (!warmupKey) return;
+    const rounds = warmupRoundsRef.current;
     const grouped: Record<string, string[]> = {};
-    warmupRounds.forEach((round) => {
+    rounds.forEach((round) => {
       if (!grouped[round.task_id]) {
         grouped[round.task_id] = [];
       }
@@ -153,13 +169,22 @@ export const MinigamesPage = () => {
       }
     });
     const controller = new AbortController();
-    void patientAudio.warmup(grouped, { signal: controller.signal });
+    const runWarmup = async () => {
+      try {
+        await patientAudioRef.current.warmup(grouped, { signal: controller.signal });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          return;
+        }
+      }
+    };
+    void runWarmup();
     return () => controller.abort();
-  }, [patientAudio, warmupRounds]);
+  }, [warmupKey]);
 
   useEffect(() => {
-    patientAudio.bank.revokeAll();
-  }, [minigames.session?.id, patientAudio.bank]);
+    patientAudioRef.current.bank.revokeAll();
+  }, [minigames.session?.id]);
 
   const timingSettings = useMemo(() => {
     const settings = (minigames.session?.settings ?? {}) as {
@@ -395,7 +420,7 @@ export const MinigamesPage = () => {
         audioElement={audioElement}
         isPlaying={controller.audioStatus === "playing"}
       />
-      <audio ref={audioRef} />
+      <audio ref={handleAudioRef} preload="auto" playsInline />
       <TranscriptOverlay
         text={minigames.ui.transcriptHidden ? undefined : lastTranscript}
         hidden={minigames.ui.transcriptHidden}

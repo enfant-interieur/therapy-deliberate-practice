@@ -100,9 +100,11 @@ export const useFfaTurnController = ({
     }
     if (
       lastAudioStatusRef.current === "playing" &&
-      audioStatus !== "playing" &&
-      patientEndedAt
+      audioStatus !== "playing"
     ) {
+      if (!patientEndedAt) {
+        setPatientEndedAt(Date.now());
+      }
       if (responseTimerEnabled && timing.responseCountdown != null && timing.responseCountdown > 0) {
         setState("awaiting_response_window");
       } else {
@@ -124,14 +126,15 @@ export const useFfaTurnController = ({
   }, [state, timing.responseCountdown]);
 
   const startRoundOrMatch = useCallback(async () => {
-    if (!enabled || !round || !playerId || startedRoundRef.current === round.id) return;
+    if (!enabled || !round || !playerId || !audioElement) return;
+    if (startedRoundRef.current === round.id) return;
     setSubmitError(null);
     setState("patient_loading");
     await startRound({ sessionId, roundId: round.id });
     startedRoundRef.current = round.id;
     await patientAudio.ensureReady(round.task_id, round.example_id);
     setState("patient_ready");
-    const token = playTokenRef.current;
+    const token = (playTokenRef.current += 1);
     await patientAudio.play(round.task_id, round.example_id, audioElement, {
       shouldPlay: () => playTokenRef.current === token,
       onEnded: () => setPatientEndedAt(Date.now())
@@ -141,16 +144,17 @@ export const useFfaTurnController = ({
   useEffect(() => {
     if (!round || !playerId || state !== "idle") return;
     if (!enabled) return;
+    if (!audioElement) return;
     void startRoundOrMatch();
-  }, [enabled, playerId, round, startRoundOrMatch, state]);
+  }, [audioElement, enabled, playerId, round, startRoundOrMatch, state]);
 
   const playPatient = useCallback(async () => {
-    if (!enabled || !round || !playerId) return;
+    if (!enabled || !round || !playerId || !audioElement) return;
     if (!startedRoundRef.current) {
       await startRoundOrMatch();
     }
     setState("patient_ready");
-    const token = playTokenRef.current;
+    const token = (playTokenRef.current += 1);
     await patientAudio.play(round.task_id, round.example_id, audioElement, {
       shouldPlay: () => playTokenRef.current === token,
       onEnded: () => setPatientEndedAt(Date.now())
@@ -159,6 +163,7 @@ export const useFfaTurnController = ({
 
   const stopPatient = useCallback(() => {
     if (!enabled) return;
+    playTokenRef.current += 1;
     patientAudio.stop(audioElement);
     setPatientEndedAt(Date.now());
     if (round) {
