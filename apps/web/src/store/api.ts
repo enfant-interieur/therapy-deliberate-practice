@@ -7,6 +7,7 @@ import type {
   Task,
   TaskCriterion,
   TaskExample,
+  TaskInteractionExample,
   EvaluationResult
 } from "@deliberate/shared";
 import type { RootState } from ".";
@@ -172,9 +173,19 @@ export const api = createApi({
         providesTags: ["Task"]
       }
     ),
-    getTask: builder.query<Task & { criteria: TaskCriterion[]; example_counts?: Record<number, number> }, string>({
-      query: (id) => `/tasks/${id}`,
-      providesTags: (_result, _err, id) => [{ type: "Task", id }]
+    getTask: builder.query<
+      Task & {
+        criteria: TaskCriterion[];
+        example_counts?: Record<number, number>;
+        interaction_examples?: TaskInteractionExample[];
+      },
+      { id: string; includeInteractions?: boolean }
+    >({
+      query: ({ id, includeInteractions }) => ({
+        url: `/tasks/${id}`,
+        params: includeInteractions ? { include_interactions: 1 } : undefined
+      }),
+      providesTags: (_result, _err, { id }) => [{ type: "Task", id }]
     }),
     getTaskExamples: builder.query<TaskExample[], { taskId: string; difficulty?: number; limit?: number; exclude?: string[] }>(
       {

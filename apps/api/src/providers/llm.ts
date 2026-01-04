@@ -97,10 +97,12 @@ Hard rules:
 - If a field is not present, use null (not empty string) or [] for arrays.
 - Every item that can be graded MUST be represented as a criterion with an explicit rubric.
 - Provide a list of patient text examples (short statements) with difficulty 1..5.
+- Provide 2–3 interaction_examples with a single patient statement and a single therapist response.
 - Set task.language to the detected source language (e.g., "en" or "fr").
 - Create stable ids:
   - criterion ids: "c1", "c2", ...
   - example ids: "ex1", "ex2", ...
+  - interaction_examples ids: "ix1", "ix2", ...
 
 Rubric requirements (for each criterion):
 - score_min must be 0, score_max must be 4
@@ -130,10 +132,12 @@ TASK CONSTRUCTION REQUIREMENTS:
 - Provide a task with: title, description, skill_domain, base_difficulty (1..5), general_objective, tags.
 - Every item that can be graded MUST be represented as a criterion with an explicit rubric.
 - Provide patient text examples with difficulty 1..5.
+- Provide 2–3 interaction_examples with a single patient statement and a single therapist response.
 
 ID REQUIREMENTS:
 - criterion ids: "c1", "c2", ...
 - example ids: "ex1", "ex2", ...
+- interaction_examples ids: "ix1", "ix2", ...
 
 RUBRIC REQUIREMENTS (for each criterion):
 - score_min must be 0, score_max must be 4
@@ -151,10 +155,12 @@ Output constraints:
 - Use null for unknown fields, and [] for empty arrays.
 - Keep content clinically plausible and conservative when details are missing.
 - Include a task, criteria with rubrics, and patient examples.
+- Include interaction_examples with a single patient statement and a single therapist response.
 - Include top-level "version": "2.1".
 - Create stable ids:
   - criterion ids: "c1", "c2", ...
   - example ids: "ex1", "ex2", ...
+  - interaction_examples ids: "ix1", "ix2", ...
 
 Criteria requirements:
 - Each criterion must include a rubric.
@@ -169,6 +175,11 @@ Examples requirements:
 - Otherwise, default to 5 examples.
 - Difficulties must be integers 1..5.
 - For N > 5, distribute difficulties roughly evenly across 1..5 (cycle 1..5 as needed).
+
+Interaction examples requirements:
+- Generate 2–3 interaction_examples by default unless the user specifies another number.
+- Each interaction example contains exactly one patient_text and one therapist_text (no multi-turn threads).
+- Therapist responses should be exemplary and aligned with the task criteria.
 
 Language:
 - Generate content in the language implied by the prompt and set task.language accordingly.
@@ -221,6 +232,22 @@ The following is an example of valid output structure. Do not copy its content u
     { "id": "ex3", "difficulty": 3, "severity_label": "moderate-high", "patient_text": "I’m embarrassed to say this, but I really need you to reassure me right now. If you can’t, I don’t know what I’ll do with these feelings." },
     { "id": "ex4", "difficulty": 4, "severity_label": "high", "patient_text": "I hate needing anyone. But I’m so alone this week that I caught myself thinking you’re the only safe person. Can we talk more often?" },
     { "id": "ex5", "difficulty": 5, "severity_label": "very high", "patient_text": "If you set limits with me, it feels like rejection. I get angry and then ashamed. I want you to promise you won’t leave, but I also hate myself for asking." }
+  ],
+  "interaction_examples": [
+    {
+      "id": "ix1",
+      "difficulty": 2,
+      "title": "Warmth with limits",
+      "patient_text": "I just want you to tell me I’m okay right now.",
+      "therapist_text": "I hear how much you want reassurance in this moment, and it makes sense that this feels urgent. I care about you and I want you to feel steadier. I also want us to build your own soothing skills so you don’t have to rely only on me. Let’s take one slow breath together and name what the younger part of you is needing right now. Then we can choose one small, kind thing you can do for yourself after session. I’m here with you in this, and I believe you can practice that Healthy Adult support."
+    },
+    {
+      "id": "ix2",
+      "difficulty": 3,
+      "title": null,
+      "patient_text": "Can we add another session this week? I don’t think I can handle it otherwise.",
+      "therapist_text": "It sounds like you’re feeling really alone and overwhelmed, and that makes the request for more contact feel important. I want to respond with care, while keeping our boundaries clear. We can’t add extra sessions this week, but we can plan for support that helps you feel held between sessions. Let’s identify the hardest time of day and choose a grounding routine you can practice, plus one person or resource you can lean on. We’ll also check in next session about how that went."
+    }
   ]
 }`;
     const systemPrompt =
@@ -253,7 +280,7 @@ Translate the provided JSON into ${targetLanguage}.
 Return STRICT JSON ONLY that matches the DeliberatePracticeTaskV2 schema. No markdown. No commentary. No trailing commas. No extra keys.
 
 Translation rules:
-- Translate all human-readable strings: task title, description, skill_domain, general_objective, tags, criterion label/description, rubric anchors, example patient_text, severity_label.
+- Translate all human-readable strings: task title, description, skill_domain, general_objective, tags, criterion label/description, rubric anchors, example patient_text, severity_label, interaction example title/patient_text/therapist_text.
 - Preserve all ids and numeric values exactly as provided.
 - Do NOT reorder arrays.
 - Set task.language and each example.language to "${targetLanguage}".`;

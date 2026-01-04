@@ -28,6 +28,14 @@ export type TaskExample = {
   updated_at?: number;
 };
 
+export type TaskInteractionExample = {
+  id: string;
+  difficulty: number;
+  title?: string | null;
+  patient_text: string;
+  therapist_text: string;
+};
+
 export type Task = {
   id: string;
   slug: string;
@@ -44,6 +52,7 @@ export type Task = {
   updated_at: number;
   criteria?: TaskCriterion[];
   examples?: TaskExample[];
+  interaction_examples?: TaskInteractionExample[];
 };
 
 export type DeliberatePracticeTaskV2 = {
@@ -59,6 +68,7 @@ export type DeliberatePracticeTaskV2 = {
   };
   criteria: TaskCriterion[];
   examples: TaskExample[];
+  interaction_examples?: TaskInteractionExample[];
 };
 
 export type EvaluationResult = {

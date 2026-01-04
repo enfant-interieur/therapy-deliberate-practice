@@ -43,6 +43,14 @@ export const taskExampleSchema = z.object({
   updated_at: z.number().optional()
 });
 
+export const taskInteractionExampleSchema = z.object({
+  id: idSchema,
+  difficulty: z.number().min(1).max(5),
+  title: z.string().nullable().optional(),
+  patient_text: z.string(),
+  therapist_text: z.string()
+});
+
 export const taskSchema = z.object({
   id: idSchema,
   slug: z.string(),
@@ -58,7 +66,8 @@ export const taskSchema = z.object({
   created_at: z.number(),
   updated_at: z.number(),
   criteria: z.array(taskCriterionSchema).optional(),
-  examples: z.array(taskExampleSchema).optional()
+  examples: z.array(taskExampleSchema).optional(),
+  interaction_examples: z.array(taskInteractionExampleSchema).optional()
 });
 
 export const deliberatePracticeTaskV2Schema = z.object({
@@ -73,7 +82,8 @@ export const deliberatePracticeTaskV2Schema = z.object({
     language: z.string().default("en")
   }),
   criteria: z.array(taskCriterionSchema),
-  examples: z.array(taskExampleSchema)
+  examples: z.array(taskExampleSchema),
+  interaction_examples: z.array(taskInteractionExampleSchema).optional()
 });
 
 export const llmParseSchema = z.object({
@@ -104,7 +114,8 @@ export const llmParseSchema = z.object({
       language: z.string().optional(),
       meta: z.object({}).nullable().optional()
     })
-  )
+  ),
+  interaction_examples: z.array(taskInteractionExampleSchema)
 });
 
 export type LlmParseResult = z.infer<typeof llmParseSchema>;

@@ -67,6 +67,29 @@ export const taskExamples = sqliteTable(
   })
 );
 
+export const taskInteractionExamples = sqliteTable(
+  "task_interaction_examples",
+  {
+    id: text("id").primaryKey(),
+    task_id: text("task_id").notNull(),
+    difficulty: integer("difficulty").notNull(),
+    title: text("title"),
+    patient_text: text("patient_text").notNull(),
+    therapist_text: text("therapist_text").notNull(),
+    language: text("language").notNull().default("en"),
+    meta: text("meta", { mode: "json" }),
+    created_at: integer("created_at").notNull(),
+    updated_at: integer("updated_at").notNull()
+  },
+  (table) => ({
+    taskIdx: index("task_interaction_examples_task_id_idx").on(table.task_id),
+    taskDifficultyIdx: index("task_interaction_examples_task_id_difficulty_idx").on(
+      table.task_id,
+      table.difficulty
+    )
+  })
+);
+
 export const practiceSessions = sqliteTable(
   "practice_sessions",
   {

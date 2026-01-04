@@ -14,6 +14,14 @@ WHERE task_id IN (
   'task_disarming_critic_fr'
 );
 
+DELETE FROM task_interaction_examples
+WHERE task_id IN (
+  'task_limited_reparenting',
+  'task_disarming_critic',
+  'task_limited_reparenting_fr',
+  'task_disarming_critic_fr'
+);
+
 DELETE FROM task_criteria
 WHERE task_id IN (
   'task_limited_reparenting',
@@ -207,6 +215,66 @@ INSERT INTO task_examples (id, task_id, difficulty, severity_label, patient_text
 (
   'ex_dc_5','task_disarming_critic',5,'very high',
   'When I’m stressed, the critic gets vicious: “You ruin everything. Nobody would choose you if they really knew you.” I feel small and frozen when it shows up.',
+  'en',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+);
+
+-- ---------- Interaction Examples: Limited Reparenting ----------
+INSERT INTO task_interaction_examples (id, task_id, difficulty, title, patient_text, therapist_text, language, meta, created_at, updated_at) VALUES
+(
+  'ix_lr_1','task_limited_reparenting',2,'Warmth with limits',
+  'I keep checking my phone hoping you’ll respond. Can you just tell me I’m not too much?',
+  'I hear how scared and exposed that feels, and it makes sense you’re wanting reassurance. I care about you, and I also want us to build your own steadying skills so you’re not alone between sessions. I can’t provide constant contact, but I can help you practice a kinder inner voice. Right now, can we name the younger part’s need and take one slow breath together? Then let’s choose one small, nurturing action you can do today to support your Healthy Adult.',
+  'en',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ix_lr_2','task_limited_reparenting',3,'Bounded reassurance',
+  'If I mess up this week, I need you to promise you won’t get tired of me.',
+  'It sounds like a vulnerable part of you is afraid of being rejected, and I want you to know I’m here with you in that fear. I also can’t make promises about always being available or never feeling tired—that wouldn’t be honest or helpful. What I can promise is that we will keep working on this together and that I’ll be consistent with our sessions. Let’s notice how that part shows up and practice a compassionate response you can give yourself when the fear spikes.',
+  'en',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ix_lr_3','task_limited_reparenting',4,'Promote autonomy',
+  'Can we add another session? I don’t feel safe otherwise.',
+  'I can hear how unsafe this feels right now, and I’m glad you told me. I want to respond with care and also keep our structure steady, so we can’t add another session this week. Let’s make a plan for support between sessions: we can identify the hardest time of day, practice a grounding routine, and choose one person or resource you can reach out to. We’ll check in next time about how it went and adjust together.',
+  'en',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+);
+
+-- ---------- Interaction Examples: Disarming the Critic ----------
+INSERT INTO task_interaction_examples (id, task_id, difficulty, title, patient_text, therapist_text, language, meta, created_at, updated_at) VALUES
+(
+  'ix_dc_1','task_disarming_critic',2,'Name the critic',
+  'I missed one deadline and now I’m telling myself I’m a total failure.',
+  'Notice how quickly that harsh, all-or-nothing voice jumped in—calling you a “total failure.” That sounds like your inner critic, not a balanced view of the situation. The critic is trying to push you with shame, but it ends up crushing you. What would a more compassionate, realistic voice say? Maybe: “I missed a deadline, and I can repair it and learn from it.” Let’s try speaking that back and see how it feels in your body.',
+  'en',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ix_dc_2','task_disarming_critic',3,'Protective function',
+  'The voice keeps saying, “If you’re not perfect, you’re worthless.”',
+  'That voice is really intense. I wonder if it’s trying to protect you from rejection by pushing you to be perfect. The problem is it leaves you feeling ashamed and stuck. Can we separate from it for a moment—maybe call it the “Drill Sergeant”? Then let’s have your Healthy Adult respond: “I want to do well, and I’m still worthy even when I’m imperfect.” We can practice that response when the Drill Sergeant shows up this week.',
+  'en',
+  NULL,
+  CAST(strftime('%s','now') AS INTEGER) * 1000,
+  CAST(strftime('%s','now') AS INTEGER) * 1000
+),
+(
+  'ix_dc_3','task_disarming_critic',4,'Compassionate reply',
+  'It keeps calling me lazy, and then I shut down completely.',
+  'When the critic calls you “lazy,” it’s using an attack that makes you collapse rather than move forward. That’s a sign the critic is in charge. Let’s name it and step back: “That’s the critic talking.” Then we can offer a compassionate, reality-based alternative: “I’m overwhelmed, and I can take one small step.” What would be one tiny, doable action today? We can practice responding this way and notice if it changes the shut-down.',
   'en',
   NULL,
   CAST(strftime('%s','now') AS INTEGER) * 1000,

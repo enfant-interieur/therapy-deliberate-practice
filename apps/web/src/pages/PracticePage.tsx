@@ -76,7 +76,7 @@ export const PracticePage = () => {
   const { taskId } = useParams();
   const [searchParams] = useSearchParams();
   const requestedSessionId = searchParams.get("session");
-  const { data: task } = useGetTaskQuery(taskId ?? "");
+  const { data: task } = useGetTaskQuery({ id: taskId ?? "" });
   const [startSession, { isLoading: isStartingSession }] = useStartSessionMutation();
   const [runPractice] = useRunPracticeMutation();
   const [prefetchPatientAudio] = usePrefetchPatientAudioMutation();

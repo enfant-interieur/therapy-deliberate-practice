@@ -12,6 +12,7 @@ import {
   practiceSessions,
   taskCriteria,
   taskExamples,
+  taskInteractionExamples,
   tasks,
   ttsAssets,
   userSettings,
@@ -25,10 +26,12 @@ import {
   practiceRunInputSchema,
   taskCriterionSchema,
   taskExampleSchema,
+  taskInteractionExampleSchema,
   taskSchema,
   type Task,
   type TaskCriterion,
-  type TaskExample
+  type TaskExample,
+  type TaskInteractionExample
 } from "@deliberate/shared";
 import { selectLlmProvider, selectSttProvider } from "./providers";
 import { attemptJsonRepair } from "./utils/jsonRepair";
@@ -213,6 +216,36 @@ const remapIdReferences = <T>(
   };
 
   return walk(value) as T;
+};
+
+const sanitizeInteractionExamples = (
+  items: TaskInteractionExample[] | undefined,
+  log?: ReturnType<typeof createLogger>
+) => {
+  if (!items?.length) return [];
+  return items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item, index }) => {
+      const difficultyOk =
+        Number.isInteger(item.difficulty) && item.difficulty >= 1 && item.difficulty <= 5;
+      const patientText = item.patient_text?.trim();
+      const therapistText = item.therapist_text?.trim();
+      if (!difficultyOk || !patientText || !therapistText) {
+        log?.warn("Invalid interaction example dropped", {
+          id: item.id,
+          index,
+          difficulty: item.difficulty
+        });
+        return false;
+      }
+      return true;
+    })
+    .map(({ item }) => ({
+      ...item,
+      patient_text: item.patient_text.trim(),
+      therapist_text: item.therapist_text.trim(),
+      title: item.title ?? null
+    }));
 };
 
 const slugify = (value: string) =>
@@ -419,6 +452,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
   app.get("/api/v1/tasks/:id", async (c) => {
     const id = c.req.param("id");
+    const includeInteractions = c.req.query("include_interactions") === "1";
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "tasks_get", taskId: id });
     const [taskRow] = await db.select().from(tasks).where(eq(tasks.id, id)).limit(1);
     if (!taskRow) {
@@ -434,11 +468,30 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       .select()
       .from(taskExamples)
       .where(eq(taskExamples.task_id, id));
+    const interactionRows = await db
+      .select()
+      .from(taskInteractionExamples)
+      .where(eq(taskInteractionExamples.task_id, id));
+    const interactionRows = await db
+      .select()
+      .from(taskInteractionExamples)
+      .where(eq(taskInteractionExamples.task_id, id));
+    const interactionRows = includeInteractions
+      ? await db
+          .select()
+          .from(taskInteractionExamples)
+          .where(eq(taskInteractionExamples.task_id, id))
+          .orderBy(taskInteractionExamples.difficulty)
+      : [];
     const counts = exampleRows.reduce<Record<number, number>>((acc, example) => {
       acc[example.difficulty] = (acc[example.difficulty] ?? 0) + 1;
       return acc;
     }, {});
-    log.info("Task detail fetched", { criteria: criteriaRows.length, examples: exampleRows.length });
+    log.info("Task detail fetched", {
+      criteria: criteriaRows.length,
+      examples: exampleRows.length,
+      interactionExamples: interactionRows.length
+    });
     return c.json({
       ...normalizeTask(taskRow),
       criteria: criteriaRows.map((criterion) => ({
@@ -447,7 +500,18 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         description: criterion.description,
         rubric: criterion.rubric ?? undefined
       })),
-      example_counts: counts
+      example_counts: counts,
+      ...(includeInteractions
+        ? {
+            interaction_examples: interactionRows.map((example) => ({
+              id: example.id,
+              difficulty: example.difficulty,
+              title: example.title ?? null,
+              patient_text: example.patient_text,
+              therapist_text: example.therapist_text
+            }))
+          }
+        : {})
     });
   });
 
@@ -1175,6 +1239,11 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
     const { items: criteria, idMap: criteriaIdMap } = remapUniqueUuids(parsed.criteria, "criteria", log);
     const { items: examples, idMap: exampleIdMap } = remapUniqueUuids(parsed.examples, "examples", log);
+    const { items: interactionExamples, idMap: interactionIdMap } = remapUniqueUuids(
+      parsed.interaction_examples ?? [],
+      "interaction_examples",
+      log
+    );
     const normalizedParsed = remapIdReferences(
       {
         ...parsed,
@@ -1186,9 +1255,10 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         examples: examples.map((example) => ({
           ...example,
           language: example.language ?? inferredLanguage
-        }))
+        })),
+        interaction_examples: interactionExamples
       },
-      [criteriaIdMap, exampleIdMap]
+      [criteriaIdMap, exampleIdMap, interactionIdMap]
     );
 
     const validated = deliberatePracticeTaskV2Schema.safeParse(normalizedParsed);
@@ -1219,6 +1289,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const data = schema.parse(body);
     const parsedTask = data.task_v2;
     const taskLanguage = parsedTask.task.language ?? "en";
+    const interactionExamples = sanitizeInteractionExamples(parsedTask.interaction_examples, log);
     const taskId = data.task_overrides?.id ?? nanoid();
     const slug = data.task_overrides?.slug ?? slugify(parsedTask.task.title);
     const now = Date.now();
@@ -1242,6 +1313,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
       await db.delete(taskCriteria).where(eq(taskCriteria.task_id, existing.id));
       await db.delete(taskExamples).where(eq(taskExamples.task_id, existing.id));
+      await db.delete(taskInteractionExamples).where(eq(taskInteractionExamples.task_id, existing.id));
 
       await db.insert(taskCriteria).values(
         parsedTask.criteria.map((criterion, index) => ({
@@ -1266,6 +1338,22 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           updated_at: now
         }))
       );
+      if (interactionExamples.length) {
+        await db.insert(taskInteractionExamples).values(
+          interactionExamples.map((example) => ({
+            id: example.id,
+            task_id: existing.id,
+            difficulty: example.difficulty,
+            title: example.title ?? null,
+            patient_text: example.patient_text,
+            therapist_text: example.therapist_text,
+            language: taskLanguage,
+            meta: null,
+            created_at: now,
+            updated_at: now
+          }))
+        );
+      }
       log.info("Task imported (updated)", { taskId: existing.id, slug });
       return c.json({ id: existing.id, slug });
     }
@@ -1310,6 +1398,22 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         updated_at: now
       }))
     );
+    if (interactionExamples.length) {
+      await db.insert(taskInteractionExamples).values(
+        interactionExamples.map((example) => ({
+          id: example.id,
+          task_id: taskId,
+          difficulty: example.difficulty,
+          title: example.title ?? null,
+          patient_text: example.patient_text,
+          therapist_text: example.therapist_text,
+          language: taskLanguage,
+          meta: null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
     log.info("Task imported (created)", { taskId, slug });
     return c.json({ id: taskId, slug });
   });
@@ -1401,6 +1505,11 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       .select()
       .from(taskExamples)
       .where(eq(taskExamples.task_id, id));
+    const interactionRows = await db
+      .select()
+      .from(taskInteractionExamples)
+      .where(eq(taskInteractionExamples.task_id, id))
+      .orderBy(taskInteractionExamples.difficulty);
     return c.json({
       ...normalizeTask(taskRow),
       criteria: criteriaRows.map((criterion) => ({
@@ -1412,6 +1521,13 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       examples: exampleRows.map((example) => ({
         ...example,
         meta: example.meta ?? null
+      })),
+      interaction_examples: interactionRows.map((example) => ({
+        id: example.id,
+        difficulty: example.difficulty,
+        title: example.title ?? null,
+        patient_text: example.patient_text,
+        therapist_text: example.therapist_text
       }))
     });
   });
@@ -1465,6 +1581,23 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           difficulty: example.difficulty,
           severity_label: example.severity_label ?? null,
           patient_text: example.patient_text,
+          language: example.language,
+          meta: example.meta ?? null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
+
+    if (interactionRows.length) {
+      await db.insert(taskInteractionExamples).values(
+        interactionRows.map((example) => ({
+          id: nanoid(),
+          task_id: newTaskId,
+          difficulty: example.difficulty,
+          title: example.title ?? null,
+          patient_text: example.patient_text,
+          therapist_text: example.therapist_text,
           language: example.language,
           meta: example.meta ?? null,
           created_at: now,
@@ -1543,6 +1676,13 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
             patient_text: example.patient_text,
             language: example.language ?? taskRow.language,
             meta: example.meta ?? null
+          })),
+          interaction_examples: interactionRows.map((example) => ({
+            id: example.id,
+            difficulty: example.difficulty,
+            title: example.title ?? null,
+            patient_text: example.patient_text,
+            therapist_text: example.therapist_text
           }))
         },
         targetLanguage: data.target_language
@@ -1601,20 +1741,47 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       );
     }
 
+    const translatedInteractionExamples = sanitizeInteractionExamples(
+      translated.interaction_examples,
+      log
+    );
+    if (translatedInteractionExamples.length) {
+      await db.insert(taskInteractionExamples).values(
+        translatedInteractionExamples.map((example) => ({
+          id: nanoid(),
+          task_id: newTaskId,
+          difficulty: example.difficulty,
+          title: example.title ?? null,
+          patient_text: example.patient_text,
+          therapist_text: example.therapist_text,
+          language: data.target_language,
+          meta: null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
+
     return c.json({ id: newTaskId, slug });
   });
 
   app.put("/api/v1/admin/tasks/:id", async (c) => {
     const id = c.req.param("id");
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_update_task", taskId: id });
     const body = await c.req.json();
     const parsed = taskSchema
       .extend({
         criteria: z.array(taskCriterionSchema).optional(),
-        examples: z.array(taskExampleSchema).optional()
+        examples: z.array(taskExampleSchema).optional(),
+        interaction_examples: z.array(taskInteractionExampleSchema).optional()
       })
       .parse(body);
     const now = Date.now();
     const taskLanguage = parsed.language ?? "en";
+    const interactionExamples =
+      parsed.interaction_examples === undefined
+        ? undefined
+        : sanitizeInteractionExamples(parsed.interaction_examples, log);
     await db
       .update(tasks)
       .set({
@@ -1661,6 +1828,25 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         }))
       );
     }
+    if (interactionExamples !== undefined) {
+      await db.delete(taskInteractionExamples).where(eq(taskInteractionExamples.task_id, id));
+      if (interactionExamples.length) {
+        await db.insert(taskInteractionExamples).values(
+          interactionExamples.map((example) => ({
+            id: example.id,
+            task_id: id,
+            difficulty: example.difficulty,
+            title: example.title ?? null,
+            patient_text: example.patient_text,
+            therapist_text: example.therapist_text,
+            language: taskLanguage,
+            meta: null,
+            created_at: now,
+            updated_at: now
+          }))
+        );
+      }
+    }
 
     return c.json({ status: "updated" });
   });
@@ -1669,6 +1855,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const id = c.req.param("id");
     await db.delete(taskCriteria).where(eq(taskCriteria.task_id, id));
     await db.delete(taskExamples).where(eq(taskExamples.task_id, id));
+    await db.delete(taskInteractionExamples).where(eq(taskInteractionExamples.task_id, id));
     await db.delete(tasks).where(eq(tasks.id, id));
     return c.json({ status: "deleted" });
   });
