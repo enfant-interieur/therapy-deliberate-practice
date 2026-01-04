@@ -67,6 +67,8 @@ jobs:
         run: python services/local-runtime-suite/tools/gen_models_json.py
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           projectPath: services/local-runtime-suite/desktop
           tagName: ${{ inputs.tag || github.ref_name }}
