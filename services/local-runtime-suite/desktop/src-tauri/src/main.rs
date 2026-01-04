@@ -4,6 +4,7 @@ use serde::Serialize;
 use std::collections::{HashMap, VecDeque};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
+use tauri::Manager;
 
 const MAX_LOG_LINES: usize = 500;
 
@@ -85,12 +86,14 @@ impl GatewayManager {
             });
         }
 
-        let mut child = Command::new("python")
-            .args(["-m", "local_runtime.main"])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|err| GatewayError::SpawnFailed(err.to_string()))?;
+        let python = std::env::var("LOCAL_RUNTIME_PYTHON").unwrap_or_else(|_| "python3".to_string());
+
+        let mut child = Command::new(python)
+          .args(["-m", "local_runtime.main"])
+          .stdout(Stdio::piped())
+          .stderr(Stdio::piped())
+          .spawn()
+          .map_err(|err| GatewayError::SpawnFailed(err.to_string()))?;
 
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
