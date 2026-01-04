@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 import uuid
+from pathlib import Path
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -219,9 +220,18 @@ async def doctor() -> JSONResponse:
 
 
 def main() -> None:
+    import argparse
     import uvicorn
 
-    config = RuntimeConfig.load()
+    parser = argparse.ArgumentParser(description="Local runtime gateway")
+    parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--config", type=str, default=None)
+    args = parser.parse_args()
+
+    config_path = Path(args.config) if args.config else None
+    config = RuntimeConfig.load(config_path)
+    if args.port is not None:
+        config.port = args.port
     uvicorn.run("local_runtime.main:app", host="127.0.0.1", port=config.port, reload=True)
 
 

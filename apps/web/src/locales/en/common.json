@@ -179,15 +179,19 @@
         "localOnly": "Local only"
       }
     },
-    "localStt": {
-      "label": "Local STT endpoint",
-      "placeholder": "http://localhost:7001",
-      "helper": "Used when local STT is selected."
-    },
-    "localLlm": {
-      "label": "Local LLM endpoint",
-      "placeholder": "http://localhost:7002",
-      "helper": "Used when local LLM is selected."
+    "localAiBase": {
+      "label": "Local AI Base URL",
+      "placeholder": "http://127.0.0.1:8484",
+      "helper": "One local gateway handles both LLM and Speech-to-Text on the same URL (different endpoints).",
+      "callout": "Need the URL? Open the Local Runtime Suite desktop app → Connection → Copy.",
+      "advancedShow": "Advanced: override LLM / STT URLs",
+      "advancedHide": "Hide advanced overrides",
+      "overrideLlmLabel": "LLM URL override",
+      "overrideLlmPlaceholder": "http://127.0.0.1:8484",
+      "overrideLlmHelper": "Optional: route LLM requests to a separate URL.",
+      "overrideSttLabel": "STT URL override",
+      "overrideSttPlaceholder": "http://127.0.0.1:8484",
+      "overrideSttHelper": "Optional: route STT requests to a separate URL."
     },
     "storeAudio": {
       "label": "Store audio recordings",
@@ -321,7 +325,7 @@
         "subtitle": "Quick fixes when setup or playback stalls.",
         "localEndpoints": {
           "title": "Local endpoints not responding",
-          "body": "Confirm the local launcher is running and that the LLM/TTS URLs in Settings match the ports displayed in the console. The most common issue is a port mismatch or firewall restriction."
+          "body": "Confirm the local launcher is running and that the Local AI Base URL in Settings matches the port shown in the desktop app. The most common issue is a port mismatch or firewall restriction."
         },
         "missingOpenAiKey": {
           "title": "Missing OpenAI key",

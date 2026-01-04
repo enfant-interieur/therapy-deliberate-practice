@@ -179,15 +179,19 @@
         "localOnly": "Local uniquement"
       }
     },
-    "localStt": {
-      "label": "Point d'accès STT local",
-      "placeholder": "http://localhost:7001",
-      "helper": "Utilisé lorsque le STT local est sélectionné."
-    },
-    "localLlm": {
-      "label": "Point d'accès LLM local",
-      "placeholder": "http://localhost:7002",
-      "helper": "Utilisé lorsque le LLM local est sélectionné."
+    "localAiBase": {
+      "label": "URL de base de l’IA locale",
+      "placeholder": "http://127.0.0.1:8484",
+      "helper": "Une seule passerelle locale gère à la fois le LLM et le STT (endpoints différents).",
+      "callout": "Besoin de l’URL ? Ouvrez l’application Local Runtime Suite → Connexion → Copier.",
+      "advancedShow": "Avancé : remplacer les URL LLM / STT",
+      "advancedHide": "Masquer les remplacements avancés",
+      "overrideLlmLabel": "Remplacement URL LLM",
+      "overrideLlmPlaceholder": "http://127.0.0.1:8484",
+      "overrideLlmHelper": "Optionnel : diriger le LLM vers une URL différente.",
+      "overrideSttLabel": "Remplacement URL STT",
+      "overrideSttPlaceholder": "http://127.0.0.1:8484",
+      "overrideSttHelper": "Optionnel : diriger le STT vers une URL différente."
     },
     "storeAudio": {
       "label": "Enregistrer les enregistrements audio",
@@ -321,7 +325,7 @@
         "subtitle": "Correctifs rapides lorsque la configuration ou la lecture bloque.",
         "localEndpoints": {
           "title": "Endpoints locaux inaccessibles",
-          "body": "Confirmez que le lanceur local fonctionne et que les URLs LLM/TTS dans Paramètres correspondent aux ports affichés dans la console. Le problème le plus courant est un décalage de port ou une restriction de pare-feu."
+          "body": "Confirmez que le lanceur local fonctionne et que l’URL de base de l’IA locale dans Paramètres correspond au port affiché dans l’application de bureau. Le problème le plus courant est un décalage de port ou une restriction de pare-feu."
         },
         "missingOpenAiKey": {
           "title": "Clé OpenAI manquante",
