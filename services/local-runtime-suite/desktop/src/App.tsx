@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/tauri";
-import { open } from "@tauri-apps/api/shell";
+import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 type ModelSummary = {
   id: string;
@@ -329,7 +329,7 @@ export const App = () => {
               Finish setup by linking these preferences in the Therapy web app.
             </p>
             <div className="button-row">
-              <button className="btn primary" onClick={() => open(settingsUrl)}>
+              <button className="btn primary" onClick={() => openUrl(settingsUrl)}>
                 Open Therapy Settings
               </button>
               <button className="btn" onClick={() => navigator.clipboard.writeText(settingsUrl)}>

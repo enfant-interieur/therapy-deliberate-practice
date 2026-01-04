@@ -1,0 +1,81 @@
+name: desktop-signed-release-example
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-tauri:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Linux system dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.0-dev \
+            libjavascriptcoregtk-4.0-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+      - name: Install dependencies
+        run: npm ci --workspace services/local-runtime-suite/desktop
+      - name: Install local runtime dependencies
+        run: pip install -e services/local-runtime-suite/python
+      - name: Generate model catalog
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+      - name: Import macOS signing certificate
+        if: startsWith(matrix.os, 'macos')
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          args: --target ${{ matrix.target }}
+      - name: Sign Windows installers
+        if: startsWith(matrix.os, 'windows')
+        shell: pwsh
+        run: |
+          $certPath = "$env:RUNNER_TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = $env:WINDOWS_CERTIFICATE_PASSWORD
+          Get-ChildItem -Path services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle -Recurse -Include *.exe,*.msi |
+            ForEach-Object {
+              & signtool sign /fd SHA256 /f $certPath /p $password /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+            }
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}

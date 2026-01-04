@@ -1,20 +1,36 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
+use std::collections::{HashMap, VecDeque};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
+
+const MAX_LOG_LINES: usize = 500;
 
 #[derive(serde::Deserialize)]
 struct ConfigPayload {
     port: u16,
-    default_models: std::collections::HashMap<String, String>,
+    default_models: HashMap<String, String>,
     prefer_local: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "type", content = "message")]
+enum GatewayError {
+    SpawnFailed(String),
+    Io(String),
+    ConfigDir(String),
 }
 
 #[derive(Default)]
 struct GatewayState {
     child: Option<Child>,
-    logs: Vec<String>,
+    logs: VecDeque<String>,
+}
+
+#[derive(Clone, Default)]
+struct GatewayManager {
+    inner: Arc<Mutex<GatewayState>>,
 }
 
 #[derive(Serialize)]
@@ -37,77 +53,131 @@ struct DoctorResponse {
     checks: Vec<serde_json::Value>,
 }
 
-#[tauri::command]
-fn start_gateway(state: tauri::State<Arc<Mutex<GatewayState>>>) -> StatusResponse {
-    let mut guard = state.lock().expect("state lock");
-    if guard.child.is_none() {
+impl GatewayManager {
+    fn new() -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(GatewayState::default())),
+        }
+    }
+
+    fn push_log(&self, line: impl Into<String>) {
+        let mut guard = self.inner.lock().expect("state lock");
+        guard.logs.push_back(line.into());
+        if guard.logs.len() > MAX_LOG_LINES {
+            guard.logs.pop_front();
+        }
+    }
+
+    fn refresh_child_state(guard: &mut GatewayState) {
+        if let Some(child) = guard.child.as_mut() {
+            if let Ok(Some(_)) = child.try_wait() {
+                guard.child = None;
+            }
+        }
+    }
+
+    fn start(&self) -> Result<StatusResponse, GatewayError> {
+        let mut guard = self.inner.lock().expect("state lock");
+        Self::refresh_child_state(&mut guard);
+        if guard.child.is_some() {
+            return Ok(StatusResponse {
+                status: "running".into(),
+            });
+        }
+
         let mut child = Command::new("python")
             .args(["-m", "local_runtime.main"])
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .ok();
-        if let Some(ref mut child_proc) = child {
-            guard.logs.push("Gateway started".into());
-            let stdout = child_proc.stdout.take();
-            let stderr = child_proc.stderr.take();
-            if let Some(stream) = stdout {
-                let state_clone = state.inner().clone();
-                std::thread::spawn(move || {
-                    use std::io::{BufRead, BufReader};
-                    let reader = BufReader::new(stream);
-                    for line in reader.lines().flatten() {
-                        let mut guard = state_clone.lock().expect("state lock");
-                        guard.logs.push(line);
-                    }
-                });
-            }
-            if let Some(stream) = stderr {
-                let state_clone = state.inner().clone();
-                std::thread::spawn(move || {
-                    use std::io::{BufRead, BufReader};
-                    let reader = BufReader::new(stream);
-                    for line in reader.lines().flatten() {
-                        let mut guard = state_clone.lock().expect("state lock");
-                        guard.logs.push(line);
-                    }
-                });
-            }
+            .map_err(|err| GatewayError::SpawnFailed(err.to_string()))?;
+
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+        guard.child = Some(child);
+        drop(guard);
+
+        self.push_log("Gateway started");
+
+        if let Some(stream) = stdout {
+            let manager = self.clone();
+            std::thread::spawn(move || {
+                use std::io::{BufRead, BufReader};
+                let reader = BufReader::new(stream);
+                for line in reader.lines().flatten() {
+                    manager.push_log(line);
+                }
+            });
         }
-        guard.child = child;
+
+        if let Some(stream) = stderr {
+            let manager = self.clone();
+            std::thread::spawn(move || {
+                use std::io::{BufRead, BufReader};
+                let reader = BufReader::new(stream);
+                for line in reader.lines().flatten() {
+                    manager.push_log(line);
+                }
+            });
+        }
+
+        Ok(StatusResponse {
+            status: "running".into(),
+        })
     }
-    StatusResponse {
-        status: "running".into(),
+
+    fn stop(&self) -> Result<StatusResponse, GatewayError> {
+        let mut guard = self.inner.lock().expect("state lock");
+        let child = guard.child.take();
+        drop(guard);
+
+        if let Some(mut child) = child {
+            let _ = child.kill();
+            let _ = child.wait();
+            self.push_log("Gateway stopped");
+        }
+
+        Ok(StatusResponse {
+            status: "stopped".into(),
+        })
+    }
+
+    fn status(&self) -> StatusResponse {
+        let mut guard = self.inner.lock().expect("state lock");
+        Self::refresh_child_state(&mut guard);
+        let status = if guard.child.is_some() { "running" } else { "stopped" };
+        StatusResponse {
+            status: status.into(),
+        }
+    }
+
+    fn logs(&self) -> LogsResponse {
+        let mut guard = self.inner.lock().expect("state lock");
+        Self::refresh_child_state(&mut guard);
+        LogsResponse {
+            logs: guard.logs.iter().cloned().collect(),
+        }
     }
 }
 
 #[tauri::command]
-fn stop_gateway(state: tauri::State<Arc<Mutex<GatewayState>>>) -> StatusResponse {
-    let mut guard = state.lock().expect("state lock");
-    if let Some(mut child) = guard.child.take() {
-        let _ = child.kill();
-        guard.logs.push("Gateway stopped".into());
-    }
-    StatusResponse {
-        status: "stopped".into(),
-    }
+fn start_gateway(state: tauri::State<GatewayManager>) -> Result<StatusResponse, GatewayError> {
+    state.start()
 }
 
 #[tauri::command]
-fn gateway_status(state: tauri::State<Arc<Mutex<GatewayState>>>) -> StatusResponse {
-    let guard = state.lock().expect("state lock");
-    let status = if guard.child.is_some() { "running" } else { "stopped" };
-    StatusResponse {
-        status: status.into(),
-    }
+fn stop_gateway(state: tauri::State<GatewayManager>) -> Result<StatusResponse, GatewayError> {
+    state.stop()
 }
 
 #[tauri::command]
-fn gateway_logs(state: tauri::State<Arc<Mutex<GatewayState>>>) -> LogsResponse {
-    let guard = state.lock().expect("state lock");
-    LogsResponse {
-        logs: guard.logs.clone(),
-    }
+fn gateway_status(state: tauri::State<GatewayManager>) -> StatusResponse {
+    state.status()
+}
+
+#[tauri::command]
+fn gateway_logs(state: tauri::State<GatewayManager>) -> LogsResponse {
+    state.logs()
 }
 
 #[tauri::command]
@@ -152,10 +222,13 @@ fn gateway_models() -> ModelsResponse {
 }
 
 #[tauri::command]
-fn save_gateway_config(payload: ConfigPayload) -> Result<(), String> {
-    let config_dir = tauri::api::path::config_dir().ok_or("Missing config dir")?;
+fn save_gateway_config(app: tauri::AppHandle, payload: ConfigPayload) -> Result<(), GatewayError> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|err| GatewayError::ConfigDir(err.to_string()))?;
     let target_dir = config_dir.join("therapy").join("local-runtime");
-    std::fs::create_dir_all(&target_dir).map_err(|err| err.to_string())?;
+    std::fs::create_dir_all(&target_dir).map_err(|err| GatewayError::Io(err.to_string()))?;
     let config_path = target_dir.join("config.json");
     let json = serde_json::json!({
         "port": payload.port,
@@ -165,13 +238,14 @@ fn save_gateway_config(payload: ConfigPayload) -> Result<(), String> {
         "cache_dir": target_dir.join("cache").to_string_lossy()
     });
     std::fs::write(config_path, serde_json::to_vec_pretty(&json).unwrap())
-        .map_err(|err| err.to_string())?;
+        .map_err(|err| GatewayError::Io(err.to_string()))?;
     Ok(())
 }
 
 fn main() {
     tauri::Builder::default()
-        .manage(Arc::new(Mutex::new(GatewayState::default())))
+        .plugin(tauri_plugin_opener::init())
+        .manage(GatewayManager::new())
         .invoke_handler(tauri::generate_handler![
             start_gateway,
             stop_gateway,
