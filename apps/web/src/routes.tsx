@@ -14,6 +14,7 @@ import { AdminParseTaskPage } from "./pages/AdminParseTaskPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { HelpLayout } from "./pages/help/HelpLayout";
 import { GettingStarted } from "./pages/help/pages/GettingStarted";
 import { HowItWorks } from "./pages/help/pages/HowItWorks";
@@ -50,6 +51,14 @@ export const router = createBrowserRouter([
         element: (
           <UserRouteGuard>
             <HistoryPage />
+          </UserRouteGuard>
+        )
+      },
+      {
+        path: "leaderboard",
+        element: (
+          <UserRouteGuard>
+            <LeaderboardPage />
           </UserRouteGuard>
         )
       },

@@ -50,6 +50,7 @@ import {
 } from "./utils/logger";
 import { selectTtsProvider } from "./providers";
 import { getOrCreateTtsAsset, type TtsStorage } from "./services/ttsService";
+import { fetchLeaderboardEntries } from "./services/leaderboardService";
 
 export type ApiDependencies = {
   env: RuntimeEnv;
@@ -448,6 +449,48 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const results = filters.length ? await baseQuery.where(and(...filters)) : await baseQuery;
     log.info("Tasks fetched", { count: results.length });
     return c.json(results.map((task) => normalizeTask(task)));
+  });
+
+  app.get("/api/v1/leaderboard", userAuth, async (c) => {
+    const url = new URL(c.req.url);
+    const tags = [
+      ...url.searchParams.getAll("tag"),
+      ...(url.searchParams.get("tags")?.split(",") ?? [])
+    ]
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    const querySchema = z.object({
+      tags: z.array(z.string()).default([]),
+      skill_domain: z.string().min(1).nullable().default(null),
+      language: z.string().min(1).nullable().default(null),
+      limit: z.coerce.number().int().min(1).max(200).default(50)
+    });
+
+    const query = querySchema.parse({
+      tags,
+      skill_domain: url.searchParams.get("skill_domain"),
+      language: url.searchParams.get("language"),
+      limit: url.searchParams.get("limit") ?? undefined
+    });
+
+    const entries = await fetchLeaderboardEntries(db, {
+      tags: query.tags,
+      skillDomain: query.skill_domain,
+      language: query.language,
+      limit: query.limit
+    });
+
+    return c.json({
+      query: {
+        tags: query.tags,
+        skill_domain: query.skill_domain,
+        language: query.language,
+        limit: query.limit
+      },
+      entries,
+      generated_at: Date.now()
+    });
   });
 
   app.get("/api/v1/tasks/:id", async (c) => {

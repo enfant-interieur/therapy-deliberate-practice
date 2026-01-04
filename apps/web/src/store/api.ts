@@ -126,6 +126,20 @@ export type MinigameRoundResult = {
   client_penalty?: number | null;
 };
 
+export type LeaderboardEntry = {
+  user_id: string;
+  display_name: string;
+  score: number;
+  played: number;
+  last_active_at: number | null;
+};
+
+export type LeaderboardResponse = {
+  query: { tags: string[]; skill_domain: string | null; language: string | null; limit: number };
+  entries: LeaderboardEntry[];
+  generated_at: number;
+};
+
 export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
@@ -196,6 +210,18 @@ export const api = createApi({
         })
       }
     ),
+    getLeaderboard: builder.query<
+      LeaderboardResponse,
+      { tags?: string[]; skill_domain?: string | null; language?: string | null; limit?: number }
+    >({
+      query: ({ tags, ...params }) => ({
+        url: "/leaderboard",
+        params: {
+          ...params,
+          ...(tags && tags.length > 0 ? { tags: tags.join(",") } : {})
+        }
+      })
+    }),
     startSession: builder.mutation<
       { session_id: string; items: PracticeSessionItem[] },
       { mode: "single_task" | "mixed_set"; task_id?: string; item_count: number; difficulty?: number }
@@ -413,6 +439,7 @@ export const {
   useGetTasksQuery,
   useGetTaskQuery,
   useGetTaskExamplesQuery,
+  useGetLeaderboardQuery,
   useStartSessionMutation,
   useGetPracticeSessionsQuery,
   useGetPracticeSessionAttemptsQuery,

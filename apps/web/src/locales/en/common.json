@@ -91,6 +91,38 @@
     "viewTask": "View task",
     "viewSession": "View session"
   },
+  "leaderboard": {
+    "title": "Leaderboard",
+    "subtitle": "Average score across your latest attempts for the selected filters.",
+    "status": "Top players",
+    "updated": "Updated {{time}}",
+    "tooltip": "Leaderboard",
+    "loading": "Loading leaderboard...",
+    "empty": "No players match these filters.",
+    "emptyHint": "Try adjusting your filters to see more activity.",
+    "filters": {
+      "title": "Filters",
+      "subtitle": "Refine the rankings by skill, tags, and language.",
+      "tags": "Tags",
+      "searchTags": "Search tags",
+      "noTags": "No tags found.",
+      "clearTags": "Clear",
+      "skillDomain": "Skill domain",
+      "language": "Language",
+      "limit": "Results limit",
+      "limitHint": "Custom limit applied.",
+      "clear": "Clear all",
+      "all": "All"
+    },
+    "table": {
+      "rank": "Rank",
+      "player": "Player",
+      "playerSubtext": "Latest attempts",
+      "score": "Score",
+      "played": "Played",
+      "lastActive": "Last active"
+    }
+  },
   "profile": {
     "tagline": "Your profile",
     "title": "Account overview",

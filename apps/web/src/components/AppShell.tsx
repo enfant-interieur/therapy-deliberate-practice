@@ -8,6 +8,7 @@ import { supabase } from "../supabase/client";
 import { hydrateSettings } from "../store/settingsSlice";
 import { AiSetupModal } from "./AiSetupModal";
 import { GameSelectModal } from "./minigames/GameSelectModal";
+import { Tooltip } from "./Tooltip";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -248,6 +249,21 @@ export const AppShell = () => {
             >
               {t("appShell.nav.minigames")}
             </button>
+            <Tooltip label={t("leaderboard.tooltip")}>
+              <NavLink
+                to="/leaderboard"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:border-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70"
+                aria-label={t("leaderboard.tooltip")}
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 21h8m-4-4v4m6-13V5a1 1 0 0 0-1-1h-1V3a1 1 0 1 0-2 0v1h-4V3a1 1 0 1 0-2 0v1H7a1 1 0 0 0-1 1v3a3 3 0 0 0 3 3h.2a5 5 0 0 0 9.6 0H19a3 3 0 0 0 3-3V8a1 1 0 0 0-1-1h-1Zm-1 0v1a1 1 0 0 1-1 1h-.4a5.02 5.02 0 0 0 .2-1.4V6h1Zm-12 0h1v1.6c0 .48.07.95.2 1.4H9a1 1 0 0 1-1-1V7Z"
+                  />
+                </svg>
+              </NavLink>
+            </Tooltip>
             <NavLink
               to="/help"
               className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:border-white/20 hover:text-white"

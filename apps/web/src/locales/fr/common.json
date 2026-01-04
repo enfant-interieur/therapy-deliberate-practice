@@ -91,6 +91,38 @@
     "viewTask": "Voir la tâche",
     "viewSession": "Voir la session"
   },
+  "leaderboard": {
+    "title": "Classement",
+    "subtitle": "Score moyen basé sur vos dernières tentatives selon les filtres sélectionnés.",
+    "status": "Meilleurs joueurs",
+    "updated": "Mis à jour {{time}}",
+    "tooltip": "Classement",
+    "loading": "Chargement du classement...",
+    "empty": "Aucun joueur ne correspond à ces filtres.",
+    "emptyHint": "Essayez d'ajuster vos filtres pour voir plus d'activité.",
+    "filters": {
+      "title": "Filtres",
+      "subtitle": "Affinez le classement par compétence, tags et langue.",
+      "tags": "Tags",
+      "searchTags": "Rechercher des tags",
+      "noTags": "Aucun tag trouvé.",
+      "clearTags": "Effacer",
+      "skillDomain": "Domaine de compétence",
+      "language": "Langue",
+      "limit": "Limite de résultats",
+      "limitHint": "Limite personnalisée appliquée.",
+      "clear": "Tout effacer",
+      "all": "Tous"
+    },
+    "table": {
+      "rank": "Rang",
+      "player": "Joueur",
+      "playerSubtext": "Dernières tentatives",
+      "score": "Score",
+      "played": "Jouées",
+      "lastActive": "Dernière activité"
+    }
+  },
   "profile": {
     "tagline": "Votre profil",
     "title": "Aperçu du compte",
