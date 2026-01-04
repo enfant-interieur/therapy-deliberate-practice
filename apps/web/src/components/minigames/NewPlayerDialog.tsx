@@ -23,8 +23,12 @@ export const NewPlayerDialog = ({ open, onClose, onCreate }: NewPlayerDialogProp
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-6">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/80 p-6 shadow-2xl backdrop-blur">
+    <div
+      className="fixed inset-0 z-40 overflow-y-auto bg-black/60 p-6"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      <div className="flex min-h-[100dvh] items-center justify-center">
+        <div className="mx-auto w-full max-w-md max-h-[90dvh] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/80 p-6 shadow-2xl backdrop-blur">
         <h3 className="text-lg font-semibold text-white">New player</h3>
         <p className="mt-1 text-xs text-slate-300">Add a challenger mid-session.</p>
         <div className="mt-4 space-y-4">
@@ -70,6 +74,7 @@ export const NewPlayerDialog = ({ open, onClose, onCreate }: NewPlayerDialogProp
           >
             Create
           </button>
+        </div>
         </div>
       </div>
     </div>

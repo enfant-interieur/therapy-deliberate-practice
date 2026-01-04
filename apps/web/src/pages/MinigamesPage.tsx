@@ -9,6 +9,7 @@ import { NewPlayerDialog } from "../components/minigames/NewPlayerDialog";
 import { VersusIntroOverlay } from "../components/minigames/VersusIntroOverlay";
 import { DesktopMinigameLayout } from "../components/minigames/DesktopMinigameLayout";
 import { MobileMinigameLayout } from "../components/minigames/MobileMinigameLayout";
+import { EndGameResultsOverlay } from "../components/minigames/EndGameResultsOverlay";
 import { useFfaTurnController } from "../components/minigames/hooks/useFfaTurnController";
 import { useTdmMatchController } from "../components/minigames/hooks/useTdmMatchController";
 import { useFullscreen } from "../components/minigames/hooks/useFullscreen";
@@ -37,6 +38,7 @@ import {
 import type { PlayerDraft, TeamDraft } from "../components/minigames/PlayersTeamsStep";
 import type { TaskSelectionState } from "../components/minigames/TaskSelectionStep";
 import type { EvaluationResult } from "@deliberate/shared";
+import { computeWinner, type WinnerSummary } from "../components/minigames/utils/computeWinner";
 
 const modeCopy = {
   ffa: "Free For All",
@@ -64,6 +66,8 @@ export const MinigamesPage = () => {
   const [newPlayerOpen, setNewPlayerOpen] = useState(false);
   const [evaluationModalOpen, setEvaluationModalOpen] = useState(false);
   const [evaluationModalData, setEvaluationModalData] = useState<EvaluationResult | null>(null);
+  const [endGameOpen, setEndGameOpen] = useState(false);
+  const [winnerSummary, setWinnerSummary] = useState<WinnerSummary | null>(null);
   const handledPreselectRef = useRef(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
@@ -425,7 +429,29 @@ export const MinigamesPage = () => {
   const endGame = async () => {
     if (!minigames.session) return;
     await endSession({ sessionId: minigames.session.id });
-    dispatch(setEvaluationDrawerOpen(true));
+    dispatch(setEvaluationDrawerOpen(false));
+    let nextState = {
+      session: minigames.session,
+      teams: minigames.teams,
+      players: minigames.players,
+      rounds: minigames.rounds,
+      results: minigames.results
+    };
+    try {
+      const refreshed = await fetchMinigameState(minigames.session.id).unwrap();
+      dispatch(setMinigameState(refreshed));
+      nextState = refreshed;
+    } catch {
+      // keep local state if fetch fails
+    }
+    const summary = computeWinner({
+      mode: nextState.session.game_type,
+      players: nextState.players,
+      teams: nextState.teams,
+      results: nextState.results
+    });
+    setWinnerSummary(summary);
+    setEndGameOpen(true);
   };
 
   const nextTurn = () => {
@@ -452,6 +478,8 @@ export const MinigamesPage = () => {
     setEvaluationModalOpen(false);
     setEvaluationModalData(null);
     setNewPlayerOpen(false);
+    setEndGameOpen(false);
+    setWinnerSummary(null);
   };
 
   const handleFinalReviewClose = () => {
@@ -652,6 +680,16 @@ export const MinigamesPage = () => {
         rounds={minigames.rounds}
         results={minigames.results}
         players={minigames.players}
+        onClose={handleFinalReviewClose}
+      />
+      <EndGameResultsOverlay
+        open={endGameOpen}
+        mode={mode ?? "ffa"}
+        players={minigames.players}
+        teams={minigames.teams}
+        rounds={minigames.rounds}
+        results={minigames.results}
+        winner={winnerSummary}
         onClose={handleFinalReviewClose}
       />
       <EvaluationModal

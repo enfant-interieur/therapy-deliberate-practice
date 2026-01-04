@@ -76,8 +76,12 @@ export const MinigameSetupModal = ({ open, mode, onClose, onStart }: MinigameSet
   const timingValid = responseTimerValid && maxResponseValid;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6">
-      <div className="w-full max-w-5xl rounded-3xl border border-white/10 bg-slate-950/80 p-8 shadow-2xl backdrop-blur">
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/70 p-6"
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      <div className="flex min-h-[100dvh] items-center justify-center">
+        <div className="mx-auto w-full max-w-5xl max-h-[90dvh] overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/80 p-8 shadow-2xl backdrop-blur">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase tracking-[0.3em] text-teal-200/70">Setup</p>
@@ -252,6 +256,7 @@ export const MinigameSetupModal = ({ open, mode, onClose, onStart }: MinigameSet
               Start game
             </button>
           )}
+        </div>
         </div>
       </div>
     </div>

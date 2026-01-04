@@ -61,11 +61,17 @@ export const EvaluationModal = ({
   });
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 p-6" onClick={onClose}>
-      <div
-        className="w-full max-w-3xl rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/95 via-slate-900/90 to-slate-950/95 p-6 shadow-2xl backdrop-blur"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <div
+      className="fixed inset-0 z-40 overflow-y-auto bg-black/70 p-6"
+      onClick={onClose}
+      style={{ WebkitOverflowScrolling: "touch" }}
+    >
+      <div className="flex min-h-[100dvh] items-center justify-center">
+        <div
+          className="w-full max-w-3xl max-h-[90dvh] overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950/95 via-slate-900/90 to-slate-950/95 p-6 shadow-2xl backdrop-blur"
+          onClick={(event) => event.stopPropagation()}
+          style={{ WebkitOverflowScrolling: "touch" }}
+        >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.35em] text-teal-200/70">Evaluation</p>
@@ -150,6 +156,7 @@ export const EvaluationModal = ({
           >
             Next round
           </button>
+        </div>
         </div>
       </div>
     </div>

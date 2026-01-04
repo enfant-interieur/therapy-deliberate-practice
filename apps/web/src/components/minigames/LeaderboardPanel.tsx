@@ -6,9 +6,10 @@ type LeaderboardPanelProps = {
   teams: MinigameTeam[];
   results: MinigameRoundResult[];
   variant?: "standalone" | "embedded";
+  badgeLabel?: string;
 };
 
-const colorMap: Record<string, string> = {
+export const teamColorMap: Record<string, string> = {
   teal: "bg-teal-400/20 text-teal-100",
   violet: "bg-violet-400/20 text-violet-100",
   amber: "bg-amber-400/20 text-amber-100",
@@ -22,7 +23,8 @@ export const LeaderboardPanel = ({
   players,
   teams,
   results,
-  variant = "standalone"
+  variant = "standalone",
+  badgeLabel = "Live"
 }: LeaderboardPanelProps) => {
   const playerStats = players.map((player) => {
     const attempts = results.filter((result) => result.player_id === player.id);
@@ -63,7 +65,7 @@ export const LeaderboardPanel = ({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-white">Leaderboard</h3>
         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/70">
-          Live
+          {badgeLabel}
         </span>
       </div>
       {mode === "tdm" && (
@@ -73,7 +75,7 @@ export const LeaderboardPanel = ({
               key={team.id}
               className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2 text-xs text-slate-200"
             >
-              <span className={`rounded-full px-2 py-1 text-[10px] ${colorMap[team.color] ?? "bg-white/10 text-white"}`}>
+              <span className={`rounded-full px-2 py-1 text-[10px] ${teamColorMap[team.color] ?? "bg-white/10 text-white"}`}>
                 {team.name}
               </span>
               <span className="text-sm font-semibold text-white">
@@ -101,7 +103,7 @@ export const LeaderboardPanel = ({
               <div className="text-right">
                 {team && (
                   <span
-                    className={`mb-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${colorMap[team.color] ?? "bg-white/10 text-white"}`}
+                    className={`mb-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ${teamColorMap[team.color] ?? "bg-white/10 text-white"}`}
                   >
                     {team.name}
                   </span>
