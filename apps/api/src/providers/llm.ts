@@ -110,7 +110,7 @@ Rubric requirements (for each criterion):
 - anchors must describe observable therapist behavior in the response (not internal states)`;
     const originalPrompt = `You are a content-to-JSON generator for a psychotherapy deliberate-practice platform.
 
-You will be given source material (free text and/or notes). Your job is to produce an ORIGINAL deliberate-practice task INSPIRED BY the material, but rewritten in your own words.
+You will be given source material (free text and/or notes). Your job is to produce an ORIGINAL deliberate-practice task INSPIRED BY the material, but rewritten in your own words while keeping the meaning, logic, concepts, and general idea the same. Do not hide the meaning behind complex convoluted sentence, write in your own words but stay true to the spirit of the material.
 
 CRITICAL OUTPUT RULE:
 - Return STRICT JSON ONLY that matches the required schema. No markdown. No commentary. No trailing commas. No extra keys.
