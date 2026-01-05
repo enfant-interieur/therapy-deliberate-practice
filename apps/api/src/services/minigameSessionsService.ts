@@ -36,6 +36,16 @@ type ListParams = {
   sort?: "newest" | "oldest" | "recently_active";
 };
 
+const hasDbChanges = (result: unknown) => {
+  const value = result as {
+    rowsAffected?: number;
+    changes?: number;
+    meta?: { changes?: number };
+  };
+  const changes = value.rowsAffected ?? value.changes ?? value.meta?.changes ?? 0;
+  return Number(changes) > 0;
+};
+
 const sortSessions = (sessions: MinigameSessionSummary[], sort?: ListParams["sort"]) => {
   if (sort === "oldest") {
     sessions.sort((a, b) => a.created_at - b.created_at);
@@ -243,7 +253,7 @@ export const updateMinigameResume = async (
         isNull(minigameSessions.deleted_at)
       )
     );
-  return result.rowsAffected > 0;
+  return hasDbChanges(result);
 };
 
 export const softDeleteMinigameSession = async (
@@ -267,5 +277,5 @@ export const softDeleteMinigameSession = async (
         isNull(minigameSessions.deleted_at)
       )
     );
-  return result.rowsAffected > 0;
+  return hasDbChanges(result);
 };
