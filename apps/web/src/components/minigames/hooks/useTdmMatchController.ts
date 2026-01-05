@@ -237,17 +237,29 @@ export const useTdmMatchController = ({
     }
   }, [audioElement, bank, enabled, round, stop]);
 
-  const startRecordingSafe = useCallback(async () => {
+  const startRecordingSafe = useCallback(() => {
     if (!enabled || !round || !activePlayerId) return;
+    const startPromise = startRecording();
     if (!startedRoundRef.current) {
-      await startRoundOrMatch();
+      void startRoundOrMatch();
     }
     stopPatient();
     recordResponseStart();
     autoStopRef.current = false;
-    await startRecording();
     setState("recording");
-  }, [activePlayerId, enabled, recordResponseStart, round, startRecording, stopPatient]);
+    startPromise.catch(() => {
+      setSubmitError("Microphone access failed. Please try again.");
+      setState("patient_ready");
+    });
+  }, [
+    activePlayerId,
+    enabled,
+    recordResponseStart,
+    round,
+    startRecording,
+    startRoundOrMatch,
+    stopPatient
+  ]);
 
   const stopAndSubmit = useCallback(async () => {
     if (!enabled || !round || !activePlayerId) return;

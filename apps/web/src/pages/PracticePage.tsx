@@ -24,6 +24,7 @@ import {
   setSession,
 } from "../store/practiceSlice";
 import { usePatientAudioBank } from "../patientAudio/usePatientAudioBank";
+import { classifyMicError, useMicRecorder } from "../hooks/useMicRecorder";
 
 const blobToBase64 = (blob: Blob, errorMessage: string) =>
   new Promise<string>((resolve, reject) => {
@@ -41,25 +42,6 @@ const blobToBase64 = (blob: Blob, errorMessage: string) =>
     };
     reader.readAsDataURL(blob);
   });
-
-const pickSupportedAudioMimeType = () => {
-  if (typeof MediaRecorder === "undefined") {
-    return null;
-  }
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/mp4",
-    "audio/aac",
-    "audio/mpeg"
-  ];
-  for (const candidate of candidates) {
-    if (MediaRecorder.isTypeSupported(candidate)) {
-      return candidate;
-    }
-  }
-  return null;
-};
 
 export const PracticePage = () => {
   const { t } = useTranslation();
@@ -114,9 +96,7 @@ export const PracticePage = () => {
   const [evaluationStatus, setEvaluationStatus] = useState<
     "idle" | "evaluating" | "ready" | "error"
   >("idle");
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const recorderMimeRef = useRef<string | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
+  const micRecorder = useMicRecorder({ loggerScope: "practice" });
   const patientAudioRef = useRef<HTMLAudioElement | null>(null);
   const playTokenRef = useRef(0);
   const playAbortRef = useRef<AbortController | null>(null);
@@ -191,6 +171,16 @@ export const PracticePage = () => {
     );
   }, [sessionAttempts]);
   const overallScore = practice.evaluation?.overall.score;
+  const micErrorMessage = useMemo(() => {
+    if (!micRecorder.error) return null;
+    if (micRecorder.error.kind === "permission_denied") {
+      return "Microphone blocked. Open the site settings (aA/AA button) and allow Microphone. If needed, go to iOS Settings → Safari → Microphone.";
+    }
+    if (micRecorder.error.kind === "insecure_context") {
+      return "Microphone access requires HTTPS or localhost.";
+    }
+    return micRecorder.error.recommendedAction ?? "Microphone error. Please try again.";
+  }, [micRecorder.error]);
   const scrollToScoringMatrix = useCallback(() => {
     const target = document.getElementById("practice-scoring-matrix");
     target?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -683,7 +673,7 @@ export const PracticePage = () => {
     ]
   );
 
-  const startRecording = async () => {
+  const startRecording = () => {
     setError(null);
     setResponseErrors(null);
     setNextDifficulty(null);
@@ -701,55 +691,36 @@ export const PracticePage = () => {
       setError("Wait for the patient audio to finish before recording.");
       return;
     }
-    if (typeof MediaRecorder === "undefined") {
+    if (!micRecorder.capabilities.hasMediaRecorder || !micRecorder.capabilities.hasGetUserMedia) {
       setError("Audio recording is not supported in this browser.");
       return;
     }
-    let stream: MediaStream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (err) {
-      setError("Microphone access was blocked. Please enable it and try again.");
-      return;
-    }
-    const supportedMimeType = pickSupportedAudioMimeType();
-    const recorder = new MediaRecorder(
-      stream,
-      supportedMimeType ? { mimeType: supportedMimeType } : undefined
-    );
-    recorderMimeRef.current = supportedMimeType ?? recorder.mimeType ?? null;
-    chunksRef.current = [];
-    recorder.ondataavailable = (event) => {
-      if (event.data.size > 0) {
-        chunksRef.current.push(event.data);
-      }
-    };
-    recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, {
-        type: recorderMimeRef.current ?? "audio/webm"
-      });
-      const url = URL.createObjectURL(blob);
+    const startPromise = micRecorder.startFromUserGesture();
+    dispatch(setRecordingState("recording"));
+    startPromise.catch((err) => {
+      const classified = classifyMicError(err);
+      setError(classified.recommendedAction ?? "Microphone access failed.");
+      dispatch(setRecordingState("ready"));
+    });
+  };
+
+  const stopRecording = () => {
+    dispatch(setRecordingState("processing"));
+    void micRecorder.stop().then((recorded) => {
+      if (!recorded) return;
+      const url = URL.createObjectURL(recorded.blob);
       if (practice.audioBlobRef) {
         URL.revokeObjectURL(practice.audioBlobRef);
       }
-      dispatch(setAudioBlobRef({ url, mimeType: blob.type }));
-      void beginTranscription(blob, blob.type)
+      dispatch(setAudioBlobRef({ url, mimeType: recorded.mimeType }));
+      void beginTranscription(recorded.blob, recorded.mimeType)
         .then((result) => {
           if (result) {
             void beginEvaluation(result).catch(() => null);
           }
         })
         .catch(() => null);
-    };
-    recorderRef.current = recorder;
-    recorder.start();
-    dispatch(setRecordingState("recording"));
-  };
-
-  const stopRecording = () => {
-    recorderRef.current?.stop();
-    recorderRef.current?.stream.getTracks().forEach((track) => track.stop());
-    dispatch(setRecordingState("processing"));
+    });
   };
 
   const runEvaluation = async () => {
@@ -1404,6 +1375,9 @@ export const PracticePage = () => {
                 </p>
               )}
             </div>
+            {micErrorMessage && (
+              <p className="mt-3 text-sm font-light text-rose-300">{micErrorMessage}</p>
+            )}
             {error && <p className="mt-3 text-sm font-light text-rose-300">{error}</p>}
           </div>
           {practice.evaluation && (
