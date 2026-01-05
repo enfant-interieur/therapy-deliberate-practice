@@ -2,8 +2,9 @@
   "bundle": {
     "macOS": {
       "entitlements": "./Entitlements.plist",
+      "hardenedRuntime": true,
       "files": {
-        "embedded.provisionprofile": "path/to/profile-name.provisionprofile"
+        "embedded.provisionprofile": "embedded.provisionprofile"
       }
     }
   }

@@ -1,0 +1,89 @@
+name: local-suite-app-store
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Which App Store target to build"
+        type: choice
+        options:
+          - macos
+          - ios
+          - both
+        default: both
+
+permissions:
+  contents: read
+
+jobs:
+  macos-app-store:
+    if: ${{ inputs.platform == 'macos' || inputs.platform == 'both' }}
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: npm ci --workspace services/local-runtime-suite/desktop
+      - name: Install local runtime dependencies
+        run: pip install -e services/local-runtime-suite/python
+      - name: Generate model catalog
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+      - name: Import macOS signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.APPLE_CERTIFICATE }}
+          p12-password: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      - name: Install App Store provisioning profile
+        env:
+          PROFILE_BASE64: ${{ secrets.MACOS_APP_STORE_PROVISION_PROFILE }}
+        run: |
+          echo "$PROFILE_BASE64" | base64 --decode > services/local-runtime-suite/desktop/src-tauri/embedded.provisionprofile
+      - name: Build macOS App Store bundle
+        run: npm run tauri:appstore -w services/local-runtime-suite/desktop
+      - name: Upload macOS App Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-suite-macos-app-store
+          path: |
+            services/local-runtime-suite/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.app
+            services/local-runtime-suite/desktop/src-tauri/target/universal-apple-darwin/release/bundle/macos/*.pkg
+
+  ios-app-store:
+    if: ${{ inputs.platform == 'ios' || inputs.platform == 'both' }}
+    runs-on: macos-latest
+    env:
+      APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_DEVELOPMENT_TEAM }}
+      IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+      IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+      IOS_MOBILE_PROVISION: ${{ secrets.IOS_MOBILE_PROVISION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: npm ci --workspace services/local-runtime-suite/desktop
+      - name: Install local runtime dependencies
+        run: pip install -e services/local-runtime-suite/python
+      - name: Generate model catalog
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+      - name: Initialize iOS project
+        run: node_modules/.bin/tauri ios init --config services/local-runtime-suite/desktop/src-tauri/tauri.conf.json --config services/local-runtime-suite/desktop/src-tauri/tauri.ios.conf.json
+      - name: Build iOS App Store archive
+        run: node_modules/.bin/tauri ios build --export-method app-store --config services/local-runtime-suite/desktop/src-tauri/tauri.conf.json --config services/local-runtime-suite/desktop/src-tauri/tauri.ios.conf.json
+      - name: Upload iOS App Store artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-suite-ios-app-store
+          path: |
+            services/local-runtime-suite/desktop/src-tauri/gen/apple/**/*.ipa

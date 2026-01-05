@@ -10,7 +10,8 @@
     "sidecar:build": "node scripts/build-sidecar.mjs",
     "tauri": "tauri",
     "tauri:dev": "npm run sidecar:build && tauri dev",
-    "tauri:build": "npm run sidecar:build && tauri build --config src-tauri/tauri.conf.json --config src-tauri/tauri.sidecar.conf.json"
+    "tauri:build": "npm run sidecar:build && tauri build --config src-tauri/tauri.conf.json --config src-tauri/tauri.sidecar.conf.json",
+    "tauri:appstore": "npm run sidecar:build && tauri build --config src-tauri/tauri.conf.json --config src-tauri/tauri.appstore.conf.json --target universal-apple-darwin"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",

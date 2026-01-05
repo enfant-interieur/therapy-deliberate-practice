@@ -1,0 +1,9 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "bundle": {
+    "iOS": {
+      "developmentTeam": "YOUR_TEAM_ID",
+      "minimumSystemVersion": "16.0"
+    }
+  }
+}
