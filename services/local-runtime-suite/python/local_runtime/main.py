@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
@@ -22,25 +24,40 @@ from local_runtime.helpers.multipart_helpers import enforce_max_size, extract_fo
 from local_runtime.types import RunContext, RunRequest
 
 configure_logging()
+logger = logging.getLogger("local-runtime")
 
-app = FastAPI(title="Local Runtime Gateway", version="0.1.0")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    app.state.last_error = None
+    app.state.started_at = time.time()
 
-@app.on_event("startup")
-async def startup() -> None:
-    app.state.config = RuntimeConfig.load()
+    config = getattr(app.state, "config", None)
+    if not isinstance(config, RuntimeConfig):
+        raw = os.getenv("LOCAL_RUNTIME_CONFIG", "").strip()
+        config_path = Path(raw).expanduser() if raw else None
+        config = RuntimeConfig.load(config_path)
+        app.state.config = config
+
     app.state.config.ensure_dirs()
-    app.state.models = load_models()
     app.state.platform_id = detect_platform()
     app.state.supervisor = Supervisor()
     app.state.http_client = httpx.AsyncClient(timeout=30)
-    app.state.started_at = time.time()
-    app.state.last_error = None
+
+    try:
+        app.state.models = load_models()
+    except Exception as exc:
+        app.state.models = []
+        app.state.last_error = f"Startup failed: {exc!r}"
+        logger.exception("Startup failed (models will be empty).")
+
+    try:
+        yield
+    finally:
+        await app.state.http_client.aclose()
 
 
-@app.on_event("shutdown")
-async def shutdown() -> None:
-    await app.state.http_client.aclose()
+app = FastAPI(title="Local Runtime Gateway", version="0.1.0", lifespan=lifespan)
 
 
 def build_context(request_id: str) -> RunContext:
@@ -221,7 +238,6 @@ async def doctor() -> JSONResponse:
 
 def main() -> None:
     import argparse
-    import os
     import uvicorn
 
     parser = argparse.ArgumentParser(description="Local runtime gateway")
@@ -229,11 +245,26 @@ def main() -> None:
     parser.add_argument("--config", type=str, default=None)
     args = parser.parse_args()
 
-    config_path = Path(args.config) if args.config else None
+    config_path = Path(args.config).expanduser() if args.config else None
+    if config_path is not None:
+        os.environ["LOCAL_RUNTIME_CONFIG"] = str(config_path)
+
     config = RuntimeConfig.load(config_path)
+    app.state.config = config
+
     if args.port is not None:
         config.port = args.port
     reload_enabled = os.environ.get("LOCAL_RUNTIME_RELOAD", "").lower() in {"1", "true", "yes"}
+
+    if reload_enabled:
+        uvicorn.run(
+            "local_runtime.main:app",
+            host="127.0.0.1",
+            port=config.port,
+            reload=True,
+        )
+        return
+
     uvicorn.run(
         app,
         host="127.0.0.1",
