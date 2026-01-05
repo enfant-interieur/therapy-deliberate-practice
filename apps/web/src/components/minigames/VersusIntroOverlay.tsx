@@ -18,13 +18,11 @@ export const VersusIntroOverlay = ({
   onComplete
 }: VersusIntroOverlayProps) => {
   const [canDismiss, setCanDismiss] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
   const handledRef = useRef(false);
 
   useEffect(() => {
     if (!open) return;
     handledRef.current = false;
-    setIsExiting(false);
     setCanDismiss(false);
     const timeout = window.setTimeout(() => setCanDismiss(true), 1200);
     return () => window.clearTimeout(timeout);
@@ -38,8 +36,7 @@ export const VersusIntroOverlay = ({
       onClick={() => {
         if (!canDismiss || handledRef.current) return;
         handledRef.current = true;
-        setIsExiting(true);
-        window.setTimeout(() => onComplete(), 600);
+        onComplete();
       }}
     >
       <div className="relative flex w-full max-w-3xl items-center justify-center gap-6 px-8">
@@ -50,9 +47,7 @@ export const VersusIntroOverlay = ({
           }}
         />
         <div
-          className={`relative flex w-full items-center justify-between rounded-[32px] border border-white/15 bg-slate-950/70 px-8 py-10 text-center shadow-[0_0_60px_rgba(15,23,42,0.6)] backdrop-blur ${
-            isExiting ? "animate-versus-intro-exit" : "animate-versus-intro-enter"
-          }`}
+          className="relative flex w-full items-center justify-between rounded-[32px] border border-white/15 bg-slate-950/70 px-8 py-10 text-center shadow-[0_0_60px_rgba(15,23,42,0.6)] backdrop-blur animate-versus-intro-enter"
         >
           <div className="flex-1 text-left">
             <p className="text-xs uppercase tracking-[0.4em] text-slate-400">Player</p>
