@@ -5,9 +5,10 @@ type RoundHUDProps = {
   player?: MinigamePlayer;
   teams: MinigameTeam[];
   onNextTurn?: () => void;
+  nextTurnDisabled?: boolean;
 };
 
-export const RoundHUD = ({ round, player, teams, onNextTurn }: RoundHUDProps) => {
+export const RoundHUD = ({ round, player, teams, onNextTurn, nextTurnDisabled }: RoundHUDProps) => {
   const team = teams.find((entry) => entry.id === player?.team_id);
 
   return (
@@ -27,7 +28,8 @@ export const RoundHUD = ({ round, player, teams, onNextTurn }: RoundHUDProps) =>
       {onNextTurn && (
         <button
           onClick={onNextTurn}
-          className="rounded-full border border-teal-300/60 bg-teal-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-teal-100 hover:border-teal-200"
+          disabled={nextTurnDisabled}
+          className="rounded-full border border-teal-300/60 bg-teal-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-teal-100 hover:border-teal-200 disabled:border-white/10 disabled:bg-white/5 disabled:text-white/50 disabled:hover:border-white/10"
         >
           Next turn
         </button>

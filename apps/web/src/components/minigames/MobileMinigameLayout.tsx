@@ -35,12 +35,14 @@ export const MobileMinigameLayout = ({
   transcriptProcessingStage,
   onToggleTranscript,
   onNextTurn,
+  nextTurnDisabled,
   onOpenEvaluation,
   onEndGame,
   onNewGame,
   onNewPlayer,
   onRedraw,
   canRedraw,
+  promptExhaustedMessage,
   fullscreen
 }: MinigameLayoutProps) => {
   const isPlaying = controller.audioStatus === "playing";
@@ -96,6 +98,14 @@ export const MobileMinigameLayout = ({
           </button>
         </div>
       </div>
+      {promptExhaustedMessage && (
+        <div className="rounded-3xl border border-amber-300/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
+            All prompts used
+          </p>
+          <p className="mt-1 text-sm text-amber-100/90">{promptExhaustedMessage}</p>
+        </div>
+      )}
 
       <DockPanel
         side="left"
@@ -121,6 +131,7 @@ export const MobileMinigameLayout = ({
           canSwitchPlayer={canSwitchPlayer}
           onRequestSwitchPlayer={onRequestSwitchPlayer}
           onNextTurn={onNextTurn}
+          nextTurnDisabled={nextTurnDisabled}
         />
       </DockPanel>
 

@@ -32,12 +32,14 @@ export const DesktopMinigameLayout = ({
   transcriptProcessingStage,
   onToggleTranscript,
   onNextTurn,
+  nextTurnDisabled,
   onOpenEvaluation,
   onEndGame,
   onNewGame,
   onNewPlayer,
   onRedraw,
   canRedraw,
+  promptExhaustedMessage,
   fullscreen
 }: MinigameLayoutProps) => {
   return (
@@ -73,14 +75,14 @@ export const DesktopMinigameLayout = ({
             </button>
           )}
           {mode === "tdm" && session && (
-            <button
-              onClick={onRedraw}
-              disabled={!canRedraw}
-              className="rounded-full border border-violet-300/60 bg-violet-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-violet-100 disabled:opacity-50 hover:border-violet-200"
-            >
-              Redraw
-            </button>
-          )}
+          <button
+            onClick={onRedraw}
+            disabled={!canRedraw}
+            className="rounded-full border border-violet-300/60 bg-violet-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-violet-100 disabled:opacity-50 hover:border-violet-200"
+          >
+            Redraw
+          </button>
+        )}
           <button
             onClick={fullscreen.toggle}
             disabled={!fullscreen.isSupported}
@@ -108,6 +110,14 @@ export const DesktopMinigameLayout = ({
           </button>
         </div>
       </div>
+      {promptExhaustedMessage && (
+        <div className="rounded-3xl border border-amber-300/40 bg-amber-500/10 px-6 py-3 text-xs text-amber-100">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
+            All prompts used
+          </p>
+          <p className="mt-1 text-sm text-amber-100/90">{promptExhaustedMessage}</p>
+        </div>
+      )}
 
       <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)_minmax(0,1fr)]">
         <div className="flex flex-col gap-4 lg:justify-self-start">
@@ -136,6 +146,7 @@ export const DesktopMinigameLayout = ({
               canSwitchPlayer={canSwitchPlayer}
               onRequestSwitchPlayer={onRequestSwitchPlayer}
               onNextTurn={onNextTurn}
+              nextTurnDisabled={nextTurnDisabled}
             />
           </DockPanel>
 

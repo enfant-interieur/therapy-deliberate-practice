@@ -41,6 +41,7 @@ import type { ApiDatabase } from "./db/types";
 import { createAdminAuth, resolveAdminStatus } from "./middleware/adminAuth";
 import { createUserAuth } from "./middleware/userAuth";
 import { decryptOpenAiKey, encryptOpenAiKey } from "./utils/crypto";
+import { generateUuid } from "./utils/uuid";
 import {
   createLogger,
   log,
@@ -57,6 +58,12 @@ import {
   softDeleteMinigameSession,
   updateMinigameResume
 } from "./services/minigameSessionsService";
+import {
+  NO_UNIQUE_PATIENT_STATEMENTS_LEFT,
+  NoUniquePatientStatementsLeftError,
+  generateMinigameRounds,
+  redrawMinigameRound
+} from "./services/minigameRoundsService";
 
 export type ApiDependencies = {
   env: RuntimeEnv;
@@ -133,23 +140,6 @@ const inferLanguage = (text: string) => {
     if (hits >= 3) return "fr";
   }
   return "en";
-};
-
-const generateUuid = () => {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
-  }
-  if (globalThis.crypto?.getRandomValues) {
-    const bytes = new Uint8Array(16);
-    globalThis.crypto.getRandomValues(bytes);
-    bytes[6] = (bytes[6] & 0x0f) | 0x40;
-    bytes[8] = (bytes[8] & 0x3f) | 0x80;
-    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0"));
-    return `${hex.slice(0, 4).join("")}-${hex.slice(4, 6).join("")}-${hex
-      .slice(6, 8)
-      .join("")}-${hex.slice(8, 10).join("")}-${hex.slice(10, 16).join("")}`;
-  }
-  return nanoid();
 };
 
 const remapUniqueUuids = <T extends { id: string }>(
@@ -2784,49 +2774,6 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     };
   };
 
-  const createSeededRandom = (seed: string) => {
-    let h = 2166136261;
-    for (let i = 0; i < seed.length; i += 1) {
-      h ^= seed.charCodeAt(i);
-      h = Math.imul(h, 16777619);
-    }
-    let state = h >>> 0;
-    return () => {
-      state += 0x6d2b79f5;
-      let t = state;
-      t = Math.imul(t ^ (t >>> 15), t | 1);
-      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-    };
-  };
-
-  const resolveMinigameTasks = async (selection: {
-    strategy: "manual" | "random" | "filtered_random";
-    task_ids?: string[];
-    tags?: string[];
-    skill_domains?: string[];
-  }) => {
-    if (selection.strategy === "manual") {
-      if (!selection.task_ids?.length) {
-        return [];
-      }
-      return db.select().from(tasks).where(inArray(tasks.id, selection.task_ids));
-    }
-
-    const filters = [eq(tasks.is_published, true)];
-    if (selection.skill_domains?.length) {
-      filters.push(inArray(tasks.skill_domain, selection.skill_domains));
-    }
-    const taskRows = await db.select().from(tasks).where(and(...filters));
-    if (!selection.tags?.length) {
-      return taskRows;
-    }
-    return taskRows.filter((task) => {
-      const tags = (task.tags ?? []) as string[];
-      return selection.tags?.some((tag) => tags.includes(tag));
-    });
-  };
-
   const calculateTimingPenalty = (timing?: {
     response_delay_ms?: number | null;
     response_duration_ms?: number | null;
@@ -2853,82 +2800,6 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
     const severity = Math.max(delaySeverity, durationSeverity);
     return severity > 0 ? 0.5 + 0.5 * severity : 0;
-  };
-
-  const generateTdmSchedule = (
-    players: Array<{ id: string; team_id: string | null }>,
-    roundsPerPlayer: number,
-    seed: string
-  ) => {
-    const rng = createSeededRandom(seed);
-    const remaining = new Map(players.map((player) => [player.id, roundsPerPlayer]));
-    const opponentsPlayed = new Map<string, Map<string, number>>();
-    const teamsFaced = new Map<string, Map<string, number>>();
-    for (const player of players) {
-      opponentsPlayed.set(player.id, new Map());
-      teamsFaced.set(player.id, new Map());
-    }
-
-    const matches: Array<{ playerA: string; playerB: string }> = [];
-    const getRemaining = (id: string) => remaining.get(id) ?? 0;
-
-    const pickPlayerA = () => {
-      const candidates = players.filter((player) => getRemaining(player.id) > 0);
-      if (!candidates.length) return null;
-      candidates.sort((a, b) => getRemaining(b.id) - getRemaining(a.id));
-      const topRemaining = getRemaining(candidates[0].id);
-      const topCandidates = candidates.filter((player) => getRemaining(player.id) === topRemaining);
-      return topCandidates[Math.floor(rng() * topCandidates.length)];
-    };
-
-    const pickPlayerB = (playerA: { id: string; team_id: string | null }) => {
-      const candidates = players.filter(
-        (player) => player.id !== playerA.id && player.team_id !== playerA.team_id && getRemaining(player.id) > 0
-      );
-      if (!candidates.length) return null;
-      const opponentsMap = opponentsPlayed.get(playerA.id) ?? new Map();
-      const teamsMapA = teamsFaced.get(playerA.id) ?? new Map();
-      candidates.sort((a, b) => {
-        const aOpp = opponentsMap.get(a.id) ?? 0;
-        const bOpp = opponentsMap.get(b.id) ?? 0;
-        if (aOpp !== bOpp) return aOpp - bOpp;
-        const aTeamCount = teamsMapA.get(a.team_id ?? "") ?? 0;
-        const bTeamCount = teamsMapA.get(b.team_id ?? "") ?? 0;
-        if (aTeamCount !== bTeamCount) return aTeamCount - bTeamCount;
-        const aRemaining = getRemaining(a.id);
-        const bRemaining = getRemaining(b.id);
-        if (aRemaining !== bRemaining) return bRemaining - aRemaining;
-        return rng() - 0.5;
-      });
-      return candidates[0];
-    };
-
-    while (true) {
-      const playerA = pickPlayerA();
-      if (!playerA) break;
-      const playerB = pickPlayerB(playerA);
-      if (!playerB) {
-        remaining.set(playerA.id, 0);
-        continue;
-      }
-      matches.push({ playerA: playerA.id, playerB: playerB.id });
-      remaining.set(playerA.id, getRemaining(playerA.id) - 1);
-      remaining.set(playerB.id, getRemaining(playerB.id) - 1);
-      const opponentsA = opponentsPlayed.get(playerA.id) ?? new Map();
-      const opponentsB = opponentsPlayed.get(playerB.id) ?? new Map();
-      opponentsA.set(playerB.id, (opponentsA.get(playerB.id) ?? 0) + 1);
-      opponentsB.set(playerA.id, (opponentsB.get(playerA.id) ?? 0) + 1);
-      const teamsA = teamsFaced.get(playerA.id) ?? new Map();
-      const teamsB = teamsFaced.get(playerB.id) ?? new Map();
-      if (playerB.team_id) {
-        teamsA.set(playerB.team_id, (teamsA.get(playerB.team_id) ?? 0) + 1);
-      }
-      if (playerA.team_id) {
-        teamsB.set(playerA.team_id, (teamsB.get(playerA.team_id) ?? 0) + 1);
-      }
-    }
-
-    return matches;
   };
 
   app.post("/api/v1/minigames/sessions", async (c) => {
@@ -3223,111 +3094,29 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       return c.json({ error: "Session not found." }, 404);
     }
 
-    const selection = session.task_selection as {
-      strategy: "manual" | "random" | "filtered_random";
-      task_ids?: string[];
-      tags?: string[];
-      skill_domains?: string[];
-      shuffle?: boolean;
-      seed?: string;
-    };
-    const tasksForSelection = await resolveMinigameTasks(selection);
-    if (!tasksForSelection.length) {
-      return c.json({ error: "No tasks available for selection." }, 400);
-    }
-    const examples = await db
-      .select()
-      .from(taskExamples)
-      .where(inArray(taskExamples.task_id, tasksForSelection.map((task) => task.id)));
-    const examplesByTask = new Map<string, typeof examples>();
-    for (const example of examples) {
-      const existing = examplesByTask.get(example.task_id) ?? [];
-      existing.push(example);
-      examplesByTask.set(example.task_id, existing);
-    }
-    const seed = selection.seed ?? session.id;
-    const rng = createSeededRandom(seed);
-
-    const players = await db
-      .select()
-      .from(minigamePlayers)
-      .where(eq(minigamePlayers.session_id, sessionId));
-    const teams = await db
-      .select()
-      .from(minigameTeams)
-      .where(eq(minigameTeams.session_id, sessionId));
-    const teamByPlayer = new Map(players.map((player) => [player.id, player.team_id ?? null]));
-
-    const [lastRound] = await db
-      .select({ position: minigameRounds.position })
-      .from(minigameRounds)
-      .where(eq(minigameRounds.session_id, sessionId))
-      .orderBy(desc(minigameRounds.position))
-      .limit(1);
-    let startPosition = lastRound?.position != null ? lastRound.position + 1 : 0;
-
-    const roundsToInsert: Array<typeof minigameRounds.$inferInsert> = [];
-    if (session.game_type === "tdm") {
-      const roundsPerPlayer = Number((session.settings as { rounds_per_player?: number }).rounds_per_player ?? 1);
-      const matches = generateTdmSchedule(
-        players.map((player) => ({ id: player.id, team_id: player.team_id ?? null })),
-        roundsPerPlayer,
-        seed
-      );
-      for (const match of matches) {
-        const task = tasksForSelection[Math.floor(rng() * tasksForSelection.length)];
-        const examplesForTask = examplesByTask.get(task.id) ?? [];
-        if (!examplesForTask.length) continue;
-        const example = examplesForTask[Math.floor(rng() * examplesForTask.length)];
-        roundsToInsert.push({
-          id: generateUuid(),
-          session_id: sessionId,
-          position: startPosition,
-          task_id: task.id,
-          example_id: example.id,
-          player_a_id: match.playerA,
-          player_b_id: match.playerB,
-          team_a_id: teamByPlayer.get(match.playerA),
-          team_b_id: teamByPlayer.get(match.playerB),
-          status: "pending",
-          started_at: null,
-          completed_at: null
-        });
-        startPosition += 1;
+    const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
+      log(level, event, { sessionId, ...fields });
+    try {
+      const result = await generateMinigameRounds({
+        db,
+        session,
+        count: parsed.data.count,
+        logEvent
+      });
+      return c.json({ round_count: result.roundCount });
+    } catch (error) {
+      if (error instanceof NoUniquePatientStatementsLeftError) {
+        return c.json(
+          {
+            error: error.message,
+            code: NO_UNIQUE_PATIENT_STATEMENTS_LEFT,
+            metadata: error.metadata
+          },
+          409
+        );
       }
-    } else {
-      const count = parsed.data.count ?? 1;
-      if (!players.length) {
-        return c.json({ error: "Add at least one player before generating rounds." }, 400);
-      }
-      for (let i = 0; i < count; i += 1) {
-        const player = players[i % players.length];
-        const task = tasksForSelection[Math.floor(rng() * tasksForSelection.length)];
-        const examplesForTask = examplesByTask.get(task.id) ?? [];
-        if (!examplesForTask.length) continue;
-        const example = examplesForTask[Math.floor(rng() * examplesForTask.length)];
-        roundsToInsert.push({
-          id: generateUuid(),
-          session_id: sessionId,
-          position: startPosition,
-          task_id: task.id,
-          example_id: example.id,
-          player_a_id: player.id,
-          player_b_id: null,
-          team_a_id: player.team_id ?? null,
-          team_b_id: null,
-          status: "pending",
-          started_at: null,
-          completed_at: null
-        });
-        startPosition += 1;
-      }
+      throw error;
     }
-
-    if (roundsToInsert.length) {
-      await db.insert(minigameRounds).values(roundsToInsert);
-    }
-    return c.json({ round_count: roundsToInsert.length });
   });
 
   app.post("/api/v1/minigames/sessions/:id/redraw", async (c) => {
@@ -3369,79 +3158,24 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         .where(eq(minigameRounds.id, pendingRound.id));
     }
 
-    const selection = session.task_selection as {
-      strategy: "manual" | "random" | "filtered_random";
-      task_ids?: string[];
-      tags?: string[];
-      skill_domains?: string[];
-      shuffle?: boolean;
-      seed?: string;
-    };
-    const tasksForSelection = await resolveMinigameTasks(selection);
-    if (!tasksForSelection.length) {
-      return c.json({ error: "No tasks available for selection." }, 400);
+    const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
+      log(level, event, { sessionId, ...fields });
+    try {
+      const result = await redrawMinigameRound({ db, session, logEvent });
+      return c.json({ round_count: result.roundCount });
+    } catch (error) {
+      if (error instanceof NoUniquePatientStatementsLeftError) {
+        return c.json(
+          {
+            error: error.message,
+            code: NO_UNIQUE_PATIENT_STATEMENTS_LEFT,
+            metadata: error.metadata
+          },
+          409
+        );
+      }
+      throw error;
     }
-    const examples = await db
-      .select()
-      .from(taskExamples)
-      .where(inArray(taskExamples.task_id, tasksForSelection.map((task) => task.id)));
-    const examplesByTask = new Map<string, typeof examples>();
-    for (const example of examples) {
-      const existing = examplesByTask.get(example.task_id) ?? [];
-      existing.push(example);
-      examplesByTask.set(example.task_id, existing);
-    }
-    const seed = selection.seed ?? session.id;
-    const rng = createSeededRandom(seed);
-
-    const players = await db
-      .select()
-      .from(minigamePlayers)
-      .where(eq(minigamePlayers.session_id, sessionId));
-    if (players.length < 2) {
-      return c.json({ error: "Not enough players to redraw." }, 400);
-    }
-    const teamByPlayer = new Map(players.map((player) => [player.id, player.team_id ?? null]));
-    const roundsPerPlayer = 1;
-    const matches = generateTdmSchedule(
-      players.map((player) => ({ id: player.id, team_id: player.team_id ?? null })),
-      roundsPerPlayer,
-      seed
-    );
-    const match = matches[0];
-    if (!match) {
-      return c.json({ round_count: 0 });
-    }
-
-    const [lastRound] = await db
-      .select({ position: minigameRounds.position })
-      .from(minigameRounds)
-      .where(eq(minigameRounds.session_id, sessionId))
-      .orderBy(desc(minigameRounds.position))
-      .limit(1);
-    const startPosition = lastRound?.position != null ? lastRound.position + 1 : 0;
-    const task = tasksForSelection[Math.floor(rng() * tasksForSelection.length)];
-    const examplesForTask = examplesByTask.get(task.id) ?? [];
-    if (!examplesForTask.length) {
-      return c.json({ round_count: 0 });
-    }
-    const example = examplesForTask[Math.floor(rng() * examplesForTask.length)];
-    const newRound = {
-      id: generateUuid(),
-      session_id: sessionId,
-      position: startPosition,
-      task_id: task.id,
-      example_id: example.id,
-      player_a_id: match.playerA,
-      player_b_id: match.playerB,
-      team_a_id: teamByPlayer.get(match.playerA),
-      team_b_id: teamByPlayer.get(match.playerB),
-      status: "pending",
-      started_at: null,
-      completed_at: null
-    };
-    await db.insert(minigameRounds).values(newRound);
-    return c.json({ round_count: 1 });
   });
 
   app.get("/api/v1/minigames/sessions/:id/state", async (c) => {

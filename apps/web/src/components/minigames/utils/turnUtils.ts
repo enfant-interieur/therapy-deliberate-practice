@@ -1,7 +1,7 @@
 import type { MinigameRound } from "../../../store/api";
 
 export const roundExampleKey = (round: MinigameRound) =>
-  `${round.task_id ?? "task"}:${round.example_id ?? "example"}`;
+  `${round.example_id ?? "example"}`;
 
 export const deriveActivePlayerId = ({
   mode,

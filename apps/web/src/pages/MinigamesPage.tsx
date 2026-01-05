@@ -55,6 +55,7 @@ const modeCopy = {
 };
 
 const WARMUP_AHEAD = 2;
+const NO_UNIQUE_PATIENT_STATEMENTS_LEFT = "NO_UNIQUE_PATIENT_STATEMENTS_LEFT";
 
 export const MinigamePlayPage = () => {
   const dispatch = useAppDispatch();
@@ -78,6 +79,7 @@ export const MinigamePlayPage = () => {
   const [endGameOpen, setEndGameOpen] = useState(false);
   const [winnerSummary, setWinnerSummary] = useState<WinnerSummary | null>(null);
   const [switchTargetPlayerId, setSwitchTargetPlayerId] = useState<string | null>(null);
+  const [promptExhaustedMessage, setPromptExhaustedMessage] = useState<string | null>(null);
   const [switchDialogOpen, setSwitchDialogOpen] = useState(false);
   const handledPreselectRef = useRef(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -101,9 +103,27 @@ export const MinigamePlayPage = () => {
     setAudioElement(node);
   }, []);
 
+  const clearPromptExhaustion = useCallback(() => {
+    setPromptExhaustedMessage(null);
+  }, []);
+
+  const handlePromptExhaustionError = useCallback((error: unknown) => {
+    const payload = (error as { data?: { code?: string; error?: string } })?.data;
+    if (payload?.code !== NO_UNIQUE_PATIENT_STATEMENTS_LEFT) return false;
+    setPromptExhaustedMessage(
+      payload.error ??
+        "You\u2019ve used all available unique patient prompts for this session. Start a new game or broaden task selection."
+    );
+    return true;
+  }, []);
+
   useEffect(() => {
     patientAudioRef.current = patientAudio;
   }, [patientAudio]);
+
+  useEffect(() => {
+    clearPromptExhaustion();
+  }, [clearPromptExhaustion, minigames.session?.id]);
 
   useEffect(() => {
     dispatch(setAppShellHidden(true));
@@ -499,6 +519,7 @@ export const MinigamePlayPage = () => {
     maxResponseSeconds?: number;
   }) => {
     if (!mode) return;
+    clearPromptExhaustion();
     const session = await createSession({
       game_type: mode,
       visibility_mode: payload.visibilityMode,
@@ -539,10 +560,15 @@ export const MinigamePlayPage = () => {
       }).unwrap();
     }
 
-    await generateRounds({
-      sessionId: session.session_id,
-      count: mode === "ffa" ? 3 : undefined
-    });
+    try {
+      await generateRounds({
+        sessionId: session.session_id,
+        count: mode === "ffa" ? 3 : undefined
+      }).unwrap();
+    } catch (error) {
+      if (handlePromptExhaustionError(error)) return;
+      throw error;
+    }
 
     await fetchMinigameState(session.session_id);
     dispatch(setCurrentRoundId(undefined));
@@ -579,6 +605,7 @@ export const MinigamePlayPage = () => {
   };
 
   const nextTurn = () => {
+    if (promptExhaustedMessage) return;
     const upcoming = [...minigames.rounds]
       .filter((round) => round.status !== "completed")
       .sort((a, b) => a.position - b.position);
@@ -601,6 +628,7 @@ export const MinigamePlayPage = () => {
       audioElement.pause();
       audioElement.currentTime = 0;
     }
+    clearPromptExhaustion();
     setMode(null);
     setSelectOpen(true);
     setSetupOpen(false);
@@ -673,7 +701,15 @@ export const MinigamePlayPage = () => {
       discardedRoundIds: discardedRoundIdsRef.current
     });
     if (!nextForNewPlayer) {
-      await generateRounds({ sessionId: minigames.session.id, count: refreshed.players.length });
+      try {
+        await generateRounds({ sessionId: minigames.session.id, count: refreshed.players.length }).unwrap();
+      } catch (error) {
+        if (handlePromptExhaustionError(error)) {
+          setNewPlayerOpen(false);
+          return;
+        }
+        throw error;
+      }
       const updated = await fetchMinigameState(minigames.session.id).unwrap();
       dispatch(setMinigameState(updated));
       const updatedCompletedRoundIds = updated.results.reduce<Map<string, Set<string>>>((acc, result) => {
@@ -705,7 +741,13 @@ export const MinigamePlayPage = () => {
   const handleRedraw = async () => {
     if (!minigames.session) return;
     controller.abortTurn("redraw");
-    await redrawRound({ sessionId: minigames.session.id }).unwrap();
+    try {
+      await redrawRound({ sessionId: minigames.session.id }).unwrap();
+      clearPromptExhaustion();
+    } catch (error) {
+      if (handlePromptExhaustionError(error)) return;
+      throw error;
+    }
     const refreshed = await fetchMinigameState(minigames.session.id).unwrap();
     dispatch(setMinigameState(refreshed));
     dispatch(setCurrentRoundId(refreshed.rounds.find((round) => round.status !== "completed")?.id));
@@ -726,12 +768,15 @@ export const MinigamePlayPage = () => {
     return "Record";
   }, [controller.maxDurationRemaining, controller.responseCountdownLabel, controller.state]);
 
+  const nextTurnDisabled = Boolean(promptExhaustedMessage);
+
   const canRedraw =
     mode === "tdm" &&
     controller.state !== "recording" &&
     controller.state !== "transcribing" &&
     controller.state !== "evaluating" &&
-    controller.state !== "patient_playing";
+    controller.state !== "patient_playing" &&
+    !promptExhaustedMessage;
 
   const previousScore = useMemo(() => {
     if (!activePlayerId) return null;
@@ -787,7 +832,16 @@ export const MinigamePlayPage = () => {
       discardedRoundIds: discardedRoundIdsRef.current
     });
     if (!nextRound) {
-      await generateRounds({ sessionId: minigames.session.id, count: minigames.players.length });
+      try {
+        await generateRounds({ sessionId: minigames.session.id, count: minigames.players.length }).unwrap();
+      } catch (error) {
+        if (handlePromptExhaustionError(error)) {
+          setSwitchDialogOpen(false);
+          setSwitchTargetPlayerId(null);
+          return;
+        }
+        throw error;
+      }
       const refreshed = await fetchMinigameState(minigames.session.id).unwrap();
       dispatch(setMinigameState(refreshed));
       const refreshedCompletedRounds = refreshed.results.reduce<Map<string, Set<string>>>((acc, result) => {
@@ -852,6 +906,7 @@ export const MinigamePlayPage = () => {
           onNextTurn={
             roundResultScore != null && controller.state === "complete" ? nextTurn : undefined
           }
+          nextTurnDisabled={nextTurnDisabled}
           onOpenEvaluation={() => dispatch(setEvaluationDrawerOpen(true))}
           onEndGame={endGame}
           onNewGame={() => {
@@ -861,6 +916,7 @@ export const MinigamePlayPage = () => {
           onNewPlayer={() => setNewPlayerOpen(true)}
           onRedraw={handleRedraw}
           canRedraw={canRedraw}
+          promptExhaustedMessage={promptExhaustedMessage}
           fullscreen={fullscreen}
         />
       ) : (
@@ -890,6 +946,7 @@ export const MinigamePlayPage = () => {
           onNextTurn={
             roundResultScore != null && controller.state === "complete" ? nextTurn : undefined
           }
+          nextTurnDisabled={nextTurnDisabled}
           onOpenEvaluation={() => dispatch(setEvaluationDrawerOpen(true))}
           onEndGame={endGame}
           onNewGame={() => {
@@ -899,6 +956,7 @@ export const MinigamePlayPage = () => {
           onNewPlayer={() => setNewPlayerOpen(true)}
           onRedraw={handleRedraw}
           canRedraw={canRedraw}
+          promptExhaustedMessage={promptExhaustedMessage}
           fullscreen={fullscreen}
         />
       )}

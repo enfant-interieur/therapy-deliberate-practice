@@ -15,6 +15,7 @@ type PlayersPanelProps = {
   canSwitchPlayer: boolean;
   onRequestSwitchPlayer?: (playerId: string) => void;
   onNextTurn?: () => void;
+  nextTurnDisabled?: boolean;
 };
 
 export const PlayersPanel = ({
@@ -28,7 +29,8 @@ export const PlayersPanel = ({
   upNextPlayerId,
   canSwitchPlayer,
   onRequestSwitchPlayer,
-  onNextTurn
+  onNextTurn,
+  nextTurnDisabled
 }: PlayersPanelProps) => {
   const activePlayer = players.find((player) => player.id === activePlayerId);
   const scoresByPlayer = useMemo(() => {
@@ -59,7 +61,13 @@ export const PlayersPanel = ({
 
   return (
     <div className="space-y-3">
-      <RoundHUD round={currentRound} player={activePlayer} teams={teams} onNextTurn={onNextTurn} />
+      <RoundHUD
+        round={currentRound}
+        player={activePlayer}
+        teams={teams}
+        onNextTurn={onNextTurn}
+        nextTurnDisabled={nextTurnDisabled}
+      />
       <div className="rounded-3xl border border-white/10 bg-slate-900/60 px-4 py-4 shadow-[0_0_20px_rgba(15,23,42,0.4)] backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

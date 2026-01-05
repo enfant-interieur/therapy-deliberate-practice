@@ -52,12 +52,14 @@ export type MinigameLayoutProps = {
   transcriptProcessingStage?: "transcribing" | "evaluating" | null;
   onToggleTranscript: () => void;
   onNextTurn?: () => void;
+  nextTurnDisabled?: boolean;
   onOpenEvaluation: () => void;
   onEndGame: () => void;
   onNewGame: () => void;
   onNewPlayer: () => void;
   onRedraw: () => void;
   canRedraw: boolean;
+  promptExhaustedMessage?: string | null;
   fullscreen: {
     isFullscreen: boolean;
     isSupported: boolean;

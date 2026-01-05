@@ -304,6 +304,24 @@ export const minigameRoundResults = sqliteTable(
   })
 );
 
+export const minigamePlayerPromptHistory = sqliteTable(
+  "minigame_player_prompt_history",
+  {
+    session_id: text("session_id").notNull(),
+    player_id: text("player_id").notNull(),
+    patient_statement_id: text("patient_statement_id").notNull(),
+    created_at: integer("created_at").notNull()
+  },
+  (table) => ({
+    sessionPromptIdx: uniqueIndex("minigame_player_prompt_history_session_player_statement_idx").on(
+      table.session_id,
+      table.player_id,
+      table.patient_statement_id
+    ),
+    sessionIdx: index("minigame_player_prompt_history_session_id_idx").on(table.session_id)
+  })
+);
+
 export const ttsAssets = sqliteTable(
   "tts_assets",
   {
