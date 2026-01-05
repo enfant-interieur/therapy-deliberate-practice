@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MinigameRound } from "../../../store/api";
 import { useStartMinigameRoundMutation, useSubmitMinigameRoundMutation } from "../../../store/api";
 import { useAudioRecorder } from "./useAudioRecorder";
-import { useResponseTiming } from "./useResponseTiming";
+import { useResponseTiming, MIN_RESPONSE_TIMER_NEGATIVE } from "./useResponseTiming";
 import type { PatientAudioBankHandle } from "../../../patientAudio/usePatientAudioBank";
-import { applyTimingPenalty, normalizeSubmitResponse } from "./turnSubmit";
+import { applyTimingPenalty, createTimeoutEvaluation, normalizeSubmitResponse } from "./turnSubmit";
 
 export type MatchState =
   | "idle"
@@ -91,6 +91,7 @@ export const useTdmMatchController = ({
   const introShownRef = useRef<string | null>(null);
   const lastAudioStatusRef = useRef(audioStatus);
   const autoStopRef = useRef(false);
+  const autoFailRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!round?.id) return;
@@ -103,6 +104,7 @@ export const useTdmMatchController = ({
       setSubmitError(null);
       resetTiming();
       autoStopRef.current = false;
+      autoFailRef.current = null;
       setPatientEndedAt(null);
       playTokenRef.current += 1;
       if (audioElement) {
@@ -144,7 +146,7 @@ export const useTdmMatchController = ({
   ]);
 
   useEffect(() => {
-    if (state === "awaiting_response_window" && responseCountdown === 0) {
+    if (state === "awaiting_response_window" && responseCountdown != null && responseCountdown <= 0) {
       setState("patient_ready");
     }
   }, [responseCountdown, state]);
@@ -365,8 +367,17 @@ export const useTdmMatchController = ({
   }, [activePlayerId, round, state]);
 
   const responseCountdownLabel = useMemo(() => {
-    if (state !== "awaiting_response_window" || responseCountdown == null) return undefined;
-    return `${responseCountdown.toFixed(1)}s`;
+    if (responseCountdown == null) return undefined;
+    if (
+      state === "recording" ||
+      state === "transcribing" ||
+      state === "evaluating" ||
+      state === "complete"
+    ) {
+      return undefined;
+    }
+    const label = responseCountdown > 0 ? "WAIT" : "LATE";
+    return `${label} ${Math.abs(responseCountdown).toFixed(1)}s`;
   }, [responseCountdown, state]);
 
   const maxDurationProgress = useMemo(() => {
@@ -376,6 +387,82 @@ export const useTdmMatchController = ({
 
   const processingStage =
     state === "transcribing" ? "transcribing" : state === "evaluating" ? "evaluating" : null;
+
+  const responseCountdownActive = useMemo(() => {
+    if (
+      state === "recording" ||
+      state === "transcribing" ||
+      state === "evaluating" ||
+      state === "complete"
+    ) {
+      return null;
+    }
+    return responseCountdown;
+  }, [responseCountdown, state]);
+
+  const micAccent = useMemo(() => {
+    if (state === "transcribing" || state === "evaluating" || state === "complete") return "teal";
+    if (state === "recording") return "rose";
+    if (
+      responseCountdown != null &&
+      responseCountdown <= 0 &&
+      responseCountdown > -MIN_RESPONSE_TIMER_NEGATIVE
+    ) {
+      return "rose";
+    }
+    return "teal";
+  }, [responseCountdown, state]);
+
+  const micAttention = useMemo(() => {
+    if (state === "recording" || state === "transcribing" || state === "evaluating" || state === "complete") {
+      return false;
+    }
+    return (
+      responseCountdown != null &&
+      responseCountdown <= 0 &&
+      responseCountdown > -MIN_RESPONSE_TIMER_NEGATIVE
+    );
+  }, [responseCountdown, state]);
+
+  useEffect(() => {
+    if (!round || !activePlayerId) return;
+    if (responseCountdown == null) return;
+    if (responseCountdown > -MIN_RESPONSE_TIMER_NEGATIVE) return;
+    if (
+      state === "recording" ||
+      state === "transcribing" ||
+      state === "evaluating" ||
+      state === "complete"
+    ) {
+      return;
+    }
+    const autoFailKey = `${round.id}-${activePlayerId}`;
+    if (autoFailRef.current === autoFailKey) return;
+    autoFailRef.current = autoFailKey;
+    const attemptId = `timeout-${round.id}-${activePlayerId}-${Date.now()}`;
+    const evaluation = createTimeoutEvaluation({
+      taskId: round.task_id,
+      exampleId: round.example_id,
+      attemptId
+    });
+    onResult({
+      transcript: evaluation.transcript.text,
+      evaluation,
+      score: 0,
+      attemptId,
+      timingPenalty: 0,
+      playerId: activePlayerId
+    });
+    resetTiming();
+    if (round.player_b_id && activePlayerId === round.player_a_id) {
+      setActivePlayerId(round.player_b_id);
+      setState("between_players");
+      playTokenRef.current += 1;
+      stop(audioElement);
+    } else {
+      setState("complete");
+    }
+  }, [activePlayerId, audioElement, onResult, resetTiming, responseCountdown, round, state, stop]);
 
   return {
     state,
@@ -388,6 +475,9 @@ export const useTdmMatchController = ({
     submitError,
     processingStage,
     responseCountdownLabel,
+    responseCountdown: responseCountdownActive,
+    micAccent,
+    micAttention,
     maxDurationRemaining,
     maxDurationProgress,
     patientEndedAt,

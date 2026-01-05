@@ -1,6 +1,7 @@
 import { BigMicButton } from "./BigMicButton";
 import { DockPanel } from "./DockPanel";
 import { LeaderboardPanel } from "./LeaderboardPanel";
+import { NowUpHeader } from "./NowUpHeader";
 import { TranscriptOverlay } from "./TranscriptOverlay";
 import type { MinigameLayoutProps } from "./layouts";
 
@@ -19,6 +20,7 @@ export const MobileMinigameLayout = ({
   currentRound,
   currentTask,
   currentPlayer,
+  activePlayerId,
   currentPlayerId,
   onPlayerChange,
   controller,
@@ -45,7 +47,7 @@ export const MobileMinigameLayout = ({
   const playButtonLabel = playLabel(isPlaying, Boolean(controller.patientEndedAt));
 
   return (
-    <div className="relative z-10 flex h-full flex-col gap-4 px-4 pb-6 pt-6">
+    <div className="relative z-10 flex h-full flex-col gap-4 overflow-y-auto px-4 pb-6 pt-6">
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/70 px-4 py-4 shadow-[0_0_25px_rgba(15,23,42,0.45)] backdrop-blur">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-teal-200/70">Minigames</p>
@@ -188,9 +190,16 @@ export const MobileMinigameLayout = ({
       </DockPanel>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-4 text-center">
-        <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-slate-200 shadow-[0_0_24px_rgba(15,23,42,0.4)] backdrop-blur">
-          {controller.audioError ?? "Patient audio is ready when you are."}
-        </div>
+        <NowUpHeader
+          mode={mode}
+          currentRound={currentRound}
+          players={players}
+          teams={teams}
+          activePlayerId={activePlayerId}
+          responseCountdown={controller.responseCountdown}
+          audioStatus={controller.audioStatus}
+          audioError={controller.audioError}
+        />
         <button
           onClick={() => (isPlaying ? controller.stopPatient() : controller.playPatient())}
           disabled={controller.audioStatus === "generating" || controller.audioStatus === "downloading"}
@@ -226,6 +235,8 @@ export const MobileMinigameLayout = ({
           mode={controller.micMode}
           subLabel={micLabel}
           progress={controller.state === "recording" ? controller.maxDurationProgress : 0}
+          accent={controller.micAccent}
+          attention={controller.micAttention}
           onRecord={controller.startRecording}
           onStop={controller.stopAndSubmit}
         />
@@ -285,6 +296,7 @@ export const MobileMinigameLayout = ({
             text={transcriptText}
             processingStage={transcriptProcessingStage}
             onToggle={onToggleTranscript}
+            variant="embedded"
           />
         </DockPanel>
       )}

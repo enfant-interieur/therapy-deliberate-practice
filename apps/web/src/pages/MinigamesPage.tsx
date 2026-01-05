@@ -304,7 +304,7 @@ export const MinigamePlayPage = () => {
             playerId: currentPlayerId,
             attemptId: payload.attemptId,
             overallScore: score ?? 0,
-            overallPass: true,
+            overallPass: payload.evaluation?.overall?.pass ?? true,
             transcript: payload.transcript,
             evaluation: payload.evaluation as EvaluationResult | undefined,
             clientPenalty: payload.timingPenalty
@@ -356,7 +356,7 @@ export const MinigamePlayPage = () => {
             playerId: payload.playerId,
             attemptId: payload.attemptId,
             overallScore: score ?? 0,
-            overallPass: true,
+            overallPass: payload.evaluation?.overall?.pass ?? true,
             transcript: payload.transcript,
             evaluation: payload.evaluation as EvaluationResult | undefined,
             clientPenalty: payload.timingPenalty
@@ -373,6 +373,11 @@ export const MinigamePlayPage = () => {
   const controller = mode === "tdm" ? tdmController : ffaController;
   const activePlayerId = mode === "tdm" ? tdmController.activePlayerId : currentPlayerId;
   const currentPlayer = minigames.players.find((player) => player.id === activePlayerId);
+
+  useEffect(() => {
+    setLastTranscript(undefined);
+    setLastAttemptId(undefined);
+  }, [activePlayerId, currentRound?.id]);
 
   const handlePlayerChange = (playerId: string) => {
     dispatch(setCurrentPlayerId(playerId));
@@ -631,6 +636,7 @@ export const MinigamePlayPage = () => {
           currentRound={currentRound}
           currentTask={currentTask}
           currentPlayer={currentPlayer}
+          activePlayerId={activePlayerId}
           currentPlayerId={currentPlayerId}
           onPlayerChange={handlePlayerChange}
           controller={controller}
@@ -668,6 +674,7 @@ export const MinigamePlayPage = () => {
           currentRound={currentRound}
           currentTask={currentTask}
           currentPlayer={currentPlayer}
+          activePlayerId={activePlayerId}
           currentPlayerId={currentPlayerId}
           onPlayerChange={handlePlayerChange}
           controller={controller}

@@ -17,6 +17,10 @@ export type MinigameController = {
   playPatient: () => void;
   stopPatient: () => void;
   micMode: "record" | "stop" | "disabled" | "locked";
+  micAccent?: "teal" | "rose";
+  micAttention?: boolean;
+  responseCountdown?: number | null;
+  responseCountdownLabel?: string;
   maxDurationProgress: number;
   startRecording: () => void;
   stopAndSubmit: () => void;
@@ -33,6 +37,7 @@ export type MinigameLayoutProps = {
   currentRound?: MinigameRound;
   currentTask?: Task;
   currentPlayer?: MinigamePlayer;
+  activePlayerId?: string | null;
   currentPlayerId?: string;
   onPlayerChange?: (playerId: string) => void;
   controller: MinigameController;

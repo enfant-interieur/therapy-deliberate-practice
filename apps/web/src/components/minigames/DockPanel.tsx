@@ -73,7 +73,7 @@ export const DockPanel = ({
           </span>
           <span
             className={`text-xs font-semibold uppercase tracking-[0.35em] text-slate-200 ${
-              isCollapsed ? "[writing-mode:vertical-rl]" : ""
+              isCollapsed ? "md:[writing-mode:vertical-rl]" : ""
             }`}
           >
             {title}

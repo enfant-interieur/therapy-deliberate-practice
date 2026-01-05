@@ -1,6 +1,7 @@
 import { BigMicButton } from "./BigMicButton";
 import { DockPanel } from "./DockPanel";
 import { LeaderboardPanel } from "./LeaderboardPanel";
+import { NowUpHeader } from "./NowUpHeader";
 import { PatientAudioControls } from "./PatientAudioControls";
 import { RoundHUD } from "./RoundHUD";
 import { RoundTaskCard } from "./RoundTaskCard";
@@ -17,6 +18,7 @@ export const DesktopMinigameLayout = ({
   currentRound,
   currentTask,
   currentPlayer,
+  activePlayerId,
   currentPlayerId,
   onPlayerChange,
   controller,
@@ -106,8 +108,8 @@ export const DesktopMinigameLayout = ({
         </div>
       </div>
 
-      <div className="grid flex-1 gap-6 lg:grid-cols-[auto_minmax(0,520px)_auto]">
-        <div className="flex flex-col gap-4">
+      <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-4 lg:justify-self-start">
           <DockPanel
             side="left"
             title="Players"
@@ -167,9 +169,16 @@ export const DesktopMinigameLayout = ({
         </div>
 
         <div className="flex min-w-[280px] flex-col items-center justify-center gap-6">
-          <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-5 py-4 text-center text-sm text-slate-200 shadow-[0_0_30px_rgba(15,23,42,0.4)] backdrop-blur">
-            {controller.audioError ?? "Patient audio is ready when you are."}
-          </div>
+          <NowUpHeader
+            mode={mode}
+            currentRound={currentRound}
+            players={players}
+            teams={teams}
+            activePlayerId={activePlayerId}
+            responseCountdown={controller.responseCountdown}
+            audioStatus={controller.audioStatus}
+            audioError={controller.audioError}
+          />
           <PatientAudioControls
             status={controller.audioStatus}
             onPlay={controller.playPatient}
@@ -180,6 +189,8 @@ export const DesktopMinigameLayout = ({
             mode={controller.micMode}
             subLabel={micLabel}
             progress={controller.state === "recording" ? controller.maxDurationProgress : 0}
+            accent={controller.micAccent}
+            attention={controller.micAttention}
             onRecord={controller.startRecording}
             onStop={controller.stopAndSubmit}
           />
@@ -205,7 +216,7 @@ export const DesktopMinigameLayout = ({
           )}
         </div>
 
-        <div className="flex flex-col items-end gap-4">
+        <div className="flex flex-col items-end gap-4 lg:justify-self-end">
           <DockPanel
             side="right"
             title="Leaderboard"
@@ -248,6 +259,7 @@ export const DesktopMinigameLayout = ({
                 text={transcriptText}
                 processingStage={transcriptProcessingStage}
                 onToggle={onToggleTranscript}
+                variant="embedded"
               />
             </DockPanel>
           )}

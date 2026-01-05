@@ -4,12 +4,14 @@ type TranscriptOverlayProps = {
   text?: string;
   onToggle: () => void;
   processingStage?: "transcribing" | "evaluating" | null;
+  variant?: "standalone" | "embedded";
 };
 
 export const TranscriptOverlay = ({
   text,
   onToggle,
-  processingStage = null
+  processingStage = null,
+  variant = "standalone"
 }: TranscriptOverlayProps) => {
   const hasText = Boolean(text && text.trim().length > 0);
   const statusLabel =
@@ -19,12 +21,18 @@ export const TranscriptOverlay = ({
         ? "Evaluating"
         : null;
   const statusTone = processingStage === "evaluating" ? "warning" : "info";
+  const containerClass =
+    variant === "embedded"
+      ? "relative overflow-hidden"
+      : "relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 shadow-[0_0_30px_rgba(15,23,42,0.5)] backdrop-blur";
+  const headerPadding = variant === "embedded" ? "px-1" : "px-5";
+  const footerPadding = variant === "embedded" ? "px-1" : "px-5";
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 shadow-[0_0_30px_rgba(15,23,42,0.5)] backdrop-blur">
+    <div className={containerClass}>
       <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-teal-400/10 to-transparent" />
       <div className="max-h-[50vh] overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out">
-        <div className="px-5 pt-4">
+        <div className={`${headerPadding} pt-4`}>
           <div className="flex items-center justify-between gap-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-300/80">
               Transcript
@@ -64,7 +72,7 @@ export const TranscriptOverlay = ({
           </div>
         </div>
 
-        <div className="mt-4 border-t border-white/10 bg-slate-950/40 px-5 py-3">
+        <div className={`mt-4 border-t border-white/10 bg-slate-950/40 ${footerPadding} py-3`}>
           <div className="flex items-center justify-between gap-3">
             {statusLabel ? (
               <StatusPill label={statusLabel} tone={statusTone} showSpinner />

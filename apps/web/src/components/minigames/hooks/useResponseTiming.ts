@@ -15,6 +15,8 @@ export type TimingViolations = {
   durationSeverity?: number;
 };
 
+export const MIN_RESPONSE_TIMER_NEGATIVE = 60;
+
 export const calculateTimingPenalty = ({
   responseTimerEnabled,
   responseTimerSeconds,
@@ -125,7 +127,7 @@ export const useResponseTiming = ({
     }
     const elapsed = (now - patientEndedAt) / 1000;
     const remaining = responseTimerSeconds - elapsed;
-    return remaining > 0 ? remaining : 0;
+    return Math.max(-MIN_RESPONSE_TIMER_NEGATIVE, remaining);
   }, [now, patientEndedAt, responseStartAt, responseTimerEnabled, responseTimerSeconds]);
 
   const maxDurationRemaining = useMemo(() => {

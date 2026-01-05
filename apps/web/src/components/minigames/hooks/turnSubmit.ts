@@ -66,3 +66,35 @@ export function applyTimingPenalty({
   const penalty = typeof timingPenalty === "number" ? timingPenalty : 0;
   return Math.max(0, score - penalty);
 }
+
+export function createTimeoutEvaluation({
+  taskId,
+  exampleId,
+  attemptId
+}: {
+  taskId: string;
+  exampleId: string;
+  attemptId: string;
+}): EvaluationResult {
+  return {
+    version: "2.0",
+    task_id: taskId,
+    example_id: exampleId,
+    attempt_id: attemptId,
+    transcript: {
+      text: "No response recorded."
+    },
+    criterion_scores: [],
+    overall: {
+      score: 0,
+      pass: false,
+      summary_feedback: "No response was recorded before the response window closed.",
+      what_to_improve_next: ["Respond within the response window."]
+    },
+    patient_reaction: {
+      emotion: "sad",
+      intensity: 2,
+      response_text: "No response recorded."
+    }
+  };
+}

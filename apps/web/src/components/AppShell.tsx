@@ -7,7 +7,6 @@ import { setAdminStatus, setUser } from "../store/authSlice";
 import { supabase } from "../supabase/client";
 import { hydrateSettings } from "../store/settingsSlice";
 import { AiSetupModal } from "./AiSetupModal";
-import { GameSelectModal } from "./minigames/GameSelectModal";
 import { Tooltip } from "./Tooltip";
 import { Drawer } from "./Drawer";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -32,7 +31,6 @@ export const AppShell = () => {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showAiSetup, setShowAiSetup] = useState(false);
-  const [isGameSelectOpen, setIsGameSelectOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const handledAuthSignatureRef = useRef<string>("");
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -224,7 +222,7 @@ export const AppShell = () => {
 
   const handleDrawerMinigames = () => {
     setIsDrawerOpen(false);
-    setIsGameSelectOpen(true);
+    navigate("/minigames");
   };
 
   const navItems = [
@@ -246,14 +244,6 @@ export const AppShell = () => {
           if (reason === "skip") {
             return;
           }
-        }}
-      />
-      <GameSelectModal
-        open={isGameSelectOpen}
-        onClose={() => setIsGameSelectOpen(false)}
-        onSelect={(mode) => {
-          setIsGameSelectOpen(false);
-          navigate("/minigames", { state: { preselectedMode: mode } });
         }}
       />
       {!isAppShellHidden && (
@@ -287,7 +277,7 @@ export const AppShell = () => {
                   )}
                   <button
                     type="button"
-                    onClick={() => setIsGameSelectOpen(true)}
+                    onClick={() => navigate("/minigames")}
                     className="rounded-full px-4 py-2 text-sm font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
                   >
                     {t("appShell.nav.minigames")}
