@@ -84,6 +84,7 @@ export const MinigamePlayPage = () => {
   const handledPreselectRef = useRef(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
   const discardedRoundIdsRef = useRef<Set<string>>(new Set());
+  const turnBlocked = evaluationModalOpen || newPlayerOpen || switchDialogOpen;
 
   const [createSession] = useCreateMinigameSessionMutation();
   const [addTeams] = useAddMinigameTeamsMutation();
@@ -181,7 +182,7 @@ export const MinigamePlayPage = () => {
   useEffect(() => {
     if (mode !== "ffa") return;
     if (!minigames.rounds.length) return;
-    if (evaluationModalOpen) return;
+    if (turnBlocked) return;
     if (minigames.currentRoundId && currentRound) return;
     const nextRound = minigames.rounds
       .filter((round) => round.status !== "completed")
@@ -190,7 +191,7 @@ export const MinigamePlayPage = () => {
     if (nextRound && nextRound.id !== minigames.currentRoundId) {
       dispatch(setCurrentRoundId(nextRound.id));
     }
-  }, [currentRound, dispatch, evaluationModalOpen, minigames.currentRoundId, minigames.rounds, mode]);
+  }, [currentRound, dispatch, minigames.currentRoundId, minigames.rounds, mode, turnBlocked]);
 
   useEffect(() => {
     if (!minigames.session?.id) return;
@@ -318,7 +319,7 @@ export const MinigamePlayPage = () => {
   }, [minigames.session?.settings]);
 
   const ffaController = useFfaTurnController({
-    enabled: mode === "ffa",
+    enabled: mode === "ffa" && !turnBlocked,
     sessionId: minigames.session?.id ?? "",
     round: currentRound,
     playerId: currentRound?.player_a_id,
@@ -383,7 +384,7 @@ export const MinigamePlayPage = () => {
   });
 
   const tdmController = useTdmMatchController({
-    enabled: mode === "tdm",
+    enabled: mode === "tdm" && !turnBlocked,
     sessionId: minigames.session?.id ?? "",
     round: currentRound,
     aiMode: settings.aiMode,
@@ -435,6 +436,9 @@ export const MinigamePlayPage = () => {
   });
 
   const controller = mode === "tdm" ? tdmController : ffaController;
+  const recapLock =
+    turnBlocked ||
+    (controller.state === "complete" && (lastAttemptId || roundResultScore != null));
   const activePlayerId = useMemo(
     () =>
       deriveActivePlayerId({
@@ -814,14 +818,7 @@ export const MinigamePlayPage = () => {
     controller.state !== "transcribing" &&
     controller.state !== "evaluating" &&
     controller.state !== "patient_playing" &&
-    !evaluationModalOpen;
-
-  const recapLock =
-    mode === "ffa" &&
-    (evaluationModalOpen ||
-      newPlayerOpen ||
-      switchDialogOpen ||
-      (controller.state === "complete" && (lastAttemptId || roundResultScore != null)));
+    !turnBlocked;
 
   const handleRequestSwitchPlayer = (playerId: string) => {
     if (!canSwitchPlayer) return;
