@@ -356,7 +356,7 @@ fn gateway_doctor(
                         "title": "Gateway sidecar binary",
                         "status": "error",
                         "details": "Sidecar binary not found.".to_string(),
-                        "fix": "Run `npm run sidecar:build` to generate the gateway sidecar before bundling."
+                        "fix": "Sidecar not resolvable. Ensure you run `tauri dev` with src-tauri/tauri.sidecar.conf.json (see `npm run tauri:dev`) or run `npm run sidecar:build`."
                     }));
                 }
             }
@@ -551,10 +551,7 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
         } else if prefer_sidecar || sidecar_available {
             GatewayLaunchMode::Sidecar
         } else {
-            return Err(GatewayError::Config(
-                "Sidecar missing. Run `npm run sidecar:build` (or `npm run tauri:dev`) or set LOCAL_RUNTIME_LAUNCH=python."
-                    .into(),
-            ));
+            GatewayLaunchMode::Python
         }
     } else {
         GatewayLaunchMode::Sidecar
@@ -562,7 +559,7 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
 
     if matches!(mode, GatewayLaunchMode::Sidecar) && !sidecar_available {
         return Err(GatewayError::Config(
-            "Gateway sidecar is missing; run `npm run sidecar:build` before packaging.".into(),
+            "Gateway sidecar is missing; run `npm run sidecar:build` or ensure tauri.sidecar.conf.json is included.".into(),
         ));
     }
 
@@ -852,7 +849,7 @@ impl GatewayManager {
                         config_path: config.config_path.to_string_lossy().to_string(),
                         args: config.args.clone(),
                         hint: Some(
-                            "Sidecar missing; run `npm run sidecar:build` before bundling."
+                            "Sidecar not resolvable. Ensure tauri.sidecar.conf.json is used (see `npm run tauri:dev`) or run `npm run sidecar:build`."
                                 .to_string(),
                         ),
                     })
