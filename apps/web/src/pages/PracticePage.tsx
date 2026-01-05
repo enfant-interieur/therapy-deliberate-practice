@@ -6,12 +6,14 @@ import {
   useGetTaskQuery,
   useGetPracticeSessionsQuery,
   useGetPracticeSessionAttemptsQuery,
+  useDeletePracticeSessionMutation,
   useRunPracticeMutation,
   useStartSessionMutation
 } from "../store/api";
 import { TalkingPatientCanvas } from "../components/TalkingPatientCanvas";
 import { StatusPill } from "../components/StatusPill";
 import { Spinner } from "../components/Spinner";
+import { DeleteSessionConfirmDialog } from "../components/minigames/history/DeleteSessionConfirmDialog";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import {
   resetSessionState,
@@ -50,6 +52,7 @@ export const PracticePage = () => {
   const requestedSessionId = searchParams.get("session");
   const { data: task } = useGetTaskQuery({ id: taskId ?? "" });
   const [startSession, { isLoading: isStartingSession }] = useStartSessionMutation();
+  const [deleteSession, { isLoading: isDeletingSession }] = useDeletePracticeSessionMutation();
   const [runPractice] = useRunPracticeMutation();
   const {
     bank: patientAudioBank,
@@ -89,6 +92,7 @@ export const PracticePage = () => {
   const [isWarmingPack, setIsWarmingPack] = useState(false);
   const [patientPlay, setPatientPlay] = useState(false);
   const [transcriptExpanded, setTranscriptExpanded] = useState(false);
+  const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null);
   const [transcriptionStatus, setTranscriptionStatus] = useState<
     "idle" | "transcribing" | "ready" | "error"
   >("idle");
@@ -226,6 +230,20 @@ export const PracticePage = () => {
     }
     return latestSession;
   }, [latestSession, practice.sessionId, sessionHistory]);
+  const isSessionCorrupted = useCallback(
+    (session?: (typeof sessionHistory)[number] | null) =>
+      Boolean(session && session.items.length === 0),
+    []
+  );
+  const corruptedSessionIds = useMemo(() => {
+    return new Set(sessionHistory.filter(isSessionCorrupted).map((session) => session.id));
+  }, [isSessionCorrupted, sessionHistory]);
+  const hasCorruptedSessions = corruptedSessionIds.size > 0;
+  const isActiveSessionCorrupted = activeSession ? corruptedSessionIds.has(activeSession.id) : false;
+  const pendingDeleteSession = useMemo(
+    () => sessionHistory.find((session) => session.id === pendingDeleteSessionId) ?? null,
+    [pendingDeleteSessionId, sessionHistory]
+  );
 
   useEffect(() => {
     return () => {
@@ -275,6 +293,22 @@ export const PracticePage = () => {
     }
   }, [dispatch, refetchSessions, resetSessionUI, startSession, t, taskId]);
 
+  const confirmDeleteSession = useCallback(async () => {
+    if (!pendingDeleteSessionId) return;
+    const sessionId = pendingDeleteSessionId;
+    setPendingDeleteSessionId(null);
+    try {
+      await deleteSession({ sessionId }).unwrap();
+      window.localStorage.removeItem(sessionIndexKey(sessionId));
+      if (practice.sessionId === sessionId) {
+        dispatch(resetSessionState());
+      }
+      await refetchSessions();
+    } catch (err) {
+      setError("Unable to delete this session. Please try again.");
+    }
+  }, [deleteSession, dispatch, pendingDeleteSessionId, practice.sessionId, refetchSessions, sessionIndexKey]);
+
   const loadSession = useCallback(
     (sessionId: string, items: typeof practice.sessionItems, fallbackIndex: number) => {
       dispatch(resetSessionState());
@@ -312,6 +346,12 @@ export const PracticePage = () => {
     if (isLoadingSessions) return;
     const requestedSession = sessionHistory.find((session) => session.id === requestedSessionId);
     if (!requestedSession) return;
+    if (isSessionCorrupted(requestedSession)) {
+      if (!practice.sessionId) {
+        void startNewSession();
+      }
+      return;
+    }
     if (practice.sessionId === requestedSession.id) return;
     const fallbackIndex = Math.min(
       requestedSession.completed_count,
@@ -320,10 +360,12 @@ export const PracticePage = () => {
     loadSession(requestedSession.id, requestedSession.items, fallbackIndex);
   }, [
     isLoadingSessions,
+    isSessionCorrupted,
     loadSession,
     practice.sessionId,
     requestedSessionId,
     sessionHistory,
+    startNewSession,
     taskId
   ]);
 
@@ -336,6 +378,10 @@ export const PracticePage = () => {
       if (requestedSession) return;
     }
     if (latestSession) {
+      if (isSessionCorrupted(latestSession)) {
+        void startNewSession();
+        return;
+      }
       const fallbackIndex = Math.min(
         latestSession.completed_count,
         Math.max(latestSession.items.length - 1, 0)
@@ -346,6 +392,7 @@ export const PracticePage = () => {
     void startNewSession();
   }, [
     isLoadingSessions,
+    isSessionCorrupted,
     latestSession,
     loadSession,
     practice.sessionId,
@@ -942,10 +989,18 @@ export const PracticePage = () => {
                     <p className="text-sm font-semibold text-white">
                       Session {activeSession.id.slice(0, 6).toUpperCase()}
                     </p>
-                    <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase text-slate-300">
-                      {activeSession.completed_count >= activeSession.item_count
-                        ? "Completed"
-                        : "In progress"}
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${
+                        isActiveSessionCorrupted
+                          ? "border-rose-400/60 bg-rose-500/10 text-rose-200"
+                          : "border-white/10 bg-white/5 text-slate-300"
+                      }`}
+                    >
+                      {isActiveSessionCorrupted
+                        ? "Needs reset"
+                        : activeSession.completed_count >= activeSession.item_count
+                          ? "Completed"
+                          : "In progress"}
                     </span>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -961,6 +1016,11 @@ export const PracticePage = () => {
               )}
               {!activeSession && !isLoadingSessions && (
                 <p className="text-sm text-slate-400">No sessions yet.</p>
+              )}
+              {hasCorruptedSessions && (
+                <div className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+                  Some sessions are missing examples. Delete them to generate a fresh session.
+                </div>
               )}
             </div>
             <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
@@ -983,36 +1043,67 @@ export const PracticePage = () => {
               )}
               {sessionHistory.map((session) => {
                 const isActive = session.id === practice.sessionId;
+                const isCorrupted = corruptedSessionIds.has(session.id);
                 const fallbackIndex = Math.min(
                   session.completed_count,
                   Math.max(session.items.length - 1, 0)
                 );
                 return (
-                  <button
+                  <div
                     key={session.id}
-                    type="button"
-                    className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                    className={`flex w-full items-start gap-3 rounded-2xl border transition ${
                       isActive
                         ? "border-teal-400/70 bg-teal-500/10"
-                        : "border-white/10 bg-slate-900/40 hover:border-white/30"
+                        : "border-white/10 bg-slate-900/40"
                     }`}
-                    onClick={() => loadSession(session.id, session.items, fallbackIndex)}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-white">
-                        Session {session.id.slice(0, 6).toUpperCase()}
-                      </p>
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] uppercase text-slate-300">
-                        {session.completed_count >= session.item_count ? "Completed" : "In progress"}
-                      </span>
+                    <button
+                      type="button"
+                      className="flex-1 px-4 py-3 text-left transition hover:border-white/30 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => loadSession(session.id, session.items, fallbackIndex)}
+                      disabled={isCorrupted}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-white">
+                          Session {session.id.slice(0, 6).toUpperCase()}
+                        </p>
+                        <span
+                          className={`rounded-full border px-2 py-0.5 text-[10px] uppercase ${
+                            isCorrupted
+                              ? "border-rose-400/60 bg-rose-500/10 text-rose-200"
+                              : "border-white/10 bg-white/5 text-slate-300"
+                          }`}
+                        >
+                          {isCorrupted
+                            ? "Needs reset"
+                            : session.completed_count >= session.item_count
+                              ? "Completed"
+                              : "In progress"}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                        <span>{formatDate.format(new Date(session.created_at))}</span>
+                        <span>
+                          {session.completed_count}/{session.item_count} examples
+                        </span>
+                      </div>
+                      {isCorrupted && (
+                        <p className="mt-2 text-xs text-rose-200">
+                          Missing examples. Start a new session to continue practicing.
+                        </p>
+                      )}
+                    </button>
+                    <div className="pr-3 pt-3">
+                      <button
+                        type="button"
+                        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-white/70 transition hover:border-rose-300/60 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-40"
+                        onClick={() => setPendingDeleteSessionId(session.id)}
+                        disabled={isDeletingSession}
+                      >
+                        Delete
+                      </button>
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                      <span>{formatDate.format(new Date(session.created_at))}</span>
-                      <span>
-                        {session.completed_count}/{session.item_count} examples
-                      </span>
-                    </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -1457,6 +1548,16 @@ export const PracticePage = () => {
           </div>
         </section>
       )}
+      <DeleteSessionConfirmDialog
+        open={Boolean(pendingDeleteSessionId)}
+        sessionLabel={
+          pendingDeleteSession
+            ? `session ${pendingDeleteSession.id.slice(0, 6).toUpperCase()}`
+            : undefined
+        }
+        onConfirm={confirmDeleteSession}
+        onCancel={() => setPendingDeleteSessionId(null)}
+      />
     </div>
   );
 };

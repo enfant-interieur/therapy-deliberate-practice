@@ -289,6 +289,9 @@ export const api = createApi({
     getPracticeSessions: builder.query<PracticeSessionSummary[], { task_id?: string }>({
       query: (params) => ({ url: "/sessions", params })
     }),
+    deletePracticeSession: builder.mutation<{ ok: boolean }, { sessionId: string }>({
+      query: ({ sessionId }) => ({ url: `/sessions/${sessionId}`, method: "DELETE" })
+    }),
     getPracticeSessionAttempts: builder.query<PracticeSessionAttempt[], string>({
       query: (sessionId) => `/sessions/${sessionId}/attempts`,
       providesTags: ["Attempt"]
@@ -539,6 +542,7 @@ export const {
   useGetLeaderboardQuery,
   useStartSessionMutation,
   useGetPracticeSessionsQuery,
+  useDeletePracticeSessionMutation,
   useGetPracticeSessionAttemptsQuery,
   useGetAdminTasksQuery,
   useGetAdminTaskQuery,

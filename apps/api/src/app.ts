@@ -935,6 +935,28 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     return c.json(Array.from(latestByItem.values()));
   });
 
+  app.delete("/api/v1/sessions/:id", userAuth, async (c) => {
+    const user = c.get("user");
+    const sessionId = c.req.param("id");
+    const [session] = await db
+      .select({ id: practiceSessions.id })
+      .from(practiceSessions)
+      .where(and(eq(practiceSessions.id, sessionId), eq(practiceSessions.user_id, user.id)))
+      .limit(1);
+
+    if (!session) {
+      return c.json({ error: "Session not found." }, 404);
+    }
+
+    await db
+      .delete(attempts)
+      .where(and(eq(attempts.user_id, user.id), eq(attempts.session_id, sessionId)));
+    await db.delete(practiceSessionItems).where(eq(practiceSessionItems.session_id, sessionId));
+    await db.delete(practiceSessions).where(eq(practiceSessions.id, sessionId));
+
+    return c.json({ ok: true });
+  });
+
   app.get("/api/v1/admin/whoami", async (c) => {
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_whoami" });
     const result = await resolveAdminStatus(env, c.req.raw.headers);
