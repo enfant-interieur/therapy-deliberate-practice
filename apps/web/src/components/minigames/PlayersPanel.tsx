@@ -85,7 +85,7 @@ export const PlayersPanel = ({
               isUpNext={isUpNext}
               canSwitch={canSwitchPlayer}
               onClick={
-                mode === "ffa" && onRequestSwitchPlayer
+                mode === "ffa" && onRequestSwitchPlayer && !isActive
                   ? () => onRequestSwitchPlayer(player.id)
                   : undefined
               }
