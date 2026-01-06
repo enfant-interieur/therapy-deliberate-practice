@@ -8,17 +8,26 @@ def new_response(model: str, output_text: str) -> dict:
     created = int(time.time())
     response_id = f"resp_{uuid.uuid4().hex}"
     output_item_id = f"output_{uuid.uuid4().hex}"
+    content_item_id = f"content_{uuid.uuid4().hex}"
     return {
         "id": response_id,
         "object": "response",
         "created": created,
         "model": model,
+        "output_text": output_text,
         "output": [
             {
                 "id": output_item_id,
-                "object": "response.output_text",
-                "type": "output_text",
-                "text": output_text,
+                "object": "response.output_message",
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {
+                        "id": content_item_id,
+                        "type": "output_text",
+                        "text": output_text,
+                    }
+                ],
             }
         ],
     }
