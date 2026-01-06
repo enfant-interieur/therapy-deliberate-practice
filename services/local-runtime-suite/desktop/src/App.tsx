@@ -66,7 +66,7 @@ export const App = () => {
   const sttExample =
     connectionInfo?.endpoints.stt_example ?? `${baseUrl}/v1/audio/transcriptions`;
   const settingsUrl = "https://therapy-deliberate-practice.com/settings";
-  const createAccountUrl = "https://therapy-deliberate-practice.com";
+  const createAccountUrl = "https://therapy-deliberate-practice.com/login";
   const isMac = /(Mac|iPhone|iPad|iPod)/i.test(navigator.userAgent);
 
   const logEvent = (message: string) => {
@@ -237,6 +237,13 @@ export const App = () => {
     logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
   }, [logs, autoScroll]);
 
+  useEffect(() => {
+    document.body.classList.toggle("drawer-open", showAdvanced);
+    return () => {
+      document.body.classList.remove("drawer-open");
+    };
+  }, [showAdvanced]);
+
   const llmOptions = models.filter((model) => model.metadata.api.endpoint === "responses");
   const ttsOptions = models.filter((model) => model.metadata.api.endpoint === "audio.speech");
   const sttOptions = models.filter((model) =>
@@ -334,8 +341,13 @@ export const App = () => {
   }
 
   return (
-    <div className="container">
-      <div className="panel hero">
+    <div className="app-shell">
+      <div
+        className={`drawer-scrim ${showAdvanced ? "open" : ""}`}
+        onClick={() => setShowAdvanced(false)}
+      />
+      <main className={`container simple-content ${showAdvanced ? "blurred" : ""}`}>
+        <div className="panel hero">
         <div className="hero-glow" />
         <div className="hero-header">
           <div>
@@ -347,8 +359,8 @@ export const App = () => {
           </div>
           <div className="hero-actions">
             <span className="badge">Status: {status}</span>
-            <button className="btn ghost" onClick={() => setShowAdvanced((value) => !value)}>
-              {showAdvanced ? "Hide advanced" : "Advanced"}
+            <button className="btn ghost" onClick={() => setShowAdvanced(true)}>
+              Advanced controls
             </button>
           </div>
         </div>
@@ -393,7 +405,7 @@ export const App = () => {
             <div className="simple-step-content">
               <div className="simple-step-title">Create your Therapy account</div>
               <div className="simple-step-description">
-                Open the Therapy website and sign up or log in.
+                Open the Therapy website to sign up or log in.
               </div>
               <button
                 className="btn"
@@ -403,7 +415,7 @@ export const App = () => {
                   logEvent("Opened Therapy account page.");
                 }}
               >
-                {simpleStep3Complete ? "Account opened" : "Create account"}
+                {simpleStep3Complete ? "Account opened" : "Open Therapy login"}
               </button>
             </div>
           </div>
@@ -434,386 +446,395 @@ export const App = () => {
             <div className="helper-text">{startError}</div>
           </div>
         ) : null}
-      </div>
+        </div>
+      </main>
 
-      {showAdvanced ? (
-        <>
-      <div className="panel header">
-        <div>
-          <div className="kicker">Local Runtime Suite</div>
-          <div className="title">Desktop Launcher</div>
-        </div>
-        <span className="badge">Status: {status}</span>
-      </div>
-
-      <div className="panel connection">
-        <div className="header">
+      <aside className={`advanced-drawer ${showAdvanced ? "open" : ""}`}>
+        <div className="drawer-header">
           <div>
-            <div className="kicker">Connection</div>
-            <div className="title">Local gateway URLs</div>
+            <div className="kicker">Advanced</div>
+            <div className="title">Local Runtime controls</div>
           </div>
-          <span className="badge">Port {port}</span>
-        </div>
-        <div className="connection-grid">
-          <div className="connection-row">
-            <div className="label">Base URL</div>
-            <div className="pill-row">
-              <div className="pill" title={baseUrl}>{baseUrl}</div>
-              <button className="icon-btn" onClick={() => copyText(baseUrl)}>
-                Copy
-              </button>
-            </div>
-          </div>
-          <div className="connection-row">
-            <div className="label">LLM URL</div>
-            <div className="pill-row">
-              <div className="pill" title={llmUrl}>{llmUrl}</div>
-              <button className="icon-btn" onClick={() => copyText(llmUrl)}>
-                Copy
-              </button>
-            </div>
-          </div>
-          <div className="connection-row">
-            <div className="label">STT URL</div>
-            <div className="pill-row">
-              <div className="pill" title={sttUrl}>{sttUrl}</div>
-              <button className="icon-btn" onClick={() => copyText(sttUrl)}>
-                Copy
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="helper-row">
-          <div>
-            <div className="helper-title">Where do I paste these?</div>
-            <div className="helper-text">Open Therapy Settings and paste the Base URL.</div>
-          </div>
-          <button className="btn" onClick={() => openUrl(settingsUrl)}>
-            Open Therapy Settings
-          </button>
-        </div>
-        <div className="button-row">
-          <button className="btn" onClick={() => openUrl(healthUrl)}>
-            Open health check
-          </button>
-          <button className="btn" onClick={() => copyText(llmExample)}>
-            Copy example LLM endpoint
-          </button>
-          <button className="btn" onClick={() => copyText(sttExample)}>
-            Copy example STT endpoint
-          </button>
-        </div>
-        <div className="port-editor">
-          <div>
-            <div className="label">Gateway port</div>
-            <input
-              className="port-input"
-              type="number"
-              min={1024}
-              max={65535}
-              value={portInput}
-              onChange={(event) => setPortInput(event.target.value)}
-            />
-            <div className="helper-text">
-              Choose a port between 1024-65535. This updates the gateway + URLs above.
-            </div>
-            {!portValid ? (
-              <div className="error-text">Enter a valid port between 1024 and 65535.</div>
-            ) : null}
-          </div>
-          <div className="button-row">
-            <button
-              className="btn primary"
-              onClick={savePort}
-              disabled={!portValid || portSaveState === "saving"}
-            >
-              {portSaveState === "saving" ? "Saving..." : "Save port"}
+          <div className="hero-actions">
+            <span className="badge">Status: {status}</span>
+            <button className="btn ghost" onClick={() => setShowAdvanced(false)}>
+              Close
             </button>
-            <button className="btn" onClick={() => setPortInput("8484")}>
-              Use 8484
-            </button>
-            {portSaveState === "error" ? (
-              <span className="error-text">Port save failed. Try again.</span>
-            ) : null}
-            {portSaveState === "saved" ? (
-              <span className="success-text">Port saved.</span>
-            ) : null}
           </div>
         </div>
-        {portDirty && isGatewayRunning ? (
-          <div className="warning-banner">
+        <div className="drawer-body">
+          <div className="panel header">
             <div>
-              Port changed. Restart the gateway to apply the new port.
+              <div className="kicker">Local Runtime Suite</div>
+              <div className="title">Desktop Launcher</div>
             </div>
-            <button className="btn" onClick={restartGateway}>
-              Restart gateway
-            </button>
+            <span className="badge">Status: {status}</span>
           </div>
-        ) : null}
-      </div>
 
-      <div className="panel wizard">
-        <div className="header">
-          <div>
-            <div className="kicker">Setup Wizard</div>
-            <div className="title">Get ready in minutes</div>
-          </div>
-          <span className="badge">Step {activeStep} of {isSaved ? 5 : 4}</span>
-        </div>
-
-        <ol className="stepper">
-          {steps.map((step) => (
-            <li
-              key={step.id}
-              className={`step ${step.complete ? "complete" : ""} ${activeStep === step.id ? "active" : ""}`}
-            >
-              <div className="step-index">{step.id}</div>
+          <div className="panel connection">
+            <div className="header">
               <div>
-                <div className="step-title">{step.title}</div>
-                <div className="step-description">{step.description}</div>
+                <div className="kicker">Connection</div>
+                <div className="title">Local gateway URLs</div>
               </div>
-            </li>
-          ))}
-        </ol>
-
-        <div className="step-card">
-          <div className="step-card-header">
-            <div>
-              <div className="label">Step 1</div>
-              <div className="step-title">Start the gateway</div>
+              <span className="badge">Port {port}</span>
             </div>
-            <span className={`badge ${isGatewayRunning ? "badge-success" : ""}`}>
-              {isGatewayRunning ? "Gateway running" : "Gateway stopped"}
-            </span>
-          </div>
-          <p className="step-description">
-            Launch the local gateway before loading models. You can stop it anytime.
-          </p>
-          {doctorBlocking ? (
-            <div className="warning-banner">
+            <div className="connection-grid">
+              <div className="connection-row">
+                <div className="label">Base URL</div>
+                <div className="pill-row">
+                  <div className="pill" title={baseUrl}>{baseUrl}</div>
+                  <button className="icon-btn" onClick={() => copyText(baseUrl)}>
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <div className="connection-row">
+                <div className="label">LLM URL</div>
+                <div className="pill-row">
+                  <div className="pill" title={llmUrl}>{llmUrl}</div>
+                  <button className="icon-btn" onClick={() => copyText(llmUrl)}>
+                    Copy
+                  </button>
+                </div>
+              </div>
+              <div className="connection-row">
+                <div className="label">STT URL</div>
+                <div className="pill-row">
+                  <div className="pill" title={sttUrl}>{sttUrl}</div>
+                  <button className="icon-btn" onClick={() => copyText(sttUrl)}>
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="helper-row">
               <div>
-                {doctorBlocking.title}: {doctorBlocking.details}
+                <div className="helper-title">Where do I paste these?</div>
+                <div className="helper-text">Open Therapy Settings and paste the Base URL.</div>
               </div>
-              {doctorBlocking.fix ? <div className="helper-text">Fix: {doctorBlocking.fix}</div> : null}
-              <button className="btn" onClick={runDoctor}>
-                Run doctor
-              </button>
-            </div>
-          ) : null}
-          <div className="button-row">
-            <button className="btn primary" onClick={startGateway} disabled={!canStartGateway}>
-              Start gateway
-            </button>
-            <button className="btn" onClick={() => invoke("stop_gateway").then(refreshStatus)}>
-              Stop gateway
-            </button>
-            <button className="btn" onClick={runDoctor}>
-              Run doctor
-            </button>
-          </div>
-          {startError ? (
-            <div className="error-banner">
-              <div>Gateway failed to start.</div>
-              <div className="helper-text">{startError}</div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className={`step-card ${canLoadModels ? "" : "is-disabled"}`}>
-          <div className="step-card-header">
-            <div>
-              <div className="label">Step 2</div>
-              <div className="step-title">Load or refresh models</div>
-            </div>
-            <span className="badge">{hasModels ? `${models.length} models loaded` : "No models yet"}</span>
-          </div>
-          <p className="step-description">
-            Refresh the model list after the gateway starts. This unlocks default selections.
-          </p>
-          <button className="btn" onClick={refreshModels} disabled={!canLoadModels}>
-            Refresh models
-          </button>
-        </div>
-
-        <div className={`step-card ${canChooseDefaults ? "" : "is-disabled"}`}>
-          <div className="step-card-header">
-            <div>
-              <div className="label">Step 3</div>
-              <div className="step-title">Choose defaults</div>
-            </div>
-            <span className="badge">{defaultsComplete ? "Defaults selected" : "Waiting on selections"}</span>
-          </div>
-          <p className="step-description">
-            Select your preferred LLM, TTS, and STT models to use in sessions.
-          </p>
-          <div className="grid">
-            <div>
-              <div className="label">Default LLM</div>
-              <select
-                className="select"
-                value={defaults.llm}
-                onChange={(event) => setDefaults((prev) => ({ ...prev, llm: event.target.value }))}
-                disabled={!canChooseDefaults}
-              >
-                <option value="">Select LLM</option>
-                {llmOptions.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.metadata.display.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div className="label">Default TTS</div>
-              <select
-                className="select"
-                value={defaults.tts}
-                onChange={(event) => setDefaults((prev) => ({ ...prev, tts: event.target.value }))}
-                disabled={!canChooseDefaults}
-              >
-                <option value="">Select TTS</option>
-                {ttsOptions.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.metadata.display.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <div className="label">Default STT</div>
-              <select
-                className="select"
-                value={defaults.stt}
-                onChange={(event) => setDefaults((prev) => ({ ...prev, stt: event.target.value }))}
-                disabled={!canChooseDefaults}
-              >
-                <option value="">Select STT</option>
-                {sttOptions.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.metadata.display.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className={`step-card ${canSave ? "" : "is-disabled"}`}>
-          <div className="step-card-header">
-            <div>
-              <div className="label">Step 4</div>
-              <div className="step-title">Save preferences</div>
-            </div>
-            <span className={`badge ${isSaved ? "badge-success" : ""}`}>
-              {isSaved ? "Preferences saved" : "Not saved"}
-            </span>
-          </div>
-          <p className="step-description">
-            Save your defaults so the gateway uses them whenever it starts.
-          </p>
-          <div className="inline-row">
-            <input
-              id="prefer-local"
-              type="checkbox"
-              checked={preferLocal}
-              onChange={(event) => setPreferLocal(event.target.checked)}
-              disabled={!canSave}
-            />
-            <label htmlFor="prefer-local" className="text-sm">
-              Prefer local models over proxy providers
-            </label>
-          </div>
-          <div className="button-row">
-            <button className="btn primary" onClick={saveConfig} disabled={!canSave || saveState === "saving"}>
-              {saveState === "saving" ? "Saving..." : "Save preferences"}
-            </button>
-            {saveState === "error" ? <span className="error-text">Save failed. Try again.</span> : null}
-          </div>
-          {isSaved ? (
-            <div className="success-panel">
-              <span className="badge badge-success">Saved</span>
-              <span>Your preferences are ready. Continue to Therapy Settings.</span>
-            </div>
-          ) : null}
-        </div>
-
-        {isSaved ? (
-          <div className="step-card">
-            <div className="step-card-header">
-              <div>
-                <div className="label">Step 5</div>
-                <div className="step-title">Next: Configure in Therapy Settings</div>
-              </div>
-              <span className="badge">Ready</span>
-            </div>
-            <p className="step-description">
-              Finish setup by linking these preferences in the Therapy web app.
-            </p>
-            <div className="button-row">
-              <button className="btn primary" onClick={() => openUrl(settingsUrl)}>
+              <button className="btn" onClick={() => openUrl(settingsUrl)}>
                 Open Therapy Settings
               </button>
-              <button className="btn" onClick={() => navigator.clipboard.writeText(settingsUrl)}>
-                Copy Settings Link
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </div>
-        </>
-      ) : null}
-
-      <div className="panel">
-        <div className="header">
-          <div>
-            <div className="kicker">Logs</div>
-            <div className="title">Gateway output</div>
-          </div>
-          <div className="button-row">
-            <button className="btn" onClick={refreshLogs}>
-              Refresh logs
-            </button>
-            <button className="btn" onClick={() => copyText(logs.join("\n"))} disabled={!logs.length}>
-              Copy logs
-            </button>
-            <button className="btn" onClick={() => setLogs([])} disabled={!logs.length}>
-              Clear logs
-            </button>
-            <button className="btn" onClick={() => setAutoScroll((value) => !value)}>
-              Auto-scroll: {autoScroll ? "On" : "Off"}
-            </button>
-          </div>
-        </div>
-        {moduleNotFound ? (
-          <div className="error-banner">
-            <div>
-              The gateway could not import <strong>local_runtime</strong>. The Python package is
-              missing from the expected path.
             </div>
             <div className="button-row">
-              <button className="btn" onClick={runDoctor}>
-                Run doctor
+              <button className="btn" onClick={() => openUrl(healthUrl)}>
+                Open health check
               </button>
-              <button
-                className="btn"
-                onClick={() =>
-                  copyText(
-                    "Fix steps:\\n1) Set LOCAL_RUNTIME_ROOT to the local_runtime python package root.\\n2) Or bundle resources/local_runtime in the Tauri build.\\n3) Restart the gateway."
-                  )
-                }
-              >
-                Copy fix steps
+              <button className="btn" onClick={() => copyText(llmExample)}>
+                Copy example LLM endpoint
+              </button>
+              <button className="btn" onClick={() => copyText(sttExample)}>
+                Copy example STT endpoint
               </button>
             </div>
+            <div className="port-editor">
+              <div>
+                <div className="label">Gateway port</div>
+                <input
+                  className="port-input"
+                  type="number"
+                  min={1024}
+                  max={65535}
+                  value={portInput}
+                  onChange={(event) => setPortInput(event.target.value)}
+                />
+                <div className="helper-text">
+                  Choose a port between 1024-65535. This updates the gateway + URLs above.
+                </div>
+                {!portValid ? (
+                  <div className="error-text">Enter a valid port between 1024 and 65535.</div>
+                ) : null}
+              </div>
+              <div className="button-row">
+                <button
+                  className="btn primary"
+                  onClick={savePort}
+                  disabled={!portValid || portSaveState === "saving"}
+                >
+                  {portSaveState === "saving" ? "Saving..." : "Save port"}
+                </button>
+                <button className="btn" onClick={() => setPortInput("8484")}>
+                  Use 8484
+                </button>
+                {portSaveState === "error" ? (
+                  <span className="error-text">Port save failed. Try again.</span>
+                ) : null}
+                {portSaveState === "saved" ? (
+                  <span className="success-text">Port saved.</span>
+                ) : null}
+              </div>
+            </div>
+            {portDirty && isGatewayRunning ? (
+              <div className="warning-banner">
+                <div>
+                  Port changed. Restart the gateway to apply the new port.
+                </div>
+                <button className="btn" onClick={restartGateway}>
+                  Restart gateway
+                </button>
+              </div>
+            ) : null}
           </div>
-        ) : null}
-        <div className="log-box" ref={logBoxRef}>
-          {logs.length ? logs.join("\n") : "No logs yet."}
-        </div>
-      </div>
 
-      {showAdvanced ? (
-        <>
+          <div className="panel wizard">
+            <div className="header">
+              <div>
+                <div className="kicker">Setup Wizard</div>
+                <div className="title">Get ready in minutes</div>
+              </div>
+              <span className="badge">Step {activeStep} of {isSaved ? 5 : 4}</span>
+            </div>
+
+            <ol className="stepper">
+              {steps.map((step) => (
+                <li
+                  key={step.id}
+                  className={`step ${step.complete ? "complete" : ""} ${activeStep === step.id ? "active" : ""}`}
+                >
+                  <div className="step-index">{step.id}</div>
+                  <div>
+                    <div className="step-title">{step.title}</div>
+                    <div className="step-description">{step.description}</div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+
+            <div className="step-card">
+              <div className="step-card-header">
+                <div>
+                  <div className="label">Step 1</div>
+                  <div className="step-title">Start the gateway</div>
+                </div>
+                <span className={`badge ${isGatewayRunning ? "badge-success" : ""}`}>
+                  {isGatewayRunning ? "Gateway running" : "Gateway stopped"}
+                </span>
+              </div>
+              <p className="step-description">
+                Launch the local gateway before loading models. You can stop it anytime.
+              </p>
+              {doctorBlocking ? (
+                <div className="warning-banner">
+                  <div>
+                    {doctorBlocking.title}: {doctorBlocking.details}
+                  </div>
+                  {doctorBlocking.fix ? <div className="helper-text">Fix: {doctorBlocking.fix}</div> : null}
+                  <button className="btn" onClick={runDoctor}>
+                    Run doctor
+                  </button>
+                </div>
+              ) : null}
+              <div className="button-row">
+                <button className="btn primary" onClick={startGateway} disabled={!canStartGateway}>
+                  Start gateway
+                </button>
+                <button className="btn" onClick={() => invoke("stop_gateway").then(refreshStatus)}>
+                  Stop gateway
+                </button>
+                <button className="btn" onClick={runDoctor}>
+                  Run doctor
+                </button>
+              </div>
+              {startError ? (
+                <div className="error-banner">
+                  <div>Gateway failed to start.</div>
+                  <div className="helper-text">{startError}</div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className={`step-card ${canLoadModels ? "" : "is-disabled"}`}>
+              <div className="step-card-header">
+                <div>
+                  <div className="label">Step 2</div>
+                  <div className="step-title">Load or refresh models</div>
+                </div>
+                <span className="badge">{hasModels ? `${models.length} models loaded` : "No models yet"}</span>
+              </div>
+              <p className="step-description">
+                Refresh the model list after the gateway starts. This unlocks default selections.
+              </p>
+              <button className="btn" onClick={refreshModels} disabled={!canLoadModels}>
+                Refresh models
+              </button>
+            </div>
+
+            <div className={`step-card ${canChooseDefaults ? "" : "is-disabled"}`}>
+              <div className="step-card-header">
+                <div>
+                  <div className="label">Step 3</div>
+                  <div className="step-title">Choose defaults</div>
+                </div>
+                <span className="badge">{defaultsComplete ? "Defaults selected" : "Waiting on selections"}</span>
+              </div>
+              <p className="step-description">
+                Select your preferred LLM, TTS, and STT models to use in sessions.
+              </p>
+              <div className="grid">
+                <div>
+                  <div className="label">Default LLM</div>
+                  <select
+                    className="select"
+                    value={defaults.llm}
+                    onChange={(event) => setDefaults((prev) => ({ ...prev, llm: event.target.value }))}
+                    disabled={!canChooseDefaults}
+                  >
+                    <option value="">Select LLM</option>
+                    {llmOptions.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.metadata.display.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div className="label">Default TTS</div>
+                  <select
+                    className="select"
+                    value={defaults.tts}
+                    onChange={(event) => setDefaults((prev) => ({ ...prev, tts: event.target.value }))}
+                    disabled={!canChooseDefaults}
+                  >
+                    <option value="">Select TTS</option>
+                    {ttsOptions.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.metadata.display.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <div className="label">Default STT</div>
+                  <select
+                    className="select"
+                    value={defaults.stt}
+                    onChange={(event) => setDefaults((prev) => ({ ...prev, stt: event.target.value }))}
+                    disabled={!canChooseDefaults}
+                  >
+                    <option value="">Select STT</option>
+                    {sttOptions.map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.metadata.display.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className={`step-card ${canSave ? "" : "is-disabled"}`}>
+              <div className="step-card-header">
+                <div>
+                  <div className="label">Step 4</div>
+                  <div className="step-title">Save preferences</div>
+                </div>
+                <span className={`badge ${isSaved ? "badge-success" : ""}`}>
+                  {isSaved ? "Preferences saved" : "Not saved"}
+                </span>
+              </div>
+              <p className="step-description">
+                Save your defaults so the gateway uses them whenever it starts.
+              </p>
+              <div className="inline-row">
+                <input
+                  id="prefer-local"
+                  type="checkbox"
+                  checked={preferLocal}
+                  onChange={(event) => setPreferLocal(event.target.checked)}
+                  disabled={!canSave}
+                />
+                <label htmlFor="prefer-local" className="text-sm">
+                  Prefer local models over proxy providers
+                </label>
+              </div>
+              <div className="button-row">
+                <button className="btn primary" onClick={saveConfig} disabled={!canSave || saveState === "saving"}>
+                  {saveState === "saving" ? "Saving..." : "Save preferences"}
+                </button>
+                {saveState === "error" ? <span className="error-text">Save failed. Try again.</span> : null}
+              </div>
+              {isSaved ? (
+                <div className="success-panel">
+                  <span className="badge badge-success">Saved</span>
+                  <span>Your preferences are ready. Continue to Therapy Settings.</span>
+                </div>
+              ) : null}
+            </div>
+
+            {isSaved ? (
+              <div className="step-card">
+                <div className="step-card-header">
+                  <div>
+                    <div className="label">Step 5</div>
+                    <div className="step-title">Next: Configure in Therapy Settings</div>
+                  </div>
+                  <span className="badge">Ready</span>
+                </div>
+                <p className="step-description">
+                  Finish setup by linking these preferences in the Therapy web app.
+                </p>
+                <div className="button-row">
+                  <button className="btn primary" onClick={() => openUrl(settingsUrl)}>
+                    Open Therapy Settings
+                  </button>
+                  <button className="btn" onClick={() => navigator.clipboard.writeText(settingsUrl)}>
+                    Copy Settings Link
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="panel">
+            <div className="header">
+              <div>
+                <div className="kicker">Logs</div>
+                <div className="title">Gateway output</div>
+              </div>
+              <div className="button-row">
+                <button className="btn" onClick={refreshLogs}>
+                  Refresh logs
+                </button>
+                <button className="btn" onClick={() => copyText(logs.join("\n"))} disabled={!logs.length}>
+                  Copy logs
+                </button>
+                <button className="btn" onClick={() => setLogs([])} disabled={!logs.length}>
+                  Clear logs
+                </button>
+                <button className="btn" onClick={() => setAutoScroll((value) => !value)}>
+                  Auto-scroll: {autoScroll ? "On" : "Off"}
+                </button>
+              </div>
+            </div>
+            {moduleNotFound ? (
+              <div className="error-banner">
+                <div>
+                  The gateway could not import <strong>local_runtime</strong>. The Python package is
+                  missing from the expected path.
+                </div>
+                <div className="button-row">
+                  <button className="btn" onClick={runDoctor}>
+                    Run doctor
+                  </button>
+                  <button
+                    className="btn"
+                    onClick={() =>
+                      copyText(
+                        "Fix steps:\\n1) Set LOCAL_RUNTIME_ROOT to the local_runtime python package root.\\n2) Or bundle resources/local_runtime in the Tauri build.\\n3) Restart the gateway."
+                      )
+                    }
+                  >
+                    Copy fix steps
+                  </button>
+                </div>
+              </div>
+            ) : null}
+            <div className="log-box" ref={logBoxRef}>
+              {logs.length ? logs.join("\n") : "No logs yet."}
+            </div>
+          </div>
+
           <div className="panel">
             <div className="header">
               <div>
@@ -841,8 +862,8 @@ export const App = () => {
               Voices generated by the local suite are AI-generated. Always disclose synthetic speech to listeners.
             </div>
           </div>
-        </>
-      ) : null}
+        </div>
+      </aside>
     </div>
   );
 };
