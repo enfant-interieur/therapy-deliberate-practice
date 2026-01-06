@@ -318,6 +318,83 @@
       }
     },
     {
+      "id": "local//stt/parakeet-mlx",
+      "kind": "stt",
+      "display": {
+        "title": "Parakeet MLX",
+        "description": "Local MLX speech-to-text via the Parakeet TDT model.",
+        "tags": [
+          "stt",
+          "mlx",
+          "local"
+        ],
+        "icon": "mic"
+      },
+      "compat": {
+        "platforms": [
+          "darwin-arm64"
+        ],
+        "acceleration": [
+          "metal"
+        ],
+        "priority": 130,
+        "requires_ram_gb": 8,
+        "requires_vram_gb": 0,
+        "disk_gb": 6
+      },
+      "api": {
+        "endpoint": "audio.transcriptions",
+        "advertised_model_name": "parakeet-mlx",
+        "supports_stream": true
+      },
+      "limits": {
+        "timeout_sec": 300,
+        "concurrency": 1,
+        "max_input_mb": 25,
+        "max_output_tokens_default": 2048
+      },
+      "backend": {
+        "provider": "mlx",
+        "model_ref": "mlx-community/parakeet-tdt-0.6b-v2",
+        "revision": null,
+        "device_hint": "metal",
+        "extra": {}
+      },
+      "execution": {
+        "mode": "inprocess",
+        "warmup_on_start": false
+      },
+      "launch": {
+        "enabled": false,
+        "type": "command",
+        "explain": "MLX runs in-process.",
+        "env": {},
+        "cmd": [
+          "python",
+          "-m",
+          "local_runtime"
+        ],
+        "ready": {
+          "kind": "http",
+          "timeout_sec": 60,
+          "http_url": "http://127.0.0.1:{port}/health",
+          "log_regex": "READY"
+        }
+      },
+      "ui_params": [],
+      "deps": {
+        "python_extras": [
+          "mlx",
+          "stt"
+        ],
+        "pip": [
+          "mlx-whisper"
+        ],
+        "system": [],
+        "notes": "Requires mlx-whisper for MLX transcription."
+      }
+    },
+    {
       "id": "local//stt/openai-proxy",
       "kind": "stt",
       "display": {

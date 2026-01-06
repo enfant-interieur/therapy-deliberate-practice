@@ -84,7 +84,7 @@ async def run(req: RunRequest, ctx: RunContext):
     reply = f"(local mlx) You said: {prompt}"
     if req.stream:
         async def generator() -> AsyncIterator[dict]:
-            for event, data in stream_events(req.model or SPEC["id"], reply):
+            for event, data in stream_events(req.model or SPEC["id"], reply, request_id=ctx.request_id):
                 yield {"event": event, "data": data}
         return generator()
-    return new_response(req.model or SPEC["id"], reply)
+    return new_response(req.model or SPEC["id"], reply, request_id=ctx.request_id)

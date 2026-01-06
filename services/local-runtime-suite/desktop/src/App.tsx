@@ -201,7 +201,9 @@ export const App = () => {
 
   const llmOptions = models.filter((model) => model.metadata.api.endpoint === "responses");
   const ttsOptions = models.filter((model) => model.metadata.api.endpoint === "audio.speech");
-  const sttOptions = models.filter((model) => model.metadata.api.endpoint.startsWith("audio."));
+  const sttOptions = models.filter((model) =>
+    ["audio.transcriptions", "audio.translations"].includes(model.metadata.api.endpoint)
+  );
 
   const isGatewayRunning = status === "running";
   const portValue = Number(portInput);
