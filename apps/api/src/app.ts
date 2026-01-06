@@ -19,7 +19,7 @@ import {
   userTaskProgress,
   users
 } from "./db/schema";
-import { and, count, desc, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, lte, or } from "drizzle-orm";
 import {
   deliberatePracticeTaskV2Schema,
   evaluationResultSchema,
@@ -484,24 +484,145 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
   app.get("/api/v1/tasks", async (c) => {
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "tasks_list" });
-    const { q, tag, skill_domain, published } = c.req.query();
+    const url = new URL(c.req.url);
+    const normalizeQueryParam = (value: string | null) => {
+      const trimmed = value?.trim();
+      return trimmed ? trimmed : undefined;
+    };
+    const tags = [
+      ...url.searchParams.getAll("tag"),
+      ...(url.searchParams.get("tags")?.split(",") ?? [])
+    ]
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    const querySchema = z.object({
+      q: z.string().trim().min(1).optional(),
+      published: z.coerce.number().int().min(0).max(1).optional(),
+      language: z.string().trim().min(1).optional(),
+      skill_domain: z.string().trim().min(1).optional(),
+      tags: z.array(z.string()).default([]),
+      difficulty_min: z.coerce.number().int().min(1).max(5).optional(),
+      difficulty_max: z.coerce.number().int().min(1).max(5).optional(),
+      sort: z.string().optional(),
+      limit: z.coerce.number().int().min(1).max(200).default(50),
+      offset: z.coerce.number().int().min(0).default(0)
+    });
+
+    const query = querySchema.parse({
+      q: normalizeQueryParam(url.searchParams.get("q")),
+      published: url.searchParams.get("published") ?? undefined,
+      language: normalizeQueryParam(url.searchParams.get("language")),
+      skill_domain: normalizeQueryParam(url.searchParams.get("skill_domain")),
+      tags,
+      difficulty_min: url.searchParams.get("difficulty_min") ?? undefined,
+      difficulty_max: url.searchParams.get("difficulty_max") ?? undefined,
+      sort: normalizeQueryParam(url.searchParams.get("sort")),
+      limit: url.searchParams.get("limit") ?? undefined,
+      offset: url.searchParams.get("offset") ?? undefined
+    });
+
     const filters = [];
-    if (q) {
-      filters.push(or(like(tasks.title, `%${q}%`), like(tasks.description, `%${q}%`)));
+    if (query.q) {
+      filters.push(
+        or(
+          like(tasks.title, `%${query.q}%`),
+          like(tasks.description, `%${query.q}%`),
+          like(tasks.tags, `%${query.q}%`)
+        )
+      );
     }
-    if (tag) {
-      filters.push(like(tasks.tags, `%"${tag}"%`));
+    if (query.tags.length > 0) {
+      const tagFilters = query.tags.map((tag) => like(tasks.tags, `%"${tag}"%`));
+      filters.push(or(...tagFilters));
     }
-    if (skill_domain) {
-      filters.push(eq(tasks.skill_domain, skill_domain));
+    if (query.skill_domain) {
+      filters.push(eq(tasks.skill_domain, query.skill_domain));
     }
-    if (published === "1") {
+    if (query.language) {
+      filters.push(eq(tasks.language, query.language));
+    }
+    if (query.published === 1) {
       filters.push(eq(tasks.is_published, true));
     }
-    const baseQuery = db.select().from(tasks);
-    const results = filters.length ? await baseQuery.where(and(...filters)) : await baseQuery;
+    if (query.published === 0) {
+      filters.push(eq(tasks.is_published, false));
+    }
+    if (query.difficulty_min) {
+      filters.push(gte(tasks.base_difficulty, query.difficulty_min));
+    }
+    if (query.difficulty_max) {
+      filters.push(lte(tasks.base_difficulty, query.difficulty_max));
+    }
+
+    let resultsQuery = db.select().from(tasks);
+    if (filters.length) {
+      resultsQuery = resultsQuery.where(and(...filters));
+    }
+
+    const sort = query.sort;
+    switch (sort) {
+      case "oldest":
+        resultsQuery = resultsQuery.orderBy(asc(tasks.created_at));
+        break;
+      case "difficulty_asc":
+        resultsQuery = resultsQuery.orderBy(asc(tasks.base_difficulty));
+        break;
+      case "difficulty_desc":
+        resultsQuery = resultsQuery.orderBy(desc(tasks.base_difficulty));
+        break;
+      case "title_asc":
+        resultsQuery = resultsQuery.orderBy(asc(tasks.title));
+        break;
+      case "title_desc":
+        resultsQuery = resultsQuery.orderBy(desc(tasks.title));
+        break;
+      default:
+        resultsQuery = resultsQuery.orderBy(desc(tasks.created_at));
+        break;
+    }
+
+    const results = await resultsQuery.limit(query.limit).offset(query.offset);
     log.info("Tasks fetched", { count: results.length });
     return c.json(results.map((task) => normalizeTask(task)));
+  });
+
+  app.get("/api/v1/tasks/languages", async (c) => {
+    const rows = await db
+      .select({ language: tasks.language })
+      .from(tasks)
+      .where(eq(tasks.is_published, true))
+      .groupBy(tasks.language)
+      .orderBy(asc(tasks.language));
+    const languages = rows.map((row) => row.language).filter(Boolean);
+    return c.json({ languages });
+  });
+
+  app.get("/api/v1/tasks/tags", async (c) => {
+    const rows = await db
+      .select({ tags: tasks.tags })
+      .from(tasks)
+      .where(eq(tasks.is_published, true));
+    const values = new Set<string>();
+    rows.forEach((row) => {
+      const tags = Array.isArray(row.tags) ? row.tags : [];
+      tags.forEach((tag) => {
+        if (tag) values.add(tag);
+      });
+    });
+    const tags = Array.from(values).sort((a, b) => a.localeCompare(b));
+    return c.json({ tags });
+  });
+
+  app.get("/api/v1/tasks/skill-domains", async (c) => {
+    const rows = await db
+      .select({ skill_domain: tasks.skill_domain })
+      .from(tasks)
+      .where(eq(tasks.is_published, true))
+      .groupBy(tasks.skill_domain)
+      .orderBy(asc(tasks.skill_domain));
+    const skill_domains = rows.map((row) => row.skill_domain).filter(Boolean);
+    return c.json({ skill_domains });
   });
 
   app.get("/api/v1/leaderboard", userAuth, async (c) => {

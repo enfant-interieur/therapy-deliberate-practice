@@ -231,12 +231,47 @@ export const api = createApi({
     validateOpenAiKey: builder.mutation<{ ok: boolean; error?: string }, { openaiApiKey?: string }>({
       query: (body) => ({ url: "/me/openai-key/validate", method: "POST", body })
     }),
-    getTasks: builder.query<Task[], { tag?: string; q?: string; skill_domain?: string; published?: 1 }>(
+    getTasks: builder.query<
+      Task[],
       {
-        query: (params) => ({ url: "/tasks", params }),
-        providesTags: ["Task"]
+        q?: string;
+        language?: string;
+        skill_domain?: string;
+        tags?: string[];
+        difficulty_min?: number;
+        difficulty_max?: number;
+        sort?: string;
+        published?: 0 | 1;
+        limit?: number;
+        offset?: number;
       }
-    ),
+    >({
+      query: ({ tags, ...params }) => {
+        const normalizedParams: Record<string, string | number> = {};
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== "") {
+            normalizedParams[key] = value as string | number;
+          }
+        });
+        if (tags && tags.length > 0) {
+          const normalizedTags = [...tags].map((tag) => tag.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b));
+          if (normalizedTags.length > 0) {
+            normalizedParams.tags = normalizedTags.join(",");
+          }
+        }
+        return { url: "/tasks", params: normalizedParams };
+      },
+      providesTags: ["Task"]
+    }),
+    getTaskLanguages: builder.query<{ languages: string[] }, void>({
+      query: () => "/tasks/languages"
+    }),
+    getTaskTags: builder.query<{ tags: string[] }, void>({
+      query: () => "/tasks/tags"
+    }),
+    getTaskSkillDomains: builder.query<{ skill_domains: string[] }, void>({
+      query: () => "/tasks/skill-domains"
+    }),
     getTask: builder.query<
       Task & {
         criteria: TaskCriterion[];
@@ -537,6 +572,9 @@ export const {
   useDeleteOpenAiKeyMutation,
   useValidateOpenAiKeyMutation,
   useGetTasksQuery,
+  useGetTaskLanguagesQuery,
+  useGetTaskTagsQuery,
+  useGetTaskSkillDomainsQuery,
   useGetTaskQuery,
   useGetTaskExamplesQuery,
   useGetLeaderboardQuery,
