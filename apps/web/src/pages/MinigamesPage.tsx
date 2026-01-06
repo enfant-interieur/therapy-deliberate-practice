@@ -206,17 +206,17 @@ export const MinigamePlayPage = () => {
 
 
   const currentRound = useMemo(
-      () =>
-          minigames.rounds.find((round) => round.id === minigames.currentRoundId) ??
-          minigames.rounds.find((round) => round.status !== "completed"),
-      [minigames.currentRoundId, minigames.rounds]
+    () =>
+      minigames.rounds.find((round) => round.id === minigames.currentRoundId) ??
+      minigames.rounds.find((round) => round.status !== "completed"),
+    [minigames.currentRoundId, minigames.rounds]
   );
+  const roundFlowLocked = evaluationModalOpen || newPlayerOpen;
 
   useEffect(() => {
     if (mode !== "ffa") return;
     if (ffaNextRoundBlocked) return;
-    if (evaluationModalOpen) return;
-    if (newPlayerOpen) return;
+    if (roundFlowLocked) return;
     if (!minigames.rounds.length) return;
     if (minigames.currentRoundId && currentRound) return;
     const nextRound = minigames.rounds
@@ -229,12 +229,11 @@ export const MinigamePlayPage = () => {
   }, [
     currentRound,
     dispatch,
-    evaluationModalOpen,
     ffaNextRoundBlocked,
     minigames.currentRoundId,
     minigames.rounds,
     mode,
-    newPlayerOpen
+    roundFlowLocked
   ]);
 
   useEffect(() => {
@@ -460,7 +459,7 @@ export const MinigamePlayPage = () => {
   }, [minigames.session?.settings]);
 
   const ffaController = useFfaTurnController({
-    enabled: mode === "ffa",
+    enabled: mode === "ffa" && !roundFlowLocked,
     sessionId: minigames.session?.id ?? "",
     round: currentRound,
     playerId: currentRound?.player_a_id,
@@ -526,7 +525,7 @@ export const MinigamePlayPage = () => {
   });
 
   const tdmController = useTdmMatchController({
-    enabled: mode === "tdm",
+    enabled: mode === "tdm" && !roundFlowLocked,
     sessionId: minigames.session?.id ?? "",
     round: currentRound,
     aiMode: settings.aiMode,
@@ -595,6 +594,7 @@ export const MinigamePlayPage = () => {
   useEffect(() => {
     if (mode !== "ffa") return;
     if (ffaNextRoundBlocked) return;
+    if (roundFlowLocked) return;
     if (!currentRound || !activePlayerId) return;
     const playedExamples = playedExampleIdsByPlayer.get(activePlayerId);
     const completedRounds = completedRoundIdsByPlayer.get(activePlayerId);
@@ -632,7 +632,8 @@ export const MinigamePlayPage = () => {
     ffaNextRoundBlocked,
     minigames.rounds,
     mode,
-    playedExampleIdsByPlayer
+    playedExampleIdsByPlayer,
+    roundFlowLocked
   ]);
 
   useEffect(() => {
@@ -725,6 +726,7 @@ export const MinigamePlayPage = () => {
   const nextTurn = () => {
     if (promptExhaustedMessage) return;
     if (mode === "ffa" && ffaNextRoundBlocked) return;
+    if (roundFlowLocked) return;
     const upcoming = [...minigames.rounds]
       .filter((round) => round.status !== "completed")
       .sort((a, b) => a.position - b.position);
@@ -890,7 +892,7 @@ export const MinigamePlayPage = () => {
   const nextTurnDisabled = Boolean(promptExhaustedMessage);
 
   const canRequestNextTurn =
-    !evaluationModalOpen && roundResultScore != null && controller.state === "complete";
+    !roundFlowLocked && roundResultScore != null && controller.state === "complete";
 
   const canRedraw =
     mode === "tdm" &&
