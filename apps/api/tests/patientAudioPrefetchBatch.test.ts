@@ -47,6 +47,7 @@ const setupDb = () => {
     CREATE TABLE user_settings (
       user_id TEXT PRIMARY KEY,
       ai_mode TEXT NOT NULL DEFAULT 'local_prefer',
+      local_base_url TEXT,
       local_stt_url TEXT,
       local_llm_url TEXT,
       store_audio INTEGER NOT NULL DEFAULT 0,

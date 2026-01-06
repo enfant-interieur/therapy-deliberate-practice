@@ -48,19 +48,15 @@ test("assertOpenAiKey throws when openai_only has no key", async () => {
   );
 });
 
-test("assertLocalBaseUrl throws when local_only has no base URL", async () => {
+test("local_only defaults to the local suite base URL when none is set", async () => {
   const env = createEnv({ openaiApiKey: "server-key" });
   const config = await resolveEffectiveAiConfig({
     env,
     settings: { ai_mode: "local_only" }
   });
 
-  assert.throws(
-    () => assertLocalBaseUrl(config),
-    (error) =>
-      error instanceof ProviderConfigError &&
-      error.code === "LOCAL_BASE_URL_MISSING"
-  );
+  assert.equal(config.local.baseUrl, "http://127.0.0.1:8484");
+  assert.doesNotThrow(() => assertLocalBaseUrl(config));
 });
 
 test("local_prefer falls back to env OpenAI key when local base URL missing", async () => {
@@ -72,6 +68,6 @@ test("local_prefer falls back to env OpenAI key when local base URL missing", as
 
   assert.equal(config.mode, "local_prefer");
   assert.equal(config.openai.apiKey, "server-key");
-  assert.equal(config.local.baseUrl, null);
+  assert.equal(config.local.baseUrl, "http://127.0.0.1:8484");
   assert.equal(config.resolvedFrom.openaiKey, "env");
 });

@@ -18,8 +18,9 @@ export const selectSttProvider = async (
   config: EffectiveAiConfig,
   logger?: LogFn
 ): Promise<ProviderSelection<SttProvider>> => {
-  const localProvider = config.local.baseUrl
-    ? LocalWhisperSttProvider(config.local.baseUrl, logger)
+  const sttUrl = config.local.sttUrl ?? config.local.baseUrl;
+  const localProvider = sttUrl
+    ? LocalWhisperSttProvider(sttUrl, logger)
     : null;
   const openaiProvider = config.openai.apiKey
     ? OpenAISttProvider({ apiKey: config.openai.apiKey }, logger)
@@ -29,7 +30,7 @@ export const selectSttProvider = async (
   logger?.("info", "stt.health", { local_ok: localOk, openai_ok: openaiOk, mode: config.mode });
 
   if (config.mode === "local_only") {
-    assertLocalBaseUrl(config);
+    assertLocalBaseUrl(config, sttUrl);
     if (!localOk) {
       throw new ProviderConfigError(
         "LOCAL_UNREACHABLE",
@@ -76,8 +77,9 @@ export const selectLlmProvider = async (
   config: EffectiveAiConfig,
   logger?: LogFn
 ): Promise<ProviderSelection<LlmProvider>> => {
-  const localProvider = config.local.baseUrl
-    ? LocalMlxLlmProvider(config.local.baseUrl, logger)
+  const llmUrl = config.local.llmUrl ?? config.local.baseUrl;
+  const localProvider = llmUrl
+    ? LocalMlxLlmProvider(llmUrl, logger)
     : null;
   const openaiProvider = config.openai.apiKey
     ? OpenAILlmProvider({ apiKey: config.openai.apiKey }, logger)
@@ -87,7 +89,7 @@ export const selectLlmProvider = async (
   logger?.("info", "llm.health", { local_ok: localOk, openai_ok: openaiOk, mode: config.mode });
 
   if (config.mode === "local_only") {
-    assertLocalBaseUrl(config);
+    assertLocalBaseUrl(config, llmUrl);
     if (!localOk) {
       throw new ProviderConfigError(
         "LOCAL_UNREACHABLE",

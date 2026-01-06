@@ -4,6 +4,7 @@ import type { ApiDatabase } from "../db/types";
 import type { RuntimeEnv } from "../env";
 import { users, userSettings } from "../db/schema";
 import { logServerError } from "../utils/logger";
+import { DEFAULT_LOCAL_BASE_URL } from "../providers/config";
 
 export type UserIdentity = {
   id: string;
@@ -42,6 +43,7 @@ const ensureUserRecords = async (db: ApiDatabase, identity: UserIdentity) => {
     .values({
       user_id: identity.id,
       ai_mode: "local_prefer",
+      local_base_url: DEFAULT_LOCAL_BASE_URL,
       local_stt_url: null,
       local_llm_url: null,
       store_audio: false,

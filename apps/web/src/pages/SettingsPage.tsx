@@ -43,36 +43,14 @@ export const SettingsPage = () => {
 
   useEffect(() => {
     setAiMode(settings.aiMode);
-    const llm = settings.localEndpoints.llm;
-    const stt = settings.localEndpoints.stt;
+    const llm = settings.localEndpoints.llm ?? "";
+    const stt = settings.localEndpoints.stt ?? "";
     const baseUrl = settings.localAiBaseUrl ?? "";
-    if (baseUrl && (!llm || !stt)) {
-      setLocalAiBaseUrl(baseUrl);
-      setLocalLlmUrl("");
-      setLocalSttUrl("");
-      setShowAdvanced(false);
-    } else {
-      const getOrigin = (value: string) => {
-        try {
-          return new URL(value).origin;
-        } catch {
-          return null;
-        }
-      };
-      const llmOrigin = llm ? getOrigin(llm) : null;
-      const sttOrigin = stt ? getOrigin(stt) : null;
-      if (llmOrigin && sttOrigin && llmOrigin === sttOrigin) {
-        setLocalAiBaseUrl(llmOrigin);
-        setLocalLlmUrl("");
-        setLocalSttUrl("");
-        setShowAdvanced(false);
-      } else {
-        setLocalAiBaseUrl("");
-        setLocalLlmUrl(llm ?? "");
-        setLocalSttUrl(stt ?? "");
-        setShowAdvanced(Boolean(llm || stt));
-      }
-    }
+    const hasOverrides = Boolean(llm || stt);
+    setLocalAiBaseUrl(baseUrl);
+    setLocalLlmUrl(llm);
+    setLocalSttUrl(stt);
+    setShowAdvanced(hasOverrides);
     setStoreAudio(settings.privacy.storeAudio);
   }, [
     settings.aiMode,

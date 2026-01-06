@@ -30,8 +30,8 @@ export type UserProfile = {
 export type UserSettings = {
   aiMode: "local_prefer" | "openai_only" | "local_only";
   localAiBaseUrl: string | null;
-  localSttUrl: string;
-  localLlmUrl: string;
+  localSttUrl: string | null;
+  localLlmUrl: string | null;
   storeAudio: boolean;
   hasOpenAiKey: boolean;
 };

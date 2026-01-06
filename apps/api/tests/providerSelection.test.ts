@@ -7,7 +7,7 @@ import { ProviderConfigError } from "../src/providers/providerErrors";
 const baseConfig: EffectiveAiConfig = {
   mode: "local_prefer",
   openai: { apiKey: "server-key" },
-  local: { baseUrl: "http://local-ai", apiPrefix: "/v1" },
+  local: { baseUrl: "http://local-ai", sttUrl: null, llmUrl: null, apiPrefix: "/v1" },
   resolvedFrom: { openaiKey: "env", localBaseUrl: "user" }
 };
 
@@ -36,7 +36,7 @@ test("selectSttProvider throws when local_only missing base URL", async () => {
   const config: EffectiveAiConfig = {
     ...baseConfig,
     mode: "local_only",
-    local: { baseUrl: null, apiPrefix: "/v1" }
+    local: { baseUrl: null, sttUrl: null, llmUrl: null, apiPrefix: "/v1" }
   };
 
   await assert.rejects(
