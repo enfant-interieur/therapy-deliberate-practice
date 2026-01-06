@@ -35,9 +35,9 @@ const mockAuth = async (page: Page) => {
       contentType: "application/json",
       body: JSON.stringify({
         aiMode: "openai_only",
-        localAiBaseUrl: null,
-        localSttUrl: "",
-        localLlmUrl: "",
+        localAiBaseUrl: "http://127.0.0.1:8484",
+        localSttUrl: null,
+        localLlmUrl: null,
         storeAudio: false,
         hasOpenAiKey: false
       })

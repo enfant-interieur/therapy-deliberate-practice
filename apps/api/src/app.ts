@@ -56,7 +56,8 @@ import {
   assertOpenAiKey,
   buildEnvAiConfig,
   resolveEffectiveAiConfig,
-  type EffectiveAiConfig
+  type EffectiveAiConfig,
+  DEFAULT_LOCAL_BASE_URL
 } from "./providers/config";
 import { isProviderConfigError } from "./providers/providerErrors";
 import { localSuiteHealthCheck } from "./providers/localSuite";
@@ -345,30 +346,13 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     return trimmed ? trimmed : null;
   };
 
-  const getOrigin = (value?: string | null) => {
-    if (!value) return null;
-    try {
-      return new URL(value).origin;
-    } catch {
-      return null;
-    }
-  };
-
-  const deriveLocalBaseUrl = (localLlmUrl?: string | null, localSttUrl?: string | null) => {
-    const llmOrigin = getOrigin(localLlmUrl);
-    const sttOrigin = getOrigin(localSttUrl);
-    if (llmOrigin && sttOrigin && llmOrigin === sttOrigin) {
-      return llmOrigin;
-    }
-    return null;
-  };
-
   const normalizeSettings = (settings: typeof userSettings.$inferSelect) => {
     const localSttUrl = settings.local_stt_url ?? null;
     const localLlmUrl = settings.local_llm_url ?? null;
+    const localBaseUrl = normalizeUrl(settings.local_base_url) ?? DEFAULT_LOCAL_BASE_URL;
     return {
       aiMode: settings.ai_mode,
-      localAiBaseUrl: deriveLocalBaseUrl(localLlmUrl, localSttUrl),
+      localAiBaseUrl: localBaseUrl,
       localSttUrl,
       localLlmUrl,
       storeAudio: settings.store_audio ?? false,
@@ -476,16 +460,26 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       return c.json({ error: "Local AI configuration failed." }, 500);
     }
 
-    if (!config.local.baseUrl) {
+    const sttUrl = config.local.sttUrl ?? config.local.baseUrl;
+    const llmUrl = config.local.llmUrl ?? config.local.baseUrl;
+    if (!sttUrl || !llmUrl || !config.local.baseUrl) {
       return c.json(
         { error: "Local AI mode requires a local base URL.", code: "LOCAL_BASE_URL_MISSING" },
         400
       );
     }
 
-    const healthy = await localSuiteHealthCheck(config.local.baseUrl);
-    log.info("Local AI health check completed", { stt: healthy, llm: healthy, tts: healthy });
-    return c.json({ stt: healthy, llm: healthy, tts: healthy });
+    const [sttHealthy, llmHealthy, ttsHealthy] = await Promise.all([
+      localSuiteHealthCheck(sttUrl),
+      localSuiteHealthCheck(llmUrl),
+      localSuiteHealthCheck(config.local.baseUrl)
+    ]);
+    log.info("Local AI health check completed", {
+      stt: sttHealthy,
+      llm: llmHealthy,
+      tts: ttsHealthy
+    });
+    return c.json({ stt: sttHealthy, llm: llmHealthy, tts: ttsHealthy });
   });
 
   app.get("/api/v1/tasks", async (c) => {
@@ -2144,14 +2138,17 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
     const data = parsed.data;
     const normalizedBase = normalizeUrl(data.localAiBaseUrl);
-    const normalizedStt = normalizeUrl(data.localSttUrl) ?? normalizedBase;
-    const normalizedLlm = normalizeUrl(data.localLlmUrl) ?? normalizedBase;
+    const normalizedStt = normalizeUrl(data.localSttUrl);
+    const normalizedLlm = normalizeUrl(data.localLlmUrl);
+    const hasOverrides = Boolean(normalizedStt || normalizedLlm);
+    const resolvedBase = normalizedBase ?? DEFAULT_LOCAL_BASE_URL;
     await db
       .update(userSettings)
       .set({
         ai_mode: data.aiMode,
-        local_stt_url: normalizedStt,
-        local_llm_url: normalizedLlm,
+        local_base_url: hasOverrides ? null : resolvedBase,
+        local_stt_url: hasOverrides ? normalizedStt : null,
+        local_llm_url: hasOverrides ? normalizedLlm : null,
         store_audio: data.storeAudio,
         updated_at: Date.now()
       })

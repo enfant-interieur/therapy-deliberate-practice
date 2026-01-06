@@ -4,8 +4,8 @@ type SettingsState = {
   aiMode: "local_prefer" | "openai_only" | "local_only";
   localAiBaseUrl: string | null;
   localEndpoints: {
-    stt: string;
-    llm: string;
+    stt: string | null;
+    llm: string | null;
   };
   privacy: {
     storeAudio: boolean;
@@ -15,10 +15,10 @@ type SettingsState = {
 
 const initialState: SettingsState = {
   aiMode: "local_prefer",
-  localAiBaseUrl: null,
+  localAiBaseUrl: "http://127.0.0.1:8484",
   localEndpoints: {
-    stt: "http://127.0.0.1:8484",
-    llm: "http://127.0.0.1:8484"
+    stt: null,
+    llm: null
   },
   privacy: {
     storeAudio: false
@@ -35,8 +35,8 @@ const settingsSlice = createSlice({
       action: PayloadAction<{
         aiMode: SettingsState["aiMode"];
         localAiBaseUrl: string | null;
-        localSttUrl: string;
-        localLlmUrl: string;
+        localSttUrl: string | null;
+        localLlmUrl: string | null;
         storeAudio: boolean;
         hasOpenAiKey: boolean;
       }>
@@ -53,7 +53,7 @@ const settingsSlice = createSlice({
     },
     setLocalEndpoint(
       state,
-      action: PayloadAction<{ kind: "stt" | "llm"; url: string }>
+      action: PayloadAction<{ kind: "stt" | "llm"; url: string | null }>
     ) {
       state.localEndpoints[action.payload.kind] = action.payload.url;
     },

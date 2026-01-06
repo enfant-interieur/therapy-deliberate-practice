@@ -195,6 +195,7 @@ export const userTaskProgress = sqliteTable(
 export const userSettings = sqliteTable("user_settings", {
   user_id: text("user_id").primaryKey(),
   ai_mode: text("ai_mode").notNull().default("local_prefer"),
+  local_base_url: text("local_base_url"),
   local_stt_url: text("local_stt_url"),
   local_llm_url: text("local_llm_url"),
   store_audio: integer("store_audio", { mode: "boolean" }).notNull().default(false),
