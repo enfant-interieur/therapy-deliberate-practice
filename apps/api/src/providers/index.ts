@@ -18,7 +18,7 @@ export const selectSttProvider = async (
   config: EffectiveAiConfig,
   logger?: LogFn
 ): Promise<ProviderSelection<SttProvider>> => {
-  const sttUrl = config.local.sttUrl ?? config.local.baseUrl;
+  const sttUrl = config.local.baseUrl ?? config.local.sttUrl;
   const localProvider = sttUrl
     ? LocalWhisperSttProvider(sttUrl, logger)
     : null;
@@ -77,7 +77,7 @@ export const selectLlmProvider = async (
   config: EffectiveAiConfig,
   logger?: LogFn
 ): Promise<ProviderSelection<LlmProvider>> => {
-  const llmUrl = config.local.llmUrl ?? config.local.baseUrl;
+  const llmUrl = config.local.baseUrl ?? config.local.llmUrl;
   const localProvider = llmUrl
     ? LocalMlxLlmProvider(llmUrl, logger)
     : null;

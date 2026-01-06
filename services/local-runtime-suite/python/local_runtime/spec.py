@@ -45,7 +45,7 @@ class LimitsSpec(BaseModel):
 class BackendSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["mlx", "hf", "ollama", "kokoro", "faster_whisper", "openai_proxy", "custom"]
+    provider: Literal["mlx", "hf", "ollama", "kokoro", "faster_whisper", "custom"]
     model_ref: str
     revision: str | None = None
     device_hint: Literal["auto", "cpu", "cuda", "metal"]

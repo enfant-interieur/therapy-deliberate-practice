@@ -1,0 +1,15 @@
+dist
+build
+venv-tauri
+.venv-tauri
+*.egg-info
+__pycache__
+*.pyc
+.env
+.DS_Store
+.vscode
+.idea
+idea
+node_modules
+target
+*.log

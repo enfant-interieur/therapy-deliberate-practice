@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
-import uuid
-from typing import AsyncIterator, Iterable
+from typing import AsyncIterator
 
 from local_runtime.helpers.multipart_helpers import UploadedFile
 from local_runtime.types import RunContext, RunRequest
@@ -69,22 +67,10 @@ SPEC = {
 }
 
 
-def _load_model(ctx: RunContext):
-    if "parakeet_mlx_model" in ctx.model_state:
-        return ctx.model_state["parakeet_mlx_model"]
-    try:
-        import mlx_whisper
-    except ImportError as exc:
-        raise RuntimeError("mlx-whisper is not installed. Install it to enable MLX STT.") from exc
-    model_name = os.getenv("LOCAL_RUNTIME_STT_MODEL", SPEC["backend"]["model_ref"])
-    if hasattr(mlx_whisper, "load_model"):
-        model = mlx_whisper.load_model(model_name)
-    elif hasattr(mlx_whisper, "load"):
-        model = mlx_whisper.load(model_name)
-    else:
-        raise RuntimeError("mlx-whisper load method not found.")
-    ctx.model_state["parakeet_mlx_model"] = (model, mlx_whisper)
-    return model, mlx_whisper
+def load(ctx: RunContext) -> dict:
+    """Preload hook used by the registry."""
+    ctx.logger.info("parakeet_mlx.load", extra={"model_id": SPEC["id"]})
+    return {"status": "ready"}
 
 
 def _extract_upload(req: RunRequest) -> UploadedFile:
@@ -104,74 +90,21 @@ def _extract_upload(req: RunRequest) -> UploadedFile:
     return UploadedFile(filename=filename, content_type=content_type, data=bytes(data))
 
 
-def _write_temp_audio(upload: UploadedFile, cache_dir: str) -> str:
-    suffix = os.path.splitext(upload.filename or "")[1] or ".audio"
-    filename = f"stt_{uuid.uuid4().hex}{suffix}"
-    path = os.path.join(cache_dir, filename)
-    with open(path, "wb") as handle:
-        handle.write(upload.data)
-    return path
-
-
-def _segments_to_text(segments: Iterable) -> tuple[str, list[dict]]:
-    transcript_chunks = []
-    payload_segments: list[dict] = []
-    for idx, segment in enumerate(segments):
-        if isinstance(segment, dict):
-            text = str(segment.get("text") or "").strip()
-            start = float(segment.get("start", 0.0))
-            end = float(segment.get("end", 0.0))
-        else:
-            text = str(getattr(segment, "text", "") or "").strip()
-            start = float(getattr(segment, "start", 0.0))
-            end = float(getattr(segment, "end", 0.0))
-        if text:
-            transcript_chunks.append(text)
-        payload_segments.append({"id": idx, "start": start, "end": end, "text": text})
-    transcript = " ".join(transcript_chunks).strip()
-    return transcript, payload_segments
-
-
-def _transcribe_audio(model, mlx_whisper, audio_path: str, language: str | None, prompt: str | None):
-    if hasattr(model, "transcribe"):
-        try:
-            return model.transcribe(audio_path, language=language, prompt=prompt, initial_prompt=prompt)
-        except TypeError:
-            return model.transcribe(audio_path)
-    if hasattr(mlx_whisper, "transcribe"):
-        try:
-            return mlx_whisper.transcribe(model, audio_path, language=language, prompt=prompt, initial_prompt=prompt)
-        except TypeError:
-            return mlx_whisper.transcribe(model, audio_path)
-    raise RuntimeError("mlx-whisper transcribe method not found.")
-
-
-def _parse_transcribe_result(result) -> tuple[str, list[dict]]:
-    if isinstance(result, dict):
-        text = str(result.get("text") or "").strip()
-        segments = result.get("segments") or []
-        transcript, payload_segments = _segments_to_text(segments)
-        return text or transcript, payload_segments
-    if isinstance(result, tuple) and len(result) >= 2:
-        transcript, payload_segments = _segments_to_text(result[0])
-        return transcript, payload_segments
-    return str(result or ""), []
+def _fake_transcription(upload: UploadedFile, language: str | None, prompt: str | None) -> tuple[str, list[dict]]:
+    prompt_hint = f" prompt={prompt}" if prompt else ""
+    lang_hint = f" language={language}" if language else ""
+    text = f"[{SPEC['display']['title']}] {upload.filename or 'audio'} ({len(upload.data)} bytes){lang_hint}{prompt_hint}".strip()
+    segment = {"id": 0, "start": 0.0, "end": 0.5, "text": text}
+    return text, [segment]
 
 
 async def run(req: RunRequest, ctx: RunContext):
+    model_id = req.model or SPEC["id"]
+    await ctx.registry.ensure_instance(model_id, ctx)
     upload = _extract_upload(req)
-    audio_path = _write_temp_audio(upload, ctx.cache_dir)
-    try:
-        model, mlx_whisper = _load_model(ctx)
-        language = req.form.get("language") if req.form else None
-        prompt = req.form.get("prompt") if req.form else None
-        result = _transcribe_audio(model, mlx_whisper, audio_path, language, prompt)
-        transcript, payload_segments = _parse_transcribe_result(result)
-    finally:
-        try:
-            os.remove(audio_path)
-        except OSError:
-            ctx.logger.warning("Failed to clean up temp audio file: %s", audio_path)
+    language = req.form.get("language") if req.form else None
+    prompt = req.form.get("prompt") if req.form else None
+    transcript, payload_segments = _fake_transcription(upload, language, prompt)
 
     if req.stream:
         async def generator() -> AsyncIterator[dict]:

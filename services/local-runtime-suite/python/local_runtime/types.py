@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Literal
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, AsyncIterator, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+if TYPE_CHECKING:
+    from local_runtime.core.registry import ModelRegistry
 
 EndpointLiteral = Literal["responses", "audio.speech", "audio.transcriptions", "audio.translations"]
 
@@ -26,9 +29,9 @@ class RunContext:
     data_dir: str
     cache_dir: str
     platform: str
+    registry: ModelRegistry
     http_client: Any
     cancellation_token: Any | None = None
-    model_state: dict[str, Any] = field(default_factory=dict)
 
 
 RunResult = (
