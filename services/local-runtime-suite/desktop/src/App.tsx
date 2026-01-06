@@ -51,6 +51,12 @@ export const App = () => {
   const [portSaveState, setPortSaveState] = useState<SaveState>("idle");
   const [connectionInfo, setConnectionInfo] = useState<GatewayConnectionInfo | null>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [simpleSteps, setSimpleSteps] = useState({
+    copiedUrl: false,
+    openedAccount: false,
+    openedSettings: false
+  });
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const logBoxRef = useRef<HTMLDivElement | null>(null);
   const baseUrl = connectionInfo?.base_url ?? `http://127.0.0.1:${port}`;
   const llmUrl = connectionInfo?.llm_url ?? baseUrl;
@@ -60,6 +66,13 @@ export const App = () => {
   const sttExample =
     connectionInfo?.endpoints.stt_example ?? `${baseUrl}/v1/audio/transcriptions`;
   const settingsUrl = "https://therapy-deliberate-practice.com/settings";
+  const createAccountUrl = "https://therapy-deliberate-practice.com";
+  const isMac = /(Mac|iPhone|iPad|iPod)/i.test(navigator.userAgent);
+
+  const logEvent = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString();
+    setLogs((prev) => [...prev, `[UI ${timestamp}] ${message}`]);
+  };
 
   const refreshStatus = async () => {
     const result = await invoke<{ status: string }>("gateway_status");
@@ -67,13 +80,18 @@ export const App = () => {
   };
 
   const refreshModels = async () => {
+    logEvent("Refreshing model catalog from gateway.");
     const result = await invoke<{ data: ModelSummary[] }>("gateway_models");
     setModels(result.data ?? []);
   };
 
   const refreshLogs = async () => {
     const result = await invoke<{ logs: string[] }>("gateway_logs");
-    setLogs(result.logs ?? []);
+    setLogs((prev) => {
+      const gatewayLogs = result.logs ?? [];
+      const localLogs = prev.filter((line) => line.startsWith("[UI "));
+      return [...localLogs, ...gatewayLogs];
+    });
   };
 
   const refreshConnectionInfo = async () => {
@@ -98,6 +116,7 @@ export const App = () => {
   const saveConfig = async () => {
     setSaveState("saving");
     try {
+      logEvent("Saving preferences to gateway config.");
       await invoke("save_gateway_config", {
         payload: {
           port,
@@ -111,9 +130,11 @@ export const App = () => {
       });
       setSaveState("saved");
       await refreshConnectionInfo();
+      await refreshLogs();
     } catch (error) {
       console.error("Failed to save preferences", error);
       setSaveState("error");
+      logEvent("Failed to save preferences.");
     }
   };
 
@@ -122,6 +143,7 @@ export const App = () => {
     if (!Number.isInteger(parsed)) return;
     setPortSaveState("saving");
     try {
+      logEvent(`Saving gateway port to ${parsed}.`);
       await invoke("save_gateway_config", {
         payload: {
           port: parsed,
@@ -136,22 +158,28 @@ export const App = () => {
       setPort(parsed);
       setPortSaveState("saved");
       await refreshConnectionInfo();
+      await refreshLogs();
     } catch (error) {
       console.error("Failed to save port", error);
       setPortSaveState("error");
+      logEvent("Failed to save gateway port.");
     }
   };
 
   const runDoctor = async () => {
+    logEvent("Running preflight doctor checks.");
     const result = await invoke<{ checks: DoctorCheck[] }>("gateway_doctor");
     setDoctorChecks(result.checks ?? []);
+    await refreshLogs();
   };
 
   const startGateway = async () => {
     setStartError(null);
     try {
+      logEvent("Starting local gateway.");
       await invoke("start_gateway");
       await refreshStatus();
+      await refreshLogs();
     } catch (error) {
       const message =
         typeof error === "string"
@@ -160,16 +188,19 @@ export const App = () => {
             ? error.message
             : JSON.stringify(error);
       setStartError(message);
+      logEvent(`Gateway failed to start: ${message}`);
     }
   };
 
   const restartGateway = async () => {
+    logEvent("Restarting local gateway.");
     await invoke("stop_gateway");
     await startGateway();
   };
 
   const copyText = async (value: string) => {
     await navigator.clipboard.writeText(value);
+    logEvent("Copied text to clipboard.");
   };
 
   useEffect(() => {
@@ -184,6 +215,13 @@ export const App = () => {
     if (status !== "running") return;
     refreshModels();
   }, [status]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshLogs();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     setSaveState("idle");
@@ -205,6 +243,20 @@ export const App = () => {
     ["audio.transcriptions", "audio.translations"].includes(model.metadata.api.endpoint)
   );
 
+  useEffect(() => {
+    if (!models.length) return;
+    if (defaults.llm && defaults.tts && defaults.stt) return;
+    const pickModel = (options: ModelSummary[], preferredId: string) =>
+      options.find((model) => model.id === preferredId)?.id ?? options[0]?.id ?? "";
+    const nextDefaults = {
+      llm: defaults.llm || pickModel(llmOptions, isMac ? "local//llm/qwen3-mlx" : "local//llm/qwen3-hf"),
+      tts: defaults.tts || pickModel(ttsOptions, "local//tts/kokoro-local"),
+      stt: defaults.stt || pickModel(sttOptions, isMac ? "local//stt/parakeet-mlx" : "local//stt/faster-whisper")
+    };
+    setDefaults(nextDefaults);
+    logEvent(`Selected ${isMac ? "MLX" : "non-MLX"} defaults based on platform.`);
+  }, [models, llmOptions, ttsOptions, sttOptions, isMac, defaults.llm, defaults.tts, defaults.stt]);
+
   const isGatewayRunning = status === "running";
   const portValue = Number(portInput);
   const portValid = Number.isInteger(portValue) && portValue >= 1024 && portValue <= 65535;
@@ -219,6 +271,18 @@ export const App = () => {
   const defaultsComplete = Boolean(defaults.llm && defaults.tts && defaults.stt);
   const canSave = defaultsComplete;
   const isSaved = saveState === "saved";
+  const simpleStep1Complete = isGatewayRunning;
+  const simpleStep2Complete = simpleSteps.copiedUrl;
+  const simpleStep3Complete = simpleSteps.openedAccount;
+  const simpleStep4Complete = simpleSteps.openedSettings;
+  const simpleActiveStep =
+    simpleStep4Complete
+      ? 4
+      : simpleStep3Complete
+        ? 3
+        : simpleStep2Complete
+          ? 2
+          : 1;
   const moduleNotFound = logs.some((line) =>
     line.includes("ModuleNotFoundError: No module named 'local_runtime'")
   );
@@ -271,6 +335,109 @@ export const App = () => {
 
   return (
     <div className="container">
+      <div className="panel hero">
+        <div className="hero-glow" />
+        <div className="hero-header">
+          <div>
+            <div className="kicker">Local Runtime</div>
+            <div className="title">Launch in four effortless steps</div>
+            <div className="hero-subtitle">
+              We auto-select {isMac ? "MLX" : "non-MLX"} defaults for your machine and keep the rest tucked away.
+            </div>
+          </div>
+          <div className="hero-actions">
+            <span className="badge">Status: {status}</span>
+            <button className="btn ghost" onClick={() => setShowAdvanced((value) => !value)}>
+              {showAdvanced ? "Hide advanced" : "Advanced"}
+            </button>
+          </div>
+        </div>
+        <div className="hero-steps">
+          <div className={`simple-step ${simpleStep1Complete ? "complete" : ""} ${simpleActiveStep === 1 ? "active" : ""}`}>
+            <div className="simple-step-index">{simpleStep1Complete ? "✓" : "1"}</div>
+            <div className="simple-step-content">
+              <div className="simple-step-title">Launch local server</div>
+              <div className="simple-step-description">
+                {doctorBlocking ? doctorBlocking.details : "Start the gateway and let it spin up in the background."}
+              </div>
+              <button
+                className="btn primary"
+                onClick={startGateway}
+                disabled={!canStartGateway || isGatewayRunning}
+              >
+                {isGatewayRunning ? "Gateway running" : "Launch local server"}
+              </button>
+            </div>
+          </div>
+          <div className={`simple-step ${simpleStep2Complete ? "complete" : ""} ${simpleActiveStep === 2 ? "active" : ""}`}>
+            <div className="simple-step-index">{simpleStep2Complete ? "✓" : "2"}</div>
+            <div className="simple-step-content">
+              <div className="simple-step-title">Copy your local URL</div>
+              <div className="simple-step-description">
+                Use this base URL in Therapy Settings: <span className="mono">{baseUrl}</span>
+              </div>
+              <button
+                className="btn"
+                onClick={async () => {
+                  await copyText(baseUrl);
+                  setSimpleSteps((prev) => ({ ...prev, copiedUrl: true }));
+                }}
+                disabled={!isGatewayRunning}
+              >
+                {simpleStep2Complete ? "Copied" : "Copy local URL"}
+              </button>
+            </div>
+          </div>
+          <div className={`simple-step ${simpleStep3Complete ? "complete" : ""} ${simpleActiveStep === 3 ? "active" : ""}`}>
+            <div className="simple-step-index">{simpleStep3Complete ? "✓" : "3"}</div>
+            <div className="simple-step-content">
+              <div className="simple-step-title">Create your Therapy account</div>
+              <div className="simple-step-description">
+                Open the Therapy website and sign up or log in.
+              </div>
+              <button
+                className="btn"
+                onClick={() => {
+                  openUrl(createAccountUrl);
+                  setSimpleSteps((prev) => ({ ...prev, openedAccount: true }));
+                  logEvent("Opened Therapy account page.");
+                }}
+              >
+                {simpleStep3Complete ? "Account opened" : "Create account"}
+              </button>
+            </div>
+          </div>
+          <div className={`simple-step ${simpleStep4Complete ? "complete" : ""} ${simpleActiveStep === 4 ? "active" : ""}`}>
+            <div className="simple-step-index">{simpleStep4Complete ? "✓" : "4"}</div>
+            <div className="simple-step-content">
+              <div className="simple-step-title">Paste the URL in Settings</div>
+              <div className="simple-step-description">
+                We will open settings and copy the URL for you.
+              </div>
+              <button
+                className="btn"
+                onClick={async () => {
+                  await copyText(baseUrl);
+                  openUrl(settingsUrl);
+                  setSimpleSteps((prev) => ({ ...prev, openedSettings: true }));
+                  logEvent("Opened Therapy settings and copied URL.");
+                }}
+              >
+                {simpleStep4Complete ? "Settings opened" : "Open settings + copy URL"}
+              </button>
+            </div>
+          </div>
+        </div>
+        {startError ? (
+          <div className="error-banner">
+            <div>Gateway failed to start.</div>
+            <div className="helper-text">{startError}</div>
+          </div>
+        ) : null}
+      </div>
+
+      {showAdvanced ? (
+        <>
       <div className="panel header">
         <div>
           <div className="kicker">Local Runtime Suite</div>
@@ -593,6 +760,8 @@ export const App = () => {
           </div>
         ) : null}
       </div>
+        </>
+      ) : null}
 
       <div className="panel">
         <div className="header">
@@ -643,33 +812,37 @@ export const App = () => {
         </div>
       </div>
 
-      <div className="panel">
-        <div className="header">
-          <div>
-            <div className="kicker">Doctor</div>
-            <div className="title">Preflight checks</div>
-          </div>
-          <button className="btn" onClick={runDoctor}>
-            Run doctor
-          </button>
-        </div>
-        <div className="grid">
-          {doctorChecks.map((check) => (
-            <div key={check.title} className="panel">
-              <div className="label">{check.title}</div>
-              <div>{check.details}</div>
-              {check.fix ? <p>Fix: {check.fix}</p> : null}
+      {showAdvanced ? (
+        <>
+          <div className="panel">
+            <div className="header">
+              <div>
+                <div className="kicker">Doctor</div>
+                <div className="title">Preflight checks</div>
+              </div>
+              <button className="btn" onClick={runDoctor}>
+                Run doctor
+              </button>
             </div>
-          ))}
-        </div>
-      </div>
+            <div className="grid">
+              {doctorChecks.map((check) => (
+                <div key={check.title} className="panel">
+                  <div className="label">{check.title}</div>
+                  <div>{check.details}</div>
+                  {check.fix ? <p>Fix: {check.fix}</p> : null}
+                </div>
+              ))}
+            </div>
+          </div>
 
-      <div className="panel">
-        <div className="label">TTS disclosure</div>
-        <div className="disclosure">
-          Voices generated by the local suite are AI-generated. Always disclose synthetic speech to listeners.
-        </div>
-      </div>
+          <div className="panel">
+            <div className="label">TTS disclosure</div>
+            <div className="disclosure">
+              Voices generated by the local suite are AI-generated. Always disclose synthetic speech to listeners.
+            </div>
+          </div>
+        </>
+      ) : null}
     </div>
   );
 };
