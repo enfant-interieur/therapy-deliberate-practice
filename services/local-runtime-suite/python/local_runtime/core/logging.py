@@ -10,6 +10,29 @@ import contextvars
 
 _LOG_CONTEXT: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar("local_runtime_log_ctx", default={})
 _LOG_BUFFER: deque[dict[str, Any]] = deque(maxlen=500)
+_RESERVED_LOG_RECORD_ATTRS = {
+    "name",
+    "msg",
+    "args",
+    "levelname",
+    "levelno",
+    "pathname",
+    "filename",
+    "module",
+    "exc_info",
+    "exc_text",
+    "stack_info",
+    "lineno",
+    "funcName",
+    "created",
+    "msecs",
+    "relativeCreated",
+    "thread",
+    "threadName",
+    "processName",
+    "process",
+    "message",
+}
 
 
 class ContextFilter(logging.Filter):
@@ -21,6 +44,15 @@ class ContextFilter(logging.Filter):
 
 
 class StructuredFormatter(logging.Formatter):
+    def _normalize(self, value: Any) -> Any:
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        if isinstance(value, dict):
+            return {str(k): self._normalize(v) for k, v in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [self._normalize(v) for v in value]
+        return str(value)
+
     def format(self, record: logging.LogRecord) -> str:
         timestamp = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(record.created))
         payload: dict[str, Any] = {
@@ -29,10 +61,16 @@ class StructuredFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
         }
-        for key in ("request_id", "endpoint", "model_id", "platform_id", "phase", "status", "duration_ms"):
-            value = getattr(record, key, None)
-            if value is not None:
-                payload[key] = value
+        for key, value in record.__dict__.items():
+            if (
+                key in _RESERVED_LOG_RECORD_ATTRS
+                or key == "exc_info"
+                or key == "exc_text"
+                or key in payload
+                or value is None
+            ):
+                continue
+            payload[key] = self._normalize(value)
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, ensure_ascii=False)

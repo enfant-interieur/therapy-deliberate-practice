@@ -19,6 +19,23 @@ type DoctorCheck = {
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
+type QuickTestStatus = "idle" | "running" | "ok" | "error";
+
+type QuickTestResult = {
+  status: QuickTestStatus;
+  durationMs?: number;
+  preview?: string;
+  error?: string;
+};
+
+type QuickTestsState = {
+  status: QuickTestStatus;
+  llm: QuickTestResult;
+  stt: QuickTestResult;
+  startedAt?: string;
+  finishedAt?: string;
+};
+
 type GatewayConnectionInfo = {
   port: number;
   base_url: string;
@@ -35,6 +52,74 @@ type GatewayConfig = {
   port: number;
   default_models: Record<string, string>;
   prefer_local: boolean;
+};
+
+const initialQuickTestsState: QuickTestsState = {
+  status: "idle",
+  llm: { status: "idle" },
+  stt: { status: "idle" }
+};
+
+function makeSilentWavBlob(durationSec = 0.5, sampleRate = 16000): Blob {
+  const numSamples = Math.floor(durationSec * sampleRate);
+  const bytesPerSample = 2;
+  const dataSize = numSamples * bytesPerSample;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  const writeString = (offset: number, s: string) => {
+    for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i));
+  };
+
+  writeString(0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(8, "WAVE");
+  writeString(12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);   // PCM
+  view.setUint16(22, 1, true);   // mono
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 1 * bytesPerSample, true); // byteRate
+  view.setUint16(32, 1 * bytesPerSample, true); // blockAlign
+  view.setUint16(34, 16, true);  // bitsPerSample
+  writeString(36, "data");
+  view.setUint32(40, dataSize, true);
+  // audio data remains zeros (silence)
+
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+const truncatePreview = (value?: string, max = 120) => {
+  if (!value) return "";
+  if (value.length <= max) return value;
+  return `${value.slice(0, max - 3)}...`;
+};
+
+const describeQuickTestStatus = (status: QuickTestStatus) => {
+  switch (status) {
+    case "ok":
+      return "OK";
+    case "running":
+      return "Running";
+    case "error":
+      return "Error";
+    default:
+      return "Idle";
+  }
+};
+
+const formatErrorMessage = (error: unknown) => {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return "Request timed out.";
+  }
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch (stringifyError) {
+    console.error("Unable to stringify error", stringifyError);
+    return "Unknown error.";
+  }
 };
 
 export const App = () => {
@@ -56,6 +141,7 @@ export const App = () => {
     openedAccount: false,
     openedSettings: false
   });
+  const [quickTests, setQuickTests] = useState<QuickTestsState>(initialQuickTestsState);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const logBoxRef = useRef<HTMLDivElement | null>(null);
   const baseUrl = connectionInfo?.base_url ?? `http://127.0.0.1:${port}`;
@@ -198,6 +284,124 @@ export const App = () => {
   const copyText = async (value: string) => {
     await navigator.clipboard.writeText(value);
     logEvent("Copied text to clipboard.");
+  };
+
+  const fetchWithTimeout = async (url: string, init: RequestInit, timeoutMs = 20000) => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  };
+
+  const runQuickTests = async () => {
+    if (status !== "running") {
+      const message = "Gateway is not running. Start it before running tests.";
+      logEvent(message);
+      setQuickTests({
+        status: "error",
+        llm: { status: "error", error: message },
+        stt: { status: "error", error: message },
+        finishedAt: new Date().toISOString()
+      });
+      return;
+    }
+
+    const startedAt = new Date().toISOString();
+    setQuickTests({
+      status: "running",
+      llm: { status: "running" },
+      stt: { status: "idle" },
+      startedAt
+    });
+
+    logEvent("Running LLM test...");
+    const llmStart = performance.now();
+    let llmResult: QuickTestResult;
+    try {
+      const response = await fetchWithTimeout(
+        `${baseUrl}/v1/responses`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            input: "Self-test: reply with exactly the single word 'pong'.",
+            max_output_tokens: 32,
+            temperature: 0
+          })
+        },
+        20000
+      );
+      const durationMs = Math.round(performance.now() - llmStart);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      const text =
+        data?.output?.[0]?.content?.[0]?.text ??
+        (typeof data?.output_text === "string" ? data.output_text : undefined);
+      if (!text) {
+        throw new Error("LLM response missing text.");
+      }
+      llmResult = { status: "ok", durationMs, preview: text.trim() };
+      logEvent(`LLM test ok (${durationMs} ms)`);
+    } catch (error) {
+      const durationMs = Math.round(performance.now() - llmStart);
+      const message = formatErrorMessage(error);
+      llmResult = { status: "error", durationMs, error: message };
+      logEvent(`LLM test failed: ${message}`);
+    }
+    setQuickTests((prev) => ({ ...prev, llm: llmResult }));
+
+    logEvent("Running STT test...");
+    setQuickTests((prev) => ({ ...prev, stt: { status: "running" } }));
+    const sttStart = performance.now();
+    let sttResult: QuickTestResult;
+    try {
+      const formData = new FormData();
+      formData.append("file", makeSilentWavBlob(), "selftest.wav");
+      formData.append("response_format", "json");
+      formData.append("language", "en");
+      const response = await fetchWithTimeout(
+        `${baseUrl}/v1/audio/transcriptions`,
+        {
+          method: "POST",
+          body: formData
+        },
+        20000
+      );
+      const durationMs = Math.round(performance.now() - sttStart);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      const text = typeof data?.text === "string" ? data.text : undefined;
+      if (!text) {
+        throw new Error("STT response missing text.");
+      }
+      sttResult = { status: "ok", durationMs, preview: text.trim() };
+      logEvent(`STT test ok (${durationMs} ms)`);
+    } catch (error) {
+      const durationMs = Math.round(performance.now() - sttStart);
+      const message = formatErrorMessage(error);
+      sttResult = { status: "error", durationMs, error: message };
+      logEvent(`STT test failed: ${message}`);
+    }
+    setQuickTests((prev) => ({ ...prev, stt: sttResult }));
+
+    const finishedAt = new Date().toISOString();
+    const overallStatus =
+      llmResult.status === "ok" && sttResult.status === "ok" ? "ok" : "error";
+    setQuickTests((prev) => ({
+      ...prev,
+      status: overallStatus,
+      finishedAt
+    }));
+    await refreshLogs();
   };
 
   useEffect(() => {
@@ -516,12 +720,55 @@ export const App = () => {
               <button className="btn" onClick={() => openUrl(healthUrl)}>
                 Open health check
               </button>
+              <button
+                className="btn"
+                onClick={runQuickTests}
+                disabled={quickTests.status === "running" || status !== "running"}
+              >
+                {quickTests.status === "running" ? "Running tests..." : "Run LLM + STT Test"}
+              </button>
               <button className="btn" onClick={() => copyText(llmExample)}>
                 Copy example LLM endpoint
               </button>
               <button className="btn" onClick={() => copyText(sttExample)}>
                 Copy example STT endpoint
               </button>
+            </div>
+            <div className="quick-test-results">
+              <div className="helper-title">Quick test results</div>
+              <div className="quick-test-row">
+                <div className="quick-test-row-header">
+                  <span className="text-sm">LLM</span>
+                  <span className={`badge ${quickTests.llm.status === "ok" ? "badge-success" : ""}`}>
+                    {describeQuickTestStatus(quickTests.llm.status)}
+                  </span>
+                  {typeof quickTests.llm.durationMs === "number" ? (
+                    <span className="mono">{quickTests.llm.durationMs} ms</span>
+                  ) : null}
+                </div>
+                {quickTests.llm.preview ? (
+                  <div className="helper-text">Preview: {truncatePreview(quickTests.llm.preview)}</div>
+                ) : null}
+                {quickTests.llm.error ? <div className="error-text">{quickTests.llm.error}</div> : null}
+              </div>
+              <div className="quick-test-row">
+                <div className="quick-test-row-header">
+                  <span className="text-sm">STT</span>
+                  <span className={`badge ${quickTests.stt.status === "ok" ? "badge-success" : ""}`}>
+                    {describeQuickTestStatus(quickTests.stt.status)}
+                  </span>
+                  {typeof quickTests.stt.durationMs === "number" ? (
+                    <span className="mono">{quickTests.stt.durationMs} ms</span>
+                  ) : null}
+                </div>
+                {quickTests.stt.preview ? (
+                  <div className="helper-text">Preview: {truncatePreview(quickTests.stt.preview)}</div>
+                ) : null}
+                {quickTests.stt.error ? <div className="error-text">{quickTests.stt.error}</div> : null}
+              </div>
+              {quickTests.status === "idle" ? (
+                <div className="helper-text">Results appear after running the test.</div>
+              ) : null}
             </div>
             <div className="port-editor">
               <div>

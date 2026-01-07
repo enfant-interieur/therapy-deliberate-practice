@@ -452,6 +452,26 @@ button {
   margin-top: 16px;
 }
 
+.quick-test-results {
+  margin-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.1);
+  padding-top: 12px;
+  display: grid;
+  gap: 12px;
+}
+
+.quick-test-row {
+  display: grid;
+  gap: 4px;
+}
+
+.quick-test-row-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .connection-row {
   display: grid;
   gap: 10px;

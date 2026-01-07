@@ -244,7 +244,8 @@
       "overrideLlmHelper": "Optionnel : diriger le LLM vers une URL différente.",
       "overrideSttLabel": "Remplacement URL STT",
       "overrideSttPlaceholder": "http://127.0.0.1:8484",
-      "overrideSttHelper": "Optionnel : diriger le STT vers une URL différente."
+      "overrideSttHelper": "Optionnel : diriger le STT vers une URL différente.",
+      "overrideActive": "Remplacements enregistrés — ouvrez les options avancées pour les modifier."
     },
     "storeAudio": {
       "label": "Enregistrer les enregistrements audio",
@@ -292,6 +293,56 @@
         "error": "Impossible de valider la clé pour le moment."
       },
       "securityNote": "Les clés sont chiffrées au repos et ne sont jamais renvoyées au navigateur après l'enregistrement."
+    },
+    "localDiagnostics": {
+      "title": "Diagnostics locaux",
+      "subtitle": "Vérifiez votre Local Runtime Suite sans quitter les paramètres.",
+      "missingConfig": "Ajoutez une URL d’IA locale (ou des remplacements d’endpoints) ci-dessus pour lancer les diagnostics.",
+      "waiting": "En attente d’un premier test.",
+      "footnote": "Tests exécutés localement sur le runtime configuré.",
+      "statusLabel": {
+        "idle": "Inactif",
+        "running": "En cours…",
+        "ok": "Prêt",
+        "error": "Attention"
+      },
+      "actions": {
+        "runAll": "Tout lancer",
+        "runAllLoading": "Exécution…",
+        "health": "Rafraîchir l’état",
+        "responses": "Tester responses",
+        "stt": "Tester STT"
+      },
+      "checks": {
+        "health": {
+          "title": "Santé de la passerelle",
+          "description": "GET /health pour l’état, la plateforme et les modèles par défaut."
+        },
+        "responses": {
+          "title": "API Responses",
+          "description": "POST /v1/responses avec une requête courte."
+        },
+        "stt": {
+          "title": "API Transcriptions",
+          "description": "POST /v1/audio/transcriptions avec un clip d’exemple."
+        }
+      },
+      "messages": {
+        "missingBase": "Ajoutez d’abord une URL de base locale.",
+        "missingResponsesUrl": "Définissez une URL locale pour responses.",
+        "missingSttUrl": "Définissez une URL locale pour les transcriptions.",
+        "healthOk": "La passerelle a répondu correctement.",
+        "responsesOk": "L’endpoint responses répond.",
+        "sttOk": "L’endpoint STT répond.",
+        "healthError": "Échec du contrôle d’état : {{error}}",
+        "responsesError": "Échec du test responses : {{error}}",
+        "sttError": "Échec du test STT : {{error}}"
+      },
+      "healthSummary": {
+        "status": "Statut",
+        "platform": "Plateforme",
+        "defaults": "Modèles par défaut"
+      }
     }
   },
   "help": {

@@ -73,6 +73,7 @@ SPEC = {
 DEFAULT_MAX_TOKENS = int(os.getenv("LOCAL_RUNTIME_QWEN_MAX_TOKENS", SPEC["limits"]["max_output_tokens_default"]))
 DEFAULT_TEMPERATURE = float(os.getenv("LOCAL_RUNTIME_QWEN_TEMPERATURE", "0.7"))
 DEFAULT_TOP_P = float(os.getenv("LOCAL_RUNTIME_QWEN_TOP_P", "0.9"))
+DEFAULT_REPETITION_PENALTY = float(os.getenv("LOCAL_RUNTIME_QWEN_REPETITION_PENALTY", "1.0"))
 
 
 def _prepare_prompt(payload: dict | None, tokenizer: Any | None = None) -> str:
@@ -101,27 +102,45 @@ def _prepare_prompt(payload: dict | None, tokenizer: Any | None = None) -> str:
 
 
 def _generation_params(payload: dict | None) -> dict[str, Any]:
-    if not payload:
-        return {"max_tokens": DEFAULT_MAX_TOKENS, "temperature": DEFAULT_TEMPERATURE, "top_p": DEFAULT_TOP_P}
+    payload = payload or {}
+    temperature = payload.get("temperature")
+    top_p = payload.get("top_p")
+    repetition_penalty = payload.get("repetition_penalty")
     return {
         "max_tokens": int(payload.get("max_output_tokens") or DEFAULT_MAX_TOKENS),
-        "temperature": float(payload.get("temperature") or DEFAULT_TEMPERATURE),
-        "top_p": float(payload.get("top_p") or DEFAULT_TOP_P),
+        "temperature": float(temperature if temperature is not None else DEFAULT_TEMPERATURE),
+        "top_p": float(top_p if top_p is not None else DEFAULT_TOP_P),
+        "repetition_penalty": float(repetition_penalty if repetition_penalty is not None else DEFAULT_REPETITION_PENALTY),
     }
+
+
+def _build_sampling_components(params: dict[str, Any]):
+    from mlx_lm.sample_utils import make_logits_processors, make_sampler  # type: ignore
+
+    sampler = make_sampler(temp=params["temperature"], top_p=params["top_p"])
+    logits_processors = make_logits_processors(repetition_penalty=params.get("repetition_penalty"))
+    return sampler, logits_processors
+
+
+def _extract_response_text(response: Any) -> str:
+    text = getattr(response, "text", None)
+    if isinstance(text, str):
+        return text
+    return str(response)
 
 
 async def _generate_text(instance: dict, prompt: str, params: dict[str, Any]) -> str:
     def _invoke() -> str:
         from mlx_lm import generate  # type: ignore
 
+        sampler, logits_processors = _build_sampling_components(params)
         return generate(
             instance["model"],
             instance["tokenizer"],
             prompt=prompt,
             max_tokens=params["max_tokens"],
-            temperature=params["temperature"],
-            top_p=params["top_p"],
-            stream=False,
+            sampler=sampler,
+            logits_processors=logits_processors,
         )
 
     return await asyncio.to_thread(_invoke)
@@ -132,19 +151,26 @@ async def _generate_stream(instance: dict, prompt: str, params: dict[str, Any]) 
     queue: asyncio.Queue[str | Exception | None] = asyncio.Queue()
 
     def _reader() -> None:
-        from mlx_lm import generate  # type: ignore
+        from mlx_lm import stream_generate  # type: ignore
 
         try:
-            for chunk in generate(
+            sampler, logits_processors = _build_sampling_components(params)
+            prev_text = ""
+            for response in stream_generate(
                 instance["model"],
                 instance["tokenizer"],
                 prompt=prompt,
                 max_tokens=params["max_tokens"],
-                temperature=params["temperature"],
-                top_p=params["top_p"],
-                stream=True,
+                sampler=sampler,
+                logits_processors=logits_processors,
             ):
-                loop.call_soon_threadsafe(queue.put_nowait, str(chunk))
+                text = _extract_response_text(response)
+                delta = text
+                if text.startswith(prev_text):
+                    delta = text[len(prev_text) :]
+                prev_text = text
+                if delta:
+                    loop.call_soon_threadsafe(queue.put_nowait, delta)
         except Exception as exc:  # pragma: no cover - propagate to async loop
             loop.call_soon_threadsafe(queue.put_nowait, exc)
         finally:
@@ -179,14 +205,20 @@ def warmup(instance: dict[str, Any], ctx: RunContext) -> None:
     try:
         from mlx_lm import generate  # type: ignore
 
+        warmup_params = {
+            "max_tokens": 32,
+            "temperature": 0.6,
+            "top_p": 0.9,
+            "repetition_penalty": DEFAULT_REPETITION_PENALTY,
+        }
+        sampler, logits_processors = _build_sampling_components(warmup_params)
         generate(
             instance["model"],
             instance["tokenizer"],
             prompt=prompt,
-            max_tokens=32,
-            temperature=0.6,
-            top_p=0.9,
-            stream=False,
+            max_tokens=warmup_params["max_tokens"],
+            sampler=sampler,
+            logits_processors=logits_processors,
         )
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         ctx.logger.info("qwen3_mlx.warmup.done", extra={"model_id": SPEC["id"], "duration_ms": duration_ms})

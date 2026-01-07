@@ -7,29 +7,23 @@ import { fileURLToPath } from "node:url";
 
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pythonRoot = path.resolve(desktopDir, "..", "python");
-const binariesDir = path.resolve(desktopDir, "src-tauri", "binaries");
-const downloadDir = path.resolve(desktopDir, ".sidecar-downloads");
+const tauriDir = path.resolve(desktopDir, "src-tauri");
+const binariesDir = path.resolve(tauriDir, "binaries");
+const resourcesDir = path.resolve(tauriDir, "resources");
+const runtimeOutDir = path.resolve(resourcesDir, "local-runtime-python");
+
 const venvDir = path.resolve(pythonRoot, ".venv-tauri");
 const stampPath = path.resolve(venvDir, ".deps.stamp.json");
-const specPath = path.resolve(pythonRoot, "pyinstaller.local_runtime_gateway.spec");
 
 const targetByPlatform = {
-  darwin: {
-    arm64: "aarch64-apple-darwin",
-    x64: "x86_64-apple-darwin",
-  },
-  linux: {
-    arm64: "aarch64-unknown-linux-gnu",
-    x64: "x86_64-unknown-linux-gnu",
-  },
-  win32: {
-    arm64: "aarch64-pc-windows-msvc",
-    x64: "x86_64-pc-windows-msvc",
-  },
+  darwin: { arm64: "aarch64-apple-darwin", x64: "x86_64-apple-darwin" },
+  linux: { arm64: "aarch64-unknown-linux-gnu", x64: "x86_64-unknown-linux-gnu" },
+  win32: { arm64: "aarch64-pc-windows-msvc", x64: "x86_64-pc-windows-msvc" },
 };
 
 const exeSuffix = process.platform === "win32" ? ".exe" : "";
 const sidecarName = "local-runtime-gateway";
+
 const explicitTarget =
   process.env.LOCAL_RUNTIME_SIDECAR_TARGET ?? process.env.TAURI_TARGET ?? process.env.CARGO_BUILD_TARGET;
 
@@ -45,10 +39,7 @@ function banner(step, total, message) {
 function runCommand(label, executable, args, options) {
   const cwd = options?.cwd ?? process.cwd();
   try {
-    execFileSync(executable, args, {
-      stdio: "inherit",
-      ...options,
-    });
+    execFileSync(executable, args, { stdio: "inherit", ...options });
   } catch (error) {
     const commandLine = [executable, ...args].join(" ");
     const details = [
@@ -58,30 +49,21 @@ function runCommand(label, executable, args, options) {
       `Command: ${commandLine}`,
       `Retry: (cd ${cwd} && ${commandLine})`,
     ];
-    if (error instanceof Error && error.message) {
-      details.push(`Error: ${error.message}`);
-    }
+    if (error instanceof Error && error.message) details.push(`Error: ${error.message}`);
     throw new Error(details.join("\n"));
   }
 }
 
 function resolveHostTarget() {
   const platformTargets = targetByPlatform[process.platform];
-  if (!platformTargets) {
-    throw new Error(`Unsupported platform: ${process.platform}`);
-  }
+  if (!platformTargets) throw new Error(`Unsupported platform: ${process.platform}`);
   const target = platformTargets[process.arch];
-  if (!target) {
-    throw new Error(`Unsupported architecture: ${process.arch}`);
-  }
+  if (!target) throw new Error(`Unsupported architecture: ${process.arch}`);
   return target;
 }
 
 function resolveTarget() {
-  if (explicitTarget) {
-    return explicitTarget;
-  }
-  return resolveHostTarget();
+  return explicitTarget ?? resolveHostTarget();
 }
 
 function readPythonVersion(executable) {
@@ -90,7 +72,7 @@ function readPythonVersion(executable) {
     ["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"],
     { encoding: "utf8" },
   ).trim();
-  const [major, minor] = version.split(".").map((value) => Number(value));
+  const [major, minor] = version.split(".").map((v) => Number(v));
   if (!Number.isFinite(major) || !Number.isFinite(minor) || major < 3 || (major === 3 && minor < 10)) {
     throw new Error(`Python ${version} is too old.`);
   }
@@ -99,29 +81,17 @@ function readPythonVersion(executable) {
 
 function resolveSystemPython() {
   const candidates = [];
-  if (process.env.PYTHON) {
-    candidates.push(process.env.PYTHON);
-  } else if (process.platform === "win32") {
-    candidates.push("python");
-  } else {
-    candidates.push("python3.12", "python3.11", "python3.10", "python3");
-  }
-  for (const candidate of candidates) {
-    try {
-      const version = readPythonVersion(candidate);
-      return { path: candidate, version };
-    } catch (error) {
-      continue;
-    }
-  }
-  throw new Error(
-    "Python 3.10+ is required to build the sidecar. Install Python (prefer 3.11–3.12) and ensure it is available in PATH or set PYTHON.",
-  );
-}
+  if (process.env.PYTHON) candidates.push(process.env.PYTHON);
+  else if (process.platform === "win32") candidates.push("python");
+  else candidates.push("python3.12", "python3.11", "python3.10", "python3");
 
-function readVenvPythonVersion() {
-  const version = readPythonVersion(venvPython);
-  return version;
+  for (const c of candidates) {
+    try {
+      const version = readPythonVersion(c);
+      return { path: c, version };
+    } catch {}
+  }
+  throw new Error("Python 3.10+ is required (prefer 3.11–3.12). Set PYTHON if needed.");
 }
 
 function computeStamp(pyprojectHash, pythonVersion) {
@@ -129,12 +99,10 @@ function computeStamp(pyprojectHash, pythonVersion) {
 }
 
 function loadStamp() {
-  if (!existsSync(stampPath)) {
-    return null;
-  }
+  if (!existsSync(stampPath)) return null;
   try {
     return JSON.parse(readFileSync(stampPath, "utf8"));
-  } catch (error) {
+  } catch {
     return null;
   }
 }
@@ -148,214 +116,86 @@ function hashPyproject() {
 function ensureVenv() {
   if (!existsSync(venvDir)) {
     const systemPython = resolveSystemPython();
-    runCommand(
-      "Virtual environment creation",
-      systemPython.path,
-      ["-m", "venv", venvDir],
-      { cwd: pythonRoot },
-    );
+    runCommand("Virtual environment creation", systemPython.path, ["-m", "venv", venvDir], { cwd: pythonRoot });
   }
-  if (!existsSync(venvPython)) {
-    throw new Error(`Expected venv python at ${venvPython}, but it was not found.`);
-  }
+  if (!existsSync(venvPython)) throw new Error(`Expected venv python at ${venvPython}, but it was not found.`);
 }
 
-function syncDependencies() {
-  banner(3, 5, "Syncing Python dependencies...");
+function syncBuildVenv() {
+  banner(2, 5, "Preparing build venv...");
   const pyprojectHash = hashPyproject();
-  const pythonVersion = readVenvPythonVersion();
+  const pythonVersion = readPythonVersion(venvPython);
   const stamp = loadStamp();
   if (stamp?.pyprojectHash === pyprojectHash && stamp?.pythonVersion === pythonVersion) {
-    console.log("Dependencies unchanged; skipping install.");
+    console.log("Build venv unchanged; skipping.");
     return;
   }
-  banner(3, 5, "Syncing Python dependencies...");
-  runCommand("Pip install", venvPython, ["-m", "pip", "install", "--upgrade", "pip"], {
+  runCommand("Pip upgrade", venvPython, ["-m", "pip", "install", "--upgrade", "pip"], {
     cwd: pythonRoot,
-    env: {
-      ...process.env,
-      PIP_DISABLE_PIP_VERSION_CHECK: "1",
-    },
+    env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" },
   });
-  runCommand("Pip install", venvPython, ["-m", "pip", "install", "-e", "."], {
+  runCommand("Certifi install", venvPython, ["-m", "pip", "install", "--upgrade", "certifi"], {
     cwd: pythonRoot,
-    env: {
-      ...process.env,
-      PIP_DISABLE_PIP_VERSION_CHECK: "1",
-    },
-  });
-  runCommand("Pip install", venvPython, ["-m", "pip", "install", "pyinstaller"], {
-    cwd: pythonRoot,
-    env: {
-      ...process.env,
-      PIP_DISABLE_PIP_VERSION_CHECK: "1",
-    },
+    env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" },
   });
   writeFileSync(stampPath, computeStamp(pyprojectHash, pythonVersion));
 }
 
-function buildSidecar(distPath) {
-  banner(4, 5, "Building sidecar with PyInstaller...");
-  rmSync(path.resolve(pythonRoot, "dist"), { recursive: true, force: true });
-  rmSync(path.resolve(pythonRoot, "build"), { recursive: true, force: true });
-  runCommand("PyInstaller build", venvPython, ["-m", "PyInstaller", "--clean", "--noconfirm", specPath], {
-    cwd: pythonRoot,
-    env: {
-      ...process.env,
-      PYTHONNOUSERSITE: "1",
-      PYTHONPATH: pythonRoot,
-      VIRTUAL_ENV: venvDir,
-    },
-  });
-  if (!existsSync(distPath)) {
-    throw new Error(`Expected sidecar binary at ${distPath}, but it was not produced.`);
-  }
-}
+function buildPortableRuntime(target) {
+  banner(3, 5, "Building embedded Python runtime (installing from pyproject.toml)...");
+  mkdirSync(resourcesDir, { recursive: true });
+  rmSync(runtimeOutDir, { recursive: true, force: true });
 
-function validateArtifact(outputPath) {
-  if (!existsSync(outputPath)) {
-    throw new Error(`Sidecar not found at ${outputPath}.`);
-  }
-  if (process.platform !== "win32") {
-    chmodSync(outputPath, 0o755);
-  }
-}
-
-function resolveBuildPlan() {
-  const target = resolveTarget();
-  if (target === "universal-apple-darwin") {
-    if (process.platform !== "darwin") {
-      throw new Error("Universal sidecar builds are only supported on macOS.");
-    }
-    return {
-      target,
-      targets: ["aarch64-apple-darwin", "x86_64-apple-darwin"],
-      outputName: `${sidecarName}-universal-apple-darwin${exeSuffix}`,
-      isUniversal: true,
-    };
-  }
-  return {
-    target,
-    targets: [target],
-    outputName: `${sidecarName}-${target}${exeSuffix}`,
-    isUniversal: false,
-  };
-}
-
-async function downloadFile(url, outputPath) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to download ${url}: ${response.status} ${response.statusText}`);
-  }
-  const buffer = Buffer.from(await response.arrayBuffer());
-  writeFileSync(outputPath, buffer);
-  if (process.platform !== "win32") {
-    chmodSync(outputPath, 0o755);
-  }
-}
-
-async function ensureSidecar(plan) {
-  const outputPath = path.resolve(binariesDir, plan.outputName);
-  const forceRebuild = process.env.FORCE_SIDECAR_REBUILD === "1";
-
-  const strategies = [
+  runCommand(
+    "Build portable runtime",
+    venvPython,
+    ["-m", "tools.build_portable_sidecar", "--project-root", pythonRoot, "--runtime-root", runtimeOutDir, "--force"],
     {
-      name: "ExistingArtifactStrategy",
-      canHandle: () => existsSync(outputPath) && !forceRebuild,
-      run: () => {
-        banner(1, 3, "Using existing sidecar artifact...");
-        validateArtifact(outputPath);
-        return true;
+      cwd: pythonRoot,
+      env: {
+        ...process.env,
+        LOCAL_RUNTIME_SIDECAR_TARGET: target,
+        PYTHONNOUSERSITE: "1",
+        PYTHONPATH: pythonRoot,
       },
     },
-    {
-      name: "CIStrategy",
-      canHandle: () =>
-        Boolean(process.env.LOCAL_RUNTIME_SIDECAR_BASE_URL || process.env.LOCAL_RUNTIME_SIDECAR_URL),
-      run: async () => {
-        const baseUrl = process.env.LOCAL_RUNTIME_SIDECAR_BASE_URL;
-        const explicitUrl = process.env.LOCAL_RUNTIME_SIDECAR_URL;
-        banner(1, 3, "Downloading sidecar artifact...");
-        mkdirSync(downloadDir, { recursive: true });
-        if (plan.isUniversal) {
-          if (!baseUrl) {
-            throw new Error("LOCAL_RUNTIME_SIDECAR_BASE_URL is required to download universal sidecars.");
-          }
-          const downloaded = [];
-          for (const target of plan.targets) {
-            const filename = `${sidecarName}-${target}${exeSuffix}`;
-            const url = `${baseUrl.replace(/\/$/, "")}/${filename}`;
-            const destination = path.resolve(downloadDir, filename);
-            await downloadFile(url, destination);
-            downloaded.push(destination);
-          }
-          banner(2, 3, "Creating universal sidecar with lipo...");
-          runCommand("Lipo merge", "lipo", ["-create", "-output", outputPath, ...downloaded]);
-          validateArtifact(outputPath);
-          return true;
-        }
-        const filename = `${sidecarName}-${plan.target}${exeSuffix}`;
-        const url = explicitUrl ?? `${baseUrl?.replace(/\/$/, "")}/${filename}`;
-        if (!url) {
-          throw new Error("LOCAL_RUNTIME_SIDECAR_URL or LOCAL_RUNTIME_SIDECAR_BASE_URL must be set.");
-        }
-        await downloadFile(url, outputPath);
-        validateArtifact(outputPath);
-        return true;
-      },
-    },
-    {
-      name: "DevBuildStrategy",
-      canHandle: () => true,
-      run: () => {
-        if (plan.isUniversal) {
-          throw new Error(
-            "Universal sidecar builds require CI artifacts. Set LOCAL_RUNTIME_SIDECAR_BASE_URL or build per-arch and run lipo.",
-          );
-        }
-        const hostTarget = resolveHostTarget();
-        if (plan.target !== hostTarget) {
-          throw new Error(
-            `Host target ${hostTarget} cannot build ${plan.target}. Set LOCAL_RUNTIME_SIDECAR_BASE_URL to download a prebuilt sidecar.`,
-          );
-        }
-        const distPath = path.resolve(pythonRoot, "dist", `${sidecarName}${exeSuffix}`);
-        banner(1, 5, `Preparing sidecar for ${plan.target}...`);
-        mkdirSync(binariesDir, { recursive: true });
-        banner(2, 5, "Bootstrapping venv...");
-        ensureVenv();
-        syncDependencies();
-        buildSidecar(distPath);
-        banner(5, 5, "Validating sidecar artifact...");
-        chmodSync(distPath, process.platform === "win32" ? 0o644 : 0o755);
-        mkdirSync(binariesDir, { recursive: true });
-        rmSync(outputPath, { force: true });
-        cpSync(distPath, outputPath);
-        validateArtifact(outputPath);
-        return true;
-      },
-    },
-  ];
+  );
+}
 
-  for (const strategy of strategies) {
-    if (strategy.canHandle()) {
-      const handled = await strategy.run();
-      if (handled) {
-        console.log(`Sidecar ready (${strategy.name}): ${outputPath}`);
-        return;
-      }
-    }
+function buildRustLauncher(target) {
+  banner(4, 5, "Building Rust sidecar launcher...");
+  runCommand(
+    "Cargo build launcher",
+    "cargo",
+    ["build", "--manifest-path", path.resolve(tauriDir, "Cargo.toml"), "--bin", sidecarName, "--target", target],
+    { cwd: tauriDir, env: { ...process.env } },
+  );
+
+  const builtPath = path.resolve(tauriDir, "target", target, "debug", `${sidecarName}${exeSuffix}`);
+  if (!existsSync(builtPath)) throw new Error(`Expected launcher at ${builtPath} but it was not produced.`);
+
+  mkdirSync(binariesDir, { recursive: true });
+  const devOutPath = path.resolve(binariesDir, `${sidecarName}${exeSuffix}`);
+  const targetOutPath = path.resolve(binariesDir, `${sidecarName}-${target}${exeSuffix}`);
+  for (const outPath of [devOutPath, targetOutPath]) {
+    rmSync(outPath, { force: true });
+    cpSync(builtPath, outPath);
+    if (process.platform !== "win32") chmodSync(outPath, 0o755);
   }
-
-  throw new Error("Unable to resolve sidecar artifact.");
+  return devOutPath;
 }
 
 async function main() {
-  const plan = resolveBuildPlan();
-  await ensureSidecar(plan);
+  const target = resolveTarget();
+  banner(1, 5, `Preparing sidecar for ${target} (NO PyInstaller)...`);
+  ensureVenv();
+  syncBuildVenv();
+  buildPortableRuntime(target);
+  const out = buildRustLauncher(target);
+  banner(5, 5, `Sidecar ready: ${out}`);
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
+main().catch((e) => {
+  console.error(e instanceof Error ? e.message : String(e));
   process.exit(1);
 });

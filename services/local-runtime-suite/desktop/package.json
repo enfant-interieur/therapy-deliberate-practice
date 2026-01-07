@@ -8,8 +8,9 @@
     "build": "vite build",
     "lint": "eslint src --ext ts,tsx",
     "sidecar:build": "node scripts/build-sidecar.mjs",
+    "sidecar:build:force": "node scripts/build-sidecar.mjs --force",
     "tauri": "tauri",
-    "tauri:dev": "npm run sidecar:build && tauri dev --config src-tauri/tauri.conf.json --config src-tauri/tauri.sidecar.conf.json",
+    "tauri:dev": "npm run sidecar:build:force && tauri dev --config src-tauri/tauri.conf.json --config src-tauri/tauri.sidecar.conf.json",
     "tauri:build": "npm run sidecar:build && tauri build --config src-tauri/tauri.conf.json --config src-tauri/tauri.sidecar.conf.json",
     "tauri:appstore": "npm run sidecar:build && tauri build --config src-tauri/tauri.conf.json --config src-tauri/tauri.appstore.conf.json --target universal-apple-darwin"
   },

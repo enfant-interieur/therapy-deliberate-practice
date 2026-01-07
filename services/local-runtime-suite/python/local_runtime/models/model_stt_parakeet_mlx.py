@@ -138,18 +138,21 @@ def _build_decoding_config():
     )
 
 
-async def _run_transcribe(model, audio_path: str, chunk_duration: float, overlap_duration: float, decoding_config, language: str | None):
+def _build_transcribe_kwargs(chunk_duration: float, overlap_duration: float, decoding_config) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {
+        "chunk_duration": chunk_duration,
+        "overlap_duration": overlap_duration,
+    }
+    if decoding_config:
+        kwargs["decoding_config"] = decoding_config
+    return kwargs
+
+
+async def _run_transcribe(model, audio_path: str, chunk_duration: float, overlap_duration: float, decoding_config) -> Any:
+    kwargs = _build_transcribe_kwargs(chunk_duration, overlap_duration, decoding_config)
+
     def _invoke():
-        kwargs: dict[str, Any] = {
-            "audio": audio_path,
-            "chunk_duration": chunk_duration,
-            "overlap_duration": overlap_duration,
-        }
-        if decoding_config:
-            kwargs["decoding_config"] = decoding_config
-        if language:
-            kwargs["language"] = language
-        return model.transcribe(**kwargs)
+        return model.transcribe(audio_path, **kwargs)
 
     return await asyncio.to_thread(_invoke)
 
@@ -183,8 +186,6 @@ async def run(req: RunRequest, ctx: RunContext):
     decoding_config = _build_decoding_config()
     chunk_duration = float(form_data.get("chunk_duration", DEFAULT_CHUNK_SECONDS))
     overlap_duration = float(form_data.get("overlap_duration", DEFAULT_OVERLAP_SECONDS))
-    language = form_data.get("language")
-
     run_meta = {
         "model_id": model_id,
         "stream": bool(req.stream),
@@ -192,6 +193,9 @@ async def run(req: RunRequest, ctx: RunContext):
         "chunk_duration": chunk_duration,
         "overlap_duration": overlap_duration,
     }
+    language = form_data.get("language")
+    if language:
+        run_meta["language"] = language
     ctx.logger.info("parakeet_mlx.run.start", extra=run_meta)
     start = time.perf_counter()
     try:
@@ -201,7 +205,6 @@ async def run(req: RunRequest, ctx: RunContext):
             chunk_duration=chunk_duration,
             overlap_duration=overlap_duration,
             decoding_config=decoding_config,
-            language=language,
         )
         transcript, payload_segments = _parse_result(result)
     finally:

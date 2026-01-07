@@ -244,7 +244,8 @@
       "overrideLlmHelper": "Optional: route LLM requests to a separate URL.",
       "overrideSttLabel": "STT URL override",
       "overrideSttPlaceholder": "http://127.0.0.1:8484",
-      "overrideSttHelper": "Optional: route STT requests to a separate URL."
+      "overrideSttHelper": "Optional: route STT requests to a separate URL.",
+      "overrideActive": "Overrides saved — open advanced settings to edit."
     },
     "storeAudio": {
       "label": "Store audio recordings",
@@ -292,6 +293,56 @@
         "error": "Unable to validate the key right now."
       },
       "securityNote": "Keys are encrypted at rest and never shared back to the browser after saving."
+    },
+    "localDiagnostics": {
+      "title": "Local diagnostics",
+      "subtitle": "Run health checks against your Local Runtime Suite without leaving Settings.",
+      "missingConfig": "Add a Local AI URL (or endpoint overrides) above to unlock diagnostics.",
+      "waiting": "Awaiting first check.",
+      "footnote": "Checks run on your machine against the configured runtime.",
+      "statusLabel": {
+        "idle": "Idle",
+        "running": "Running…",
+        "ok": "Ready",
+        "error": "Attention"
+      },
+      "actions": {
+        "runAll": "Run all",
+        "runAllLoading": "Running…",
+        "health": "Refresh health",
+        "responses": "Test responses",
+        "stt": "Test STT"
+      },
+      "checks": {
+        "health": {
+          "title": "Gateway health",
+          "description": "GET /health for status, platform, and defaults."
+        },
+        "responses": {
+          "title": "Responses API",
+          "description": "POST /v1/responses with a short probe."
+        },
+        "stt": {
+          "title": "Transcriptions API",
+          "description": "POST /v1/audio/transcriptions with a sample clip."
+        }
+      },
+      "messages": {
+        "missingBase": "Add a Local AI Base URL first.",
+        "missingResponsesUrl": "Set a Local AI URL for responses.",
+        "missingSttUrl": "Set a Local AI URL for transcriptions.",
+        "healthOk": "Gateway responded successfully.",
+        "responsesOk": "Responses endpoint replied.",
+        "sttOk": "STT endpoint replied.",
+        "healthError": "Health check failed: {{error}}",
+        "responsesError": "Responses test failed: {{error}}",
+        "sttError": "STT test failed: {{error}}"
+      },
+      "healthSummary": {
+        "status": "Status",
+        "platform": "Platform",
+        "defaults": "Defaults"
+      }
     }
   },
   "help": {
