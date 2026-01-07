@@ -9,7 +9,7 @@ from typing import Callable
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 
 from local_runtime.api.openai_compat import (
     format_audio_speech_response,
@@ -23,7 +23,7 @@ from local_runtime.core.config import RuntimeConfig
 from local_runtime.core.doctor import run_doctor
 from local_runtime.core.errors import ModelNotFoundError
 from local_runtime.core.loader import LoadedModel, load_models
-from local_runtime.core.logging import configure_logging, pop_log_context, push_log_context
+from local_runtime.core.logging import configure_logging, get_recent_logs, pop_log_context, push_log_context
 from local_runtime.core.readiness import ReadinessTracker
 from local_runtime.core.load_manager import ModelLoadManager
 from local_runtime.core.registry import ModelRegistry
@@ -35,6 +35,394 @@ from local_runtime.helpers.multipart_helpers import enforce_max_size, extract_fo
 from local_runtime.runtime_types import RunContext, RunRequest
 
 LOGGER = configure_logging()
+HOME_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Local Runtime Gateway</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #101828 0%, #05060a 60%, #030303 100%);
+      color: #f7f7f8;
+    }
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 24px 80px;
+    }
+    .hero {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    .hero h1 {
+      font-size: 2.6rem;
+      margin: 0;
+    }
+    .hero p {
+      margin: 4px 0 0;
+      color: #cbd5f5;
+      max-width: 640px;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .hero-meta span {
+      display: block;
+    }
+    .chip {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      color: #e3e8ff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 24px;
+      margin-bottom: 32px;
+    }
+    .card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(226, 232, 255, 0.08);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(6px);
+    }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 1.3rem;
+    }
+    .card p {
+      margin: 0 0 16px;
+      color: #94a3b8;
+    }
+    label {
+      display: block;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
+      color: #c3d3ff;
+    }
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(226, 232, 255, 0.2);
+      background: rgba(15, 18, 30, 0.9);
+      color: #f2f2f7;
+      padding: 10px 14px;
+      font-size: 1rem;
+      margin-bottom: 12px;
+      font-family: inherit;
+    }
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 20px;
+      background: linear-gradient(120deg, #6366f1, #8b5cf6);
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 120ms ease, box-shadow 120ms ease;
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 30px rgba(99, 102, 241, 0.35);
+    }
+    .output {
+      background: rgba(5, 8, 20, 0.85);
+      border-radius: 14px;
+      padding: 12px;
+      min-height: 120px;
+      overflow: auto;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+    }
+    .logs {
+      max-height: 320px;
+      overflow: auto;
+      font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+      background: rgba(2, 6, 23, 0.9);
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid rgba(99, 102, 241, 0.24);
+    }
+    .logs pre {
+      margin: 0;
+      color: #cbd5ff;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    audio {
+      width: 100%;
+      margin-top: 8px;
+    }
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 2rem; }
+      .page { padding: 24px 16px 60px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div>
+        <h1>Local Runtime Gateway</h1>
+        <p>Exercise the Responses, Speech, and Transcription pipelines without leaving your browser. Every action proxies the same OpenAI-compatible APIs exposed to the desktop app.</p>
+      </div>
+      <div class="hero-meta">
+        <div class="chip">
+          <span style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em;">Platform</span>
+          <span id="platform-label">detecting…</span>
+        </div>
+        <div class="chip">
+          <span style="font-size:0.8rem; text-transform:uppercase; letter-spacing:0.08em;">Default Models</span>
+          <span id="defaults-summary">pending…</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid">
+      <article class="card">
+        <h2>Responses API</h2>
+        <p>Send a JSON Responses request and inspect the payload returned by the server.</p>
+        <form id="responses-form">
+          <label for="responses-model">Model Override</label>
+          <input id="responses-model" type="text" placeholder="leave blank for default">
+          <label for="responses-system">System Prompt</label>
+          <input id="responses-system" type="text" placeholder="You are a helpful therapist...">
+          <label for="responses-input">User Message</label>
+          <textarea id="responses-input" placeholder="Describe your current mood..."></textarea>
+          <button type="submit">Call /v1/responses</button>
+        </form>
+        <pre id="responses-output" class="output">// responses output</pre>
+      </article>
+
+      <article class="card">
+        <h2>Speech API</h2>
+        <p>Generate audio using Kokoro MLX on Apple Silicon or the Chatterbox multilingual backend elsewhere.</p>
+        <form id="speech-form">
+          <label for="speech-model">Model Override</label>
+          <input id="speech-model" type="text" placeholder="auto">
+          <label for="speech-language">Language / Lang Code</label>
+          <input id="speech-language" type="text" placeholder="a (MLX) or en (HF)">
+          <label for="speech-voice">Voice (optional)</label>
+          <input id="speech-voice" type="text" placeholder="af_bella / ff_siwis / custom">
+          <label for="speech-text">Narration Text</label>
+          <textarea id="speech-text" placeholder="Share a short calming message."></textarea>
+          <div style="display:flex; gap:12px;">
+            <div style="flex:1;">
+              <label for="speech-cfg">CFG Weight</label>
+              <input id="speech-cfg" type="number" value="0.5" step="0.1">
+            </div>
+            <div style="flex:1;">
+              <label for="speech-exaggeration">Exaggeration</label>
+              <input id="speech-exaggeration" type="number" value="0" step="0.5">
+            </div>
+          </div>
+          <button type="submit">Call /v1/audio/speech</button>
+        </form>
+        <div id="speech-output" class="output">// speech status</div>
+        <audio id="speech-audio" controls></audio>
+      </article>
+
+      <article class="card">
+        <h2>Transcriptions API</h2>
+        <p>Upload a short WAV/MP3 and watch the transcription come back in OpenAI format.</p>
+        <form id="transcribe-form" enctype="multipart/form-data">
+          <label for="transcribe-model">Model Override</label>
+          <input id="transcribe-model" type="text" placeholder="auto">
+          <label for="transcribe-language">Language Hint</label>
+          <input id="transcribe-language" type="text" placeholder="fr / en / auto">
+          <label for="transcribe-file">Audio File</label>
+          <input id="transcribe-file" type="file" accept="audio/*">
+          <button type="submit">Call /v1/audio/transcriptions</button>
+        </form>
+        <pre id="transcribe-output" class="output">// transcription output</pre>
+      </article>
+    </section>
+
+    <section class="card">
+      <h2 style="margin-top:0;">Live Logs</h2>
+      <p style="color:#94a3b8; margin-top:0;">Latest structured log events streamed from the runtime (auto-refresh every 3s).</p>
+      <div class="logs"><pre id="log-stream">waiting for events…</pre></div>
+    </section>
+  </div>
+
+  <script>
+    const pretty = (value) => {
+      if (value === undefined || value === null) return "";
+      if (typeof value === "string") {
+        try { return JSON.stringify(JSON.parse(value), null, 2); }
+        catch { return value; }
+      }
+      return JSON.stringify(value, null, 2);
+    };
+
+    async function fetchHealth() {
+      try {
+        const res = await fetch("/health");
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById("platform-label").textContent = data.platform_id || "unknown";
+        const defaults = data.defaults || {};
+        const summary = Object.entries(defaults).map(([key, value]) => key + ": " + value).join(" • ") || "auto-select";
+        document.getElementById("defaults-summary").textContent = summary;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function refreshLogs() {
+      try {
+        const res = await fetch("/logs?limit=120");
+        if (!res.ok) return;
+        const data = await res.json();
+        const lines = (data.logs || []).map((entry) => JSON.stringify(entry));
+        document.getElementById("log-stream").textContent = lines.join("\\n");
+      } catch (err) {
+        document.getElementById("log-stream").textContent = "Failed to load logs: " + err.message;
+      }
+    }
+
+    document.getElementById("responses-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const model = document.getElementById("responses-model").value.trim();
+      const systemPrompt = document.getElementById("responses-system").value.trim();
+      const userInput = document.getElementById("responses-input").value.trim();
+      if (!userInput) {
+        document.getElementById("responses-output").textContent = "Enter a prompt first.";
+        return;
+      }
+      const messages = [];
+      if (systemPrompt) {
+        messages.push({ role: "system", content: systemPrompt });
+      }
+      messages.push({ role: "user", content: userInput });
+      const payload = { messages, stream: false };
+      if (model) payload.model = model;
+      try {
+        const res = await fetch("/v1/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          document.getElementById("responses-output").textContent = pretty(body);
+          return;
+        }
+        document.getElementById("responses-output").textContent = pretty(body);
+      } catch (err) {
+        document.getElementById("responses-output").textContent = err.message;
+      }
+    });
+
+    document.getElementById("speech-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const model = document.getElementById("speech-model").value.trim();
+      const language = document.getElementById("speech-language").value.trim();
+      const voice = document.getElementById("speech-voice").value.trim();
+      const text = document.getElementById("speech-text").value.trim();
+      const cfg = parseFloat(document.getElementById("speech-cfg").value || "0.5");
+      const exaggeration = parseFloat(document.getElementById("speech-exaggeration").value || "0");
+      if (!text) {
+        document.getElementById("speech-output").textContent = "Provide text to synthesize.";
+        return;
+      }
+      const payload = {
+        input: text,
+        stream: false,
+        cfg_weight: cfg,
+        exaggeration,
+      };
+      if (language) payload.language = language;
+      if (voice) payload.voice = voice;
+      if (model) payload.model = model;
+      document.getElementById("speech-output").textContent = "Generating audio…";
+      document.getElementById("speech-audio").removeAttribute("src");
+      try {
+        const res = await fetch("/v1/audio/speech", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          document.getElementById("speech-output").textContent = pretty(err);
+          return;
+        }
+        const arrayBuf = await res.arrayBuffer();
+        const blob = new Blob([arrayBuf], { type: res.headers.get("content-type") || "audio/wav" });
+        const url = URL.createObjectURL(blob);
+        const audio = document.getElementById("speech-audio");
+        audio.src = url;
+        audio.load();
+        document.getElementById("speech-output").textContent = "Ready. Hit play to listen.";
+      } catch (err) {
+        document.getElementById("speech-output").textContent = err.message;
+      }
+    });
+
+    document.getElementById("transcribe-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const file = document.getElementById("transcribe-file").files[0];
+      if (!file) {
+        document.getElementById("transcribe-output").textContent = "Pick an audio file first.";
+        return;
+      }
+      const formData = new FormData();
+      formData.append("file", file, file.name);
+      const model = document.getElementById("transcribe-model").value.trim();
+      const language = document.getElementById("transcribe-language").value.trim();
+      if (model) formData.append("model", model);
+      if (language) formData.append("language", language);
+      formData.append("response_format", "json");
+      formData.append("stream", "false");
+      document.getElementById("transcribe-output").textContent = "Transcribing…";
+      try {
+        const res = await fetch("/v1/audio/transcriptions", {
+          method: "POST",
+          body: formData,
+        });
+        const body = await res.json();
+        if (!res.ok) {
+          document.getElementById("transcribe-output").textContent = pretty(body);
+          return;
+        }
+        document.getElementById("transcribe-output").textContent = pretty(body);
+      } catch (err) {
+        document.getElementById("transcribe-output").textContent = err.message;
+      }
+    });
+
+    fetchHealth();
+    refreshLogs();
+    setInterval(refreshLogs, 3000);
+  </script>
+</body>
+</html>
+"""
 
 
 @asynccontextmanager
@@ -172,6 +560,11 @@ def _ctx_factory(request_id: str, endpoint: str | None = None, model_id: str | N
     return _build_context(request_id, endpoint=endpoint, model_id=model_id)
 
 
+@app.get("/", response_class=HTMLResponse)
+async def home_page() -> HTMLResponse:
+    return HTMLResponse(HOME_HTML)
+
+
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next: Callable):
     request_id = request.headers.get("x-request-id") or f"req_{uuid.uuid4().hex}"
@@ -202,6 +595,17 @@ async def health() -> JSONResponse:
     workers = [worker.__dict__ for worker in app.state.supervisor.status()]
     data["workers"] = workers
     return JSONResponse(data)
+
+
+@app.get("/logs")
+async def logs(limit: int = 200) -> JSONResponse:
+    safe_limit = 200
+    try:
+        safe_limit = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        pass
+    payload = {"logs": get_recent_logs(safe_limit)}
+    return JSONResponse(payload)
 
 
 @app.get("/v1/models")

@@ -150,15 +150,26 @@ def warmup(instance: dict[str, Any], ctx: RunContext) -> None:
     tokenizer = instance["tokenizer"]
     model = instance["model"]
     device = instance["device"]
+    prompt = "Hello from warmup."
+    ctx.logger.info("qwen3_hf.warmup.start", extra={"model_id": SPEC["id"], "prompt": prompt, "device": device})
+    start = time.perf_counter()
 
     def _invoke() -> None:
         with torch.inference_mode():
-            prompt = tokenizer("Hello", return_tensors="pt").to(device)
+            prompt_inputs = tokenizer(prompt, return_tensors="pt").to(device)
             with instance["lock"]:
-                model.generate(**prompt, max_new_tokens=8)
+                model.generate(**prompt_inputs, max_new_tokens=8)
 
-    _invoke()
-    ctx.logger.info("qwen3_hf.warmup", extra={"model_id": SPEC["id"], "device": device})
+    try:
+        _invoke()
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        ctx.logger.info("qwen3_hf.warmup.done", extra={"model_id": SPEC["id"], "device": device, "duration_ms": duration_ms})
+    except Exception as exc:
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        ctx.logger.exception(
+            "qwen3_hf.warmup.error",
+            extra={"model_id": SPEC["id"], "device": device, "duration_ms": duration_ms, "error": str(exc)},
+        )
 
 
 async def _generate(instance: dict[str, Any], prompt: str, params: dict[str, Any]) -> str:
@@ -244,6 +255,7 @@ async def run(req: RunRequest, ctx: RunContext):
         "prompt_preview": prompt[:120],
     }
     ctx.logger.info("qwen3_hf.run.start", extra=run_meta)
+    ctx.logger.info("qwen3_hf.run.input", extra={**run_meta, "prompt": prompt})
     start = time.perf_counter()
 
     if req.stream:
@@ -263,6 +275,7 @@ async def run(req: RunRequest, ctx: RunContext):
                 yield {"event": "response.output_text.done", "data": {"id": response["id"], "text": accumulated}}
                 yield {"event": "response.completed", "data": response}
             finally:
+                ctx.logger.info("qwen3_hf.run.output", extra={**run_meta, "text": accumulated})
                 duration_ms = round((time.perf_counter() - start) * 1000, 2)
                 ctx.logger.info(
                     "qwen3_hf.run.complete",
@@ -272,6 +285,7 @@ async def run(req: RunRequest, ctx: RunContext):
         return generator()
 
     reply = await _generate(instance, prompt, params)
+    ctx.logger.info("qwen3_hf.run.output", extra={**run_meta, "text": reply})
     payload = new_response(model_id, reply, request_id=ctx.request_id)
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
     ctx.logger.info(

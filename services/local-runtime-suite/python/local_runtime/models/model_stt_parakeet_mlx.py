@@ -210,6 +210,11 @@ async def run(req: RunRequest, ctx: RunContext):
         except OSError:
             ctx.logger.warning("Failed to clean up temp audio file: %s", audio_path)
 
+    ctx.logger.info(
+        "parakeet_mlx.run.output",
+        extra={**run_meta, "text": transcript, "segments": len(payload_segments), "text_chars": len(transcript)},
+    )
+
     if req.stream:
         async def generator() -> AsyncIterator[dict]:
             for segment in payload_segments:

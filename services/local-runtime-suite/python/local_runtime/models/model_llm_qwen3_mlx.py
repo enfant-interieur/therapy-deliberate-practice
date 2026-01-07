@@ -174,6 +174,8 @@ def load(ctx: RunContext) -> dict[str, Any]:
 
 def warmup(instance: dict[str, Any], ctx: RunContext) -> None:
     prompt = "You are a helpful assistant. Say hello."
+    ctx.logger.info("qwen3_mlx.warmup.start", extra={"model_id": SPEC["id"], "prompt": prompt})
+    start = time.perf_counter()
     try:
         from mlx_lm import generate  # type: ignore
 
@@ -186,9 +188,11 @@ def warmup(instance: dict[str, Any], ctx: RunContext) -> None:
             top_p=0.9,
             stream=False,
         )
-        ctx.logger.info("qwen3_mlx.warmup", extra={"model_id": SPEC["id"], "status": "ok"})
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        ctx.logger.info("qwen3_mlx.warmup.done", extra={"model_id": SPEC["id"], "duration_ms": duration_ms})
     except Exception as exc:
-        ctx.logger.warning("qwen3_mlx.warmup_failed", extra={"error": str(exc)})
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        ctx.logger.exception("qwen3_mlx.warmup.error", extra={"model_id": SPEC["id"], "error": str(exc), "duration_ms": duration_ms})
 
 
 async def run(req: RunRequest, ctx: RunContext):
@@ -206,6 +210,7 @@ async def run(req: RunRequest, ctx: RunContext):
         "prompt_preview": prompt[:120],
     }
     ctx.logger.info("qwen3_mlx.run.start", extra=run_meta)
+    ctx.logger.info("qwen3_mlx.run.input", extra={**run_meta, "prompt": prompt})
     start = time.perf_counter()
 
     if req.stream:
@@ -225,6 +230,7 @@ async def run(req: RunRequest, ctx: RunContext):
                 yield {"event": "response.output_text.done", "data": {"id": response["id"], "text": accumulated}}
                 yield {"event": "response.completed", "data": response}
             finally:
+                ctx.logger.info("qwen3_mlx.run.output", extra={**run_meta, "text": accumulated})
                 duration_ms = round((time.perf_counter() - start) * 1000, 2)
                 ctx.logger.info(
                     "qwen3_mlx.run.complete",
@@ -234,6 +240,7 @@ async def run(req: RunRequest, ctx: RunContext):
         return generator()
 
     reply = await _generate_text(instance, prompt, params)
+    ctx.logger.info("qwen3_mlx.run.output", extra={**run_meta, "text": reply})
     payload = new_response(model_id, reply, request_id=ctx.request_id)
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
     ctx.logger.info(

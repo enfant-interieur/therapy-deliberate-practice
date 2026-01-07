@@ -115,6 +115,10 @@ async def run(req: RunRequest, ctx: RunContext):
     ctx.logger.info("faster_whisper.run.start", extra=run_meta)
     start = time.perf_counter()
     transcript, payload_segments = _fake_transcription(upload, language, prompt)
+    ctx.logger.info(
+        "faster_whisper.run.output",
+        extra={**run_meta, "text": transcript, "segments": len(payload_segments)},
+    )
 
     if req.stream:
         async def generator() -> AsyncIterator[dict]:
