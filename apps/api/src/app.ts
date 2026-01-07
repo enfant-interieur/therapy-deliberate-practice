@@ -1165,9 +1165,14 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     config: EffectiveAiConfig,
     logEvent: (level: "debug" | "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void
   ) => {
-    logEvent("info", "tts.select.start", { mode: config.mode });
+    const ttsConfig: EffectiveAiConfig = {
+      ...config,
+      mode: "openai_only",
+      local: { ...config.local, baseUrl: null }
+    };
+    logEvent("info", "tts.select.start", { mode: ttsConfig.mode });
     const ttsSelection = await selectTtsProvider(
-      config,
+      ttsConfig,
       {
         openai: {
           model: env.openaiTtsModel,
