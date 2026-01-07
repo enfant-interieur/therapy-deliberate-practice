@@ -2,3 +2,6 @@
 **/gen
 **/.venv-tauri
 **/.venv_id
+**/.runtime-cache
+desktop/src-tauri/resources
+desktop/src-tauri/binaries
