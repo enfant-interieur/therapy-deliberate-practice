@@ -220,14 +220,14 @@ HOME_HTML = """<!DOCTYPE html>
 
       <article class="card">
         <h2>Speech API</h2>
-        <p>Generate audio using Kokoro MLX on Apple Silicon or the Chatterbox multilingual backend elsewhere.</p>
+        <p>Generate audio using the unified Chatterbox TTS backend with CFG + exaggeration controls.</p>
         <form id="speech-form">
           <label for="speech-model">Model Override</label>
           <input id="speech-model" type="text" placeholder="auto">
           <label for="speech-language">Language / Lang Code</label>
-          <input id="speech-language" type="text" placeholder="a (MLX) or en (HF)">
-          <label for="speech-voice">Voice (optional)</label>
-          <input id="speech-voice" type="text" placeholder="af_bella / ff_siwis / custom">
+          <input id="speech-language" type="text" placeholder="en / fr / zh">
+          <label for="speech-audio-prompt">Audio Prompt Path (optional)</label>
+          <input id="speech-audio-prompt" type="text" placeholder="/path/to/reference.wav">
           <label for="speech-text">Narration Text</label>
           <textarea id="speech-text" placeholder="Share a short calming message."></textarea>
           <div style="display:flex; gap:12px;">
@@ -342,7 +342,7 @@ HOME_HTML = """<!DOCTYPE html>
       event.preventDefault();
       const model = document.getElementById("speech-model").value.trim();
       const language = document.getElementById("speech-language").value.trim();
-      const voice = document.getElementById("speech-voice").value.trim();
+      const audioPrompt = document.getElementById("speech-audio-prompt").value.trim();
       const text = document.getElementById("speech-text").value.trim();
       const cfg = parseFloat(document.getElementById("speech-cfg").value || "0.5");
       const exaggeration = parseFloat(document.getElementById("speech-exaggeration").value || "0");
@@ -357,7 +357,7 @@ HOME_HTML = """<!DOCTYPE html>
         exaggeration,
       };
       if (language) payload.language = language;
-      if (voice) payload.voice = voice;
+      if (audioPrompt) payload.audio_prompt_path = audioPrompt;
       if (model) payload.model = model;
       document.getElementById("speech-output").textContent = "Generating audio…";
       document.getElementById("speech-audio").removeAttribute("src");
