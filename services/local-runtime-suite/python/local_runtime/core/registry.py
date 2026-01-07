@@ -21,9 +21,16 @@ class LifecycleHooks:
 class ModelRegistry:
     """Central registry that tracks model metadata and loaded instances."""
 
-    def __init__(self, models: Iterable[LoadedModel], platform_id: str, logger: logging.Logger):
+    def __init__(
+        self,
+        models: Iterable[LoadedModel],
+        platform_id: str,
+        logger: logging.Logger,
+        enable_warmup: bool = False,
+    ):
         self.platform_id = platform_id
         self.logger = logger
+        self.enable_warmup = enable_warmup
         self._models: list[LoadedModel] = list(models)
         self._models_by_id: dict[str, LoadedModel] = {m.spec.id: m for m in self._models}
         self.models_by_endpoint: dict[str, list[LoadedModel]] = {}
@@ -136,7 +143,12 @@ class ModelRegistry:
         self.model_instances[model_id] = instance
         duration_ms = round((time.perf_counter() - start) * 1000, 2)
         self.logger.info("model.preload.ok", extra={"model_id": model_id, "duration_ms": duration_ms})
-        if hooks.warmup:
+        should_warmup = bool(
+            hooks.warmup
+            and self.enable_warmup
+            and bool(getattr(loaded.spec.execution, "warmup_on_start", False))
+        )
+        if should_warmup:
             warmup_ctx = ctx_factory(f"warmup:{model_id}")
             await self._call_hook(hooks.warmup, instance, warmup_ctx, model_id=model_id, phase="warmup")
         return True

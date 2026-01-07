@@ -534,7 +534,9 @@ async def lifespan(app: FastAPI):
 
         models = load_models()
         readiness.mark_phase("discover_models", "ok", detail=f"models={len(models)}")
-        registry = ModelRegistry(models, platform_id, logger)
+        warmup_enabled = _env_flag("LOCAL_RUNTIME_WARMUP_ON_START", False)
+        logger.info("startup.warmup_config", extra={"enabled": warmup_enabled})
+        registry = ModelRegistry(models, platform_id, logger, enable_warmup=warmup_enabled)
         app.state.registry = registry
 
         selection = SelectionStrategy(platform_id)
