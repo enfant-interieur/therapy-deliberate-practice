@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, collect_submodules
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 block_cipher = None
 
@@ -26,13 +26,10 @@ datas = []
 datas += collect_data_files("mlx_lm", include_py_files=False)
 datas += collect_data_files("parakeet_mlx", include_py_files=False)
 
-binaries = []
-binaries += collect_dynamic_libs("torchaudio")
-
 a = Analysis(
     ["local_runtime/main.py"],
     pathex=["."],
-    binaries=binaries,
+    binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=["pyinstaller-hooks"],
