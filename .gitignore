@@ -13,3 +13,5 @@ infra/local.db
 /services/local-runtime-suite/desktop/src-tauri/target/
 /services/local-runtime-suite/desktop/src-tauri/gen/
 /services/local-runtime-suite/python/.venv-tauri/
+**/repo_dump.txt
+**/.wrangler

@@ -30,6 +30,12 @@ from local_runtime.core.selector import SelectionStrategy, detect_platform, is_p
 from local_runtime.core.selftest import run_startup_self_test
 from local_runtime.core.supervisor import Supervisor
 from local_runtime.helpers.multipart_helpers import enforce_max_size, extract_form_fields
+from local_runtime.helpers.structured_enforcer import (
+    StructuredOutputEnforcer,
+    StructuredOutputFailure,
+    detect_structured_mode,
+    stream_validated_json,
+)
 from local_runtime.runtime_types import RunContext, RunRequest
 
 LOGGER = configure_logging()
@@ -113,6 +119,14 @@ HOME_HTML = """<!DOCTYPE html>
       display: block;
       font-size: 0.9rem;
       margin-bottom: 6px;
+      color: #c3d3ff;
+    }
+    .inline-toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+      margin: 8px 0;
       color: #c3d3ff;
     }
     input[type="text"],
@@ -217,6 +231,27 @@ HOME_HTML = """<!DOCTYPE html>
       </article>
 
       <article class="card">
+        <h2>Structured Output Test</h2>
+        <p>Exercise <code>text.format.type = "json_schema"</code> with strict validation enforced in the gateway.</p>
+        <form id="structured-form">
+          <label for="structured-model">Model Override</label>
+          <input id="structured-model" type="text" placeholder="leave blank for default">
+          <label for="structured-schema-name">Schema Name</label>
+          <input id="structured-schema-name" type="text" value="StructuredOutput">
+          <label for="structured-schema">JSON Schema</label>
+          <textarea id="structured-schema" rows="6" placeholder='{"type":"object","properties":{"summary":{"type":"string"}}}'></textarea>
+          <label class="inline-toggle">
+            <input id="structured-strict" type="checkbox" checked>
+            Strict mode (additional properties blocked)
+          </label>
+          <label for="structured-input">User Message</label>
+          <textarea id="structured-input" placeholder="Ask the model for a JSON-only reply..."></textarea>
+          <button type="submit">Run Structured Test</button>
+        </form>
+        <pre id="structured-output" class="output">// structured output</pre>
+      </article>
+
+      <article class="card">
         <h2>Speech API</h2>
         <p>Generate audio using the unified Chatterbox TTS backend with CFG + exaggeration controls.</p>
         <form id="speech-form">
@@ -276,6 +311,17 @@ HOME_HTML = """<!DOCTYPE html>
       }
       return JSON.stringify(value, null, 2);
     };
+    const defaultStructuredSchema = {
+      type: "object",
+      properties: {
+        summary: { type: "string" },
+        mood: { type: "string" }
+      }
+    };
+    const structuredSchemaEl = document.getElementById("structured-schema");
+    if (structuredSchemaEl) {
+      structuredSchemaEl.value = JSON.stringify(defaultStructuredSchema, null, 2);
+    }
 
     async function fetchHealth() {
       try {
@@ -333,6 +379,52 @@ HOME_HTML = """<!DOCTYPE html>
         document.getElementById("responses-output").textContent = pretty(body);
       } catch (err) {
         document.getElementById("responses-output").textContent = err.message;
+      }
+    });
+
+    document.getElementById("structured-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const model = document.getElementById("structured-model").value.trim();
+      const schemaName = document.getElementById("structured-schema-name").value.trim() || "StructuredOutput";
+      const schemaText = document.getElementById("structured-schema").value.trim();
+      const strict = document.getElementById("structured-strict").checked;
+      const userInput = document.getElementById("structured-input").value.trim();
+      const outputEl = document.getElementById("structured-output");
+      if (!userInput) {
+        outputEl.textContent = "Enter a prompt first.";
+        return;
+      }
+      let schema;
+      try {
+        schema = JSON.parse(schemaText);
+      } catch (err) {
+        outputEl.textContent = "Schema must be valid JSON: " + err.message;
+        return;
+      }
+      const payload = {
+        input: userInput,
+        stream: false,
+        text: {
+          format: {
+            type: "json_schema",
+            name: schemaName,
+            strict: strict,
+            schema,
+          },
+        },
+      };
+      if (model) payload.model = model;
+      outputEl.textContent = "Calling /v1/responses…";
+      try {
+        const res = await fetch("/v1/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const body = await res.json();
+        outputEl.textContent = pretty(body);
+      } catch (err) {
+        outputEl.textContent = err.message;
       }
     });
 
@@ -688,16 +780,40 @@ async def responses(request: Request) -> Response:
     except ModelNotFoundError as exc:
         return format_error(str(exc), err_type="not_found", status_code=404)
     model_id = selected.spec.id
-    run_request = RunRequest(endpoint="responses", model=model_id, json=payload, stream=stream)
     ctx = _ctx_factory(request_id, endpoint="responses", model_id=model_id)
+    try:
+        structured_config = detect_structured_mode(payload)
+    except ValueError as exc:
+        return format_error(str(exc), err_type="invalid_request_error", status_code=400)
     start = time.perf_counter()
+    if structured_config:
+        enforcer = StructuredOutputEnforcer(selected=selected, ctx=ctx, config=structured_config, request_id=request_id)
+        try:
+            structured_result = await enforcer.run(payload)
+        except StructuredOutputFailure as exc:
+            return format_error(str(exc), err_type="invalid_request_error", status_code=422)
+        except RuntimeError as exc:  # jsonschema missing or unexpected enforcement failure
+            return format_error(str(exc), status_code=500)
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        app.state.logger.info(
+            "responses.run",
+            extra={"request_id": request_id, "model_id": model_id, "duration_ms": duration_ms, "structured": True, "attempts": structured_result.attempts},
+        )
+        if stream:
+            return StreamingResponse(
+                format_responses_stream(stream_validated_json(model_id, structured_result.canonical_text, request_id=request_id)),
+                media_type="text/event-stream",
+            )
+        payload_out = format_responses_create(structured_result.canonical_text, model_id, request_id=request_id)
+        return JSONResponse(payload_out)
+    run_request = RunRequest(endpoint="responses", model=model_id, json=payload, stream=stream)
     result = await selected.module.run(run_request, ctx)
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
     app.state.logger.info("responses.run", extra={"request_id": request_id, "model_id": model_id, "duration_ms": duration_ms})
     if stream:
         return StreamingResponse(format_responses_stream(result), media_type="text/event-stream")
-    payload = format_responses_create(result, model_id, request_id=request_id)
-    return JSONResponse(payload)
+    payload_out = format_responses_create(result, model_id, request_id=request_id)
+    return JSONResponse(payload_out)
 
 
 @app.post("/v1/audio/speech")

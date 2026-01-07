@@ -15,6 +15,7 @@ dependencies = [
   "llama-cpp-python>=0.2.90",
   "huggingface_hub>=0.24",
   "accelerate>=0.33",
+  "jsonschema>=4.22.0",
   "mlx==0.30.1; platform_system == \"Darwin\" and platform_machine == \"arm64\"",
   "mlx-metal==0.30.1; platform_system == \"Darwin\" and platform_machine == \"arm64\"",
   "mlx-lm==0.30.2; platform_system == \"Darwin\" and platform_machine == \"arm64\"",
