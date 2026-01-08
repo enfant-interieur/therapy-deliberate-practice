@@ -4,7 +4,7 @@ import asyncio
 import inspect
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Iterable
 
 from local_runtime.core.loader import LoadedModel
