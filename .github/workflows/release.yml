@@ -86,6 +86,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Expose PYTHON
+        if: "!contains(matrix.runs_on, 'self-hosted')"
+        shell: bash
+        run: |
+          echo "PYTHON=$(command -v python3 || command -v python)" >> "$GITHUB_ENV"
+          echo "PYTHON=$PYTHON"
+
       - name: Use preinstalled Python (self-hosted)
         if: "contains(matrix.runs_on, 'self-hosted')"
         shell: bash
