@@ -1,90 +1,11 @@
 {
   "models": [
     {
-      "id": "local//llm/ollama-proxy",
-      "kind": "llm",
-      "display": {
-        "title": "Ollama Proxy",
-        "description": "Proxy requests to a local Ollama server.",
-        "tags": [
-          "ollama",
-          "proxy"
-        ],
-        "icon": "cloud"
-      },
-      "compat": {
-        "platforms": [
-          "darwin-arm64",
-          "darwin-x64",
-          "windows-x64",
-          "linux-x64"
-        ],
-        "acceleration": [
-          "cpu",
-          "cuda",
-          "metal"
-        ],
-        "priority": 90,
-        "requires_ram_gb": 8,
-        "requires_vram_gb": 0,
-        "disk_gb": 0
-      },
-      "api": {
-        "endpoint": "responses",
-        "advertised_model_name": "ollama-proxy",
-        "supports_stream": true
-      },
-      "limits": {
-        "timeout_sec": 300,
-        "concurrency": 4,
-        "max_input_mb": 25,
-        "max_output_tokens_default": 2048
-      },
-      "backend": {
-        "provider": "ollama",
-        "model_ref": "ollama://localhost",
-        "revision": null,
-        "device_hint": "auto",
-        "extra": {
-          "base_url": "http://127.0.0.1:11434"
-        }
-      },
-      "execution": {
-        "mode": "http_proxy",
-        "warmup_on_start": false
-      },
-      "launch": {
-        "enabled": true,
-        "type": "external",
-        "explain": "Start Ollama separately and set OLLAMA_HOST if needed.",
-        "env": {},
-        "cmd": [
-          "ollama",
-          "serve"
-        ],
-        "ready": {
-          "kind": "http",
-          "timeout_sec": 180,
-          "http_url": "http://127.0.0.1:{port}/api/version",
-          "log_regex": "READY"
-        }
-      },
-      "ui_params": [],
-      "deps": {
-        "python_extras": [],
-        "pip": [],
-        "system": [
-          "ollama"
-        ],
-        "notes": "Requires Ollama running locally."
-      }
-    },
-    {
       "id": "local//llm/qwen3-hf",
       "kind": "llm",
       "display": {
-        "title": "Qwen3 Hugging Face",
-        "description": "Local Qwen3 inference via Hugging Face Transformers.",
+        "title": "Qwen3 HF",
+        "description": "Qwen3-4B inference via transformers AutoModel on Unsloth's GGUF build.",
         "tags": [
           "qwen",
           "hf",
@@ -94,7 +15,6 @@
       },
       "compat": {
         "platforms": [
-          "darwin-arm64",
           "darwin-x64",
           "windows-x64",
           "linux-x64"
@@ -103,10 +23,10 @@
           "cpu",
           "cuda"
         ],
-        "priority": 100,
-        "requires_ram_gb": 12,
-        "requires_vram_gb": 6,
-        "disk_gb": 8
+        "priority": 90,
+        "requires_ram_gb": 8,
+        "requires_vram_gb": 0,
+        "disk_gb": 10
       },
       "api": {
         "endpoint": "responses",
@@ -117,23 +37,23 @@
         "timeout_sec": 300,
         "concurrency": 1,
         "max_input_mb": 25,
-        "max_output_tokens_default": 2048
+        "max_output_tokens_default": 1024
       },
       "backend": {
         "provider": "hf",
-        "model_ref": "Qwen/Qwen3-4B-Instruct-2507",
+        "model_ref": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
         "revision": null,
         "device_hint": "auto",
         "extra": {}
       },
       "execution": {
-        "mode": "subprocess",
+        "mode": "inprocess",
         "warmup_on_start": false
       },
       "launch": {
         "enabled": false,
         "type": "command",
-        "explain": "HF models are run via worker subprocess.",
+        "explain": "Runs in-process via transformers.",
         "env": {},
         "cmd": [
           "python",
@@ -153,11 +73,11 @@
           "hf"
         ],
         "pip": [
-          "torch",
-          "transformers"
+          "transformers>=4.52",
+          "torch>=2.3"
         ],
         "system": [],
-        "notes": "Requires torch + transformers."
+        "notes": "Requires transformers AutoModel support for Qwen3 GGUF."
       }
     },
     {
@@ -229,7 +149,9 @@
         "python_extras": [
           "mlx"
         ],
-        "pip": [],
+        "pip": [
+          "mlx-lm>=0.25.2"
+        ],
         "system": [],
         "notes": "Requires Apple Silicon with MLX support."
       }
@@ -318,80 +240,6 @@
       }
     },
     {
-      "id": "local//stt/openai-proxy",
-      "kind": "stt",
-      "display": {
-        "title": "OpenAI STT Proxy",
-        "description": "Proxy to OpenAI for speech transcription/translation.",
-        "tags": [
-          "stt",
-          "proxy",
-          "openai"
-        ],
-        "icon": "cloud"
-      },
-      "compat": {
-        "platforms": [
-          "darwin-arm64",
-          "darwin-x64",
-          "windows-x64",
-          "linux-x64"
-        ],
-        "acceleration": [
-          "cpu"
-        ],
-        "priority": 80,
-        "requires_ram_gb": 2,
-        "requires_vram_gb": 0,
-        "disk_gb": 0
-      },
-      "api": {
-        "endpoint": "audio.translations",
-        "advertised_model_name": "openai-stt",
-        "supports_stream": true
-      },
-      "limits": {
-        "timeout_sec": 300,
-        "concurrency": 4,
-        "max_input_mb": 25,
-        "max_output_tokens_default": 2048
-      },
-      "backend": {
-        "provider": "openai_proxy",
-        "model_ref": "gpt-4o-mini-transcribe",
-        "revision": null,
-        "device_hint": "auto",
-        "extra": {}
-      },
-      "execution": {
-        "mode": "http_proxy",
-        "warmup_on_start": false
-      },
-      "launch": {
-        "enabled": false,
-        "type": "external",
-        "explain": "Requires OPENAI_API_KEY and network access.",
-        "env": {},
-        "cmd": [
-          "echo",
-          "openai"
-        ],
-        "ready": {
-          "kind": "http",
-          "timeout_sec": 60,
-          "http_url": "http://127.0.0.1:{port}/health",
-          "log_regex": "READY"
-        }
-      },
-      "ui_params": [],
-      "deps": {
-        "python_extras": [],
-        "pip": [],
-        "system": [],
-        "notes": "Uses OpenAI API when enabled."
-      }
-    },
-    {
       "id": "local//stt/parakeet-mlx",
       "kind": "stt",
       "display": {
@@ -429,7 +277,7 @@
       },
       "backend": {
         "provider": "mlx",
-        "model_ref": "mlx-community/parakeet-tdt-0.6b-v2",
+        "model_ref": "mlx-community/parakeet-tdt-0.6b-v3",
         "revision": null,
         "device_hint": "metal",
         "extra": {}
@@ -462,177 +310,10 @@
           "stt"
         ],
         "pip": [
-          "mlx-whisper"
+          "parakeet-mlx>=0.2.0"
         ],
         "system": [],
-        "notes": "Requires mlx-whisper for MLX transcription."
-      }
-    },
-    {
-      "id": "local//tts/kokoro-local",
-      "kind": "tts",
-      "display": {
-        "title": "Kokoro Local TTS",
-        "description": "Offline Kokoro TTS for quick voice playback.",
-        "tags": [
-          "tts",
-          "kokoro",
-          "local"
-        ],
-        "icon": "waveform"
-      },
-      "compat": {
-        "platforms": [
-          "darwin-arm64",
-          "darwin-x64",
-          "windows-x64",
-          "linux-x64"
-        ],
-        "acceleration": [
-          "cpu",
-          "cuda",
-          "metal"
-        ],
-        "priority": 110,
-        "requires_ram_gb": 4,
-        "requires_vram_gb": 0,
-        "disk_gb": 2
-      },
-      "api": {
-        "endpoint": "audio.speech",
-        "advertised_model_name": "kokoro-local",
-        "supports_stream": true
-      },
-      "limits": {
-        "timeout_sec": 300,
-        "concurrency": 2,
-        "max_input_mb": 10,
-        "max_output_tokens_default": 2048
-      },
-      "backend": {
-        "provider": "kokoro",
-        "model_ref": "kokoro-82m",
-        "revision": null,
-        "device_hint": "auto",
-        "extra": {}
-      },
-      "execution": {
-        "mode": "subprocess",
-        "warmup_on_start": false
-      },
-      "launch": {
-        "enabled": false,
-        "type": "command",
-        "explain": "Runs via worker subprocess.",
-        "env": {},
-        "cmd": [
-          "python",
-          "-m",
-          "local_runtime"
-        ],
-        "ready": {
-          "kind": "http",
-          "timeout_sec": 60,
-          "http_url": "http://127.0.0.1:{port}/health",
-          "log_regex": "READY"
-        }
-      },
-      "ui_params": [
-        {
-          "key": "voice",
-          "type": "select",
-          "default": "af_bella",
-          "choices": [
-            "af_bella",
-            "ff_siwis"
-          ],
-          "min": null,
-          "max": null
-        }
-      ],
-      "deps": {
-        "python_extras": [
-          "tts"
-        ],
-        "pip": [],
-        "system": [
-          "ffmpeg optional"
-        ],
-        "notes": "Requires ffmpeg for some output formats."
-      }
-    },
-    {
-      "id": "local//tts/openai-proxy",
-      "kind": "tts",
-      "display": {
-        "title": "OpenAI TTS Proxy",
-        "description": "Proxy to OpenAI for TTS when local voices are unavailable.",
-        "tags": [
-          "tts",
-          "proxy",
-          "openai"
-        ],
-        "icon": "cloud"
-      },
-      "compat": {
-        "platforms": [
-          "darwin-arm64",
-          "darwin-x64",
-          "windows-x64",
-          "linux-x64"
-        ],
-        "acceleration": [
-          "cpu"
-        ],
-        "priority": 50,
-        "requires_ram_gb": 2,
-        "requires_vram_gb": 0,
-        "disk_gb": 0
-      },
-      "api": {
-        "endpoint": "audio.speech",
-        "advertised_model_name": "openai-tts",
-        "supports_stream": true
-      },
-      "limits": {
-        "timeout_sec": 300,
-        "concurrency": 4,
-        "max_input_mb": 10,
-        "max_output_tokens_default": 2048
-      },
-      "backend": {
-        "provider": "openai_proxy",
-        "model_ref": "gpt-4o-mini-tts",
-        "revision": null,
-        "device_hint": "auto",
-        "extra": {}
-      },
-      "execution": {
-        "mode": "http_proxy",
-        "warmup_on_start": false
-      },
-      "launch": {
-        "enabled": false,
-        "type": "external",
-        "explain": "Requires OPENAI_API_KEY and network access.",
-        "env": {},
-        "cmd": [
-          "echo",
-          "openai"
-        ],
-        "ready": {
-          "kind": "http",
-          "timeout_sec": 60,
-          "http_url": "http://127.0.0.1:{port}/health",
-          "log_regex": "READY"
-        }
-      },
-      "ui_params": [],
-      "deps": {
-        "python_extras": [],
-        "pip": [],
-        "system": [],
-        "notes": "Uses OpenAI API when enabled."
+        "notes": "Requires parakeet-mlx for transcription."
       }
     }
   ]

@@ -949,13 +949,23 @@ fn resolve_sidecar_path(app: &tauri::AppHandle) -> Option<PathBuf> {
     None
 }
 
+#[cfg(unix)]
 fn is_executable(path: &Path) -> bool {
-    if cfg!(windows) {
-        return path.exists();
-    }
     std::fs::metadata(path)
         .map(|metadata| metadata.permissions().mode() & 0o111 != 0)
         .unwrap_or(false)
+}
+
+#[cfg(windows)]
+fn is_executable(path: &Path) -> bool {
+    // Windows doesn't have Unix exec bits; this is a simple existence check.
+    // If you want stricter behavior, check extensions at the call-site.
+    path.exists()
+}
+
+#[cfg(not(any(unix, windows)))]
+fn is_executable(path: &Path) -> bool {
+    path.exists()
 }
 
 fn target_triple() -> &'static str {

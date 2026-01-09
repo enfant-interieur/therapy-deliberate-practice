@@ -27,15 +27,13 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app"
-    ],
+    "targets": ["app", "deb", "rpm", "appimage", "dmg", "msi", "nsis"],
     "category": "Utility",
     "icon": [
       "icons/icon.ico",
       "icons/icon.icns",
       "icons/icon.png"
-    ], 
+    ],
     "macOS": {
       "signingIdentity": "Apple Distribution: YOUR TEAM (TEAMID)"
     }
