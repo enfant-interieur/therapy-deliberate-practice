@@ -39,10 +39,15 @@ jobs:
           test -f services/local-runtime-suite/desktop/src-tauri/build.rs || (echo "Missing src-tauri/build.rs for Tauri build script." && exit 1)
       - name: Configure toolcache paths (self-hosted)
         if: contains(matrix.runs_on, 'self-hosted')
+        shell: bash
         run: |
-          echo "RUNNER_TOOL_CACHE=$HOME/actions-runner/_toolcache" >> "$GITHUB_ENV"
-          echo "AGENT_TOOLSDIRECTORY=$HOME/actions-runner/_toolcache" >> "$GITHUB_ENV"
-          mkdir -p "$HOME/actions-runner/_toolcache"
+          TOOLCACHE="$HOME/actions-runner/_toolcache"
+          mkdir -p "$TOOLCACHE"
+          echo "RUNNER_TOOL_CACHE=$TOOLCACHE" >> "$GITHUB_ENV"
+          echo "AGENT_TOOLSDIRECTORY=$TOOLCACHE" >> "$GITHUB_ENV"
+          echo "RUNNER_TEMP=$HOME/actions-runner/_temp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$HOME/actions-runner/_temp" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/actions-runner/_temp"
       - name: Install Linux system dependencies
         if: startsWith(matrix.os, 'ubuntu')
         run: |
@@ -95,11 +100,11 @@ jobs:
       - name: Build sidecar
         run: npm run sidecar:build -w services/local-runtime-suite/desktop
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           # keep your mac signing envs here as you already started doing
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         with:
