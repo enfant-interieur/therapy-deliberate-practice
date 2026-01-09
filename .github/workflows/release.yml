@@ -79,9 +79,28 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python (GitHub-hosted only)
+        if: "!contains(matrix.runs_on, 'self-hosted')"
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Use preinstalled Python (self-hosted)
+        if: "contains(matrix.runs_on, 'self-hosted')"
+        shell: bash
+        run: |
+          set -e
+          if command -v python3.11 >/dev/null 2>&1; then
+            echo "PYTHON=python3.11" >> "$GITHUB_ENV"
+          elif command -v python3 >/dev/null 2>&1; then
+            echo "PYTHON=python3" >> "$GITHUB_ENV"
+          else
+            echo "No python found on runner PATH" >&2
+            exit 1
+          fi
+          $PYTHON --version
+          $PYTHON -m pip --version
 
       - name: Fix pkg-config search path (setup-python may overwrite PKG_CONFIG_PATH)
         if: startsWith(matrix.os, 'ubuntu')
@@ -102,10 +121,10 @@ jobs:
         run: npm ci --workspace services/local-runtime-suite/desktop
 
       - name: Install local runtime dependencies
-        run: pip install -e services/local-runtime-suite/python
+        run: $PYTHON -m pip install -e services/local-runtime-suite/python
 
       - name: Generate model catalog
-        run: python services/local-runtime-suite/tools/gen_models_json.py
+        run: $PYTHON services/local-runtime-suite/tools/gen_models_json.py
 
       - name: Import macOS signing certificate
         if: startsWith(matrix.os, 'macos')
