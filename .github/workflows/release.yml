@@ -36,7 +36,7 @@ jobs:
           # ---- Your self-hosted runner (macOS ARM64) ----
           - os: macos-selfhosted
             runs_on: [ self-hosted, macOS, ARM64 ]
-            bundles: "app,dmg"
+            bundles: "app"
 
     runs-on: ${{ matrix.runs_on }}
     steps:
@@ -177,3 +177,31 @@ jobs:
           prerelease: false
           includeDebug: false
           includeRelease: true
+
+      - name: Package DMG (self-hosted macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_NAME="Local Runtime Suite"
+          APP_DIR="services/local-runtime-suite/desktop/src-tauri/target/release/bundle/macos/${APP_NAME}.app"
+          VERSION="$(node -e 'console.log(require("./services/local-runtime-suite/desktop/src-tauri/tauri.conf.json").version)')"
+          ARCH="$(rustc -vV | awk '/host:/ {print $2}' | cut -d- -f1)"
+          DMG_DIR="services/local-runtime-suite/desktop/src-tauri/target/release/bundle/dmg"
+          DMG_NAME="${APP_NAME}_${VERSION}_${ARCH}.dmg"
+          TMPDIR="$(mktemp -d)"
+          trap 'rm -rf "$TMPDIR"' EXIT
+          cp -R "$APP_DIR" "$TMPDIR/"
+          ln -s /Applications "$TMPDIR/Applications"
+          mkdir -p "$DMG_DIR"
+          hdiutil create -ov -format UDZO -volname "$APP_NAME" -srcfolder "$TMPDIR" "$DMG_DIR/$DMG_NAME"
+          echo "LOCAL_RUNTIME_DMG=$DMG_DIR/$DMG_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload DMG asset
+        if: startsWith(matrix.os, 'macos')
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: ${{ env.LOCAL_RUNTIME_DMG }}
