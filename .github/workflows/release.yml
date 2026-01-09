@@ -18,7 +18,13 @@ jobs:
   build-tauri:
     strategy:
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-24.04]
+        include:
+          - os: ubuntu-24.04
+            bundles: "deb,appimage,rpm"
+          - os: windows-latest
+            bundles: "nsis,msi"
+          - os: macos-latest
+            bundles: "app,dmg"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -78,10 +84,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # IMPORTANT: overrides tauri.conf.json > bundle > macOS > signingIdentity
+          # keep your mac signing envs here as you already started doing
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         with:
           projectPath: services/local-runtime-suite/desktop
+          args: >
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --bundles ${{ matrix.bundles }}
           tagName: ${{ inputs.tag || github.ref_name }}
           releaseName: "Local Runtime Suite ${{ inputs.tag || github.ref_name }}"
           releaseBody: "Automated release"

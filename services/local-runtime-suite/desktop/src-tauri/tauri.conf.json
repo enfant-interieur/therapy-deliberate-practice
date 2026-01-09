@@ -27,7 +27,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "appimage", "rpm", "app"],
+    "targets": ["app", "deb", "rpm", "appimage", "dmg", "msi", "nsis"],
     "category": "Utility",
     "icon": [
       "icons/icon.ico",
