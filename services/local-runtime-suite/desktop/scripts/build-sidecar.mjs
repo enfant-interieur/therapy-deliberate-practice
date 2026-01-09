@@ -9,8 +9,7 @@ const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".
 const pythonRoot = path.resolve(desktopDir, "..", "python");
 const tauriDir = path.resolve(desktopDir, "src-tauri");
 const binariesDir = path.resolve(tauriDir, "binaries");
-const resourcesDir = path.resolve(tauriDir, "resources");
-const runtimeOutDir = path.resolve(resourcesDir, "local-runtime-python");
+const runtimeOutDir = path.resolve(tauriDir, "local-runtime-python");
 
 const venvDir = path.resolve(pythonRoot, ".venv-tauri");
 const stampPath = path.resolve(venvDir, ".deps.stamp.json");
@@ -143,7 +142,7 @@ function syncBuildVenv() {
 
 function buildPortableRuntime(target) {
   banner(3, 5, "Building embedded Python runtime (installing from pyproject.toml)...");
-  mkdirSync(resourcesDir, { recursive: true });
+  mkdirSync(runtimeOutDir, { recursive: true });
   rmSync(runtimeOutDir, { recursive: true, force: true });
 
   runCommand(

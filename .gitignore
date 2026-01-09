@@ -22,4 +22,4 @@ infra/local.db
 **/.venv*/
 **/*.egg-info
 **/.runtime-cache
-services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python
+services/local-runtime-suite/desktop/src-tauri/local-runtime-python

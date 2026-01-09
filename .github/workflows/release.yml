@@ -49,6 +49,9 @@ jobs:
         run: |
           test -f services/local-runtime-suite/desktop/src-tauri/build.rs || (echo "Missing src-tauri/build.rs for Tauri build script." && exit 1)
 
+      - name: Remove legacy runtime bundle path
+        run: rm -rf services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python
+
       - name: Configure toolcache paths (self-hosted)
         if: contains(matrix.runs_on, 'self-hosted')
         shell: bash

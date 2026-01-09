@@ -186,7 +186,7 @@ def main() -> None:
     ap.add_argument(
         "--runtime-root",
         required=True,
-        help="Output runtime directory (e.g. desktop/src-tauri/resources/local-runtime-python)",
+        help="Output runtime directory (e.g. desktop/src-tauri/local-runtime-python)",
     )
     ap.add_argument("--python", default="3.12", help="Python major.minor for embedded runtime (default: 3.12)")
     ap.add_argument("--force", action="store_true")
