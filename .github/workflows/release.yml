@@ -138,6 +138,10 @@ jobs:
       - name: Generate model catalog
         run: $PYTHON services/local-runtime-suite/tools/gen_models_json.py
 
+      - name: Clean stale signing keychain
+        if: startsWith(matrix.os, 'macos')
+        run: security delete-keychain signing_temp.keychain || true
+
       - name: Import macOS signing certificate
         if: startsWith(matrix.os, 'macos')
         uses: apple-actions/import-codesign-certs@v3
