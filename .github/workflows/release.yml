@@ -101,16 +101,18 @@ jobs:
         shell: bash
         run: |
           set -e
+          PY_CMD=""
           if command -v python3.11 >/dev/null 2>&1; then
-            echo "PYTHON=python3.11" >> "$GITHUB_ENV"
+            PY_CMD="python3.11"
           elif command -v python3 >/dev/null 2>&1; then
-            echo "PYTHON=python3" >> "$GITHUB_ENV"
+            PY_CMD="python3"
           else
             echo "No python found on runner PATH" >&2
             exit 1
           fi
-          $PYTHON --version
-          $PYTHON -m pip --version
+          echo "PYTHON=$PY_CMD" >> "$GITHUB_ENV"
+          "$PY_CMD" --version
+          "$PY_CMD" -m pip --version
 
       - name: Fix pkg-config search path (setup-python may overwrite PKG_CONFIG_PATH)
         if: startsWith(matrix.os, 'ubuntu')
