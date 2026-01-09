@@ -80,8 +80,10 @@ jobs:
       - name: List codesigning identities
         if: startsWith(matrix.os, 'macos')
         run: security find-identity -v -p codesigning
-      - name: Build sidecar + embedded runtime
+      - name: Build sidecar
         run: npm run sidecar:build -w services/local-runtime-suite/desktop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
