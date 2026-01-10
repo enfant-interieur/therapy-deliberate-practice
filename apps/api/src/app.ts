@@ -48,7 +48,8 @@ import {
   logServerError,
   makeRequestId,
   safeError,
-  safeTruncate
+  safeTruncate,
+  type LogFn
 } from "./utils/logger";
 import { selectTtsProvider } from "./providers";
 import {
@@ -150,6 +151,25 @@ const inferLanguage = (text: string) => {
     if (hits >= 3) return "fr";
   }
   return "en";
+};
+
+const toLogFn = (loggerInstance: ReturnType<typeof createLogger>): LogFn => {
+  return (level, event, fields) => {
+    switch (level) {
+      case "debug":
+        loggerInstance.debug(event, fields);
+        break;
+      case "info":
+        loggerInstance.info(event, fields);
+        break;
+      case "warn":
+        loggerInstance.warn(event, fields);
+        break;
+      case "error":
+        loggerInstance.error(event, fields);
+        break;
+    }
+  };
 };
 
 const remapUniqueUuids = <T extends { id: string }>(
@@ -1522,6 +1542,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
   app.post("/api/v1/admin/parse-task", async (c) => {
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_parse_task" });
+    const logEvent = toLogFn(log);
     const body = await c.req.json();
     const schema = z.object({
       free_text: z.string().optional().default(""),
@@ -1557,7 +1578,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
     let llmProvider;
     try {
-      const selection = await selectLlmProvider(buildEnvAiConfig(env, "openai_only"), log);
+      const selection = await selectLlmProvider(buildEnvAiConfig(env, "openai_only"), logEvent);
       llmProvider = selection.provider;
     } catch (error) {
       log.error("LLM provider selection failed", { error: safeError(error) });
@@ -1952,6 +1973,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
   app.post("/api/v1/admin/tasks/:id/translate", async (c) => {
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_translate_task" });
+    const logEvent = toLogFn(log);
     const id = c.req.param("id");
     const body = await c.req.json();
     const schema = z.object({
@@ -1983,7 +2005,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
     let llmProvider;
     try {
-      const selection = await selectLlmProvider(buildEnvAiConfig(env, "openai_only"), log);
+      const selection = await selectLlmProvider(buildEnvAiConfig(env, "openai_only"), logEvent);
       llmProvider = selection.provider;
     } catch (error) {
       log.error("LLM provider selection failed", { error: safeError(error) });
