@@ -1,0 +1,493 @@
+name: desktop-cross-release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag or ref to build (defaults to ref that triggered the run)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: desktop-release-${{ github.ref_name || inputs.tag || github.run_id }}
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "20.19.0"
+  PYTHON_VERSION: "3.11"
+  RUST_VERSION: "1.84.0"
+  TAURI_PROJECT_DIR: services/local-runtime-suite/desktop
+  PYTHON_PROJECT_DIR: services/local-runtime-suite/python
+  TAURI_CONFIG_ARGS: >
+    --config src-tauri/tauri.conf.json
+    --config src-tauri/tauri.sidecar.conf.json
+  CARGO_INCREMENTAL: "0"
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      tag: ${{ steps.metadata.outputs.tag }}
+      release_name: ${{ steps.metadata.outputs.release_name }}
+      checkout_ref: ${{ steps.metadata.outputs.checkout_ref }}
+      changelog: ${{ steps.changelog.outputs.body }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Compute release metadata
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(python3 - <<'PY'
+import json
+with open("services/local-runtime-suite/desktop/src-tauri/tauri.conf.json") as f:
+    print(json.load(f)["version"])
+PY
+)"
+          INPUT_REF="${{ inputs.tag }}"
+          if [[ -n "$INPUT_REF" ]]; then
+            REF="$INPUT_REF"
+          else
+            REF="${GITHUB_REF}"
+          fi
+          if [[ "$REF" == refs/* ]]; then
+            TAG="${REF##*/}"
+          else
+            TAG="$REF"
+          fi
+          if [[ "$TAG" != v* ]]; then
+            TAG="v${VERSION}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "release_name=Local Runtime Suite $TAG" >> "$GITHUB_OUTPUT"
+          echo "checkout_ref=$REF" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.metadata.outputs.tag }}"
+          git fetch --tags --force
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            PREV="$(git describe --tags --abbrev=0 "$TAG"^ --match 'v*' 2>/dev/null || true)"
+            if [[ -n "$PREV" ]]; then
+              RANGE="$PREV..$TAG"
+            else
+              RANGE="$TAG"
+            fi
+            LOG="$(git log --no-merges --pretty=format:'- %s (%h)' "$RANGE")"
+          else
+            LOG="Tag $TAG not found. Building ref ${GITHUB_REF}."
+          fi
+          {
+            echo "body<<'CHANGELOG'"
+            echo "$LOG"
+            echo "CHANGELOG"
+          } >> "$GITHUB_OUTPUT"
+
+  build-linux:
+    runs-on: ubuntu-24.04
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspace: ${{ env.TAURI_PROJECT_DIR }}/src-tauri
+          cache-provider: github
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install npm dependencies
+        run: npm ci --workspace $TAURI_PROJECT_DIR
+
+      - name: Install local runtime python deps
+        run: python -m pip install -e $PYTHON_PROJECT_DIR
+
+      - name: Generate model catalog
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+
+      - name: Build sidecar
+        run: npm run sidecar:build -w $TAURI_PROJECT_DIR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Linux bundles
+        working-directory: ${{ env.TAURI_PROJECT_DIR }}
+        run: |
+          npx tauri build $TAURI_CONFIG_ARGS --bundles deb,rpm,appimage
+
+      - name: Collect Linux artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/artifacts/linux"
+          mkdir -p "$OUT"
+          find "$TAURI_PROJECT_DIR/src-tauri/target/release/bundle" -maxdepth 2 -type f \( \
+            -name '*.AppImage' -o \
+            -name '*.deb' -o \
+            -name '*.rpm' \
+          \) -print -exec cp {} "$OUT" \;
+          ls -lah "$OUT"
+          echo "ARTIFACT_PATH=$OUT" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ needs.prepare.outputs.tag }}
+          path: ${{ env.ARTIFACT_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+  build-windows:
+    runs-on: windows-2022
+    needs: prepare
+    env:
+      POWERSHELL_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+
+      - name: Install WiX Toolset
+        shell: pwsh
+        run: |
+          if (-Not (Test-Path "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe")) {
+            choco install --no-progress wixtoolset --version 3.11.2
+          }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspace: ${{ env.TAURI_PROJECT_DIR }}/src-tauri
+          cache-provider: github
+
+      - name: Install npm dependencies
+        shell: pwsh
+        run: npm ci --workspace $env:TAURI_PROJECT_DIR
+
+      - name: Install local runtime python deps
+        shell: pwsh
+        run: python -m pip install -e $env:PYTHON_PROJECT_DIR
+
+      - name: Generate model catalog
+        shell: pwsh
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+
+      - name: Build sidecar
+        shell: pwsh
+        run: npm run sidecar:build -w $env:TAURI_PROJECT_DIR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Windows bundles (MSI + NSIS)
+        shell: pwsh
+        working-directory: ${{ env.TAURI_PROJECT_DIR }}
+        run: |
+          npx tauri build $env:TAURI_CONFIG_ARGS --bundles msi,nsis
+
+      - name: Import Authenticode certificate
+        if: secrets.WINDOWS_CODESIGN_CERT_B64 && secrets.WINDOWS_CODESIGN_CERT_PASSWORD
+        shell: pwsh
+        run: |
+          $pfxPath = "$env:RUNNER_TEMP\codesign.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String("${{ secrets.WINDOWS_CODESIGN_CERT_B64 }}"))
+          $secure = ConvertTo-SecureString -String "${{ secrets.WINDOWS_CODESIGN_CERT_PASSWORD }}" -AsPlainText -Force
+          Import-PfxCertificate -FilePath $pfxPath -Password $secure -CertStoreLocation Cert:\CurrentUser\My | Out-Null
+
+      - name: Sign Windows installers
+        if: secrets.WINDOWS_CODESIGN_SUBJECT
+        shell: pwsh
+        run: |
+          $timestamp = "http://timestamp.digicert.com"
+          $subject = "${{ secrets.WINDOWS_CODESIGN_SUBJECT }}"
+          $bundleDir = "$env:TAURI_PROJECT_DIR/src-tauri/target/release/bundle"
+          Get-ChildItem -Path $bundleDir -Recurse -Include *.msi,*.exe | ForEach-Object {
+            & signtool sign /fd SHA256 /td SHA256 /tr $timestamp /n $subject $_.FullName
+          }
+
+      - name: Collect Windows artifacts
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "artifacts\windows"
+          New-Item -ItemType Directory -Path $out -Force | Out-Null
+          Get-ChildItem "$env:TAURI_PROJECT_DIR\src-tauri\target\release\bundle" -Recurse -Include *.msi,*.exe | Copy-Item -Destination $out
+          Get-ChildItem $out
+          "ARTIFACT_PATH=$out" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-${{ needs.prepare.outputs.tag }}
+          path: ${{ env.ARTIFACT_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+  build-macos:
+    runs-on: [self-hosted, macOS, ARM64]
+    needs: prepare
+    env:
+      TMP_NOTARY_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: |
+            package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspace: ${{ env.TAURI_PROJECT_DIR }}/src-tauri
+          cache-provider: github
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install npm dependencies
+        run: npm ci --workspace $TAURI_PROJECT_DIR
+
+      - name: Install local runtime python deps
+        run: python -m pip install -e $PYTHON_PROJECT_DIR
+
+      - name: Generate model catalog
+        run: python services/local-runtime-suite/tools/gen_models_json.py
+
+      - name: Remove stale signing keychain
+        run: security delete-keychain signing_temp.keychain || true
+
+      - name: Import macOS signing certificate
+        uses: apple-actions/import-codesign-certs@v3
+        with:
+          p12-file-base64: ${{ secrets.MAC_CODESIGN_CERT_B64 }}
+          p12-password: ${{ secrets.MAC_CODESIGN_CERT_PASSWORD }}
+
+      - name: Prepare Apple API key (optional)
+        if: secrets.APPLE_API_KEY_B64
+        shell: bash
+        run: |
+          KEY_PATH="$RUNNER_TEMP/AuthKey_${{ secrets.APPLE_API_KEY_ID }}.p8"
+          echo "${{ secrets.APPLE_API_KEY_B64 }}" | base64 --decode > "$KEY_PATH"
+          chmod 600 "$KEY_PATH"
+          echo "APPLE_API_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+
+      - name: Build sidecar
+        run: npm run sidecar:build -w $TAURI_PROJECT_DIR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build signed .app bundle
+        working-directory: ${{ env.TAURI_PROJECT_DIR }}
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          npx tauri build $TAURI_CONFIG_ARGS --bundles app
+
+      - name: Package DMG (headless safe)
+        id: dmg
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_NAME="Local Runtime Suite"
+          APP_DIR="$TAURI_PROJECT_DIR/src-tauri/target/release/bundle/macos/${APP_NAME}.app"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          ARCH="$(rustc -vV | awk '/host:/ {print $2}' | cut -d- -f1)"
+          DMG_DIR="$TAURI_PROJECT_DIR/src-tauri/target/release/bundle/dmg"
+          DMG_NAME="${APP_NAME}_${VERSION}_${ARCH}.dmg"
+          STAGING="$(mktemp -d)"
+          trap 'rm -rf "$STAGING"' EXIT
+          rsync -a "$APP_DIR" "$STAGING/"
+          ln -s /Applications "$STAGING/Applications"
+          mkdir -p "$DMG_DIR"
+          hdiutil create -ov -fs HFS+ -srcfolder "$STAGING" -volname "$APP_NAME" "$DMG_DIR/$DMG_NAME"
+          echo "DMG_PATH=$DMG_DIR/$DMG_NAME" >> "$GITHUB_OUTPUT"
+          ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$DMG_DIR/${APP_NAME}_${VERSION}_${ARCH}.zip"
+          echo "ZIP_PATH=$DMG_DIR/${APP_NAME}_${VERSION}_${ARCH}.zip" >> "$GITHUB_OUTPUT"
+
+      - name: Notarize & staple DMG
+        if: secrets.APPLE_TEAM_ID
+        run: scripts/release/notarize-dmg.sh "${{ steps.dmg.outputs.DMG_PATH }}"
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_API_KEY_PATH: ${{ env.APPLE_API_KEY_PATH }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+
+      - name: Build optional PKG
+        if: secrets.APPLE_INSTALLER_IDENTITY
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_NAME="Local Runtime Suite"
+          APP_DIR="$TAURI_PROJECT_DIR/src-tauri/target/release/bundle/macos/${APP_NAME}.app"
+          VERSION="${{ needs.prepare.outputs.version }}"
+          ARCH="$(rustc -vV | awk '/host:/ {print $2}' | cut -d- -f1)"
+          PKG_DIR="$TAURI_PROJECT_DIR/src-tauri/target/release/bundle/pkg"
+          mkdir -p "$PKG_DIR"
+          PKG_PATH="$PKG_DIR/${APP_NAME}_${VERSION}_${ARCH}.pkg"
+          pkgbuild --install-location /Applications --component "$APP_DIR" "$PKG_PATH"
+          productsign --sign "${{ secrets.APPLE_INSTALLER_IDENTITY }}" "$PKG_PATH" "$PKG_PATH"
+          echo "PKG_PATH=$PKG_PATH" >> "$GITHUB_ENV"
+
+      - name: Collect macOS artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/artifacts/macos"
+          mkdir -p "$OUT"
+          APP_NAME="Local Runtime Suite"
+          APP_DIR="$TAURI_PROJECT_DIR/src-tauri/target/release/bundle/macos/${APP_NAME}.app"
+          cp "${{ steps.dmg.outputs.DMG_PATH }}" "$OUT/"
+          cp "${{ steps.dmg.outputs.ZIP_PATH }}" "$OUT/"
+          if [[ -n "${PKG_PATH:-}" && -f "$PKG_PATH" ]]; then
+            cp "$PKG_PATH" "$OUT/"
+          fi
+          ls -lah "$OUT"
+          echo "ARTIFACT_PATH=$OUT" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-${{ needs.prepare.outputs.tag }}
+          path: ${{ env.ARTIFACT_PATH }}
+          if-no-files-found: error
+          retention-days: 14
+
+  sbom:
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Generate npm SBOM
+        run: |
+          npm install -g @cyclonedx/cyclonedx-npm@1.11.0
+          mkdir -p sbom
+          cyclonedx-npm --input-file package-lock.json --output-file sbom/npm.cdx.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+
+      - name: Install cargo-cyclonedx
+        run: cargo install --locked cargo-cyclonedx
+
+      - name: Generate Rust SBOM
+        working-directory: ${{ env.TAURI_PROJECT_DIR }}/src-tauri
+        run: cargo cyclonedx --output ../../../../sbom/rust.cdx.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ needs.prepare.outputs.tag }}
+          path: sbom
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    runs-on: ubuntu-latest
+    needs:
+      - prepare
+      - build-linux
+      - build-windows
+      - build-macos
+      - sbom
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: List downloaded artifacts
+        run: ls -R dist
+
+      - id: files
+        shell: bash
+        run: |
+          set -euo pipefail
+          find dist -type f -print | sort > /tmp/files.txt
+          cat /tmp/files.txt
+          {
+            echo "paths<<'EOF'"
+            cat /tmp/files.txt
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: ${{ needs.prepare.outputs.release_name }}
+          body: ${{ needs.prepare.outputs.changelog }}
+          files: ${{ steps.files.outputs.paths }}
+          draft: false
+          prerelease: false

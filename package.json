@@ -20,7 +20,8 @@
     "deploy:prod": "npm run build -w apps/web && npm run deploy:ci -w apps/worker",
     "lint": "npm run lint -w apps/web",
     "lint:local": "npm run lint -w services/local-runtime-suite && npm --prefix services/local-runtime-suite/desktop run lint && python services/local-runtime-suite/tools/gen_models_json.py",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "release": "node scripts/release/run-release.mjs"
   },
   "devDependencies": {
     "prettier": "^3.3.3"
