@@ -1,108 +1,143 @@
-# Cross-Platform Desktop Release System
+# Cross-Platform Desktop Release System (Local-First)
 
-This repository now ships a single, reproducible release pipeline that produces signed installers for macOS, Windows, and Linux. The workflow is defined in `.github/workflows/desktop-cross-release.yml` and can be triggered either by pushing a `v*` tag or by running `npm run release` locally.
+This repository ships a **local-first** release system that produces **signed** installers for macOS, Windows, and Linux **from your machine**. GitHub Actions workflows remain in the repo for reference only and are **not used** by this process.
 
 ## Architecture Decision
 
-We build natively on each OS to avoid fragile cross-compilation and GUI dependencies:
+We build natively per OS to avoid fragile cross-compilation and GUI dependencies, orchestrated from your machine:
 
 ```
-                tag / workflow_dispatch
-                          │
-                          ▼
-┌──────────────┐   ┌────────────────┐   ┌────────────────┐   ┌────────────┐
-│ prepare (GH) │ ⇒ │ Linux runner   │ ⇒ │ Windows runner │ ⇒ │ self-hosted│
-│ metadata +   │   │ (Ubuntu 24.04) │   │ (Windows 2022) │   │ macOS ARM) │
-│ changelog    │   │ deb/rpm/AppImg │   │ NSIS + MSI     │   │ .app/.dmg  │
-└──────────────┘   └────────────────┘   └────────────────┘   └────────────┘
-                          │                    │                    │
-                          └──────── sbom (GH) ─┴──────────────┬──────┘
-                                                             ▼
-                                                      publish release
+                    npm run release
+                           │
+                           ▼
+┌──────────────────────────────────────────────────────────────────┐
+│ Local Orchestrator (scripts/release/run-release.mjs)             │
+│                                                                  │
+│  ┌───────────────┐   ┌─────────────────────┐   ┌──────────────┐   │
+│  │ macOS build   │   │ Linux (Docker)      │   │ Windows host │   │
+│  │ local machine │   │ local container     │   │ SSH/VM/PC    │   │
+│  │ .app/.dmg     │   │ deb/rpm/AppImage    │   │ NSIS/MSI     │   │
+│  └───────────────┘   └─────────────────────┘   └──────────────┘   │
+└──────────────────────────────────────────────────────────────────┘
+                           │
+                           ▼
+                 dist/release/<tag>/...
 ```
 
-* macOS builds run on the existing self-hosted Mac so we can safely access code-signing keys and Apple notarization tools.
-* Linux and Windows builds run on GitHub-hosted runners with deterministic toolchains (Node 20.19.0, Rust 1.84.0, Python 3.11).
-* Every job reuses the same scripts and configs via environment variables and shared commands, keeping it monorepo-friendly.
+**Why this approach**
 
-## Deterministic Toolchains & Caching
+* **Reliability:** Native packaging per OS avoids brittle cross-compilation and GUI dependencies.
+* **Security:** Signing keys stay on your hardware or local VM; no third-party CI exposure.
+* **Reproducibility:** Deterministic toolchains are pinned in the Docker image (Linux) and enforced via `rustup` + `fnm` on Windows.
+* **Flexibility:** Windows can be a local VM (Parallels/VMware), a physical PC, or a LAN builder.
 
-* **Node** – installed via `actions/setup-node@v4` with npm caching pinned to `package-lock.json`.
-* **Rust** – provisioned via `dtolnay/rust-toolchain@stable` locked to 1.84.0 to guarantee `rustc --print host-tuple` availability. `Swatinem/rust-cache@v2` caches `target/` per runner/OS.
-* **Python** – `actions/setup-python@v5` (3.11) installs the sidecar’s dependencies through the local editable module.
-* **Sidecar** – built exactly once per job using `npm run sidecar:build -w services/local-runtime-suite/desktop`. The Python runtime is vendored inside `src-tauri/local-runtime-python`, so the sidecar discovery issue is resolved for both local and CI environments.
-* **Artifacts** – normalized naming: `Local Runtime Suite_<version>_<arch>.<ext>`. Each platform job copies only final installers into temporary staging directories before uploading them via `actions/upload-artifact@v4`.
+## Monorepo-Friendly Build Design
 
-## Workflow Breakdown
+### Deterministic toolchains
 
-| Job | Responsibilities |
-| --- | --- |
-| `prepare` | Checks out the requested ref, reads the version from `tauri.conf.json`, determines the effective tag, and generates a changelog range. Outputs are re-used by downstream jobs. |
-| `build-linux` | Installs GTK/WebKit dependencies, restores Node/Rust caches, builds `deb`, `rpm`, and `AppImage` bundles via `npx tauri build --bundles deb,rpm,appimage`, and uploads them. |
-| `build-windows` | Installs WiX if needed, builds NSIS + MSI installers, optionally imports/signs with Authenticode certs, and uploads them. |
-| `build-macos` | Runs on the self-hosted ARM Mac, imports the Apple signing certificate, builds the `.app`, creates a deterministic `hdiutil` DMG (fully headless), optionally notarizes/staples it using `scripts/release/notarize-dmg.sh`, optionally signs a `.pkg`, and uploads `.app.tar.gz`, `.zip`, `.dmg`, and `.pkg` (if available). |
-| `sbom` | Generates CycloneDX SBOMs for both npm and Rust dependencies (via `@cyclonedx/cyclonedx-npm` and `cargo-cyclonedx`). |
-| `publish` | Downloads every artifact (including SBOMs) and publishes a GitHub Release using the changelog generated in `prepare`. |
+* **macOS:** uses your local Xcode + Rust toolchain; recommended to pin `rustup` to `1.84.0`.
+* **Linux:** Docker image pins **Node 20.19.0** and **Rust 1.84.0**. See `scripts/release/linux-builder/Dockerfile`.
+* **Windows:** build script installs **Rust 1.84.0** and uses `fnm` (if present) to pin **Node 20.19.0**.
 
-## Local Command (`npm run release`)
+### Caching strategy
 
-1. Ensure `gh` CLI is authenticated (`gh auth login`) and you are on the commit you want to release.
-2. Run `npm run release`. The script:
-   * Reads `services/local-runtime-suite/desktop/src-tauri/tauri.conf.json` to determine the version (or pass `--tag vX.Y.Z` to override).
-   * Verifies the working tree is clean.
-   * Creates and pushes the annotated git tag.
-   * Dispatches the `desktop-cross-release.yml` workflow with that tag.
-3. Track the workflow via `gh run watch` or the Actions tab.
+* Linux: `~/.cache/release` is mounted into Docker to cache `npm` and `cargo` artifacts.
+* Windows: uses your local `%USERPROFILE%\.cargo` and npm caches.
+* macOS: uses your local `~/.cargo` and npm caches.
 
-Flags:
+### Artifact naming / versioning
+
+Artifacts are normalized to:
+
+* macOS: `Local Runtime Suite_<version>_<arch>.zip`, `.dmg`, optional `.pkg`
+* Windows: `Local Runtime Suite_<version>_x64.msi`, `Local Runtime Suite_<version>_x64_setup.exe`
+* Linux: `Local Runtime Suite_<version>_<arch>.AppImage`, `.deb`, `.rpm`
+
+All artifacts are placed under `dist/release/<tag>/`.
+
+### Reproducible builds
+
+* Clean working tree is enforced by default.
+* `npm ci` is used by every build script (set `RELEASE_SKIP_NPM_CI=1` to skip).
+
+### Secret handling
+
+Secrets are injected via environment variables only (never committed): see `docs/signing.md` for exact formats. macOS certs are imported into a temporary keychain and removed after the build.
+
+## Local Command
+
+```
+npm run release
+```
+
+This command:
+
+1. Reads `services/local-runtime-suite/desktop/src-tauri/tauri.conf.json` for the version.
+2. Creates a local git tag `v<version>` (skip with `--skip-tag`).
+3. Builds **macOS** locally.
+4. Builds **Linux** inside Docker.
+5. Builds **Windows** via SSH to your Windows host.
+
+### Flags
 
 | Flag | Purpose |
 | --- | --- |
 | `--tag vX.Y.Z` | Force a different tag than `v<tauri version>`. |
-| `--dry-run` | Print the git/gh commands without executing them. |
-| `--skip-gh` | Create + push the tag but do not start the workflow (useful when CI should auto-trigger on push). |
+| `--skip-tag` | Do not create a git tag. |
+| `--push-tag` | Push the tag to origin (optional; no Actions are triggered). |
+| `--skip-macos` | Skip macOS build. |
+| `--skip-linux` | Skip Linux build. |
+| `--skip-windows` | Skip Windows build. |
+| `--windows-host` | Override `RELEASE_WINDOWS_HOST`. |
+| `--windows-user` | Override `RELEASE_WINDOWS_USER`. |
+| `--windows-repo` | Override `RELEASE_WINDOWS_REPO_DIR` (use `C:/path`). |
+| `--allow-dirty` | Allow dirty git status (not recommended). |
+| `--dry-run` | Print commands without executing them. |
 
-## Artifact Naming / Versioning
+### Required Windows env
 
-* macOS: `Local Runtime Suite_<version>_<arch>.{zip,dmg,pkg}`
-* Windows: `<product>-<version>-setup.{msi,exe}` as emitted by Tauri (signed post-build).
-* Linux: `.AppImage`, `.deb`, `.rpm` emitted by Tauri’s bundler.
-* SBOMs: `sbom/npm.cdx.json`, `sbom/rust.cdx.json`
+Set these in your shell before running `npm run release`:
 
-All artifacts are attached to the GitHub Release for the associated tag.
+```
+export RELEASE_WINDOWS_HOST=windows-builder.local
+export RELEASE_WINDOWS_USER=builder
+export RELEASE_WINDOWS_REPO_DIR="C:/repos/therapy-deliberate-practice"
+```
 
-## Secure Secret Handling
+The Windows host must have:
 
-* macOS certs are imported through `apple-actions/import-codesign-certs`; the P12 is base64-encoded and stored as `MAC_CODESIGN_CERT_B64`.
-* Apple notarization credentials support both API key flow (`APPLE_API_KEY_B64`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER`, `APPLE_TEAM_ID`) and Apple ID flow (`APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`). The helper script selects whichever set is available.
-* Windows uses `WINDOWS_CODESIGN_CERT_B64` / `WINDOWS_CODESIGN_CERT_PASSWORD` to import a PFX into the runner’s user certificate store and signs via `signtool` using `WINDOWS_CODESIGN_SUBJECT`.
-* Linux packages are unsigned by default, but GPG-based signing hooks (e.g., `dpkg-sig`, `rpm --addsign`) can be added later; guidance is documented in `docs/signing.md`.
+* Git + SSH server enabled (OpenSSH is fine)
+* Node 20.19.0 (or `fnm` installed so the script can pin it)
+* Rust via `rustup`
+* Windows SDK (for `signtool.exe`) if signing
 
-Secrets are always injected via environment variables, never committed.
+## DMG Strategy (Headless + Reliable)
 
-## Troubleshooting Guide
+Tauri’s default DMG pipeline depends on Finder automation and can be brittle on headless systems. The local pipeline replaces it with deterministic `hdiutil` calls:
 
-* **DMG creation fails** – ensure the self-hosted Mac has `hdiutil` (standard on macOS) and that the `Local Runtime Suite.app` exists under `src-tauri/target/release/bundle/macos`. The step logs the staging directory; inspect it on the runner if needed.
-* **Notarization errors** – verify the provided Apple credentials. The helper script requires `APPLE_TEAM_ID` plus either the API key trio or Apple ID + app-specific password. Check `xcrun notarytool history --apple-id ...` for more details.
-* **Windows signing issues** – confirm `WINDOWS_CODESIGN_SUBJECT` matches the certificate’s subject exactly and that the cert is timestamp-capable. Run `Get-ChildItem Cert:\CurrentUser\My` on the runner for debugging.
-* **WiX missing** – `choco install wixtoolset` runs automatically, but if WiX already exists with a different path, expose it via `WIX` environment variable or update the step.
-* **Linux GTK / WebKit errors** – the workflow installs all required packages for Ubuntu 24.04; if you change the base image, ensure `libwebkit2gtk-4.1-dev` and friends remain available.
-* **SBOM generation** – if `cargo install cargo-cyclonedx` fails due to cached binaries, clear the `~/.cargo` cache on the runner or pin a specific version through `CARGO_INSTALL_ROOT`.
+1. Build only the `.app` via `tauri build --bundles app`.
+2. Stage `.app` + `/Applications` symlink into a temp directory.
+3. Use `hdiutil create -fs HFS+ -format UDZO` to emit the DMG.
+4. Optionally notarize and staple via `scripts/release/notarize-dmg.sh`.
 
-## Why This Fixes the DMG Issues
+No GUI session is required; the output is deterministic and safe for local or headless macOS hosts.
 
-The previous CI runs called Tauri’s `bundle_dmg.sh`, which expects a GUI session and AppleScript automation to lay out Finder backgrounds. The new process:
+## Release Artifacts Directory
 
-1. Builds only the signed `.app` via `tauri build --bundles app`.
-2. Copies the `.app` plus the `/Applications` symlink into a staging directory.
-3. Uses `hdiutil create -fs HFS+ -format UDZO` to produce the DMG—fully headless and safe on self-hosted or GitHub-hosted runners.
-4. Notarizes and staples using `xcrun notarytool` with whichever credential flow is configured.
+```
+dist/release/<tag>/
+  macos/
+  linux/
+  windows/
+```
 
-No GUI automation, no Finder dependencies, and deterministic filenames make the DMG creation stable in CI.
+## Troubleshooting
 
-## Next Steps / Maintenance
+* **macOS DMG fails** – ensure `hdiutil` exists and the `.app` is in `src-tauri/target/release/bundle/macos`.
+* **Notarization errors** – verify `APPLE_TEAM_ID` and either API key or Apple ID credentials.
+* **Windows signing issues** – confirm the Windows SDK is installed and `WINDOWS_CODESIGN_SUBJECT` matches the cert subject.
+* **Linux build fails in Docker** – ensure Docker has enough disk and `libwebkit2gtk-4.1-dev` is installed (in the image).
 
-* Update `services/local-runtime-suite/desktop/src-tauri/tauri.conf.json` whenever you bump the product version; the release command reads it automatically.
-* Keep `MAC_CODESIGN_CERT_B64`, `WINDOWS_CODESIGN_CERT_B64`, and Apple credentials up to date.
-* If you need Linux package signing, follow the recommendations in `docs/signing.md` (add GPG keys + signing steps).
-* To include additional workspaces in the release build, augment the `Install npm dependencies` step with extra `npm ci --workspace ...` invocations—caching already handles multiple lockfiles.
+## Legacy GitHub Actions
+
+The GitHub Actions workflows are retained in `.github/workflows/` for reference or future CI use. The local-first release process **does not** invoke GitHub Actions.
