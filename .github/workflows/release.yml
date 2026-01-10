@@ -17,23 +17,53 @@ permissions:
 jobs:
   build-tauri:
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - os: ubuntu-24.04
-            bundles: "deb,appimage,rpm"
-          - os: windows-latest
-            bundles: "nsis,msi"
-          - os: macos-latest
-            bundles: "app,dmg"
-    runs-on: ${{ matrix.os }}
+          # ---- GitHub-hosted runners (CI/CD) ----
+#          - os: ubuntu-24.04
+#            runs_on: ubuntu-24.04
+#            bundles: "deb,appimage,rpm"
+#
+#          - os: windows-latest
+#            runs_on: windows-latest
+#            bundles: "nsis,msi"
+#
+#          - os: macos-latest
+#            runs_on: macos-latest
+#            bundles: "app,dmg"
+
+          # ---- Your self-hosted runner (macOS ARM64) ----
+          - os: macos-selfhosted
+            runs_on: [ self-hosted, macOS, ARM64 ]
+            bundles: "app"
+
+    runs-on: ${{ matrix.runs_on }}
     steps:
       - uses: actions/checkout@v4
         with:
           # If manually dispatched with a tag, checkout that tag
           ref: ${{ inputs.tag || github.ref }}
+
       - name: Verify Tauri build script exists
         run: |
           test -f services/local-runtime-suite/desktop/src-tauri/build.rs || (echo "Missing src-tauri/build.rs for Tauri build script." && exit 1)
+
+      - name: Remove legacy runtime bundle path
+        run: rm -rf services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python
+
+      - name: Configure toolcache paths (self-hosted)
+        if: contains(matrix.runs_on, 'self-hosted')
+        shell: bash
+        run: |
+          TOOLCACHE="$HOME/actions-runner/_toolcache"
+          mkdir -p "$TOOLCACHE"
+          echo "RUNNER_TOOL_CACHE=$TOOLCACHE" >> "$GITHUB_ENV"
+          echo "AGENT_TOOLSDIRECTORY=$TOOLCACHE" >> "$GITHUB_ENV"
+          echo "RUNNER_TEMP=$HOME/actions-runner/_temp" >> "$GITHUB_ENV"
+          echo "TMPDIR=$HOME/actions-runner/_temp" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/actions-runner/_temp"
+
       - name: Install Linux system dependencies
         if: startsWith(matrix.os, 'ubuntu')
         run: |
@@ -52,9 +82,38 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python (GitHub-hosted only)
+        if: "!contains(matrix.runs_on, 'self-hosted')"
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Expose PYTHON
+        if: "!contains(matrix.runs_on, 'self-hosted')"
+        shell: bash
+        run: |
+          echo "PYTHON=$(command -v python3 || command -v python)" >> "$GITHUB_ENV"
+          echo "PYTHON=$PYTHON"
+
+      - name: Use preinstalled Python (self-hosted)
+        if: "contains(matrix.runs_on, 'self-hosted')"
+        shell: bash
+        run: |
+          set -e
+          PY_CMD=""
+          if command -v python3.11 >/dev/null 2>&1; then
+            PY_CMD="python3.11"
+          elif command -v python3 >/dev/null 2>&1; then
+            PY_CMD="python3"
+          else
+            echo "No python found on runner PATH" >&2
+            exit 1
+          fi
+          echo "PYTHON=$PY_CMD" >> "$GITHUB_ENV"
+          "$PY_CMD" --version
+          "$PY_CMD" -m pip --version
+
       - name: Fix pkg-config search path (setup-python may overwrite PKG_CONFIG_PATH)
         if: startsWith(matrix.os, 'ubuntu')
         shell: bash
@@ -65,29 +124,44 @@ jobs:
           else
             echo "PKG_CONFIG_PATH=$DEFAULT_PC_PATH" >> "$GITHUB_ENV"
           fi
+
+      - name: Use local npm cache
+        if: contains(matrix.runs_on, 'self-hosted')
+        run: echo "npm_config_cache=$HOME/.npm" >> "$GITHUB_ENV"
+
       - name: Install dependencies
         run: npm ci --workspace services/local-runtime-suite/desktop
+
       - name: Install local runtime dependencies
-        run: pip install -e services/local-runtime-suite/python
+        run: $PYTHON -m pip install -e services/local-runtime-suite/python
+
       - name: Generate model catalog
-        run: python services/local-runtime-suite/tools/gen_models_json.py
+        run: $PYTHON services/local-runtime-suite/tools/gen_models_json.py
+
+      - name: Clean stale signing keychain
+        if: startsWith(matrix.os, 'macos')
+        run: security delete-keychain signing_temp.keychain || true
+
       - name: Import macOS signing certificate
         if: startsWith(matrix.os, 'macos')
         uses: apple-actions/import-codesign-certs@v3
         with:
           p12-file-base64: ${{ secrets.APPSTORE_CERTIFICATES_FILE_BASE64 }}
           p12-password: ${{ secrets.APPSTORE_CERTIFICATES_PASSWORD }}
+
       - name: List codesigning identities
         if: startsWith(matrix.os, 'macos')
         run: security find-identity -v -p codesigning
+
       - name: Build sidecar
         run: npm run sidecar:build -w services/local-runtime-suite/desktop
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
           # keep your mac signing envs here as you already started doing
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         with:
@@ -103,3 +177,31 @@ jobs:
           prerelease: false
           includeDebug: false
           includeRelease: true
+
+      - name: Package DMG (self-hosted macOS)
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_NAME="Local Runtime Suite"
+          APP_DIR="services/local-runtime-suite/desktop/src-tauri/target/release/bundle/macos/${APP_NAME}.app"
+          VERSION="$(node -e 'console.log(require("./services/local-runtime-suite/desktop/src-tauri/tauri.conf.json").version)')"
+          ARCH="$(rustc -vV | awk '/host:/ {print $2}' | cut -d- -f1)"
+          DMG_DIR="services/local-runtime-suite/desktop/src-tauri/target/release/bundle/dmg"
+          DMG_NAME="${APP_NAME}_${VERSION}_${ARCH}.dmg"
+          TMPDIR="$(mktemp -d)"
+          trap 'rm -rf "$TMPDIR"' EXIT
+          cp -R "$APP_DIR" "$TMPDIR/"
+          ln -s /Applications "$TMPDIR/Applications"
+          mkdir -p "$DMG_DIR"
+          hdiutil create -ov -format UDZO -volname "$APP_NAME" -srcfolder "$TMPDIR" "$DMG_DIR/$DMG_NAME"
+          echo "LOCAL_RUNTIME_DMG=$DMG_DIR/$DMG_NAME" >> "$GITHUB_ENV"
+
+      - name: Upload DMG asset
+        if: startsWith(matrix.os, 'macos')
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: ${{ env.LOCAL_RUNTIME_DMG }}
