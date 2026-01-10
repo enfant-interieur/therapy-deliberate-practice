@@ -19,6 +19,7 @@ export const tasks = sqliteTable(
     base_difficulty: integer("base_difficulty").notNull(),
     general_objective: text("general_objective"),
     tags: text("tags", { mode: "json" }).notNull(),
+    authors: text("authors", { mode: "json" }).notNull().default("[]"),
     language: text("language").notNull().default("en"),
     is_published: integer("is_published", { mode: "boolean" }).notNull(),
     parent_task_id: text("parent_task_id"),

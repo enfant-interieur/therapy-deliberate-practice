@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Input, Label, Select, Textarea } from "./AdminUi";
+import { TagInput } from "./TagInput";
 
 export type CreateTaskPayload = {
   title: string;
@@ -9,6 +10,7 @@ export type CreateTaskPayload = {
   base_difficulty: number;
   general_objective?: string | null;
   tags: string[];
+  authors: string[];
   language: string;
   is_published: boolean;
   criteria?: Array<{ id: string; label: string; description: string }>;
@@ -35,6 +37,7 @@ const emptyPayload = (): CreateTaskPayload => ({
   base_difficulty: 3,
   general_objective: "",
   tags: [],
+  authors: [],
   language: "en",
   is_published: false
 });
@@ -106,7 +109,8 @@ export const CreateTaskDialog = ({
         const draft: CreateTaskPayload = {
           ...payload,
           ...parsed,
-          tags: Array.isArray(parsed.tags) ? parsed.tags : payload.tags
+          tags: Array.isArray(parsed.tags) ? parsed.tags : payload.tags,
+          authors: Array.isArray(parsed.authors) ? parsed.authors : payload.authors
         };
         if (!draft.title || !draft.skill_domain || !draft.description) {
           setError(t("admin.create.errors.missingFields"));
@@ -216,6 +220,14 @@ export const CreateTaskDialog = ({
                       .filter(Boolean)
                   })
                 }
+              />
+            </div>
+            <div className="md:col-span-2">
+              <TagInput
+                label={t("admin.task.authorsLabel")}
+                placeholder={t("admin.task.authorsPlaceholder")}
+                value={payload.authors}
+                onChange={(authors) => setPayload({ ...payload, authors })}
               />
             </div>
             <div className="space-y-2">

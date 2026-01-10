@@ -311,9 +311,24 @@ const pickExamplesForDifficulty = (examples: TaskExample[], target: number, coun
   return sorted.slice(0, Math.min(count, sorted.length));
 };
 
+const normalizeAuthors = (authors?: string[] | null) => {
+  if (!Array.isArray(authors)) return [];
+  const seen = new Set<string>();
+  return authors
+    .map((author) => author.trim())
+    .filter(Boolean)
+    .filter((author) => {
+      const key = author.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
 const normalizeTask = (row: typeof tasks.$inferSelect): Task => ({
   ...row,
   tags: row.tags as Task["tags"],
+  authors: normalizeAuthors(row.authors as Task["authors"]),
   is_published: Boolean(row.is_published),
   general_objective: row.general_objective ?? null,
   parent_task_id: row.parent_task_id ?? null
@@ -1690,6 +1705,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       base_difficulty: parsedTask.task.base_difficulty,
       general_objective: parsedTask.task.general_objective ?? null,
       tags: parsedTask.task.tags,
+      authors: normalizeAuthors([]),
       language: taskLanguage,
       is_published: data.task_overrides?.is_published ?? false,
       parent_task_id: null,
@@ -1753,6 +1769,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     base_difficulty: z.number().min(1).max(5),
     general_objective: z.string().nullable().optional(),
     tags: z.array(z.string()),
+    authors: z.array(z.string()).optional(),
     language: z.string().optional(),
     is_published: z.boolean().optional(),
     criteria: z.array(taskCriterionSchema).optional(),
@@ -1776,6 +1793,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       base_difficulty: parsed.base_difficulty,
       general_objective: parsed.general_objective ?? null,
       tags: parsed.tags,
+      authors: normalizeAuthors(parsed.authors),
       language: taskLanguage,
       is_published: parsed.is_published ?? false,
       parent_task_id: null,
@@ -2028,6 +2046,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       base_difficulty: translated.task.base_difficulty,
       general_objective: translated.task.general_objective ?? null,
       tags: translated.task.tags,
+      authors: normalizeAuthors(taskRow.authors as Task["authors"]),
       language: data.target_language,
       is_published: taskRow.is_published,
       parent_task_id: taskRow.id,
@@ -2115,6 +2134,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         base_difficulty: parsed.base_difficulty,
         general_objective: parsed.general_objective ?? null,
         tags: parsed.tags,
+        authors: normalizeAuthors(parsed.authors),
         language: taskLanguage,
         is_published: parsed.is_published,
         parent_task_id: parsed.parent_task_id ?? null,

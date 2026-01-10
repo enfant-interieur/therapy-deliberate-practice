@@ -26,6 +26,7 @@ const setupDb = () => {
       base_difficulty INTEGER NOT NULL,
       general_objective TEXT,
       tags TEXT NOT NULL,
+      authors TEXT NOT NULL DEFAULT '[]',
       language TEXT NOT NULL,
       is_published INTEGER NOT NULL,
       parent_task_id TEXT,

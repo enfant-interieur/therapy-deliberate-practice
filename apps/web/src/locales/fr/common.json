@@ -793,6 +793,7 @@
   "practice": {
     "title": "Session de pratique",
     "loadingScenario": "Chargement du scénario...",
+    "authors": "Auteurs",
     "responseLabel": "Votre réponse",
     "startRecording": "Démarrer l'enregistrement",
     "stopRecording": "Arrêter l'enregistrement",
@@ -824,6 +825,7 @@
     "difficulty": "Difficulté {{difficulty}}",
     "startPractice": "Commencer la pratique",
     "backToLibrary": "Retour à la bibliothèque",
+    "authors": "Auteurs",
     "generalObjective": "Objectif général",
     "generalObjectiveEmpty": "Aucun objectif général défini pour le moment.",
     "criteria": "Critères",
@@ -883,6 +885,7 @@
       "difficultyNumericPlaceholder": "Difficulté numérique",
       "generalObjectivePlaceholder": "Objectif général",
       "tagsPlaceholder": "Tags (séparés par des virgules)",
+      "authorsPlaceholder": "Ajoutez un auteur puis appuyez sur Entrée",
       "rawJson": "JSON brut",
       "applyJson": "Appliquer les modifications JSON",
       "import": "Enregistrer / Importer",
@@ -895,7 +898,8 @@
       "publishLabel": "Publier",
       "descriptionLabel": "Description",
       "generalObjectiveLabel": "Objectif général",
-      "tagsLabel": "Tags"
+      "tagsLabel": "Tags",
+      "authorsLabel": "Auteurs"
     },
     "edit": {
       "title": "Modifier une tâche existante",
@@ -1008,6 +1012,7 @@
       "overview": "Aperçu",
       "description": "Description et objectif",
       "tags": "Tags",
+      "authors": "Auteurs",
       "criteria": "Critères",
       "examples": "Exemples"
     },

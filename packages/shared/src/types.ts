@@ -45,6 +45,7 @@ export type Task = {
   base_difficulty: number;
   general_objective?: string | null;
   tags: string[];
+  authors: string[];
   language: string;
   is_published: boolean;
   parent_task_id?: string | null;
