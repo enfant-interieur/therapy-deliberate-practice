@@ -29,6 +29,7 @@ import { ImportTaskDialog } from "./ImportTaskDialog";
 const toEditableTask = (task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] }): EditableTask => ({
   ...task,
   general_objective: task.general_objective ?? "",
+  authors: task.authors ?? [],
   criteria: task.criteria ?? [],
   examples: task.examples ?? []
 });
@@ -42,6 +43,7 @@ const createDraftFromParsed = (parsed: DeliberatePracticeTaskV2): EditableTask =
   base_difficulty: parsed.task.base_difficulty,
   general_objective: parsed.task.general_objective ?? "",
   tags: parsed.task.tags ?? [],
+  authors: [],
   language: parsed.task.language ?? "en",
   is_published: false,
   parent_task_id: null,
@@ -58,6 +60,7 @@ const toCreatePayload = (task: EditableTask): CreateTaskPayload => ({
   base_difficulty: task.base_difficulty,
   general_objective: task.general_objective ?? "",
   tags: task.tags,
+  authors: task.authors,
   language: task.language,
   is_published: task.is_published,
   criteria: task.criteria,

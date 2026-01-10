@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Badge, Button, Card, Input, Label, Select, Textarea } from "./AdminUi";
 import { CriteriaTableEditor } from "./CriteriaTableEditor";
 import { ExamplesListEditor } from "./ExamplesListEditor";
+import { TagInput } from "./TagInput";
 
 export type EditableTask = Task & { criteria: TaskCriterion[]; examples: TaskExample[] };
 
@@ -26,6 +27,7 @@ const sectionIds = [
   { id: "overview", label: "admin.sections.overview" },
   { id: "description", label: "admin.sections.description" },
   { id: "tags", label: "admin.sections.tags" },
+  { id: "authors", label: "admin.sections.authors" },
   { id: "criteria", label: "admin.sections.criteria" },
   { id: "examples", label: "admin.sections.examples" }
 ];
@@ -240,6 +242,18 @@ export const TaskEditorPanel = ({
               </div>
             )}
           </div>
+        </div>
+      </Card>
+
+      <Card id="authors" className="p-6">
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold text-teal-200">{t("admin.sections.authors")}</h4>
+          <TagInput
+            label={t("admin.task.authorsLabel")}
+            placeholder={t("admin.task.authorsPlaceholder")}
+            value={task.authors}
+            onChange={(authors) => updateTask({ authors })}
+          />
         </div>
       </Card>
 

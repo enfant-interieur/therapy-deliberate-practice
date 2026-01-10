@@ -129,6 +129,7 @@ export const PracticePage = () => {
   const patientAudioUrl = currentAudioEntry?.blobUrl ?? currentAudioEntry?.audioUrl ?? null;
   const patientCacheKey = currentAudioEntry?.cacheKey ?? null;
   const patientAudioError = currentAudioEntry?.error ?? null;
+  const taskAuthors = task?.authors ?? [];
   const hasCoachReview = Boolean(practice.evaluation);
   const hasPreviousExample = practice.currentIndex > 0;
   const hasNextExample = practice.currentIndex + 1 < practice.sessionItems.length;
@@ -870,6 +871,23 @@ export const PracticePage = () => {
                   </span>
                 ))}
               </div>
+              {taskAuthors.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-slate-500">
+                    {t("practice.authors")}
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {taskAuthors.map((author) => (
+                      <span
+                        key={author}
+                        className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[11px] font-semibold text-slate-300"
+                      >
+                        {author}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </details>
           <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">

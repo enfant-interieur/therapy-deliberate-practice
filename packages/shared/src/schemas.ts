@@ -2,6 +2,25 @@ import { z } from "zod";
 
 const idSchema = z.string().min(1);
 
+const normalizeStringArray = (values: unknown) => {
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  return values
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean)
+    .filter((value) => {
+      const key = value.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+};
+
+const normalizedStringArraySchema = z
+  .array(z.string())
+  .optional()
+  .transform((value) => normalizeStringArray(value ?? []));
+
 export const rubricSchema = z.object({
   score_min: z.literal(0),
   score_max: z.literal(4),
@@ -60,6 +79,7 @@ export const taskSchema = z.object({
   base_difficulty: z.number().min(1).max(5),
   general_objective: z.string().nullable().optional(),
   tags: z.array(z.string()),
+  authors: normalizedStringArraySchema,
   language: z.string().default("en"),
   is_published: z.boolean(),
   parent_task_id: z.string().nullable().optional(),

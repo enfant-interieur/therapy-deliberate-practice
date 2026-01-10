@@ -16,6 +16,7 @@ export const ExerciseDetailPage = () => {
   }
 
   const interactionExamples = data.interaction_examples ?? [];
+  const authors = data.authors ?? [];
 
   return (
     <div className="space-y-8">
@@ -33,6 +34,23 @@ export const ExerciseDetailPage = () => {
             </span>
           ))}
         </div>
+        {authors.length > 0 && (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+              {t("exercise.authors")}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {authors.map((author) => (
+                <span
+                  key={author}
+                  className="rounded-full border border-teal-400/30 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-teal-100"
+                >
+                  {author}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="mt-6 flex gap-3">
           <Link
             to={`/practice/${data.id}`}
