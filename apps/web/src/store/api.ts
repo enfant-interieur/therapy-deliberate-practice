@@ -340,11 +340,24 @@ export const api = createApi({
       query: () => "/admin/tasks",
       providesTags: ["Task"]
     }),
-    getAdminTask: builder.query<Task & { criteria: TaskCriterion[]; examples: TaskExample[] }, string>({
+    getAdminTask: builder.query<
+      Task & { criteria: TaskCriterion[]; examples: TaskExample[]; interaction_examples?: TaskInteractionExample[] },
+      string
+    >({
       query: (id) => `/admin/tasks/${id}`,
       providesTags: (_result, _err, id) => [{ type: "Task", id }]
     }),
-    updateTask: builder.mutation<{ status: string }, { id: string; task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] } }>({
+    updateTask: builder.mutation<
+      { status: string },
+      {
+        id: string;
+        task: Task & {
+          criteria?: TaskCriterion[];
+          examples?: TaskExample[];
+          interaction_examples?: TaskInteractionExample[];
+        };
+      }
+    >({
       query: ({ id, task }) => ({
         url: `/admin/tasks/${id}`,
         method: "PUT",
@@ -352,7 +365,14 @@ export const api = createApi({
       }),
       invalidatesTags: (_result, _err, { id }) => [{ type: "Task", id }, "Task"]
     }),
-    createTask: builder.mutation<{ id: string; slug: string }, Partial<Task> & { criteria?: TaskCriterion[]; examples?: TaskExample[] }>({
+    createTask: builder.mutation<
+      { id: string; slug: string },
+      Partial<Task> & {
+        criteria?: TaskCriterion[];
+        examples?: TaskExample[];
+        interaction_examples?: TaskInteractionExample[];
+      }
+    >({
       query: (body) => ({ url: "/admin/tasks", method: "POST", body }),
       invalidatesTags: ["Task"]
     }),

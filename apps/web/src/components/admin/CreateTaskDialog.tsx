@@ -20,6 +20,13 @@ export type CreateTaskPayload = {
     severity_label?: string | null;
     patient_text: string;
   }>;
+  interaction_examples?: Array<{
+    id: string;
+    difficulty: number;
+    title?: string | null;
+    patient_text: string;
+    therapist_text: string;
+  }>;
 };
 
 type CreateTaskDialogProps = {
