@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import type { Task, TaskCriterion, TaskExample } from "@deliberate/shared";
+import type { Task, TaskCriterion, TaskExample, TaskInteractionExample } from "@deliberate/shared";
 import { taskSchema } from "@deliberate/shared";
 import { Button, Card, SectionHeader } from "../components/admin/AdminUi";
 import { ConfirmDialog } from "../components/admin/ConfirmDialog";
@@ -21,19 +21,26 @@ type ValidationErrors = {
   task?: Record<string, string>;
   criteria: Record<number, { id?: string; label?: string; description?: string }>;
   examples: Record<number, { id?: string; difficulty?: string; patient_text?: string }>;
+  interaction_examples: Record<
+    number,
+    { id?: string; difficulty?: string; patient_text?: string; therapist_text?: string }
+  >;
 };
 
-const toEditableTask = (task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] }): EditableTask => ({
+const toEditableTask = (
+  task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[]; interaction_examples?: TaskInteractionExample[] }
+): EditableTask => ({
   ...task,
   general_objective: task.general_objective ?? "",
   criteria: task.criteria ?? [],
-  examples: task.examples ?? []
+  examples: task.examples ?? [],
+  interaction_examples: task.interaction_examples ?? []
 });
 
 const serializeTask = (task: EditableTask | null) => (task ? JSON.stringify(task) : "");
 
 const validateTask = (task: EditableTask | null, t: (key: string, options?: Record<string, unknown>) => string): ValidationErrors => {
-  const errors: ValidationErrors = { criteria: {}, examples: {} };
+  const errors: ValidationErrors = { criteria: {}, examples: {}, interaction_examples: {} };
   if (!task) return errors;
 
   const taskErrors: Record<string, string> = {};
@@ -73,6 +80,24 @@ const validateTask = (task: EditableTask | null, t: (key: string, options?: Reco
       exampleIds.add(example.id);
     }
     if (Object.keys(rowErrors).length) errors.examples[index] = rowErrors;
+  });
+
+  const interactionIds = new Set<string>();
+  task.interaction_examples.forEach((example, index) => {
+    const rowErrors: ValidationErrors["interaction_examples"][number] = {};
+    if (!example.id.trim()) rowErrors.id = t("admin.validation.required");
+    if (example.difficulty < 1 || example.difficulty > 5) {
+      rowErrors.difficulty = t("admin.validation.range", { min: 1, max: 5 });
+    }
+    if (!example.patient_text.trim()) rowErrors.patient_text = t("admin.validation.required");
+    if (!example.therapist_text.trim()) rowErrors.therapist_text = t("admin.validation.required");
+    if (example.id.trim()) {
+      if (interactionIds.has(example.id)) {
+        rowErrors.id = t("admin.validation.duplicate");
+      }
+      interactionIds.add(example.id);
+    }
+    if (Object.keys(rowErrors).length) errors.interaction_examples[index] = rowErrors;
   });
 
   return errors;
@@ -120,7 +145,8 @@ const AdminTaskEditPageContent = () => {
   const hasValidationErrors =
     Boolean(validationErrors.task && Object.keys(validationErrors.task).length) ||
     Object.keys(validationErrors.criteria).length > 0 ||
-    Object.keys(validationErrors.examples).length > 0;
+    Object.keys(validationErrors.examples).length > 0 ||
+    Object.keys(validationErrors.interaction_examples).length > 0;
 
   const isDirty = useMemo(() => serializeTask(baseTask) !== serializeTask(draftTask), [baseTask, draftTask]);
 

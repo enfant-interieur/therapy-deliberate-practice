@@ -1,16 +1,25 @@
-import type { Task, TaskCriterion, TaskExample } from "@deliberate/shared";
+import type { Task, TaskCriterion, TaskExample, TaskInteractionExample } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Card, Input, Label, Select, Textarea } from "./AdminUi";
 import { CriteriaTableEditor } from "./CriteriaTableEditor";
 import { ExamplesListEditor } from "./ExamplesListEditor";
+import { InteractionExamplesEditor } from "./InteractionExamplesEditor";
 import { TagInput } from "./TagInput";
 
-export type EditableTask = Task & { criteria: TaskCriterion[]; examples: TaskExample[] };
+export type EditableTask = Task & {
+  criteria: TaskCriterion[];
+  examples: TaskExample[];
+  interaction_examples: TaskInteractionExample[];
+};
 
 type ValidationErrors = {
   task?: Record<string, string>;
   criteria: Record<number, { id?: string; label?: string; description?: string }>;
   examples: Record<number, { id?: string; difficulty?: string; patient_text?: string }>;
+  interaction_examples: Record<
+    number,
+    { id?: string; difficulty?: string; patient_text?: string; therapist_text?: string }
+  >;
 };
 
 type TaskEditorPanelProps = {
@@ -29,7 +38,8 @@ const sectionIds = [
   { id: "tags", label: "admin.sections.tags" },
   { id: "authors", label: "admin.sections.authors" },
   { id: "criteria", label: "admin.sections.criteria" },
-  { id: "examples", label: "admin.sections.examples" }
+  { id: "examples", label: "admin.sections.examples" },
+  { id: "interaction-examples", label: "admin.sections.interactions" }
 ];
 
 export const TaskEditorPanel = ({
@@ -270,6 +280,14 @@ export const TaskEditorPanel = ({
           examples={task.examples}
           errors={errors.examples}
           onChange={(examples) => updateTask({ examples })}
+        />
+      </Card>
+
+      <Card id="interaction-examples" className="p-6">
+        <InteractionExamplesEditor
+          interactions={task.interaction_examples}
+          errors={errors.interaction_examples}
+          onChange={(interaction_examples) => updateTask({ interaction_examples })}
         />
       </Card>
     </div>

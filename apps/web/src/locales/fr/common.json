@@ -924,6 +924,7 @@
       "addExample": "+ Ajouter un exemple",
       "exampleIdPlaceholder": "ID de l'exemple",
       "patientTextPlaceholder": "Texte du patient",
+      "therapistTextPlaceholder": "Réponse du thérapeute",
       "difficultyPlaceholder": "Difficulté (1-5)",
       "severityPlaceholder": "Niveau de gravité (facultatif)",
       "criteriaHint": "Définissez des critères mesurables avec des libellés clairs.",
@@ -943,10 +944,22 @@
       "difficulty": "Difficulté",
       "severityLabel": "Niveau de sévérité",
       "patientText": "Texte du patient",
+      "patientLine": "Réplique du patient",
+      "therapistLine": "Réponse du thérapeute",
       "characters": "caractères",
       "emptyExamples": "Aucun exemple pour l'instant.",
       "examplePreview": "Exemple {{id}}",
-      "difficultyLabel": "Difficulté {{difficulty}}"
+      "difficultyLabel": "Difficulté {{difficulty}}",
+      "interactions": "Échanges patient-thérapeute",
+      "interactionsHint": "Créez des échanges réalistes pour guider le ton et le rythme du modèle.",
+      "addInteraction": "+ Ajouter un échange",
+      "interactionId": "ID échange",
+      "interactionTitle": "Titre de la scène",
+      "interactionTitlePlaceholder": "Optionnel : contexte rapide pour cet échange",
+      "interactionStats": "Aperçu des échanges",
+      "items": "éléments",
+      "avgDifficulty": "Difficulté moyenne {{value}}",
+      "emptyInteractions": "Aucun échange pour l'instant. Ajoutez un exemple pour définir le ton."
     },
     "header": {
       "kicker": "Portail admin",
@@ -1014,7 +1027,8 @@
       "tags": "Tags",
       "authors": "Auteurs",
       "criteria": "Critères",
-      "examples": "Exemples"
+      "examples": "Exemples",
+      "interactions": "Exemples d’échanges"
     },
     "save": {
       "unsaved": "Modifications non enregistrées",

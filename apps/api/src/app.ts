@@ -758,6 +758,16 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       .select()
       .from(taskExamples)
       .where(eq(taskExamples.task_id, id));
+    const interactionRows = await db
+      .select()
+      .from(taskInteractionExamples)
+      .where(eq(taskInteractionExamples.task_id, id))
+      .orderBy(taskInteractionExamples.difficulty);
+    const interactionRows = await db
+      .select()
+      .from(taskInteractionExamples)
+      .where(eq(taskInteractionExamples.task_id, id))
+      .orderBy(taskInteractionExamples.difficulty);
     const interactionRows = includeInteractions
       ? await db
           .select()
@@ -1794,7 +1804,8 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     language: z.string().optional(),
     is_published: z.boolean().optional(),
     criteria: z.array(taskCriterionSchema).optional(),
-    examples: z.array(taskExampleSchema).optional()
+    examples: z.array(taskExampleSchema).optional(),
+    interaction_examples: z.array(taskInteractionExampleSchema).optional()
   });
 
   app.post("/api/v1/admin/tasks", async (c) => {
@@ -1845,6 +1856,23 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           patient_text: example.patient_text,
           language: example.language ?? taskLanguage,
           meta: example.meta ?? null,
+          created_at: now,
+          updated_at: now
+        }))
+      );
+    }
+
+    if (parsed.interaction_examples?.length) {
+      await db.insert(taskInteractionExamples).values(
+        parsed.interaction_examples.map((example) => ({
+          id: example.id ?? nanoid(),
+          task_id: taskId,
+          difficulty: example.difficulty,
+          title: example.title ?? null,
+          patient_text: example.patient_text,
+          therapist_text: example.therapist_text,
+          language: taskLanguage,
+          meta: null,
           created_at: now,
           updated_at: now
         }))
@@ -1908,6 +1936,11 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       .select()
       .from(taskExamples)
       .where(eq(taskExamples.task_id, id));
+    const interactionRows = await db
+      .select()
+      .from(taskInteractionExamples)
+      .where(eq(taskInteractionExamples.task_id, id))
+      .orderBy(taskInteractionExamples.difficulty);
 
     const now = Date.now();
     const newTaskId = nanoid();

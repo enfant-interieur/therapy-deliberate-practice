@@ -31,7 +31,8 @@ const toEditableTask = (task: Task & { criteria?: TaskCriterion[]; examples?: Ta
   general_objective: task.general_objective ?? "",
   authors: task.authors ?? [],
   criteria: task.criteria ?? [],
-  examples: task.examples ?? []
+  examples: task.examples ?? [],
+  interaction_examples: task.interaction_examples ?? []
 });
 
 const createDraftFromParsed = (parsed: DeliberatePracticeTaskV2): EditableTask => ({
@@ -50,7 +51,8 @@ const createDraftFromParsed = (parsed: DeliberatePracticeTaskV2): EditableTask =
   created_at: Date.now(),
   updated_at: Date.now(),
   criteria: parsed.criteria ?? [],
-  examples: parsed.examples ?? []
+  examples: parsed.examples ?? [],
+  interaction_examples: parsed.interaction_examples ?? []
 });
 
 const toCreatePayload = (task: EditableTask): CreateTaskPayload => ({
@@ -64,7 +66,8 @@ const toCreatePayload = (task: EditableTask): CreateTaskPayload => ({
   language: task.language,
   is_published: task.is_published,
   criteria: task.criteria,
-  examples: task.examples
+  examples: task.examples,
+  interaction_examples: task.interaction_examples
 });
 
 const serializeTask = (task: EditableTask | null) => (task ? JSON.stringify(task) : "");
@@ -89,10 +92,14 @@ type ValidationErrors = {
   task?: Record<string, string>;
   criteria: Record<number, { id?: string; label?: string; description?: string }>;
   examples: Record<number, { id?: string; difficulty?: string; patient_text?: string }>;
+  interaction_examples: Record<
+    number,
+    { id?: string; difficulty?: string; patient_text?: string; therapist_text?: string }
+  >;
 };
 
 const validateTask = (task: EditableTask | null, t: (key: string, options?: Record<string, unknown>) => string): ValidationErrors => {
-  const errors: ValidationErrors = { criteria: {}, examples: {} };
+  const errors: ValidationErrors = { criteria: {}, examples: {}, interaction_examples: {} };
   if (!task) return errors;
 
   const taskErrors: Record<string, string> = {};
@@ -132,6 +139,24 @@ const validateTask = (task: EditableTask | null, t: (key: string, options?: Reco
       exampleIds.add(example.id);
     }
     if (Object.keys(rowErrors).length) errors.examples[index] = rowErrors;
+  });
+
+  const interactionIds = new Set<string>();
+  task.interaction_examples.forEach((example, index) => {
+    const rowErrors: ValidationErrors["interaction_examples"][number] = {};
+    if (!example.id.trim()) rowErrors.id = t("admin.validation.required");
+    if (example.difficulty < 1 || example.difficulty > 5) {
+      rowErrors.difficulty = t("admin.validation.range", { min: 1, max: 5 });
+    }
+    if (!example.patient_text.trim()) rowErrors.patient_text = t("admin.validation.required");
+    if (!example.therapist_text.trim()) rowErrors.therapist_text = t("admin.validation.required");
+    if (example.id.trim()) {
+      if (interactionIds.has(example.id)) {
+        rowErrors.id = t("admin.validation.duplicate");
+      }
+      interactionIds.add(example.id);
+    }
+    if (Object.keys(rowErrors).length) errors.interaction_examples[index] = rowErrors;
   });
 
   return errors;

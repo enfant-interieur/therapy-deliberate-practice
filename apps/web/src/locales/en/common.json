@@ -924,6 +924,7 @@
       "addExample": "+ Add example",
       "exampleIdPlaceholder": "Example id",
       "patientTextPlaceholder": "Patient text",
+      "therapistTextPlaceholder": "Therapist response",
       "difficultyPlaceholder": "Difficulty (1-5)",
       "severityPlaceholder": "Severity label (optional)",
       "criteriaHint": "Define measurable coaching criteria with clear labels and explanations.",
@@ -943,10 +944,22 @@
       "difficulty": "Difficulty",
       "severityLabel": "Severity label",
       "patientText": "Patient text",
+      "patientLine": "Patient line",
+      "therapistLine": "Therapist response",
       "characters": "characters",
       "emptyExamples": "No examples yet. Add an example to preview content.",
       "examplePreview": "Example {{id}}",
-      "difficultyLabel": "Difficulty {{difficulty}}"
+      "difficultyLabel": "Difficulty {{difficulty}}",
+      "interactions": "Patient-therapist exchanges",
+      "interactionsHint": "Craft realistic back-and-forth examples to guide model tone and pacing.",
+      "addInteraction": "+ Add exchange",
+      "interactionId": "Exchange ID",
+      "interactionTitle": "Scene title",
+      "interactionTitlePlaceholder": "Optional: quick context for this exchange",
+      "interactionStats": "Exchange overview",
+      "items": "items",
+      "avgDifficulty": "Avg difficulty {{value}}",
+      "emptyInteractions": "No exchanges yet. Add an interaction example to set the tone."
     },
     "header": {
       "kicker": "Admin Portal",
@@ -1014,7 +1027,8 @@
       "tags": "Tags",
       "authors": "Authors",
       "criteria": "Criteria",
-      "examples": "Examples"
+      "examples": "Examples",
+      "interactions": "Interaction examples"
     },
     "save": {
       "unsaved": "Unsaved changes",
