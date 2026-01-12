@@ -101,7 +101,7 @@ export const LocalSuite = () => {
   const [releaseError, setReleaseError] = useState<string | null>(null);
 
   useEffect(() => {
-    const repo = import.meta.env.VITE_GITHUB_REPO || "therapy-deliberate-practice/therapy-deliberate-practice";
+    const repo = import.meta.env.VITE_GITHUB_REPO || "enfant-interieur/therapy-deliberate-practice";
     setDownloads(filterDownloads(baseDownloads));
 
     const applyAssets = (assets: ReleaseAsset[]) => {
