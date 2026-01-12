@@ -618,10 +618,11 @@
       },
       "downloads": {
         "title": "Desktop downloads",
-        "subtitle": "macOS installs are delivered via the Mac App Store. Windows and Linux builds come from GitHub Releases.",
+        "subtitle": "Signed installers ship with each GitHub Release. macOS users can grab the DMG directly or fall back to the Mac App Store.",
         "labels": {
           "windows": "Windows",
-          "macos": "Mac App Store",
+          "macosDirect": "macOS DMG",
+          "macosAppStore": "Mac App Store",
           "linux": "Linux"
         },
         "appStoreUrl": "https://apps.apple.com",

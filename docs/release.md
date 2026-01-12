@@ -159,6 +159,35 @@ Apple treats notarization as a separate step after codesigning. If you want Gate
 
 If either set is present, `scripts/release/notarize-dmg.sh` submits the DMG via `xcrun notarytool`, waits for the result, and staples the ticket. Without these variables, the build still succeeds but notarization is skipped (macOS will show the “cannot be opened because the developer cannot be verified” dialog).
 
+## Publishing installers on GitHub
+
+All local builds land under `dist/release/<tag>/...`. The simplest way to distribute them is a GitHub Release:
+
+1. Run `npm run release:dmg -- --skip-linux --skip-windows --tag vX.Y.Z` (or the full `npm run release -- --tag vX.Y.Z`) so that `dist/release/vX.Y.Z/` contains `macos`, `windows`, and `linux` subfolders. The flag forces a specific tag/version; omit it to let the script read the version from `tauri.conf.json`. If you want to reuse an existing tag, pass `--skip-tag`.
+2. Push the tag if the script created it locally: `git push origin vX.Y.Z`.
+3. Publish a release with the assets. With the [GitHub CLI](https://cli.github.com/):
+
+   ```bash
+   gh release create vX.Y.Z \
+     dist/release/vX.Y.Z/macos/*.dmg \
+     dist/release/vX.Y.Z/macos/*.pkg \
+     dist/release/vX.Y.Z/windows/*.msi \
+     dist/release/vX.Y.Z/windows/*_setup.exe \
+     dist/release/vX.Y.Z/linux/*.{AppImage,deb,rpm} \
+     --title "Local Runtime Suite vX.Y.Z" \
+     --notes-file docs/release-notes/vX.Y.Z.md
+   ```
+
+   (Adjust the glob if you only ship a subset of artifacts.)
+
+The public help page (`apps/web/src/pages/help/pages/LocalSuite.tsx`) calls `https://api.github.com/repos/<owner>/<repo>/releases/latest` and surfaces the direct download buttons automatically:
+
+* Windows: any asset ending in `.msi` or `.exe`.
+* Linux: `.AppImage`, `.deb`, or `.rpm`.
+* macOS DMG/pkg: `.dmg` or `.pkg`.
+
+If you fork the repo, set `VITE_GITHUB_REPO=<owner>/<repo>` so the website points to your releases. The Mac App Store button remains available at all times; the direct DMG CTA appears only when a `.dmg` (or `.pkg`) asset exists in the latest release. Because the website queries GitHub directly, no extra hosting or CDN work is required—uploading the files to the release page is enough.
+
 ## Mac App Store Release Flow
 
 When you’re ready to ship through the Mac App Store, use:

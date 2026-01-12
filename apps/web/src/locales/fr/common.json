@@ -618,10 +618,11 @@
       },
       "downloads": {
         "title": "Téléchargements bureau",
-        "subtitle": "macOS est distribué via le Mac App Store. Windows et Linux passent par GitHub Releases.",
+        "subtitle": "Chaque release GitHub publie des installateurs signés. Sur macOS, récupérez le DMG directement ou passez par le Mac App Store.",
         "labels": {
           "windows": "Windows",
-          "macos": "Mac App Store",
+          "macosDirect": "DMG macOS",
+          "macosAppStore": "Mac App Store",
           "linux": "Linux"
         },
         "appStoreUrl": "https://apps.apple.com",

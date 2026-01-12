@@ -50,10 +50,12 @@ type ReleaseResponse = {
 };
 
 type DownloadLink = {
+  id: string;
   label: string;
-  os: "windows" | "macos" | "linux";
   href: string | null;
   statusLabel?: string;
+  matchAsset?: (name: string) => boolean;
+  hideIfMissing?: boolean;
 };
 
 const RELEASE_CACHE_KEY = "local-suite-release-assets";
@@ -63,33 +65,53 @@ export const LocalSuite = () => {
   const { t } = useTranslation();
   const baseDownloads = useMemo<DownloadLink[]>(
     () => [
-      { label: t("help.localSuite.downloads.labels.windows"), os: "windows", href: null },
       {
-        label: t("help.localSuite.downloads.labels.macos"),
-        os: "macos",
+        id: "windows",
+        label: t("help.localSuite.downloads.labels.windows"),
+        href: null,
+        matchAsset: (name) => name.endsWith(".msi") || name.endsWith(".exe")
+      },
+      {
+        id: "macos-direct",
+        label: t("help.localSuite.downloads.labels.macosDirect"),
+        href: null,
+        matchAsset: (name) => name.endsWith(".dmg") || name.endsWith(".pkg"),
+        hideIfMissing: true
+      },
+      {
+        id: "macos-appstore",
+        label: t("help.localSuite.downloads.labels.macosAppStore"),
         href: t("help.localSuite.downloads.appStoreUrl"),
         statusLabel: t("help.localSuite.downloads.appStoreAction")
       },
-      { label: t("help.localSuite.downloads.labels.linux"), os: "linux", href: null }
+      {
+        id: "linux",
+        label: t("help.localSuite.downloads.labels.linux"),
+        href: null,
+        matchAsset: (name) => name.endsWith(".appimage") || name.endsWith(".deb") || name.endsWith(".rpm")
+      }
     ],
     [t]
   );
-  const [downloads, setDownloads] = useState<DownloadLink[]>(baseDownloads);
+  const filterDownloads = (entries: DownloadLink[]) =>
+    entries.filter((entry) => (entry.hideIfMissing ? Boolean(entry.href) : true));
+  const [downloads, setDownloads] = useState<DownloadLink[]>(filterDownloads(baseDownloads));
   const [models, setModels] = useState<ModelSpec[]>([]);
   const [query, setQuery] = useState("");
   const [releaseError, setReleaseError] = useState<string | null>(null);
 
   useEffect(() => {
     const repo = import.meta.env.VITE_GITHUB_REPO || "therapy-deliberate-practice/therapy-deliberate-practice";
-    setDownloads(baseDownloads);
+    setDownloads(filterDownloads(baseDownloads));
 
     const applyAssets = (assets: ReleaseAsset[]) => {
       const mapped: DownloadLink[] = baseDownloads.map((entry) => {
-        if (entry.os === "macos") return entry;
-        const match = assets.find((asset) => asset.name.toLowerCase().includes(entry.os));
-        return { ...entry, href: match?.browser_download_url ?? null };
+        if (!entry.matchAsset) return entry;
+        const match = assets.find((asset) => entry.matchAsset?.(asset.name.toLowerCase()));
+        if (!match) return entry;
+        return { ...entry, href: match.browser_download_url };
       });
-      setDownloads(mapped);
+      setDownloads(filterDownloads(mapped));
     };
 
     const cached = localStorage.getItem(RELEASE_CACHE_KEY);
@@ -256,7 +278,7 @@ export const LocalSuite = () => {
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           {downloads.map((download) => (
             <a
-              key={download.os}
+              key={download.id}
               href={download.href ?? "#"}
               className={`flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold transition ${{
                 true: "bg-white/10 text-white hover:bg-white/20",
