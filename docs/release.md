@@ -100,7 +100,7 @@ This command:
 
 | Flag | Purpose |
 | --- | --- |
-| `--tag vX.Y.Z` | Force a different tag than `v<tauri version>`. |
+| `--tag vX.Y.Z` | Force a different tag than `v<tauri version>` (also bumps `tauri.conf.json` if the tag maps to a newer semver). |
 | `--skip-tag` | Do not create a git tag. |
 | `--push-tag` | Push the tag to origin (optional; no Actions are triggered). |
 | `--skip-macos` | Skip macOS build. |
@@ -111,6 +111,8 @@ This command:
 | `--windows-repo` | Override `RELEASE_WINDOWS_REPO_DIR` (use `C:/path`). |
 | `--allow-dirty` | Allow dirty git status (not recommended). |
 | `--dry-run` | Print commands without executing them. |
+
+**Versioning tip:** Passing `--tag vX.Y.Z` enforces `X.Y.Z` as the next semver. The script refuses to go backwards and automatically updates `services/local-runtime-suite/desktop/src-tauri/tauri.conf.json` (Info.plist, MSI metadata, etc.) so the binaries, git tag, and filenames stay in sync.
 
 ### Required Windows env
 
@@ -206,6 +208,8 @@ This command:
 
 Artifacts land in `dist/release/<tag>/macos-appstore/` as `<Product>_<version>_mac_app_store.pkg`.
 
+`--tag vX.Y.Z` behaves identically here: tags must be >= the manifest version and a higher tag will rewrite `tauri.conf.json` to `X.Y.Z` before building so App Store metadata matches the installer filename.
+
 ### Required assets
 
 | Env | Source |
@@ -227,7 +231,7 @@ The script writes the provisioning profile to `src-tauri/embedded.provisionprofi
 
 | Flag | Purpose |
 | --- | --- |
-| `--tag vX.Y.Z` | Override the git tag used for artifact output. Defaults to `v<tauri version>`. |
+| `--tag vX.Y.Z` | Override the git tag used for artifact output (enforces `X.Y.Z` >= current manifest and bumps `tauri.conf.json` if needed). |
 | `--skip-tag` | Do not create a git tag. |
 | `--allow-dirty` | Skip the clean git tree check. |
 | `--dry-run` | Print the steps without executing them. |

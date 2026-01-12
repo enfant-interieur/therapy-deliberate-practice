@@ -6,6 +6,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 import { loadReleaseEnvFiles } from "./lib/load-release-env.mjs";
+import { persistManifestVersion, resolveReleaseVersion } from "./lib/versioning.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..", "..");
@@ -114,19 +115,28 @@ function quoteForShell(value) {
 function main() {
   loadReleaseEnvFiles(repoRoot);
   const tauriConf = readJSON(tauriConfPath);
-  const version = tauriConf.version;
-  if (!version) {
+  const manifestVersion = tauriConf.version;
+  if (!manifestVersion) {
     throw new Error("Unable to determine version from tauri.conf.json");
   }
 
   const args = parseArgs();
-  const tag = args.tag ?? `v${version}`;
+  const { tag, releaseVersion, bumpRequired } = resolveReleaseVersion({
+    manifestVersion,
+    requestedTag: args.tag,
+  });
 
   ensureCleanTree(args.allowDirty);
 
+  if (bumpRequired) {
+    console.log(`Bumping tauri.conf.json version ${manifestVersion} -> ${releaseVersion} (derived from ${tag})...`);
+    persistManifestVersion(tauriConfPath, tauriConf, releaseVersion);
+    tauriConf.version = releaseVersion;
+  }
+
   if (!args.skipTag) {
     ensureTagAvailable(tag);
-    console.log(`Creating annotated tag ${tag} for version ${version}...`);
+    console.log(`Creating annotated tag ${tag} for version ${releaseVersion}...`);
     if (!args.dryRun) {
       run(`git tag -a ${tag} -m "Release ${tag}"`);
     } else {
@@ -147,7 +157,7 @@ function main() {
   const baseEnv = {
     ...process.env,
     RELEASE_TAG: tag,
-    RELEASE_VERSION: version,
+    RELEASE_VERSION: releaseVersion,
     RELEASE_OUTPUT_DIR: outputRoot,
   };
 
@@ -192,7 +202,7 @@ function main() {
     const remoteOutputPs = `${windowsRepoPs}\\dist\\release\\${tag}\\windows`;
 
     const sshTarget = `${windowsUser}@${windowsHost}`;
-    const psCommand = `powershell -NoProfile -ExecutionPolicy Bypass -File "${windowsRepoPs}\\scripts\\release\\build-windows.ps1" -Tag "${tag}" -Version "${version}" -OutputDir "${remoteOutputPs}"`;
+    const psCommand = `powershell -NoProfile -ExecutionPolicy Bypass -File "${windowsRepoPs}\\scripts\\release\\build-windows.ps1" -Tag "${tag}" -Version "${releaseVersion}" -OutputDir "${remoteOutputPs}"`;
 
     if (!args.dryRun) {
       run(`ssh ${sshTarget} ${quoteForShell(psCommand)}`);
