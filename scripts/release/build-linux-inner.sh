@@ -3,6 +3,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/release/load-release-env.sh
+source "$REPO_ROOT/scripts/release/load-release-env.sh"
+load_release_env_files "$REPO_ROOT"
 TAURI_CONF="$REPO_ROOT/services/local-runtime-suite/desktop/src-tauri/tauri.conf.json"
 
 VERSION="${RELEASE_VERSION:-}"

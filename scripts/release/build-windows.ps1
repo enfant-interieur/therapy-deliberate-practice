@@ -9,6 +9,92 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path "$PSScriptRoot\..\.."
 $TauriConf = Join-Path $RepoRoot "services\local-runtime-suite\desktop\src-tauri\tauri.conf.json"
 
+function Strip-InlineComment {
+  param([string]$Line)
+
+  $builder = New-Object System.Text.StringBuilder
+  $inSingle = $false
+  $inDouble = $false
+
+  foreach ($char in $Line.ToCharArray()) {
+    if ($char -eq "'" -and -not $inDouble) {
+      $inSingle = -not $inSingle
+      [void]$builder.Append($char)
+      continue
+    }
+    if ($char -eq '"' -and -not $inSingle) {
+      $inDouble = -not $inDouble
+      [void]$builder.Append($char)
+      continue
+    }
+    if ($char -eq "#" -and -not $inSingle -and -not $inDouble) {
+      break
+    }
+    [void]$builder.Append($char)
+  }
+
+  return $builder.ToString()
+}
+
+function Import-ReleaseEnvFile {
+  param(
+    [string]$Path,
+    [string]$RepoRoot
+  )
+
+  if (-not (Test-Path $Path)) {
+    return $false
+  }
+
+  $relative = $Path
+  if ($Path.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    $relative = $Path.Substring($RepoRoot.Length).TrimStart('\','/')
+  }
+  if (-not $relative) {
+    $relative = $Path
+  }
+
+  Write-Output "Loading release environment: $relative"
+  foreach ($rawLine in Get-Content $Path) {
+    $line = Strip-InlineComment $rawLine
+    $line = $line.Trim()
+    if (-not $line -or $line.StartsWith("#")) {
+      continue
+    }
+    if ($line.StartsWith("export ")) {
+      $line = $line.Substring(7).Trim()
+    }
+    $eqIndex = $line.IndexOf("=")
+    if ($eqIndex -lt 0) {
+      continue
+    }
+    $key = $line.Substring(0, $eqIndex).Trim()
+    if (-not $key) {
+      continue
+    }
+    $value = $line.Substring($eqIndex + 1).Trim()
+    if (
+      ($value.StartsWith('"') -and $value.EndsWith('"')) -or
+      ($value.StartsWith("'") -and $value.EndsWith("'"))
+    ) {
+      $value = $value.Substring(1, $value.Length - 2)
+    }
+    [Environment]::SetEnvironmentVariable($key, $value)
+    Set-Item -Path Env:$key -Value $value
+  }
+  return $true
+}
+
+$envLoaded = $false
+foreach ($envPath in @("$RepoRoot\.env.release", "$RepoRoot\.env.release.local")) {
+  if (Import-ReleaseEnvFile -Path $envPath -RepoRoot $RepoRoot) {
+    $envLoaded = $true
+  }
+}
+if (-not $envLoaded) {
+  Write-Warning "No .env.release files found. Copy .env.release.example to .env.release to inject release secrets on the Windows host."
+}
+
 if (-not (Test-Path $TauriConf)) {
   throw "tauri.conf.json not found at $TauriConf"
 }

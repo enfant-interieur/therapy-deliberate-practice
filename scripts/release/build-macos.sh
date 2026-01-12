@@ -4,9 +4,18 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TAURI_CONF="$REPO_ROOT/services/local-runtime-suite/desktop/src-tauri/tauri.conf.json"
+# shellcheck source=scripts/release/load-release-env.sh
+source "$REPO_ROOT/scripts/release/load-release-env.sh"
+load_release_env_files "$REPO_ROOT"
 
 if [[ ! -f "$TAURI_CONF" ]]; then
   echo "tauri.conf.json not found at $TAURI_CONF" >&2
+  exit 1
+fi
+
+if [[ -z "${APPLE_SIGNING_IDENTITY:-}" ]]; then
+  echo "APPLE_SIGNING_IDENTITY is required to build signed macOS artifacts." >&2
+  echo "Set it in $REPO_ROOT/.env.release (see .env.release.example) or export it in your shell." >&2
   exit 1
 fi
 
@@ -44,14 +53,17 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ -n "${MAC_CODESIGN_CERT_B64:-}" ]]; then
+CERT_B64="${APPSTORE_CERTIFICATES_FILE_BASE64:-${MAC_CODESIGN_CERT_B64:-}}"
+CERT_PASSWORD="${APPSTORE_CERTIFICATES_PASSWORD:-${MAC_CODESIGN_CERT_PASSWORD:-release}}"
+
+if [[ -n "$CERT_B64" ]]; then
   echo "Importing macOS signing certificate into a temporary keychain..."
   KEYCHAIN_NAME="release-signing.keychain"
-  KEYCHAIN_PASSWORD="${MAC_CODESIGN_CERT_PASSWORD:-release}"
+  KEYCHAIN_PASSWORD="$CERT_PASSWORD"
   TMP_KEYCHAIN="$(mktemp -u "$HOME/Library/Keychains/$KEYCHAIN_NAME")"
 
   CERT_PATH="$(mktemp /tmp/macos-cert.XXXXXX.p12)"
-  echo "$MAC_CODESIGN_CERT_B64" | base64 -d > "$CERT_PATH"
+  echo "$CERT_B64" | base64 -d > "$CERT_PATH"
 
   security create-keychain -p "$KEYCHAIN_PASSWORD" "$TMP_KEYCHAIN"
   security set-keychain-settings -lut 21600 "$TMP_KEYCHAIN"
@@ -66,6 +78,28 @@ if [[ -n "${APPLE_API_KEY_B64:-}" ]]; then
   API_KEY_PATH="$(mktemp /tmp/AuthKey.XXXXXX.p8)"
   echo "$APPLE_API_KEY_B64" | base64 -d > "$API_KEY_PATH"
   export APPLE_API_KEY_PATH="$API_KEY_PATH"
+fi
+
+if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
+  export TAURI_CONFIG="$(
+    TAURI_CONFIG="${TAURI_CONFIG:-}" APPLE_SIGNING_IDENTITY="$APPLE_SIGNING_IDENTITY" node <<'NODE'
+const identity = process.env.APPLE_SIGNING_IDENTITY;
+let config = {};
+const existingRaw = process.env.TAURI_CONFIG;
+if (existingRaw) {
+  try {
+    config = JSON.parse(existingRaw);
+  } catch (err) {
+    console.error("Invalid JSON in TAURI_CONFIG:", err);
+    process.exit(1);
+  }
+}
+if (!config.bundle) config.bundle = {};
+if (!config.bundle.macOS) config.bundle.macOS = {};
+config.bundle.macOS.signingIdentity = identity;
+process.stdout.write(JSON.stringify(config));
+NODE
+  )"
 fi
 
 cd "$REPO_ROOT"

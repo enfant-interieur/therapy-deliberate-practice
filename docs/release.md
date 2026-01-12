@@ -62,7 +62,17 @@ All artifacts are placed under `dist/release/<tag>/`.
 
 ### Secret handling
 
-Secrets are injected via environment variables only (never committed): see `docs/signing.md` for exact formats. macOS certs are imported into a temporary keychain and removed after the build.
+Secrets are injected via environment variables only (never committed). Copy `.env.release.example` to `.env.release`, fill in your signing credentials, and keep the file outside of git. Every release script (macOS, Linux host/container, Windows, and the Node orchestrator) automatically sources `.env.release` (and `.env.release.local` if present) before running. See `docs/signing.md` for exact formats. macOS certs are imported into a temporary keychain and removed after the build.
+
+### Local secret file
+
+1. `cp .env.release.example .env.release`
+2. Fill in the variables for macOS, Windows, and notarization credentials.
+3. (Optional) Create `.env.release.local` for machine-specific overrides that should never leave your computer.
+
+Both files are `.gitignore`d; only the `.example` lives in git. The release scripts source them with `set -a`, so every variable becomes available to Node, Rust, and shell steps without polluting your global shell profile.
+
+During macOS builds `APPLE_SIGNING_IDENTITY` from the env file is merged into Tauri’s config via `TAURI_CONFIG`, keeping `src-tauri/tauri.conf.json` free of personal Apple IDs.
 
 ## Local Command
 
@@ -103,6 +113,8 @@ export RELEASE_WINDOWS_HOST=windows-builder.local
 export RELEASE_WINDOWS_USER=builder
 export RELEASE_WINDOWS_REPO_DIR="C:/repos/therapy-deliberate-practice"
 ```
+
+(Tip: storing these in `.env.release` keeps them out of your shell profile while still letting `npm run release` and the Windows builder consume them.)
 
 The Windows host must have:
 

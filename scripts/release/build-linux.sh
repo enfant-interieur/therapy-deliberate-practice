@@ -3,6 +3,9 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/release/load-release-env.sh
+source "$REPO_ROOT/scripts/release/load-release-env.sh"
+load_release_env_files "$REPO_ROOT"
 TAG="${RELEASE_TAG:-v0.0.0}"
 OUTPUT_ROOT="${RELEASE_OUTPUT_DIR:-$REPO_ROOT/dist/release/$TAG}"
 OUTPUT_DIR="$OUTPUT_ROOT/linux"
@@ -24,6 +27,13 @@ fi
 CACHE_DIR="$REPO_ROOT/.cache/release"
 mkdir -p "$CACHE_DIR/npm" "$CACHE_DIR/cargo/registry" "$CACHE_DIR/cargo/git"
 
+DOCKER_ENV_ARGS=()
+for env_file in "$REPO_ROOT/.env.release" "$REPO_ROOT/.env.release.local"; do
+  if [[ -f "$env_file" ]]; then
+    DOCKER_ENV_ARGS+=(--env-file "$env_file")
+  fi
+done
+
 docker run --rm \
   -e RELEASE_TAG="$TAG" \
   -e RELEASE_VERSION="${RELEASE_VERSION:-}" \
@@ -34,6 +44,6 @@ docker run --rm \
   -v "$CACHE_DIR/cargo/registry:/root/.cargo/registry" \
   -v "$CACHE_DIR/cargo/git:/root/.cargo/git" \
   -w /workspace \
+  "${DOCKER_ENV_ARGS[@]}" \
   "$IMAGE_NAME" \
   bash scripts/release/build-linux-inner.sh
-
