@@ -27,6 +27,17 @@ The notarization helper (`scripts/release/notarize-dmg.sh`) automatically picks 
 
 > `APPLE_SIGNING_IDENTITY` is merged into Tauri’s config via `TAURI_CONFIG` at build time, so you never need to place your personal identity into `src-tauri/tauri.conf.json`.
 
+## Mac App Store (App Store Connect)
+
+| Env | Description |
+| --- | --- |
+| `APPSTORE_SIGNING_IDENTITY` | `3rd Party Mac Developer Application: Your Company (TEAMID)`. Used to sign the `.app` for App Store builds. |
+| `APPSTORE_INSTALLER_IDENTITY` | `3rd Party Mac Developer Installer: Your Company (TEAMID)`. Used to sign the `.pkg`. |
+| `APPSTORE_PROVISION_PROFILE_B64` | Base64-encoded `.provisionprofile` downloaded from App Store Connect → Profiles (Mac App Store). |
+| `APPSTORE_ASC_PROVIDER` (optional) | ASC provider short name when uploading via Transporter (`xcrun altool`) and the Apple ID belongs to multiple teams. |
+
+The `.p12` referenced earlier (`APPSTORE_CERTIFICATES_FILE_BASE64`) should contain the Mac App Store distribution certificate. The App Store release script decodes the provisioning profile into `src-tauri/embedded.provisionprofile`, builds the universal binary, produces a signed `.pkg`, and optionally uploads via Apple ID + app-specific password.
+
 ## Windows (Authenticode)
 
 | Env | Description |
