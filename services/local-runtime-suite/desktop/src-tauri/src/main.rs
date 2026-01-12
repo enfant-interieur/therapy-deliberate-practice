@@ -9,7 +9,7 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use tauri::Manager;
+use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 
 const MAX_LOG_LINES: usize = 500;
@@ -989,10 +989,20 @@ fn target_triple() -> &'static str {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .manage(GatewayManager::new())
+        .on_window_event(|event| {
+            if matches!(
+                event.event(),
+                WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed
+            ) {
+                if let Some(manager) = event.window().try_state::<GatewayManager>() {
+                    let _ = manager.stop();
+                }
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             start_gateway,
             stop_gateway,
@@ -1004,6 +1014,15 @@ fn main() {
             gateway_config,
             gateway_connection_info
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+
+    app.run(|app_handle, event| match event {
+        RunEvent::ExitRequested { .. } | RunEvent::Exit => {
+            if let Some(manager) = app_handle.try_state::<GatewayManager>() {
+                let _ = manager.stop();
+            }
+        }
+        _ => {}
+    });
 }

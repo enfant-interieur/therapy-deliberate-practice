@@ -39,6 +39,15 @@ from local_runtime.helpers.structured_enforcer import (
 )
 from local_runtime.runtime_types import RunContext, RunRequest
 
+RUNTIME_ROOT = Path(__file__).resolve().parents[2]
+RUNTIME_BIN = RUNTIME_ROOT / "bin"
+if RUNTIME_BIN.exists():
+    current_path = os.environ.get("PATH", "")
+    new_path = str(RUNTIME_BIN) if not current_path else f"{RUNTIME_BIN}{os.pathsep}{current_path}"
+    os.environ["PATH"] = new_path
+    ffmpeg_binary = RUNTIME_BIN / ("ffmpeg.exe" if os.name == "nt" else "ffmpeg")
+    os.environ.setdefault("FFMPEG_BINARY", str(ffmpeg_binary))
+
 LOGGER = configure_logging()
 HOME_HTML = """<!DOCTYPE html>
 <html lang="en">

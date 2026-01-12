@@ -163,34 +163,34 @@ export const App = () => {
     setLogs((prev) => [...prev, `[UI ${timestamp}] ${message}`]);
   }, []);
 
-  const refreshStatus = async () => {
+  const refreshStatus = useCallback(async () => {
     const result = await invoke<{ status: string }>("gateway_status");
     setStatus(result.status);
-  };
+  }, []);
 
-  const refreshModels = async () => {
+  const refreshModels = useCallback(async () => {
     logEvent("Refreshing model catalog from gateway.");
     const result = await invoke<{ data: ModelSummary[] }>("gateway_models");
     setModels(result.data ?? []);
-  };
+  }, [logEvent]);
 
-  const refreshLogs = async () => {
+  const refreshLogs = useCallback(async () => {
     const result = await invoke<{ logs: string[] }>("gateway_logs");
     setLogs((prev) => {
       const gatewayLogs = result.logs ?? [];
       const localLogs = prev.filter((line) => line.startsWith("[UI "));
       return [...localLogs, ...gatewayLogs];
     });
-  };
+  }, []);
 
-  const refreshConnectionInfo = async () => {
+  const refreshConnectionInfo = useCallback(async () => {
     const result = await invoke<GatewayConnectionInfo>("gateway_connection_info");
     setConnectionInfo(result);
     setPort(result.port);
     setPortInput(String(result.port));
-  };
+  }, []);
 
-  const refreshConfig = async () => {
+  const refreshConfig = useCallback(async () => {
     const result = await invoke<GatewayConfig>("gateway_config");
     setPort(result.port);
     setPortInput(String(result.port));
@@ -199,7 +199,7 @@ export const App = () => {
       llm: result.default_models.responses ?? "",
       stt: result.default_models["audio.transcriptions"] ?? ""
     });
-  };
+  }, []);
 
   const saveConfig = async () => {
     setSaveState("saving");
@@ -252,14 +252,14 @@ export const App = () => {
     }
   };
 
-  const runDoctor = async () => {
+  const runDoctor = useCallback(async () => {
     logEvent("Running preflight doctor checks.");
     const result = await invoke<{ checks: DoctorCheck[] }>("gateway_doctor");
     setDoctorChecks(result.checks ?? []);
     await refreshLogs();
-  };
+  }, [logEvent, refreshLogs]);
 
-  const startGateway = async () => {
+  const startGateway = useCallback(async () => {
     setStartError(null);
     try {
       logEvent("Starting local gateway.");
@@ -276,13 +276,7 @@ export const App = () => {
       setStartError(message);
       logEvent(`Gateway failed to start: ${message}`);
     }
-  };
-
-  const restartGateway = async () => {
-    logEvent("Restarting local gateway.");
-    await invoke("stop_gateway");
-    await startGateway();
-  };
+  }, [logEvent, refreshLogs, refreshStatus]);
 
   const copyText = async (value: string) => {
     await navigator.clipboard.writeText(value);
@@ -407,15 +401,45 @@ export const App = () => {
     await refreshLogs();
   };
 
+  const handleBootReady = useCallback(async () => {
+    await refreshStatus();
+    await refreshConnectionInfo();
+    await refreshModels();
+    await refreshLogs();
+  }, [refreshConnectionInfo, refreshLogs, refreshModels, refreshStatus]);
+
   const boot = useGatewayBoot({
     healthUrl,
-    onReady: async () => {
-      await refreshStatus();
-      await refreshConnectionInfo();
-      await refreshModels();
-      await refreshLogs();
-    }
+    onReady: handleBootReady
   });
+
+  const stopGateway = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        logEvent("Stopping local gateway.");
+      }
+      try {
+        await invoke("stop_gateway");
+        boot.reset();
+        await refreshStatus();
+        await refreshLogs();
+      } catch (error) {
+        const message = formatErrorMessage(error);
+        if (!options?.silent) {
+          logEvent(`Failed to stop gateway: ${message}`);
+        } else {
+          console.error("Failed to stop gateway:", message);
+        }
+      }
+    },
+    [boot.reset, logEvent, refreshLogs, refreshStatus]
+  );
+
+  const restartGateway = useCallback(async () => {
+    logEvent("Restarting local gateway.");
+    await stopGateway({ silent: true });
+    await startGateway();
+  }, [logEvent, startGateway, stopGateway]);
 
   useEffect(() => {
     if (boot.state.phase === "error" && boot.state.error && bootLogRef.current.errorRunId !== boot.state.runId) {
@@ -434,19 +458,19 @@ export const App = () => {
     refreshConnectionInfo();
     refreshConfig();
     runDoctor();
-  }, []);
+  }, [refreshConfig, refreshConnectionInfo, refreshLogs, refreshStatus, runDoctor]);
 
   useEffect(() => {
     if (status !== "running") return;
     refreshModels();
-  }, [status]);
+  }, [refreshModels, status]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       refreshLogs();
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshLogs]);
 
   useEffect(() => {
     setSaveState("idle");
@@ -485,7 +509,7 @@ export const App = () => {
     };
     setDefaults(nextDefaults);
     logEvent(`Selected ${isMac ? "MLX" : "non-MLX"} defaults based on platform.`);
-  }, [models, llmOptions, sttOptions, isMac, defaults.llm, defaults.stt]);
+  }, [models, llmOptions, sttOptions, isMac, defaults.llm, defaults.stt, logEvent]);
 
   const gatewayReady = status === "running" || boot.state.phase === "ready";
   const heroBootState: GatewayBootState =
@@ -603,6 +627,14 @@ export const App = () => {
           </div>
           <div className="hero-actions">
             <span className="badge">Status: {status}</span>
+            <button
+              className="btn danger"
+              onClick={() => stopGateway()}
+              disabled={!isGatewayRunning}
+              title={!isGatewayRunning ? "Gateway is not running." : undefined}
+            >
+              Stop gateway
+            </button>
             <button className="btn ghost" onClick={() => setShowAdvanced(true)}>
               Advanced controls
             </button>
@@ -917,7 +949,7 @@ export const App = () => {
                 <button className="btn primary" onClick={startGateway} disabled={!canStartGateway}>
                   Start gateway
                 </button>
-                <button className="btn" onClick={() => invoke("stop_gateway").then(refreshStatus)}>
+                <button className="btn" onClick={() => stopGateway()} disabled={!isGatewayRunning}>
                   Stop gateway
                 </button>
                 <button className="btn" onClick={runDoctor}>
