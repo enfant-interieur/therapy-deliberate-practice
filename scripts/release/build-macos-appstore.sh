@@ -4,6 +4,9 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TAURI_CONF="$REPO_ROOT/services/local-runtime-suite/desktop/src-tauri/tauri.conf.json"
+TAURI_DIR="$REPO_ROOT/services/local-runtime-suite/desktop"
+PROVISIONING_FILE="$TAURI_DIR/src-tauri/embedded.provisionprofile"
+
 # shellcheck source=scripts/release/load-release-env.sh
 source "$REPO_ROOT/scripts/release/load-release-env.sh"
 load_release_env_files "$REPO_ROOT"
@@ -13,9 +16,25 @@ if [[ ! -f "$TAURI_CONF" ]]; then
   exit 1
 fi
 
-if [[ -z "${APPLE_SIGNING_IDENTITY:-}" ]]; then
-  echo "APPLE_SIGNING_IDENTITY is required to build signed macOS artifacts." >&2
-  echo "Set it in $REPO_ROOT/.env.release (see .env.release.example) or export it in your shell." >&2
+SIGNING_IDENTITY="${APPSTORE_SIGNING_IDENTITY:-${APPLE_SIGNING_IDENTITY:-}}"
+if [[ -z "$SIGNING_IDENTITY" ]]; then
+  echo "APPSTORE_SIGNING_IDENTITY (or APPLE_SIGNING_IDENTITY) is required for App Store builds." >&2
+  exit 1
+fi
+
+INSTALLER_IDENTITY="${APPSTORE_INSTALLER_IDENTITY:-${APPLE_INSTALLER_IDENTITY:-}}"
+if [[ -z "$INSTALLER_IDENTITY" ]]; then
+  echo "APPSTORE_INSTALLER_IDENTITY (or APPLE_INSTALLER_IDENTITY) is required to sign the App Store pkg." >&2
+  exit 1
+fi
+
+PROFILE_TEMP_CREATED=0
+if [[ -n "${APPSTORE_PROVISION_PROFILE_B64:-}" ]]; then
+  echo "Writing App Store provisioning profile to embedded.provisionprofile..."
+  echo "$APPSTORE_PROVISION_PROFILE_B64" | base64 -d > "$PROVISIONING_FILE"
+  PROFILE_TEMP_CREATED=1
+elif [[ ! -f "$PROVISIONING_FILE" ]]; then
+  echo "No provisioning profile found. Provide APPSTORE_PROVISION_PROFILE_B64 or place embedded.provisionprofile in src-tauri/." >&2
   exit 1
 fi
 
@@ -25,27 +44,18 @@ if [[ -z "$VERSION" ]]; then
 fi
 
 PRODUCT_NAME="$(node -e "const fs = require('fs'); const data = JSON.parse(fs.readFileSync('$TAURI_CONF', 'utf8')); console.log(data.productName);")"
-ARCH="$(uname -m)"
-case "$ARCH" in
-  x86_64) ARCH="x64" ;;
-  arm64) ARCH="arm64" ;;
-  aarch64) ARCH="arm64" ;;
-  *) ARCH="${ARCH}" ;;
-esac
-
 TAG="${RELEASE_TAG:-v$VERSION}"
 OUTPUT_ROOT="${RELEASE_OUTPUT_DIR:-$REPO_ROOT/dist/release/$TAG}"
-OUTPUT_DIR="$OUTPUT_ROOT/macos"
+OUTPUT_DIR="$OUTPUT_ROOT"
 mkdir -p "$OUTPUT_DIR"
 
 KEYCHAIN_NAME=""
 KEYCHAIN_PASSWORD=""
 TMP_KEYCHAIN=""
-API_KEY_PATH=""
 
 cleanup() {
-  if [[ -n "$API_KEY_PATH" && -f "$API_KEY_PATH" ]]; then
-    rm -f "$API_KEY_PATH"
+  if [[ $PROFILE_TEMP_CREATED -eq 1 ]]; then
+    rm -f "$PROVISIONING_FILE"
   fi
   if [[ -n "$TMP_KEYCHAIN" ]]; then
     security delete-keychain "$TMP_KEYCHAIN" >/dev/null 2>&1 || true
@@ -57,12 +67,12 @@ CERT_B64="${APPSTORE_CERTIFICATES_FILE_BASE64:-${MAC_CODESIGN_CERT_B64:-}}"
 CERT_PASSWORD="${APPSTORE_CERTIFICATES_PASSWORD:-${MAC_CODESIGN_CERT_PASSWORD:-release}}"
 
 if [[ -n "$CERT_B64" ]]; then
-  echo "Importing macOS signing certificate into a temporary keychain..."
-  KEYCHAIN_NAME="release-signing.keychain"
+  echo "Importing App Store signing certificate into a temporary keychain..."
+  KEYCHAIN_NAME="appstore-signing.keychain"
   KEYCHAIN_PASSWORD="$CERT_PASSWORD"
   TMP_KEYCHAIN="$(mktemp -u "$HOME/Library/Keychains/$KEYCHAIN_NAME")"
 
-  CERT_PATH="$(mktemp /tmp/macos-cert.XXXXXX.p12)"
+  CERT_PATH="$(mktemp /tmp/appstore-cert.XXXXXX.p12)"
   echo "$CERT_B64" | base64 -d > "$CERT_PATH"
 
   security create-keychain -p "$KEYCHAIN_PASSWORD" "$TMP_KEYCHAIN"
@@ -74,21 +84,15 @@ if [[ -n "$CERT_B64" ]]; then
   rm -f "$CERT_PATH"
 fi
 
-if [[ -n "${APPLE_API_KEY_B64:-}" ]]; then
-  API_KEY_PATH="$(mktemp /tmp/AuthKey.XXXXXX.p8)"
-  echo "$APPLE_API_KEY_B64" | base64 -d > "$API_KEY_PATH"
-  export APPLE_API_KEY_PATH="$API_KEY_PATH"
-fi
-
-if [[ -n "${APPLE_SIGNING_IDENTITY:-}" ]]; then
-  export TAURI_CONFIG="$(
-    TAURI_CONFIG="${TAURI_CONFIG:-}" APPLE_SIGNING_IDENTITY="$APPLE_SIGNING_IDENTITY" node <<'NODE'
+export APPLE_SIGNING_IDENTITY="$SIGNING_IDENTITY"
+export TAURI_CONFIG="$(
+  TAURI_CONFIG="${TAURI_CONFIG:-}" APPLE_SIGNING_IDENTITY="$APPLE_SIGNING_IDENTITY" node <<'NODE'
 const identity = process.env.APPLE_SIGNING_IDENTITY;
 let config = {};
-const existingRaw = process.env.TAURI_CONFIG;
-if (existingRaw) {
+const raw = process.env.TAURI_CONFIG;
+if (raw) {
   try {
-    config = JSON.parse(existingRaw);
+    config = JSON.parse(raw);
   } catch (err) {
     console.error("Invalid JSON in TAURI_CONFIG:", err);
     process.exit(1);
@@ -99,8 +103,7 @@ if (!config.bundle.macOS) config.bundle.macOS = {};
 config.bundle.macOS.signingIdentity = identity;
 process.stdout.write(JSON.stringify(config));
 NODE
-  )"
-fi
+)"
 
 cd "$REPO_ROOT"
 
@@ -108,40 +111,18 @@ if [[ -z "${RELEASE_SKIP_NPM_CI:-}" ]]; then
   npm ci
 fi
 
-npm run tauri:build -w services/local-runtime-suite/desktop -- --bundles app
+npm run tauri:appstore -w services/local-runtime-suite/desktop -- --bundles app
 
-APP_PATH="$REPO_ROOT/services/local-runtime-suite/desktop/src-tauri/target/release/bundle/macos/${PRODUCT_NAME}.app"
+APP_PATH="$TAURI_DIR/src-tauri/target/universal-apple-darwin/release/bundle/macos/${PRODUCT_NAME}.app"
 if [[ ! -d "$APP_PATH" ]]; then
   echo "Built app not found at $APP_PATH" >&2
   exit 1
 fi
 
-ZIP_PATH="$OUTPUT_DIR/${PRODUCT_NAME}_${VERSION}_${ARCH}.zip"
-DMG_PATH="$OUTPUT_DIR/${PRODUCT_NAME}_${VERSION}_${ARCH}.dmg"
-PKG_PATH="$OUTPUT_DIR/${PRODUCT_NAME}_${VERSION}_${ARCH}.pkg"
+PKG_PATH="$OUTPUT_DIR/${PRODUCT_NAME}_${VERSION}_mac_app_store.pkg"
+rm -f "$PKG_PATH"
 
-rm -f "$ZIP_PATH" "$DMG_PATH" "$PKG_PATH"
+echo "Creating signed App Store pkg..."
+productbuild --component "$APP_PATH" /Applications --sign "$INSTALLER_IDENTITY" "$PKG_PATH"
 
-ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "$ZIP_PATH"
-
-STAGING_DIR="$OUTPUT_DIR/dmg-staging"
-rm -rf "$STAGING_DIR"
-mkdir -p "$STAGING_DIR"
-cp -R "$APP_PATH" "$STAGING_DIR/"
-ln -s /Applications "$STAGING_DIR/Applications"
-
-hdiutil create -volname "$PRODUCT_NAME" -srcfolder "$STAGING_DIR" -fs HFS+ -format UDZO -imagekey zlib-level=9 "$DMG_PATH" >/dev/null
-
-if [[ -n "${APPLE_INSTALLER_IDENTITY:-}" ]]; then
-  echo "Creating signed pkg with identity $APPLE_INSTALLER_IDENTITY..."
-  productbuild --component "$APP_PATH" /Applications --sign "$APPLE_INSTALLER_IDENTITY" "$PKG_PATH"
-fi
-
-if [[ -n "${APPLE_TEAM_ID:-}" ]]; then
-  if [[ -n "${APPLE_API_KEY_PATH:-}" || -n "${APPLE_ID:-}" ]]; then
-    echo "Notarizing DMG..."
-    "$REPO_ROOT/scripts/release/notarize-dmg.sh" "$DMG_PATH"
-  fi
-fi
-
-echo "macOS artifacts written to $OUTPUT_DIR"
+echo "App Store package written to $PKG_PATH"

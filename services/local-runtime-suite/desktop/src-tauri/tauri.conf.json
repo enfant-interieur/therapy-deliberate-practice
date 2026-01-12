@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "Local Runtime Suite",
-  "version": "0.1.0",
+  "version": "0.1.5",
   "identifier": "com.therapy.localruntime",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -27,16 +27,21 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "deb", "rpm", "appimage", "dmg", "msi", "nsis"],
+    "targets": [
+      "app",
+      "deb",
+      "rpm",
+      "appimage",
+      "dmg",
+      "msi",
+      "nsis"
+    ],
     "category": "Utility",
     "icon": [
       "icons/icon.ico",
       "icons/icon.icns",
       "icons/icon.png"
-    ],
-    "macOS": {
-      "signingIdentity": "Apple Distribution: YOUR TEAM (TEAMID)"
-    }
+    ]
   },
   "plugins": {
     "opener": {}
