@@ -27,6 +27,7 @@
     "release:gh": "node scripts/release/run-release-gh.mjs"
   },
   "devDependencies": {
-    "prettier": "^3.3.3"
+    "prettier": "^3.3.3",
+    "semver": "^7.7.3"
   }
 }
