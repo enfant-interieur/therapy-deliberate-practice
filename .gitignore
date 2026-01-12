@@ -24,3 +24,4 @@ infra/local.db
 **/*.egg-info
 **/.runtime-cache
 services/local-runtime-suite/desktop/src-tauri/local-runtime-python
+services/local-runtime-suite/desktop/src-tauri/embedded.provisionprofile
