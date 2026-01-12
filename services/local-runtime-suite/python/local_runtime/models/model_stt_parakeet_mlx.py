@@ -66,7 +66,7 @@ SPEC = {
         "python_extras": ["mlx", "stt"],
         "pip": ["parakeet-mlx>=0.2.0"],
         "system": [],
-        "notes": "Requires parakeet-mlx for transcription.",
+        "notes": "FFmpeg ships with the desktop runtime; install parakeet-mlx via pip for development.",
     },
 }
 

@@ -108,6 +108,21 @@ fn main() -> ExitCode {
 
     cmd.env("PYTHONNOUSERSITE", "1");
     cmd.env("PYTHONPATH", &pylibs);
+
+    let runtime_bin = runtime_root.join("bin");
+    if runtime_bin.exists() {
+        let mut combined = runtime_bin.into_os_string();
+        if let Some(existing) = env::var_os("PATH") {
+            if cfg!(target_os = "windows") {
+                combined.push(";");
+            } else {
+                combined.push(":");
+            }
+            combined.push(existing);
+        }
+        cmd.env("PATH", combined);
+    }
+
     cmd.stdin(Stdio::null());
     cmd.stdout(Stdio::inherit());
     cmd.stderr(Stdio::inherit());

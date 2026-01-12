@@ -144,6 +144,10 @@ Tauri’s default DMG pipeline depends on Finder automation and can be brittle o
 
 No GUI session is required; the output is deterministic and safe for local or headless macOS hosts.
 
+### Bundled FFmpeg runtime
+
+Speech-to-text models (Faster Whisper, Parakeet MLX) depend on FFmpeg for audio decoding. The sidecar build (`npm run sidecar:build`) now pulls the platform-specific binary from `ffmpeg-static`, copies it into `services/local-runtime-suite/desktop/src-tauri/local-runtime-python/bin/ffmpeg`, and includes the upstream license/readme. When the desktop app launches, it prepends that `bin/` directory to `PATH`, so the embedded Python runtime always sees FFmpeg—even on machines without a system install. Keep `npm ci` in the pipeline so the `ffmpeg-static` dependency stays up to date, and commit the refreshed runtime when bumping versions.
+
 ### Notarization + Stapling
 
 Apple treats notarization as a separate step after codesigning. If you want Gatekeeper to accept your DMG without users bypassing warnings, set the following env vars in `.env.release` before running `npm run release`:

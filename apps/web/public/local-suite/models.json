@@ -233,10 +233,8 @@
         "pip": [
           "faster-whisper"
         ],
-        "system": [
-          "ffmpeg"
-        ],
-        "notes": "Requires ffmpeg for decoding audio input."
+        "system": [],
+        "notes": "FFmpeg ships with the desktop runtime for offline decoding."
       }
     },
     {
@@ -313,7 +311,7 @@
           "parakeet-mlx>=0.2.0"
         ],
         "system": [],
-        "notes": "Requires parakeet-mlx for transcription."
+        "notes": "FFmpeg ships with the desktop runtime. Install parakeet-mlx for development."
       }
     }
   ]
