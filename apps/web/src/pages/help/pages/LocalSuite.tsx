@@ -102,9 +102,11 @@ export const LocalSuite = () => {
 
   useEffect(() => {
     const repo = import.meta.env.VITE_GITHUB_REPO || "enfant-interieur/therapy-deliberate-practice";
+    let cancelled = false;
     setDownloads(filterDownloads(baseDownloads));
 
     const applyAssets = (assets: ReleaseAsset[]) => {
+      if (cancelled) return;
       const mapped: DownloadLink[] = baseDownloads.map((entry) => {
         if (!entry.matchAsset) return entry;
         const match = assets.find((asset) => entry.matchAsset?.(asset.name.toLowerCase()));
@@ -126,21 +128,39 @@ export const LocalSuite = () => {
       }
     }
 
-    fetch(`https://api.github.com/repos/${repo}/releases/latest`)
-      .then((response) => {
-        if (!response.ok) throw new Error("Failed to load release");
-        return response.json() as Promise<ReleaseResponse>;
-      })
-      .then((release) => {
-        applyAssets(release.assets ?? []);
-        localStorage.setItem(
-          RELEASE_CACHE_KEY,
-          JSON.stringify({ timestamp: Date.now(), assets: release.assets ?? [] })
-        );
+    const fetchReleaseAssets = async (): Promise<ReleaseAsset[] | null> => {
+      const latestUrl = `https://api.github.com/repos/${repo}/releases/latest`;
+      const latestResponse = await fetch(latestUrl);
+      if (latestResponse.status === 404) {
+        const fallbackResponse = await fetch(`https://api.github.com/repos/${repo}/releases?per_page=1`);
+        if (!fallbackResponse.ok) return null;
+        const releases = (await fallbackResponse.json()) as ReleaseResponse[];
+        if (!releases.length) return null;
+        return releases[0].assets ?? [];
+      }
+      if (!latestResponse.ok) return null;
+      const release = (await latestResponse.json()) as ReleaseResponse;
+      return release.assets ?? [];
+    };
+
+    fetchReleaseAssets()
+      .then((assets) => {
+        if (!assets || cancelled) {
+          setReleaseError(t("help.localSuite.downloads.error"));
+          return;
+        }
+        applyAssets(assets);
+        localStorage.setItem(RELEASE_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), assets }));
       })
       .catch(() => {
-        setReleaseError(t("help.localSuite.downloads.error"));
+        if (!cancelled) {
+          setReleaseError(t("help.localSuite.downloads.error"));
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [baseDownloads, t]);
 
   useEffect(() => {
@@ -280,10 +300,9 @@ export const LocalSuite = () => {
             <a
               key={download.id}
               href={download.href ?? "#"}
-              className={`flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold transition ${{
-                true: "bg-white/10 text-white hover:bg-white/20",
-                false: "bg-white/5 text-slate-400"
-              }[Boolean(download.href)]}`}
+              className={`flex items-center justify-between rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold transition ${
+                download.href ? "bg-white/10 text-white hover:bg-white/20" : "bg-white/5 text-slate-400"
+              }`}
               aria-disabled={!download.href}
             >
               <span>{download.label}</span>

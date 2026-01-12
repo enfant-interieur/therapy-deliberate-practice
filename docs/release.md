@@ -188,7 +188,7 @@ The public help page (`apps/web/src/pages/help/pages/LocalSuite.tsx`) calls `htt
 * Linux: `.AppImage`, `.deb`, or `.rpm`.
 * macOS DMG/pkg: `.dmg` or `.pkg`.
 
-If you fork the repo, set `VITE_GITHUB_REPO=<owner>/<repo>` so the website points to your releases. The Mac App Store button remains available at all times; the direct DMG CTA appears only when a `.dmg` (or `.pkg`) asset exists in the latest release. Because the website queries GitHub directly, no extra hosting or CDN work is required—uploading the files to the release page is enough.
+If you fork the repo, set `VITE_GITHUB_REPO=<owner>/<repo>` so the website points to your releases. The Mac App Store button remains available at all times; the direct DMG CTA appears only when a `.dmg` (or `.pkg`) asset exists in the latest release. Because the website queries GitHub directly, no extra hosting or CDN work is required—uploading the files to the release page is enough. If `releases/latest` returns 404 (e.g., only prereleases exist), the UI automatically falls back to the most recent entry from `/releases?per_page=1`, so prereleases still populate the download cards.
 
 ## Mac App Store Release Flow
 
