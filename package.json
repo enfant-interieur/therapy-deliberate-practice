@@ -22,6 +22,7 @@
     "lint:local": "npm run lint -w services/local-runtime-suite && npm --prefix services/local-runtime-suite/desktop run lint && python services/local-runtime-suite/tools/gen_models_json.py",
     "format": "prettier --write .",
     "release": "node scripts/release/run-release.mjs",
+    "release:dmg": "node scripts/release/run-release.mjs --skip-linux --skip-windows --skip-tag --allow-dirty",
     "release:gh": "node scripts/release/run-release-gh.mjs"
   },
   "devDependencies": {
