@@ -529,6 +529,8 @@ HOME_HTML = """<!DOCTYPE html>
 async def lifespan(app: FastAPI):
     logger = LOGGER
     app.state.logger = logger
+    build_version = os.getenv("LOCAL_RUNTIME_VERSION") or os.getenv("LOCAL_RUNTIME_BUILD_VERSION") or "dev"
+    app.state.build_version = build_version
     readiness = ReadinessTracker()
     app.state.readiness = readiness
     readiness.mark_phase("config", "ok")
@@ -731,6 +733,10 @@ async def health() -> JSONResponse:
     data = app.state.readiness.as_payload()
     workers = [worker.__dict__ for worker in app.state.supervisor.status()]
     data["workers"] = workers
+    data["build"] = {
+        "version": getattr(app.state, "build_version", "dev"),
+        "started_at": getattr(app.state, "started_at", None),
+    }
     return JSONResponse(data)
 
 

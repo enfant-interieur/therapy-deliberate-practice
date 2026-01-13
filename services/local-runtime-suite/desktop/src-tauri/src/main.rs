@@ -70,6 +70,7 @@ struct GatewayLaunchConfig {
     gateway_root: Option<PathBuf>,
     config_path: PathBuf,
     args: Vec<String>,
+    build_version: String,
 }
 
 #[derive(Serialize)]
@@ -528,6 +529,7 @@ fn read_gateway_config(app: &tauri::AppHandle) -> Result<GatewayConfigResponse, 
 fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, GatewayError> {
     let config = read_gateway_config(app)?;
     let config_path = resolve_config_path(app)?;
+    let build_version = app.package_info().version.to_string();
     let args = vec![
         "--port".to_string(),
         config.port.to_string(),
@@ -571,6 +573,7 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
             gateway_root: None,
             config_path,
             args,
+            build_version: build_version.clone(),
         }),
         GatewayLaunchMode::Python => {
             let python_path =
@@ -588,6 +591,7 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
                 gateway_root: Some(gateway_root),
                 config_path,
                 args: python_args,
+                build_version,
             })
         }
     }
@@ -795,6 +799,7 @@ impl GatewayManager {
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped());
                 apply_python_env(&mut command, &config)?;
+                command.env("LOCAL_RUNTIME_VERSION", &config.build_version);
 
                 let mut child = command
                     .spawn()
@@ -840,7 +845,9 @@ impl GatewayManager {
                 }
             }
             GatewayLaunchMode::Sidecar => {
-                let command = resolve_sidecar_command(app)?.args(&config.args);
+                let command = resolve_sidecar_command(app)?
+                    .args(&config.args)
+                    .env("LOCAL_RUNTIME_VERSION", &config.build_version);
                 let (mut rx, child) = command.spawn().map_err(|err| {
                     GatewayError::SpawnFailed(GatewayErrorDetails {
                         message: err.to_string(),

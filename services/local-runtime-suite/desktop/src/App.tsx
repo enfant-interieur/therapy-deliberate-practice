@@ -163,10 +163,47 @@ export const App = () => {
     setLogs((prev) => [...prev, `[UI ${timestamp}] ${message}`]);
   }, []);
 
+  const checkGatewayHealth = useCallback(async () => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 1500);
+    try {
+      const response = await fetch(healthUrl, {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal
+      });
+      if (!response.ok) return false;
+      try {
+        const payload = (await response.json()) as { status?: unknown };
+        if (payload && typeof payload.status === "string") {
+          return payload.status.toLowerCase() === "ready";
+        }
+      } catch {
+        // Ignore parse failures; HTTP 200 alone is a good readiness signal.
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }, [healthUrl]);
+
   const refreshStatus = useCallback(async () => {
-    const result = await invoke<{ status: string }>("gateway_status");
-    setStatus(result.status);
-  }, []);
+    let nextStatus: "running" | "stopped" = "stopped";
+    try {
+      const result = await invoke<{ status: string }>("gateway_status");
+      nextStatus = result.status === "running" ? "running" : "stopped";
+      if (nextStatus === "running") {
+        setStatus("running");
+        return;
+      }
+    } catch (error) {
+      console.warn("Failed to read gateway status from launcher:", error);
+    }
+    const healthy = await checkGatewayHealth();
+    setStatus(healthy ? "running" : nextStatus);
+  }, [checkGatewayHealth]);
 
   const refreshModels = useCallback(async () => {
     logEvent("Refreshing model catalog from gateway.");
@@ -492,6 +529,13 @@ export const App = () => {
       document.body.classList.remove("drawer-open");
     };
   }, [showAdvanced]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshStatus();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [refreshStatus]);
 
   const llmOptions = models.filter((model) => model.metadata.api.endpoint === "responses");
   const sttOptions = models.filter((model) =>
