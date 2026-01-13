@@ -993,13 +993,15 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .manage(GatewayManager::new())
-        .on_window_event(|event| {
+        .on_window_event(|window, event| {
             if matches!(
-                event.event(),
+                event,
                 WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed
             ) {
-                if let Some(manager) = event.window().try_state::<GatewayManager>() {
-                    let _ = manager.stop();
+                if let Some(manager) = window.try_state::<GatewayManager>() {
+                    if let Err(err) = manager.stop() {
+                        eprintln!("Failed to stop gateway during window event: {:?}", err);
+                    }
                 }
             }
         })
@@ -1020,7 +1022,9 @@ fn main() {
     app.run(|app_handle, event| match event {
         RunEvent::ExitRequested { .. } | RunEvent::Exit => {
             if let Some(manager) = app_handle.try_state::<GatewayManager>() {
-                let _ = manager.stop();
+                if let Err(err) = manager.stop() {
+                    eprintln!("Failed to stop gateway during exit: {:?}", err);
+                }
             }
         }
         _ => {}
