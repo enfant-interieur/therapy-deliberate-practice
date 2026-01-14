@@ -1,18 +1,85 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
+use serde_json::json;
 use std::collections::{HashMap, VecDeque};
-use std::io::{Read, Write};
+use std::ffi::OsString;
+use std::fs::OpenOptions;
+use std::io::{BufWriter, Read, Write};
 use std::net::{TcpListener, TcpStream};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
+use std::sync::{
+    mpsc::{self, Sender},
+    Arc, Mutex,
+};
+use std::thread;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 
 const MAX_LOG_LINES: usize = 500;
+
+#[derive(Clone)]
+struct LogSink {
+    sender: Sender<LogCommand>,
+}
+
+enum LogCommand {
+    SetTarget(PathBuf),
+    Append(String),
+}
+
+impl LogSink {
+    fn new() -> Self {
+        let (sender, receiver) = mpsc::channel::<LogCommand>();
+        thread::spawn(move || {
+            let mut writer: Option<BufWriter<std::fs::File>> = None;
+            while let Ok(message) = receiver.recv() {
+                match message {
+                    LogCommand::SetTarget(path) => {
+                        if let Some(parent) = path.parent() {
+                            let _ = std::fs::create_dir_all(parent);
+                        }
+                        match OpenOptions::new().create(true).append(true).open(&path) {
+                            Ok(file) => {
+                                writer = Some(BufWriter::new(file));
+                            }
+                            Err(err) => {
+                                eprintln!(
+                                    "launcher log sink failed to open {}: {}",
+                                    path.display(),
+                                    err
+                                );
+                                writer = None;
+                            }
+                        }
+                    }
+                    LogCommand::Append(line) => {
+                        if let Some(target) = writer.as_mut() {
+                            if writeln!(target, "{}", line).is_err() {
+                                writer = None;
+                            } else {
+                                let _ = target.flush();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        Self { sender }
+    }
+
+    fn set_target(&self, path: PathBuf) {
+        let _ = self.sender.send(LogCommand::SetTarget(path));
+    }
+
+    fn append(&self, line: String) {
+        let _ = self.sender.send(LogCommand::Append(line));
+    }
+}
 
 #[derive(serde::Deserialize)]
 struct ConfigPayload {
@@ -36,9 +103,11 @@ struct GatewayState {
     logs: VecDeque<String>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 struct GatewayManager {
     inner: Arc<Mutex<GatewayState>>,
+    log_sink: LogSink,
+    log_dir: Arc<Mutex<Option<PathBuf>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -68,6 +137,7 @@ struct GatewayLaunchConfig {
     port: u16,
     python_path: Option<String>,
     gateway_root: Option<PathBuf>,
+    runtime_bin: Option<PathBuf>,
     config_path: PathBuf,
     args: Vec<String>,
     build_version: String,
@@ -92,6 +162,7 @@ struct GatewayEndpointExamples {
 #[derive(Serialize)]
 struct StatusResponse {
     status: String,
+    managed: bool,
 }
 
 #[derive(Serialize)]
@@ -127,15 +198,40 @@ impl GatewayManager {
     fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(GatewayState::default())),
+            log_sink: LogSink::new(),
+            log_dir: Arc::new(Mutex::new(None)),
         }
     }
 
+    fn initialize(&self, app: &tauri::AppHandle) {
+        if let Ok(dir) = app.path().app_log_dir() {
+            self.configure_log_dir(dir);
+        } else if let Ok(config_dir) = app.path().app_config_dir() {
+            self.configure_log_dir(config_dir.join("logs"));
+        }
+    }
+
+    fn configure_log_dir(&self, dir: PathBuf) {
+        if std::fs::create_dir_all(&dir).is_err() {
+            return;
+        }
+        let log_file = dir.join("launcher.log");
+        self.log_sink.set_target(log_file.clone());
+        if let Ok(mut guard) = self.log_dir.lock() {
+            *guard = Some(dir);
+        }
+        self.push_log(format!("launcher: writing logs to {}", log_file.display()));
+    }
+
     fn push_log(&self, line: impl Into<String>) {
+        let message = line.into();
         let mut guard = self.inner.lock().expect("state lock");
-        guard.logs.push_back(line.into());
+        guard.logs.push_back(message.clone());
         if guard.logs.len() > MAX_LOG_LINES {
             guard.logs.pop_front();
         }
+        drop(guard);
+        self.log_sink.append(message);
     }
 
     fn refresh_child_state(guard: &mut GatewayState) {
@@ -171,15 +267,18 @@ impl GatewayManager {
 
         Ok(StatusResponse {
             status: "stopped".into(),
+            managed: false,
         })
     }
 
     fn status(&self) -> StatusResponse {
         let mut guard = self.inner.lock().expect("state lock");
         Self::refresh_child_state(&mut guard);
-        let status = if guard.child.is_some() { "running" } else { "stopped" };
+        let managed = guard.child.is_some();
+        let status = if managed { "running" } else { "stopped" };
         StatusResponse {
             status: status.into(),
+            managed,
         }
     }
 
@@ -187,8 +286,10 @@ impl GatewayManager {
         let mut guard = self.inner.lock().expect("state lock");
         Self::refresh_child_state(&mut guard);
         if guard.child.is_some() {
+            let managed = guard.child.is_some();
             return StatusResponse {
                 status: "running".into(),
+                managed,
             };
         }
         drop(guard);
@@ -196,10 +297,12 @@ impl GatewayManager {
         if http_get_localhost(port, "/health").is_ok() {
             StatusResponse {
                 status: "running".into(),
+                managed: false,
             }
         } else {
             StatusResponse {
                 status: "stopped".into(),
+                managed: false,
             }
         }
     }
@@ -220,12 +323,64 @@ impl GatewayManager {
         let mut guard = self.inner.lock().expect("state lock");
         guard.child = None;
     }
+
+    fn log_directory(&self) -> Option<PathBuf> {
+        self.log_dir.lock().ok().and_then(|path| path.clone())
+    }
+
+    fn write_report(&self, prefix: &str, payload: &serde_json::Value) -> Option<PathBuf> {
+        let dir = self.log_directory()?;
+        let reports_dir = dir.join("reports");
+        if std::fs::create_dir_all(&reports_dir).is_err() {
+            return None;
+        }
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|dur| dur.as_secs())
+            .unwrap_or(0);
+        let filename = format!("{}-{}.json", prefix, timestamp);
+        let path = reports_dir.join(filename);
+        let data = serde_json::to_vec_pretty(payload).ok()?;
+        if std::fs::write(&path, data).is_ok() {
+            Some(path)
+        } else {
+            None
+        }
+    }
+
+    fn record_spawn_failure(
+        &self,
+        context: &GatewayLaunchConfig,
+        details: &GatewayErrorDetails,
+        phase: &str,
+    ) {
+        if let Ok(payload) = serde_json::to_value(details) {
+            let report = json!({
+                "phase": phase,
+                "mode": format!("{:?}", context.mode),
+                "port": context.port,
+                "args": context.args,
+                "launcher": &details.launcher,
+                "config_path": &details.config_path,
+                "gateway_root": &details.gateway_root,
+                "error": &details.message,
+                "hint": &details.hint,
+                "details": payload,
+            });
+            if let Some(path) = self.write_report("spawn-failure", &report) {
+                self.push_notice(format!(
+                    "launcher: spawn failure report saved to {}",
+                    path.display()
+                ));
+            }
+        }
+    }
 }
 
 #[tauri::command]
 fn start_gateway(
     app: tauri::AppHandle,
-    state: tauri::State<GatewayManager>
+    state: tauri::State<GatewayManager>,
 ) -> Result<StatusResponse, GatewayError> {
     state.start(&app)
 }
@@ -236,10 +391,7 @@ fn stop_gateway(state: tauri::State<GatewayManager>) -> Result<StatusResponse, G
 }
 
 #[tauri::command]
-fn gateway_status(
-    app: tauri::AppHandle,
-    state: tauri::State<GatewayManager>
-) -> StatusResponse {
+fn gateway_status(app: tauri::AppHandle, state: tauri::State<GatewayManager>) -> StatusResponse {
     if let Ok(config) = build_launch_config(&app) {
         state.status_with_health(config.port)
     } else {
@@ -253,10 +405,7 @@ fn gateway_logs(state: tauri::State<GatewayManager>) -> LogsResponse {
 }
 
 #[tauri::command]
-fn gateway_doctor(
-    app: tauri::AppHandle,
-    state: tauri::State<GatewayManager>
-) -> DoctorResponse {
+fn gateway_doctor(app: tauri::AppHandle, state: tauri::State<GatewayManager>) -> DoctorResponse {
     let config = match build_launch_config(&app) {
         Ok(config) => config,
         Err(error) => {
@@ -333,35 +482,33 @@ fn gateway_doctor(
                 }
             }
         }
-        GatewayLaunchMode::Sidecar => {
-            match resolve_sidecar_path(&app) {
-                Some(path) => {
-                    checks.push(serde_json::json!( {
-                        "title": "Gateway sidecar binary",
-                        "status": "ok",
-                        "details": format!("Found sidecar at {}", path.display()),
-                        "fix": null
-                    }));
+        GatewayLaunchMode::Sidecar => match resolve_sidecar_path(&app) {
+            Some(path) => {
+                checks.push(serde_json::json!( {
+                    "title": "Gateway sidecar binary",
+                    "status": "ok",
+                    "details": format!("Found sidecar at {}", path.display()),
+                    "fix": null
+                }));
 
-                    if !is_executable(&path) {
-                        checks.push(serde_json::json!( {
-                            "title": "Gateway sidecar permissions",
-                            "status": "error",
-                            "details": "Sidecar is not executable.".to_string(),
-                            "fix": "Ensure the sidecar file has execute permissions."
-                        }));
-                    }
-                }
-                None => {
+                if !is_executable(&path) {
                     checks.push(serde_json::json!( {
+                        "title": "Gateway sidecar permissions",
+                        "status": "error",
+                        "details": "Sidecar is not executable.".to_string(),
+                        "fix": "Ensure the sidecar file has execute permissions."
+                    }));
+                }
+            }
+            None => {
+                checks.push(serde_json::json!( {
                         "title": "Gateway sidecar binary",
                         "status": "error",
                         "details": "Sidecar binary not found.".to_string(),
                         "fix": "Sidecar not resolvable. Ensure you run `tauri dev` with src-tauri/tauri.sidecar.conf.json (see `npm run tauri:dev`) or run `npm run sidecar:build`."
                     }));
-                }
             }
-        }
+        },
     }
 
     let status = state.status_with_health(config.port).status;
@@ -421,10 +568,7 @@ fn gateway_doctor(
 }
 
 #[tauri::command]
-fn gateway_models(
-    app: tauri::AppHandle,
-    state: tauri::State<GatewayManager>
-) -> ModelsResponse {
+fn gateway_models(app: tauri::AppHandle, state: tauri::State<GatewayManager>) -> ModelsResponse {
     let config = match build_launch_config(&app) {
         Ok(config) => config,
         Err(error) => {
@@ -504,7 +648,10 @@ fn resolve_config_path(app: &tauri::AppHandle) -> Result<PathBuf, GatewayError> 
         .path()
         .app_config_dir()
         .map_err(|err| GatewayError::ConfigDir(err.to_string()))?;
-    Ok(config_dir.join("therapy").join("local-runtime").join("config.json"))
+    Ok(config_dir
+        .join("therapy")
+        .join("local-runtime")
+        .join("config.json"))
 }
 
 fn read_gateway_config(app: &tauri::AppHandle) -> Result<GatewayConfigResponse, GatewayError> {
@@ -530,7 +677,7 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
     let config = read_gateway_config(app)?;
     let config_path = resolve_config_path(app)?;
     let build_version = app.package_info().version.to_string();
-    let args = vec![
+    let base_args = vec![
         "--port".to_string(),
         config.port.to_string(),
         "--config".to_string(),
@@ -547,54 +694,199 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
         .unwrap_or(false);
     let sidecar_available =
         resolve_sidecar_path(app).is_some() && resolve_sidecar_command(app).is_ok();
-    let mode = if cfg!(debug_assertions) {
-        if prefer_python {
-            GatewayLaunchMode::Python
-        } else if prefer_sidecar || sidecar_available {
-            GatewayLaunchMode::Sidecar
-        } else {
-            GatewayLaunchMode::Python
-        }
+    let embedded_runtime = if prefer_sidecar {
+        None
     } else {
-        GatewayLaunchMode::Sidecar
+        resolve_embedded_python_runtime(app)
+    };
+    let (repo_python, mut repo_python_err) = match resolve_repo_python(app) {
+        Ok(value) => (Some(value), None),
+        Err(err) => (None, Some(err)),
     };
 
-    if matches!(mode, GatewayLaunchMode::Sidecar) && !sidecar_available {
-        return Err(GatewayError::Config(
-            "Gateway sidecar is missing; run `npm run sidecar:build` or ensure tauri.sidecar.conf.json is included.".into(),
-        ));
-    }
+    let make_sidecar_config = || GatewayLaunchConfig {
+        mode: GatewayLaunchMode::Sidecar,
+        port: config.port,
+        python_path: None,
+        gateway_root: None,
+        runtime_bin: None,
+        config_path: config_path.clone(),
+        args: base_args.clone(),
+        build_version: build_version.clone(),
+    };
 
-    match mode {
-        GatewayLaunchMode::Sidecar => Ok(GatewayLaunchConfig {
-            mode,
+    let make_python_config = |python_path: &str,
+                              gateway_root: &Path,
+                              runtime_bin: Option<&Path>|
+     -> GatewayLaunchConfig {
+        let mut args = Vec::with_capacity(base_args.len() + 2);
+        args.push("-m".to_string());
+        args.push("local_runtime.main".to_string());
+        args.extend(base_args.iter().cloned());
+        GatewayLaunchConfig {
+            mode: GatewayLaunchMode::Python,
             port: config.port,
-            python_path: None,
-            gateway_root: None,
-            config_path,
+            python_path: Some(python_path.to_string()),
+            gateway_root: Some(gateway_root.to_path_buf()),
+            runtime_bin: runtime_bin.map(|path| path.to_path_buf()),
+            config_path: config_path.clone(),
             args,
             build_version: build_version.clone(),
-        }),
-        GatewayLaunchMode::Python => {
-            let python_path =
-                std::env::var("LOCAL_RUNTIME_PYTHON").unwrap_or_else(|_| default_python_binary());
-            let gateway_root = resolve_gateway_root(app)?;
-            let mut python_args = vec![
-                "-m".to_string(),
-                "local_runtime.main".to_string(),
-            ];
-            python_args.extend(args.clone());
-            Ok(GatewayLaunchConfig {
-                mode,
-                port: config.port,
-                python_path: Some(python_path),
-                gateway_root: Some(gateway_root),
-                config_path,
-                args: python_args,
-                build_version,
-            })
+        }
+    };
+
+    let make_embedded_python_config = |runtime: &EmbeddedPythonRuntime| {
+        let python_path = runtime.python_path.to_string_lossy().to_string();
+        make_python_config(
+            &python_path,
+            &runtime.pylibs_path,
+            runtime.bin_path.as_deref(),
+        )
+    };
+
+    if prefer_sidecar {
+        if !sidecar_available {
+            return Err(GatewayError::Config(
+                "Gateway sidecar is missing; run `npm run sidecar:build` or ensure tauri.sidecar.conf.json is included.".into(),
+            ));
+        }
+        return Ok(make_sidecar_config());
+    }
+
+    if prefer_python {
+        if let Some((python_path, gateway_root)) = repo_python.clone() {
+            return Ok(make_python_config(&python_path, &gateway_root, None));
+        }
+        return Err(repo_python_err.take().unwrap_or_else(|| {
+            GatewayError::Config(
+                "LOCAL_RUNTIME_ROOT is missing; run inside the repo or set LOCAL_RUNTIME_PYTHON."
+                    .into(),
+            )
+        }));
+    }
+
+    if let Some(runtime) = embedded_runtime.clone() {
+        return Ok(make_embedded_python_config(&runtime));
+    }
+
+    if sidecar_available {
+        return Ok(make_sidecar_config());
+    }
+
+    if let Some((python_path, gateway_root)) = repo_python.clone() {
+        return Ok(make_python_config(&python_path, &gateway_root, None));
+    }
+
+    Err(repo_python_err.take().unwrap_or_else(|| {
+        GatewayError::Config(
+            "Unable to locate a usable gateway runtime. Reinstall the Local Runtime resources."
+                .into(),
+        )
+    }))
+}
+
+fn resolve_repo_python(app: &tauri::AppHandle) -> Result<(String, PathBuf), GatewayError> {
+    let python_path =
+        std::env::var("LOCAL_RUNTIME_PYTHON").unwrap_or_else(|_| default_python_binary());
+    let gateway_root = resolve_gateway_root(app)?;
+    Ok((python_path, gateway_root))
+}
+
+#[derive(Clone)]
+struct EmbeddedPythonRuntime {
+    python_path: PathBuf,
+    pylibs_path: PathBuf,
+    bin_path: Option<PathBuf>,
+}
+
+fn resolve_embedded_python_runtime(app: &tauri::AppHandle) -> Option<EmbeddedPythonRuntime> {
+    for root in embedded_runtime_candidates(app) {
+        if let Some(runtime) = EmbeddedPythonRuntime::from_root(&root) {
+            return Some(runtime);
         }
     }
+    None
+}
+
+fn embedded_runtime_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(explicit) = std::env::var("LOCAL_RUNTIME_EMBEDDED_ROOT") {
+        candidates.push(PathBuf::from(explicit));
+    }
+    if let Ok(resource_dir) = app.path().resource_dir() {
+        candidates.push(resource_dir.join("local-runtime-python"));
+    }
+    if let Ok(current_exe) = std::env::current_exe() {
+        if let Some(dir) = current_exe.parent() {
+            candidates.push(dir.join("local-runtime-python"));
+            if let Some(parent) = dir.parent() {
+                candidates.push(parent.join("local-runtime-python"));
+                candidates.push(parent.join("Resources").join("local-runtime-python"));
+            }
+        }
+    }
+    if let Ok(current_dir) = std::env::current_dir() {
+        for ancestor in current_dir.ancestors() {
+            candidates.push(
+                ancestor
+                    .join("services")
+                    .join("local-runtime-suite")
+                    .join("desktop")
+                    .join("src-tauri")
+                    .join("local-runtime-python"),
+            );
+        }
+    }
+    candidates
+}
+
+impl EmbeddedPythonRuntime {
+    fn from_root(root: &Path) -> Option<Self> {
+        if !root.exists() {
+            return None;
+        }
+        let pylibs = root.join("pylibs");
+        if !pylibs.exists() {
+            return None;
+        }
+        let bin_path = {
+            let candidate = root.join("bin");
+            if candidate.exists() {
+                Some(candidate)
+            } else {
+                None
+            }
+        };
+        for candidate in python_binary_candidates(root) {
+            if candidate.exists() {
+                return Some(Self {
+                    python_path: candidate,
+                    pylibs_path: pylibs.clone(),
+                    bin_path: bin_path.clone(),
+                });
+            }
+        }
+        None
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn python_binary_candidates(root: &Path) -> Vec<PathBuf> {
+    vec![
+        root.join("python").join("python.exe"),
+        root.join("python.exe"),
+    ]
+}
+
+#[cfg(not(target_os = "windows"))]
+fn python_binary_candidates(root: &Path) -> Vec<PathBuf> {
+    let bin = root.join("python").join("bin");
+    vec![
+        bin.join("python3"),
+        bin.join("python"),
+        bin.join("python3.12"),
+        bin.join("python3.11"),
+    ]
 }
 
 fn resolve_gateway_root(app: &tauri::AppHandle) -> Result<PathBuf, GatewayError> {
@@ -609,7 +901,8 @@ fn resolve_gateway_root(app: &tauri::AppHandle) -> Result<PathBuf, GatewayError>
     }
 
     if cfg!(debug_assertions) {
-        let current_dir = std::env::current_dir().map_err(|err| GatewayError::Io(err.to_string()))?;
+        let current_dir =
+            std::env::current_dir().map_err(|err| GatewayError::Io(err.to_string()))?;
         if let Some(root) = find_gateway_root(&current_dir) {
             if root.join("local_runtime").exists() {
                 return Ok(root);
@@ -664,14 +957,33 @@ fn build_pythonpath(gateway_root: &Path) -> Result<String, GatewayError> {
     Ok(joined.to_string_lossy().to_string())
 }
 
-fn apply_python_env(command: &mut Command, config: &GatewayLaunchConfig) -> Result<(), GatewayError> {
-    let gateway_root = config.gateway_root.as_ref().ok_or_else(|| {
-        GatewayError::Config("Missing gateway root for python launch".into())
-    })?;
+fn apply_python_env(
+    command: &mut Command,
+    config: &GatewayLaunchConfig,
+) -> Result<(), GatewayError> {
+    let gateway_root = config
+        .gateway_root
+        .as_ref()
+        .ok_or_else(|| GatewayError::Config("Missing gateway root for python launch".into()))?;
     let pythonpath = build_pythonpath(gateway_root)?;
     command.env("PYTHONPATH", pythonpath);
     command.env("PYTHONNOUSERSITE", "1");
-    if cfg!(debug_assertions) {
+    if let Some(bin_dir) = config.runtime_bin.as_ref() {
+        if bin_dir.exists() {
+            let mut combined = OsString::new();
+            combined.push(bin_dir);
+            if let Some(existing) = std::env::var_os("PATH") {
+                if cfg!(windows) {
+                    combined.push(";");
+                } else {
+                    combined.push(":");
+                }
+                combined.push(existing);
+            }
+            command.env("PATH", combined);
+        }
+    }
+    if cfg!(debug_assertions) && config.runtime_bin.is_none() {
         command.env("LOCAL_RUNTIME_RELOAD", "1");
     }
     Ok(())
@@ -687,12 +999,14 @@ fn describe_gateway_error(error: &GatewayError) -> (String, Option<String>) {
 }
 
 fn run_python_import_check(config: &GatewayLaunchConfig) -> Result<String, GatewayError> {
-    let python_path = config.python_path.as_ref().ok_or_else(|| {
-        GatewayError::Config("Missing python path for python launch".into())
-    })?;
-    let gateway_root = config.gateway_root.as_ref().ok_or_else(|| {
-        GatewayError::Config("Missing gateway root for python launch".into())
-    })?;
+    let python_path = config
+        .python_path
+        .as_ref()
+        .ok_or_else(|| GatewayError::Config("Missing python path for python launch".into()))?;
+    let gateway_root = config
+        .gateway_root
+        .as_ref()
+        .ok_or_else(|| GatewayError::Config("Missing gateway root for python launch".into()))?;
     let mut command = Command::new(python_path);
     command
         .arg("-c")
@@ -754,10 +1068,19 @@ impl GatewayManager {
         if guard.child.is_some() {
             return Ok(StatusResponse {
                 status: "running".into(),
+                managed: true,
             });
         }
+        drop(guard);
 
         let config = build_launch_config(app)?;
+        self.push_log(format!(
+            "launcher: start requested via {:?} (port {} build {} config {})",
+            config.mode,
+            config.port,
+            config.build_version,
+            config.config_path.display()
+        ));
         let port_in_use = TcpListener::bind(("127.0.0.1", config.port)).is_err();
         if port_in_use {
             match http_get_localhost(config.port, "/health") {
@@ -768,6 +1091,7 @@ impl GatewayManager {
                     ));
                     return Ok(StatusResponse {
                         status: "running".into(),
+                        managed: false,
                     });
                 }
                 Err(error) => {
@@ -801,26 +1125,39 @@ impl GatewayManager {
                 apply_python_env(&mut command, &config)?;
                 command.env("LOCAL_RUNTIME_VERSION", &config.build_version);
 
-                let mut child = command
-                    .spawn()
-                    .map_err(|err| GatewayError::SpawnFailed(GatewayErrorDetails {
-                        message: err.to_string(),
-                        launcher: python_path.to_string(),
-                        gateway_root: Some(gateway_root.to_string_lossy().to_string()),
-                        config_path: config.config_path.to_string_lossy().to_string(),
-                        args: config.args.clone(),
-                        hint: Some(
-                            "local_runtime not found; check resources or set LOCAL_RUNTIME_ROOT."
-                                .to_string(),
-                        ),
-                    }))?;
+                self.push_log(format!(
+                    "launcher: spawning python gateway via {}",
+                    python_path
+                ));
+                let spawn_result = command.spawn();
+                let mut child = match spawn_result {
+                    Ok(child) => child,
+                    Err(err) => {
+                        self.push_notice(format!("launcher: python spawn failed: {err}"));
+                        let details = GatewayErrorDetails {
+                            message: err.to_string(),
+                            launcher: python_path.to_string(),
+                            gateway_root: Some(gateway_root.to_string_lossy().to_string()),
+                            config_path: config.config_path.to_string_lossy().to_string(),
+                            args: config.args.clone(),
+                            hint: Some(
+                                "local_runtime not found; check resources or set LOCAL_RUNTIME_ROOT."
+                                    .to_string(),
+                            ),
+                        };
+                        self.record_spawn_failure(&config, &details, "python_spawn");
+                        return Err(GatewayError::SpawnFailed(details));
+                    }
+                };
+                let child_pid = child.id();
 
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
+                let mut guard = self.inner.lock().expect("state lock");
                 guard.child = Some(GatewayChild::Python(child));
                 drop(guard);
 
-                self.push_log("Gateway started (python)");
+                self.push_log(format!("launcher: python gateway pid {}", child_pid));
 
                 if let Some(stream) = stdout {
                     let manager = self.clone();
@@ -848,24 +1185,33 @@ impl GatewayManager {
                 let command = resolve_sidecar_command(app)?
                     .args(&config.args)
                     .env("LOCAL_RUNTIME_VERSION", &config.build_version);
-                let (mut rx, child) = command.spawn().map_err(|err| {
-                    GatewayError::SpawnFailed(GatewayErrorDetails {
-                        message: err.to_string(),
-                        launcher: "sidecar:local-runtime-gateway".into(),
-                        gateway_root: None,
-                        config_path: config.config_path.to_string_lossy().to_string(),
-                        args: config.args.clone(),
-                        hint: Some(
-                            "Sidecar not resolvable. Ensure tauri.sidecar.conf.json is used (see `npm run tauri:dev`) or run `npm run sidecar:build`."
-                                .to_string(),
-                        ),
-                    })
-                })?;
+                self.push_log("launcher: spawning gateway sidecar");
+                let spawn_result = command.spawn();
+                let (mut rx, child) = match spawn_result {
+                    Ok(value) => value,
+                    Err(err) => {
+                        self.push_notice(format!("launcher: sidecar spawn failed: {err}"));
+                        let details = GatewayErrorDetails {
+                            message: err.to_string(),
+                            launcher: "sidecar:local-runtime-gateway".into(),
+                            gateway_root: None,
+                            config_path: config.config_path.to_string_lossy().to_string(),
+                            args: config.args.clone(),
+                            hint: Some(
+                                "Sidecar not resolvable. Ensure tauri.sidecar.conf.json is used (see `npm run tauri:dev`) or run `npm run sidecar:build`."
+                                    .to_string(),
+                            ),
+                        };
+                        self.record_spawn_failure(&config, &details, "sidecar_spawn");
+                        return Err(GatewayError::SpawnFailed(details));
+                    }
+                };
 
+                let mut guard = self.inner.lock().expect("state lock");
                 guard.child = Some(GatewayChild::Sidecar(child));
                 drop(guard);
 
-                self.push_log("Gateway started (sidecar)");
+                self.push_log("launcher: sidecar gateway spawned");
 
                 let manager = self.clone();
                 tauri::async_runtime::spawn(async move {
@@ -896,6 +1242,7 @@ impl GatewayManager {
 
         Ok(StatusResponse {
             status: "running".into(),
+            managed: true,
         })
     }
 }
@@ -1000,6 +1347,12 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .manage(GatewayManager::new())
+        .setup(|app| {
+            if let Some(manager) = app.try_state::<GatewayManager>() {
+                manager.initialize(&app.handle());
+            }
+            Ok(())
+        })
         .on_window_event(|window, event| {
             if matches!(
                 event,

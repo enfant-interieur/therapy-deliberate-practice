@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invokeLauncher } from "../lib/tauri";
 
 export type GatewayBootPhase = "idle" | "booting" | "polling" | "ready" | "error" | "cancelled";
 
@@ -145,7 +145,7 @@ export function useGatewayBoot(options: UseGatewayBootOptions) {
     dispatch({ type: "REQUEST_START", runId, startedAtMs: Date.now() });
 
     try {
-      await invoke("start_gateway");
+      await invokeLauncher("start_gateway");
       dispatch({ type: "SPAWN_OK" });
     } catch (error) {
       dispatch({ type: "FAIL", error: `Failed to start gateway: ${formatErrorMessage(error)}` });
@@ -156,7 +156,7 @@ export function useGatewayBoot(options: UseGatewayBootOptions) {
     cancelRef.current = true;
     dispatch({ type: "CANCELLED" });
     try {
-      await invoke("stop_gateway");
+      await invokeLauncher("stop_gateway");
     } catch {
       // ignore stop errors; UI already reflects cancellation
     }

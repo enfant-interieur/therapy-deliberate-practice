@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import time
 import uuid
@@ -23,7 +24,15 @@ from local_runtime.core.config import RuntimeConfig
 from local_runtime.core.doctor import run_doctor
 from local_runtime.core.errors import ModelNotFoundError
 from local_runtime.core.loader import LoadedModel, load_models
-from local_runtime.core.logging import configure_logging, get_recent_logs, pop_log_context, push_log_context
+from local_runtime.core.logging import (
+    configure_logging,
+    get_log_dir,
+    get_recent_logs,
+    pop_log_context,
+    push_log_context,
+    shutdown_logging,
+    write_diagnostic_report,
+)
 from local_runtime.core.readiness import ReadinessTracker
 from local_runtime.core.load_manager import ModelLoadManager
 from local_runtime.core.registry import ModelRegistry
@@ -49,6 +58,40 @@ if RUNTIME_BIN.exists():
     os.environ.setdefault("FFMPEG_BINARY", str(ffmpeg_binary))
 
 LOGGER = configure_logging()
+
+
+def _parse_log_level(value: str | None) -> int | None:
+    if not value:
+        return None
+    raw = value.strip()
+    if not raw:
+        return None
+    if raw.isdigit():
+        try:
+            return int(raw)
+        except ValueError:
+            return None
+    name = raw.upper()
+    if name == "WARN":
+        name = "WARNING"
+    level = getattr(logging, name, None)
+    return level if isinstance(level, int) else None
+
+
+def _resolve_log_level(cli_override: str | None = None) -> int:
+    for candidate in (cli_override, os.getenv("LOCAL_RUNTIME_LOG_LEVEL")):
+        level = _parse_log_level(candidate)
+        if level is not None:
+            return level
+    return logging.INFO
+
+
+def _apply_log_level(level: int) -> None:
+    root = logging.getLogger()
+    root.setLevel(level)
+    for handler in root.handlers:
+        handler.setLevel(level)
+
 HOME_HTML = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -538,12 +581,22 @@ async def lifespan(app: FastAPI):
         config = RuntimeConfig.load()
         config.ensure_dirs()
         app.state.config = config
+        logger.info(
+            "startup.config",
+            extra={
+                "port": config.port,
+                "prefer_local": config.prefer_local,
+                "data_dir": config.data_dir,
+                "cache_dir": config.cache_dir,
+            },
+        )
         platform_id = detect_platform()
         app.state.platform_id = platform_id
         readiness.platform_id = platform_id
         logger.info("startup.platform", extra={"platform_id": platform_id})
 
         models = load_models()
+        logger.info("startup.models.discovered", extra={"count": len(models)})
         readiness.mark_phase("discover_models", "ok", detail=f"models={len(models)}")
         warmup_enabled = _env_flag("LOCAL_RUNTIME_WARMUP_ON_START", False)
         logger.info("startup.warmup_config", extra={"enabled": warmup_enabled})
@@ -578,6 +631,7 @@ async def lifespan(app: FastAPI):
         config.default_models = defaults
         registry.set_defaults(defaults)
         readiness.defaults = defaults
+        logger.info("startup.defaults", extra={"defaults": defaults})
         readiness.mark_phase("select_defaults", "ok", detail=str(defaults))
 
         app.state.http_client = httpx.AsyncClient(timeout=30)
@@ -595,6 +649,7 @@ async def lifespan(app: FastAPI):
         else:
             targets = list(dict.fromkeys(defaults.values()))
         if targets:
+            logger.info("startup.preload.targets", extra={"targets": targets})
             job = load_manager.create_job(targets)
             await load_manager.wait_for_job(job.id)
             readiness.loaded_models = sorted(registry.model_instances.keys())
@@ -617,8 +672,20 @@ async def lifespan(app: FastAPI):
             readiness.self_test.started_at = readiness.self_test.finished_at = time.time()
         readiness.mark_ready()
         yield
-    except Exception:
+    except Exception as exc:
         readiness.mark_error("startup_failure")
+        state_config = getattr(app.state, "config", None)
+        report = {
+            "error": str(exc),
+            "defaults": getattr(state_config, "default_models", None),
+            "platform_id": getattr(app.state, "platform_id", None),
+            "loaded_models": getattr(readiness, "loaded_models", None),
+        }
+        report_path = write_diagnostic_report("gateway-startup-failure", report)
+        logger.exception(
+            "startup.failure",
+            extra={"report_path": str(report_path), "error": str(exc)},
+        )
         raise
     finally:
         registry: ModelRegistry | None = getattr(app.state, "registry", None)
@@ -627,6 +694,7 @@ async def lifespan(app: FastAPI):
         http_client: httpx.AsyncClient | None = getattr(app.state, "http_client", None)
         if http_client:
             await http_client.aclose()
+        shutdown_logging()
 
 
 app = FastAPI(title="Local Runtime Gateway", version="0.2.0", lifespan=lifespan)
@@ -638,7 +706,11 @@ def _parse_csv(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-DEFAULT_ALLOWED_ORIGINS = ["https://therapy-deliberate-practice.com"]
+DEFAULT_ALLOWED_ORIGINS = [
+    "https://therapy-deliberate-practice.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 
 def _resolve_cors_settings() -> tuple[list[str], str | None]:
@@ -954,10 +1026,33 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Local runtime gateway")
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--config", type=str, default=None)
+    parser.add_argument(
+        "--log-level",
+        type=str,
+        default=None,
+        help="Logging level (DEBUG, INFO, WARNING, ERROR). Overrides LOCAL_RUNTIME_LOG_LEVEL.",
+    )
     args = parser.parse_args()
+
+    log_level = _resolve_log_level(args.log_level)
+    _apply_log_level(log_level)
+    log_level_name = logging.getLevelName(log_level)
+    if not isinstance(log_level_name, str):
+        log_level_name = "info"
+    else:
+        log_level_name = log_level_name.lower()
+    LOGGER.info("startup.log_level", extra={"level": log_level_name})
+    LOGGER.info("startup.log_dir", extra={"path": str(get_log_dir())})
 
     config_path = Path(args.config) if args.config else None
     config = RuntimeConfig.load(config_path)
+    LOGGER.info(
+        "startup.config_source",
+        extra={
+            "config_arg": str(config_path) if config_path else None,
+            "env_config": os.getenv("LOCAL_RUNTIME_CONFIG"),
+        },
+    )
     if args.port is not None:
         config.port = args.port
     uvicorn.run(
@@ -965,6 +1060,7 @@ def main() -> None:
         host="127.0.0.1",
         port=config.port,
         reload=_env_flag("LOCAL_RUNTIME_RELOAD", False),
+        log_level=log_level_name,
     )
 
 

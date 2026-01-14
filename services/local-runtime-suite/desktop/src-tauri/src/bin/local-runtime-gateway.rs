@@ -95,7 +95,10 @@ fn main() -> ExitCode {
 
     let pylibs = runtime_root.join("pylibs");
     if !pylibs.exists() {
-        eprintln!("local-runtime-gateway: pylibs not found: {}", pylibs.display());
+        eprintln!(
+            "local-runtime-gateway: pylibs not found: {}",
+            pylibs.display()
+        );
         return ExitCode::from(4);
     }
 

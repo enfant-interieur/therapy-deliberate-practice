@@ -2564,6 +2564,9 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const transcriptOverride = input.transcript_text?.trim() ?? "";
     const usesProvidedTranscript = transcriptOverride.length > 0;
     const usesAudioInput = Boolean(input.audio);
+    const clientTranscript = input.client_transcript;
+    const usesClientTranscript = Boolean(clientTranscript?.text?.trim());
+    const clientEvaluation = input.client_evaluation;
     if (usesProvidedTranscript && !usesAudioInput && !input.attempt_id) {
       return {
         status: 400,
@@ -2762,7 +2765,16 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     let transcript: { text: string };
     let sttDuration: number | undefined;
     let sttMeta: { kind: "local" | "openai"; model: string };
-    if (usesProvidedTranscript) {
+    if (usesClientTranscript) {
+      transcript = { text: clientTranscript!.text };
+      sttMeta = clientTranscript!.provider;
+      sttDuration = clientTranscript!.duration_ms;
+      timings.stt = sttDuration;
+      logEvent("info", "stt.transcribe.skipped", {
+        reason: "client_transcript",
+        transcript_length: transcript.text?.length ?? 0
+      });
+    } else if (usesProvidedTranscript) {
       transcript = { text: transcriptOverride };
       sttMeta = existingModelInfo?.provider?.stt?.kind
         ? {
@@ -2829,12 +2841,36 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
     const attemptId = input.attempt_id ?? nanoid();
     const skipScoring = Boolean(input.skip_scoring);
-    let llmProvider;
-    if (!skipScoring) {
+    const existingLlmMeta =
+      existingModelInfo?.provider?.llm?.kind && existingModelInfo.provider.llm.model
+        ? {
+            kind: existingModelInfo.provider.llm.kind as "local" | "openai",
+            model: existingModelInfo.provider.llm.model
+          }
+        : existingModelInfo?.provider?.llm?.kind
+          ? {
+              kind: existingModelInfo.provider.llm.kind as "local" | "openai",
+              model: "unknown"
+            }
+          : null;
+    let llmProvider: LlmProvider | null = null;
+    let llmMeta: { kind: "local" | "openai"; model: string } | null = existingLlmMeta;
+    if (clientEvaluation) {
+      evaluation = clientEvaluation.evaluation;
+      llmMeta = clientEvaluation.provider;
+      llmDuration = clientEvaluation.duration_ms;
+      timings.llm = llmDuration;
+      logEvent("info", "llm.evaluate.client", {
+        attemptId,
+        provider: clientEvaluation.provider,
+        duration_ms: llmDuration
+      });
+    } else if (!skipScoring) {
       logEvent("info", "llm.select.start", { mode: config.mode });
       try {
         const llmSelection = await selectLlmProvider(config, logEvent);
         llmProvider = llmSelection.provider;
+        llmMeta = { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" };
         logEvent("info", "llm.select.ok", {
           selected: { kind: llmProvider.kind, model: llmProvider.model },
           health: llmSelection.health
@@ -2917,9 +2953,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         const modelInfo = {
           provider: {
             stt: sttMeta,
-            llm: llmProvider
-              ? { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" }
-              : existingModelInfo?.provider?.llm ?? null
+            llm: llmMeta ?? existingModelInfo?.provider?.llm ?? null
           },
           timing_ms: {
             stt: sttTiming,
@@ -3041,9 +3075,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       scoring: scoringResult
         ? {
             evaluation: scoringResult,
-            provider: llmProvider
-              ? { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" }
-              : { kind: "openai", model: "unknown" },
+            provider: llmMeta ?? { kind: "openai", model: "unknown" },
             duration_ms: llmDuration ?? 0
           }
         : undefined,
@@ -3053,9 +3085,7 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
             timings,
             selectedProviders: {
               stt: sttMeta,
-              llm: llmProvider
-                ? { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" }
-                : null
+              llm: llmMeta
             }
           }
         : undefined

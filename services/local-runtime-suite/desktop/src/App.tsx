@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GatewayLaunchButton } from "./components/GatewayLaunchButton";
 import { useGatewayBoot } from "./hooks/useGatewayBoot";
 import type { GatewayBootState } from "./hooks/useGatewayBoot";
+import { invokeLauncher } from "./lib/tauri";
 
 type ModelSummary = {
   id: string;
@@ -127,6 +127,7 @@ const formatErrorMessage = (error: unknown) => {
 
 export const App = () => {
   const [status, setStatus] = useState("stopped");
+  const [gatewayManaged, setGatewayManaged] = useState(false);
   const [models, setModels] = useState<ModelSummary[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [doctorChecks, setDoctorChecks] = useState<DoctorCheck[]>([]);
@@ -191,28 +192,37 @@ export const App = () => {
 
   const refreshStatus = useCallback(async () => {
     let nextStatus: "running" | "stopped" = "stopped";
+    let nextManaged = false;
     try {
-      const result = await invoke<{ status: string }>("gateway_status");
+      const result = await invokeLauncher<{ status: string; managed: boolean }>("gateway_status");
       nextStatus = result.status === "running" ? "running" : "stopped";
+      nextManaged = Boolean(result.managed);
       if (nextStatus === "running") {
         setStatus("running");
+        setGatewayManaged(nextManaged);
         return;
       }
     } catch (error) {
       console.warn("Failed to read gateway status from launcher:", error);
     }
     const healthy = await checkGatewayHealth();
-    setStatus(healthy ? "running" : nextStatus);
+    if (healthy) {
+      setStatus("running");
+      setGatewayManaged(false);
+    } else {
+      setStatus(nextStatus);
+      setGatewayManaged(nextManaged);
+    }
   }, [checkGatewayHealth]);
 
   const refreshModels = useCallback(async () => {
     logEvent("Refreshing model catalog from gateway.");
-    const result = await invoke<{ data: ModelSummary[] }>("gateway_models");
+    const result = await invokeLauncher<{ data: ModelSummary[] }>("gateway_models");
     setModels(result.data ?? []);
   }, [logEvent]);
 
   const refreshLogs = useCallback(async () => {
-    const result = await invoke<{ logs: string[] }>("gateway_logs");
+    const result = await invokeLauncher<{ logs: string[] }>("gateway_logs");
     setLogs((prev) => {
       const gatewayLogs = result.logs ?? [];
       const localLogs = prev.filter((line) => line.startsWith("[UI "));
@@ -221,14 +231,14 @@ export const App = () => {
   }, []);
 
   const refreshConnectionInfo = useCallback(async () => {
-    const result = await invoke<GatewayConnectionInfo>("gateway_connection_info");
+    const result = await invokeLauncher<GatewayConnectionInfo>("gateway_connection_info");
     setConnectionInfo(result);
     setPort(result.port);
     setPortInput(String(result.port));
   }, []);
 
   const refreshConfig = useCallback(async () => {
-    const result = await invoke<GatewayConfig>("gateway_config");
+    const result = await invokeLauncher<GatewayConfig>("gateway_config");
     setPort(result.port);
     setPortInput(String(result.port));
     setPreferLocal(result.prefer_local);
@@ -242,7 +252,7 @@ export const App = () => {
     setSaveState("saving");
     try {
       logEvent("Saving preferences to gateway config.");
-      await invoke("save_gateway_config", {
+      await invokeLauncher("save_gateway_config", {
         payload: {
           port,
           default_models: {
@@ -268,7 +278,7 @@ export const App = () => {
     setPortSaveState("saving");
     try {
       logEvent(`Saving gateway port to ${parsed}.`);
-      await invoke("save_gateway_config", {
+      await invokeLauncher("save_gateway_config", {
         payload: {
           port: parsed,
           default_models: {
@@ -291,7 +301,7 @@ export const App = () => {
 
   const runDoctor = useCallback(async () => {
     logEvent("Running preflight doctor checks.");
-    const result = await invoke<{ checks: DoctorCheck[] }>("gateway_doctor");
+    const result = await invokeLauncher<{ checks: DoctorCheck[] }>("gateway_doctor");
     setDoctorChecks(result.checks ?? []);
     await refreshLogs();
   }, [logEvent, refreshLogs]);
@@ -300,7 +310,7 @@ export const App = () => {
     setStartError(null);
     try {
       logEvent("Starting local gateway.");
-      await invoke("start_gateway");
+      await invokeLauncher("start_gateway");
       await refreshStatus();
       await refreshLogs();
     } catch (error) {
@@ -452,11 +462,17 @@ export const App = () => {
 
   const stopGateway = useCallback(
     async (options?: { silent?: boolean }) => {
+      if (!gatewayManaged) {
+        if (!options?.silent) {
+          logEvent("Gateway is running outside the launcher. Stop it manually.");
+        }
+        return;
+      }
       if (!options?.silent) {
         logEvent("Stopping local gateway.");
       }
       try {
-        await invoke("stop_gateway");
+        await invokeLauncher("stop_gateway");
         boot.reset();
         await refreshStatus();
         await refreshLogs();
@@ -469,14 +485,18 @@ export const App = () => {
         }
       }
     },
-    [boot.reset, logEvent, refreshLogs, refreshStatus]
+    [boot.reset, gatewayManaged, logEvent, refreshLogs, refreshStatus]
   );
 
   const restartGateway = useCallback(async () => {
+    if (!gatewayManaged) {
+      logEvent("Gateway is running outside the launcher. Stop it manually before restarting.");
+      return;
+    }
     logEvent("Restarting local gateway.");
     await stopGateway({ silent: true });
     await startGateway();
-  }, [logEvent, startGateway, stopGateway]);
+  }, [gatewayManaged, logEvent, startGateway, stopGateway]);
 
   useEffect(() => {
     if (boot.state.phase === "error" && boot.state.error && bootLogRef.current.errorRunId !== boot.state.runId) {
@@ -561,6 +581,12 @@ export const App = () => {
   const heroProgress = gatewayReady ? 1 : boot.derived.progress;
   const heroElapsedMs = gatewayReady ? boot.derived.maxWaitMs : boot.derived.elapsedMs;
   const isGatewayRunning = status === "running";
+  const canStopGateway = isGatewayRunning && gatewayManaged;
+  const stopDisabledReason = !isGatewayRunning
+    ? "Gateway is not running."
+    : !gatewayManaged
+      ? "Gateway was started outside the launcher. Stop it manually."
+      : undefined;
   const portValue = Number(portInput);
   const portValid = Number.isInteger(portValue) && portValue >= 1024 && portValue <= 65535;
   const portDirty = portValue !== port;
@@ -674,8 +700,8 @@ export const App = () => {
             <button
               className="btn danger"
               onClick={() => stopGateway()}
-              disabled={!isGatewayRunning}
-              title={!isGatewayRunning ? "Gateway is not running." : undefined}
+              disabled={!canStopGateway}
+              title={stopDisabledReason}
             >
               Stop gateway
             </button>
@@ -933,8 +959,9 @@ export const App = () => {
               <div className="warning-banner">
                 <div>
                   Port changed. Restart the gateway to apply the new port.
+                  {!gatewayManaged ? " Stop the external process manually, then relaunch here." : ""}
                 </div>
-                <button className="btn" onClick={restartGateway}>
+                <button className="btn" onClick={restartGateway} disabled={!canStopGateway} title={stopDisabledReason}>
                   Restart gateway
                 </button>
               </div>
@@ -993,7 +1020,7 @@ export const App = () => {
                 <button className="btn primary" onClick={startGateway} disabled={!canStartGateway}>
                   Start gateway
                 </button>
-                <button className="btn" onClick={() => stopGateway()} disabled={!isGatewayRunning}>
+                <button className="btn" onClick={() => stopGateway()} disabled={!canStopGateway} title={stopDisabledReason}>
                   Stop gateway
                 </button>
                 <button className="btn" onClick={runDoctor}>

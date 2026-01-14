@@ -118,6 +118,8 @@ export type PracticeRunInput = {
   audio?: string;
   audio_mime?: string;
   transcript_text?: string;
+  client_transcript?: PracticeRunTranscript;
+  client_evaluation?: PracticeRunScoring;
   skip_scoring?: boolean;
   mode?: "local_prefer" | "openai_only" | "local_only";
   practice_mode?: "standard" | "real_time";
