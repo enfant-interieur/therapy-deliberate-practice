@@ -706,16 +706,24 @@ def _parse_csv(value: str | None) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
-DEFAULT_ALLOWED_ORIGINS = [
-    "https://therapy-deliberate-practice.com",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+DEFAULT_ALLOWED_ORIGINS = ["*"]
+SAFE_ENV_SNAPSHOT_KEYS = [
+    "LOCAL_RUNTIME_ALLOW_ORIGINS",
+    "LOCAL_RUNTIME_ROOT",
+    "LOCAL_RUNTIME_VERSION",
+    "LOCAL_RUNTIME_PYTHON",
+    "LOCAL_RUNTIME_PRELOAD_ALL",
+    "LOCAL_RUNTIME_SELFTEST",
+    "LOCAL_RUNTIME_SELFTEST_STRICT",
+    "LOCAL_RUNTIME_STT_MODEL",
+    "LOCAL_RUNTIME_LL_MODEL",
+    "LOCAL_RUNTIME_LLAMA_ACCEL",
 ]
 
 
 def _resolve_cors_settings() -> tuple[list[str], str | None]:
     """
-    Allow localhost/127.0.0.1 origins by default while enabling overrides via env.
+    Allow all origins by default while enabling overrides via env.
     LOCAL_RUNTIME_ALLOW_ORIGINS="https://app.example.com,https://studio.example.com"
     """
     raw = os.getenv("LOCAL_RUNTIME_ALLOW_ORIGINS")
@@ -723,9 +731,16 @@ def _resolve_cors_settings() -> tuple[list[str], str | None]:
         origins = _parse_csv(raw)
         if "*" in origins:
             return ["*"], None
-        return origins, None
-    # Default: explicitly allow the Therapy web app plus any localhost / 127.0.0.1 origin + port.
-    return DEFAULT_ALLOWED_ORIGINS, r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+        return origins or DEFAULT_ALLOWED_ORIGINS, None
+    return DEFAULT_ALLOWED_ORIGINS, None
+
+
+def _capture_env_snapshot() -> dict[str, str]:
+    snapshot: dict[str, str] = {}
+    for key in SAFE_ENV_SNAPSHOT_KEYS:
+        value = os.getenv(key)
+        snapshot[key] = value if value is not None else "<unset>"
+    return snapshot
 
 
 cors_origins, cors_regex = _resolve_cors_settings()
@@ -1053,6 +1068,15 @@ def main() -> None:
             "env_config": os.getenv("LOCAL_RUNTIME_CONFIG"),
         },
     )
+    LOGGER.info(
+        "startup.config",
+        extra={
+            "port": config.port,
+            "prefer_local": config.prefer_local,
+            "default_models": config.default_models,
+        },
+    )
+    LOGGER.info("startup.environment", extra={"env": _capture_env_snapshot()})
     if args.port is not None:
         config.port = args.port
     uvicorn.run(

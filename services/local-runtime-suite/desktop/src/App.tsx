@@ -57,6 +57,28 @@ type GatewayConfig = {
   prefer_local: boolean;
 };
 
+type GatewayReadinessPayload = {
+  status?: string;
+  startup_checks?: { name?: string; status?: string; detail?: string; duration_ms?: number | null }[];
+  self_test?: { status?: string; started_at?: number | null; finished_at?: number | null };
+  loaded_models?: string[];
+  last_error?: string | null;
+  defaults?: Record<string, string>;
+};
+
+type LauncherStatusPayload = {
+  status: string;
+  managed: boolean;
+  ready?: boolean;
+  readiness?: GatewayReadinessPayload | null;
+};
+
+type HealthProbeResult = {
+  reachable: boolean;
+  ready: boolean;
+  payload: GatewayReadinessPayload | null;
+};
+
 const initialQuickTestsState: QuickTestsState = {
   status: "idle",
   llm: { status: "idle" },
@@ -139,6 +161,8 @@ export const App = () => {
   const [portInput, setPortInput] = useState("8484");
   const [portSaveState, setPortSaveState] = useState<SaveState>("idle");
   const [connectionInfo, setConnectionInfo] = useState<GatewayConnectionInfo | null>(null);
+  const [readiness, setReadiness] = useState<GatewayReadinessPayload | null>(null);
+  const [readyFlag, setReadyFlag] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [simpleSteps, setSimpleSteps] = useState({
     copiedUrl: false,
@@ -164,7 +188,7 @@ export const App = () => {
     setLogs((prev) => [...prev, `[UI ${timestamp}] ${message}`]);
   }, []);
 
-  const checkGatewayHealth = useCallback(async () => {
+  const checkGatewayHealth = useCallback(async (): Promise<HealthProbeResult> => {
     const controller = new AbortController();
     const timeoutId = window.setTimeout(() => controller.abort(), 1500);
     try {
@@ -173,45 +197,53 @@ export const App = () => {
         cache: "no-store",
         signal: controller.signal
       });
-      if (!response.ok) return false;
-      try {
-        const payload = (await response.json()) as { status?: unknown };
-        if (payload && typeof payload.status === "string") {
-          return payload.status.toLowerCase() === "ready";
+      let payload: GatewayReadinessPayload | null = null;
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        try {
+          payload = (await response.json()) as GatewayReadinessPayload;
+        } catch {
+          payload = null;
         }
-      } catch {
-        // Ignore parse failures; HTTP 200 alone is a good readiness signal.
       }
-      return true;
+      const readinessStatus = payload?.status?.toLowerCase() ?? null;
+      const ready = response.ok && readinessStatus === "ready";
+      return { reachable: response.ok, ready, payload };
     } catch {
-      return false;
+      return { reachable: false, ready: false, payload: null };
     } finally {
       window.clearTimeout(timeoutId);
     }
   }, [healthUrl]);
 
   const refreshStatus = useCallback(async () => {
-    let nextStatus: "running" | "stopped" = "stopped";
-    let nextManaged = false;
+    let shouldProbe = true;
     try {
-      const result = await invokeLauncher<{ status: string; managed: boolean }>("gateway_status");
-      nextStatus = result.status === "running" ? "running" : "stopped";
-      nextManaged = Boolean(result.managed);
-      if (nextStatus === "running") {
-        setStatus("running");
-        setGatewayManaged(nextManaged);
+      const result = await invokeLauncher<LauncherStatusPayload>("gateway_status");
+      const normalizedStatus = result.status === "running" ? "running" : "stopped";
+      setStatus(normalizedStatus);
+      setGatewayManaged(Boolean(result.managed));
+      setReadyFlag(Boolean(result.ready));
+      setReadiness(result.readiness ?? null);
+      shouldProbe = normalizedStatus !== "running";
+      if (!shouldProbe) {
         return;
       }
     } catch (error) {
       console.warn("Failed to read gateway status from launcher:", error);
     }
-    const healthy = await checkGatewayHealth();
-    if (healthy) {
+    if (!shouldProbe) return;
+    const health = await checkGatewayHealth();
+    if (health.reachable) {
       setStatus("running");
       setGatewayManaged(false);
+      setReadyFlag(health.ready);
+      setReadiness(health.payload);
     } else {
-      setStatus(nextStatus);
-      setGatewayManaged(nextManaged);
+      setStatus("stopped");
+      setGatewayManaged(false);
+      setReadyFlag(false);
+      setReadiness(null);
     }
   }, [checkGatewayHealth]);
 
@@ -518,11 +550,6 @@ export const App = () => {
   }, [refreshConfig, refreshConnectionInfo, refreshLogs, refreshStatus, runDoctor]);
 
   useEffect(() => {
-    if (status !== "running") return;
-    refreshModels();
-  }, [refreshModels, status]);
-
-  useEffect(() => {
     const interval = setInterval(() => {
       refreshLogs();
     }, 2000);
@@ -557,6 +584,22 @@ export const App = () => {
     return () => clearInterval(interval);
   }, [refreshStatus]);
 
+  const readinessStatus = readiness?.status ? readiness.status.toLowerCase() : null;
+  const readyFromStatus = readyFlag || readinessStatus === "ready";
+  const gatewayReady = readyFromStatus || boot.state.phase === "ready";
+  const heroBootState: GatewayBootState =
+    gatewayReady && boot.state.phase !== "ready" ? { ...boot.state, phase: "ready" as const } : boot.state;
+  const heroProgress = gatewayReady ? 1 : boot.derived.progress;
+  const heroElapsedMs = gatewayReady ? boot.derived.maxWaitMs : boot.derived.elapsedMs;
+  const isGatewayRunning = status === "running";
+  const heroStatus = gatewayReady ? "ready" : isGatewayRunning ? readinessStatus ?? "starting" : "stopped";
+  const heroStatusLabel = heroStatus.charAt(0).toUpperCase() + heroStatus.slice(1);
+
+  useEffect(() => {
+    if (!gatewayReady) return;
+    refreshModels();
+  }, [refreshModels, gatewayReady]);
+
   const llmOptions = models.filter((model) => model.metadata.api.endpoint === "responses");
   const sttOptions = models.filter((model) =>
     ["audio.transcriptions", "audio.translations"].includes(model.metadata.api.endpoint)
@@ -575,12 +618,6 @@ export const App = () => {
     logEvent(`Selected ${isMac ? "MLX" : "non-MLX"} defaults based on platform.`);
   }, [models, llmOptions, sttOptions, isMac, defaults.llm, defaults.stt, logEvent]);
 
-  const gatewayReady = status === "running" || boot.state.phase === "ready";
-  const heroBootState: GatewayBootState =
-    gatewayReady && boot.state.phase !== "ready" ? { ...boot.state, phase: "ready" as const } : boot.state;
-  const heroProgress = gatewayReady ? 1 : boot.derived.progress;
-  const heroElapsedMs = gatewayReady ? boot.derived.maxWaitMs : boot.derived.elapsedMs;
-  const isGatewayRunning = status === "running";
   const canStopGateway = isGatewayRunning && gatewayManaged;
   const stopDisabledReason = !isGatewayRunning
     ? "Gateway is not running."
@@ -594,7 +631,7 @@ export const App = () => {
     (check) => check.status === "error" && ["local_runtime import", "Python executable"].includes(check.title)
   );
   const canStartGateway = !doctorBlocking;
-  const canLoadModels = isGatewayRunning;
+  const canLoadModels = gatewayReady;
   const hasModels = models.length > 0;
   const canChooseDefaults = hasModels;
   const defaultsComplete = Boolean(defaults.llm && defaults.stt);
@@ -696,7 +733,7 @@ export const App = () => {
             </div>
           </div>
           <div className="hero-actions">
-            <span className="badge">Status: {status}</span>
+            <span className="badge">Status: {heroStatusLabel}</span>
             <button
               className="btn danger"
               onClick={() => stopGateway()}
@@ -871,7 +908,7 @@ export const App = () => {
               <button
                 className="btn"
                 onClick={runQuickTests}
-                disabled={quickTests.status === "running" || status !== "running"}
+                disabled={quickTests.status === "running" || !gatewayReady}
               >
                 {quickTests.status === "running" ? "Running tests..." : "Run LLM + STT Test"}
               </button>
@@ -998,8 +1035,8 @@ export const App = () => {
                   <div className="label">Step 1</div>
                   <div className="step-title">Start the gateway</div>
                 </div>
-                <span className={`badge ${isGatewayRunning ? "badge-success" : ""}`}>
-                  {isGatewayRunning ? "Gateway running" : "Gateway stopped"}
+                <span className={`badge ${gatewayReady ? "badge-success" : ""}`}>
+                  {gatewayReady ? "Gateway ready" : isGatewayRunning ? "Gateway starting" : "Gateway stopped"}
                 </span>
               </div>
               <p className="step-description">

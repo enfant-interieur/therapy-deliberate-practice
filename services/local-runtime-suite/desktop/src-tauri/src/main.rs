@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use serde::Serialize;
-use serde_json::json;
+use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
 use std::ffi::OsString;
 use std::fs::OpenOptions;
@@ -21,6 +21,7 @@ use tauri::{Manager, RunEvent, WindowEvent};
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 
 const MAX_LOG_LINES: usize = 500;
+const DEFAULT_GATEWAY_ALLOWED_ORIGINS: [&str; 1] = ["*"];
 
 #[derive(Clone)]
 struct LogSink {
@@ -163,6 +164,8 @@ struct GatewayEndpointExamples {
 struct StatusResponse {
     status: String,
     managed: bool,
+    ready: bool,
+    readiness: Option<Value>,
 }
 
 #[derive(Serialize)]
@@ -268,6 +271,8 @@ impl GatewayManager {
         Ok(StatusResponse {
             status: "stopped".into(),
             managed: false,
+            ready: false,
+            readiness: None,
         })
     }
 
@@ -279,31 +284,37 @@ impl GatewayManager {
         StatusResponse {
             status: status.into(),
             managed,
+            ready: false,
+            readiness: None,
         }
     }
 
     fn status_with_health(&self, port: u16) -> StatusResponse {
         let mut guard = self.inner.lock().expect("state lock");
         Self::refresh_child_state(&mut guard);
-        if guard.child.is_some() {
-            let managed = guard.child.is_some();
-            return StatusResponse {
-                status: "running".into(),
-                managed,
-            };
-        }
+        let managed = guard.child.is_some();
         drop(guard);
 
-        if http_get_localhost(port, "/health").is_ok() {
-            StatusResponse {
-                status: "running".into(),
-                managed: false,
+        match http_get_localhost(port, "/health") {
+            Ok(body) => {
+                let (ready, readiness) = parse_readiness(&body);
+                StatusResponse {
+                    status: "running".into(),
+                    managed,
+                    ready,
+                    readiness,
+                }
             }
-        } else {
-            StatusResponse {
-                status: "stopped".into(),
-                managed: false,
-            }
+            Err(_) => StatusResponse {
+                status: if managed {
+                    "running".into()
+                } else {
+                    "stopped".into()
+                },
+                managed,
+                ready: false,
+                readiness: None,
+            },
         }
     }
 
@@ -957,6 +968,14 @@ fn build_pythonpath(gateway_root: &Path) -> Result<String, GatewayError> {
     Ok(joined.to_string_lossy().to_string())
 }
 
+fn default_allowed_origins_env() -> Option<String> {
+    if std::env::var_os("LOCAL_RUNTIME_ALLOW_ORIGINS").is_some() {
+        None
+    } else {
+        Some(DEFAULT_GATEWAY_ALLOWED_ORIGINS.join(","))
+    }
+}
+
 fn apply_python_env(
     command: &mut Command,
     config: &GatewayLaunchConfig,
@@ -985,6 +1004,9 @@ fn apply_python_env(
     }
     if cfg!(debug_assertions) && config.runtime_bin.is_none() {
         command.env("LOCAL_RUNTIME_RELOAD", "1");
+    }
+    if let Some(origins) = default_allowed_origins_env() {
+        command.env("LOCAL_RUNTIME_ALLOW_ORIGINS", origins);
     }
     Ok(())
 }
@@ -1061,6 +1083,20 @@ fn http_get_localhost(port: u16, path: &str) -> Result<String, GatewayError> {
     Ok(response.trim().to_string())
 }
 
+fn parse_readiness(body: &str) -> (bool, Option<Value>) {
+    match serde_json::from_str::<Value>(body) {
+        Ok(value) => {
+            let ready = value
+                .get("status")
+                .and_then(|status| status.as_str())
+                .map(|status| status.eq_ignore_ascii_case("ready"))
+                .unwrap_or(false);
+            (ready, Some(value))
+        }
+        Err(_) => (false, None),
+    }
+}
+
 impl GatewayManager {
     fn start(&self, app: &tauri::AppHandle) -> Result<StatusResponse, GatewayError> {
         let mut guard = self.inner.lock().expect("state lock");
@@ -1069,6 +1105,8 @@ impl GatewayManager {
             return Ok(StatusResponse {
                 status: "running".into(),
                 managed: true,
+                ready: false,
+                readiness: None,
             });
         }
         drop(guard);
@@ -1089,9 +1127,12 @@ impl GatewayManager {
                         "Gateway already running on port {} (health: {body})",
                         config.port
                     ));
+                    let (ready, readiness) = parse_readiness(&body);
                     return Ok(StatusResponse {
                         status: "running".into(),
                         managed: false,
+                        ready,
+                        readiness,
                     });
                 }
                 Err(error) => {
@@ -1182,9 +1223,12 @@ impl GatewayManager {
                 }
             }
             GatewayLaunchMode::Sidecar => {
-                let command = resolve_sidecar_command(app)?
+                let mut command = resolve_sidecar_command(app)?
                     .args(&config.args)
                     .env("LOCAL_RUNTIME_VERSION", &config.build_version);
+                if let Some(origins) = default_allowed_origins_env() {
+                    command = command.env("LOCAL_RUNTIME_ALLOW_ORIGINS", origins);
+                }
                 self.push_log("launcher: spawning gateway sidecar");
                 let spawn_result = command.spawn();
                 let (mut rx, child) = match spawn_result {
@@ -1243,6 +1287,8 @@ impl GatewayManager {
         Ok(StatusResponse {
             status: "running".into(),
             managed: true,
+            ready: false,
+            readiness: None,
         })
     }
 }
