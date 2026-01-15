@@ -9,6 +9,7 @@ import type {
 import type { LogFn } from "../utils/logger";
 import {
   deliberatePracticeEvaluationPrompt,
+  deliberatePracticeEvaluationPromptLocal,
   deliberatePracticeTaskV2Schema,
   evaluationResultSchema,
   llmParseSchema
@@ -31,7 +32,7 @@ class LocalMlxLlmProviderImpl extends BaseLlmProvider {
     const result = await localSuiteStructuredResponse<EvaluationResult>({
       baseUrl: this.baseUrl,
       temperature: 0.2,
-      instructions: deliberatePracticeEvaluationPrompt,
+      instructions: deliberatePracticeEvaluationPromptLocal,
       input: JSON.stringify(input),
       schemaName: "EvaluationResult",
       schema: evaluationResultSchema

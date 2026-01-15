@@ -1,7 +1,7 @@
 import type { EvaluationInput, EvaluationResult } from "@deliberate/shared";
 import {
   buildStrictJsonSchema,
-  deliberatePracticeEvaluationPrompt,
+  deliberatePracticeEvaluationPromptLocal,
   evaluationResultSchema
 } from "@deliberate/shared";
 import { normalizeUploadBlob } from "./audioEncoding";
@@ -241,7 +241,7 @@ export class LocalRuntimeClient {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           input: JSON.stringify(input),
-          instructions: deliberatePracticeEvaluationPrompt,
+          instructions: deliberatePracticeEvaluationPromptLocal,
           temperature: 0.2,
           text: {
             format: {
