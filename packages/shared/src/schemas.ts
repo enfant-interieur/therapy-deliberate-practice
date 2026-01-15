@@ -218,6 +218,23 @@ export const evaluationResultSchema = z.object({
     .optional()
 });
 
+const providerDescriptorSchema = z.object({
+  kind: z.enum(["local", "openai"]),
+  model: z.string()
+});
+
+const clientTranscriptSchema = z.object({
+  text: z.string(),
+  provider: providerDescriptorSchema,
+  duration_ms: z.number().nonnegative()
+});
+
+const clientEvaluationSchema = z.object({
+  evaluation: evaluationResultSchema,
+  provider: providerDescriptorSchema,
+  duration_ms: z.number().nonnegative()
+});
+
 export const practiceRunInputSchema = z
   .object({
     session_item_id: z.string().optional(),
@@ -227,6 +244,8 @@ export const practiceRunInputSchema = z
     audio: z.string().optional(),
     audio_mime: z.string().optional(),
     transcript_text: z.string().optional(),
+    client_transcript: clientTranscriptSchema.optional(),
+    client_evaluation: clientEvaluationSchema.optional(),
     skip_scoring: z.boolean().optional(),
     mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional(),
     practice_mode: z.enum(["standard", "real_time"]).optional(),
@@ -246,10 +265,10 @@ export const practiceRunInputSchema = z
       .optional()
   })
   .superRefine((data, ctx) => {
-    if (!data.audio && !data.transcript_text) {
+    if (!data.audio && !data.transcript_text && !data.client_transcript) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Provide audio or transcript_text."
+        message: "Provide audio, transcript_text, or client_transcript."
       });
     }
   });
@@ -265,7 +284,8 @@ export const practiceRunResponseSchema = z.object({
         kind: z.enum(["local", "openai"]),
         model: z.string()
       }),
-      duration_ms: z.number()
+      duration_ms: z.number(),
+      origin: z.enum(["local", "openai"])
     })
     .optional(),
   timing_penalty: z.number().optional(),
@@ -277,7 +297,8 @@ export const practiceRunResponseSchema = z.object({
         kind: z.enum(["local", "openai"]),
         model: z.string()
       }),
-      duration_ms: z.number()
+      duration_ms: z.number(),
+      origin: z.enum(["local", "openai"])
     })
     .optional(),
   errors: z

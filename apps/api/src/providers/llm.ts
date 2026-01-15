@@ -7,7 +7,12 @@ import type {
   ParseMode
 } from "@deliberate/shared";
 import type { LogFn } from "../utils/logger";
-import { deliberatePracticeTaskV2Schema, evaluationResultSchema, llmParseSchema } from "@deliberate/shared";
+import {
+  deliberatePracticeEvaluationPrompt,
+  deliberatePracticeTaskV2Schema,
+  evaluationResultSchema,
+  llmParseSchema
+} from "@deliberate/shared";
 import { createStructuredResponse } from "./openaiResponses";
 import { OPENAI_LLM_MODEL } from "./models";
 import { BaseLlmProvider } from "./base";
@@ -23,12 +28,10 @@ class LocalMlxLlmProviderImpl extends BaseLlmProvider {
   }
 
   protected async doEvaluateDeliberatePractice(input: EvaluationInput) {
-    const systemPrompt =
-      "You are an evaluator for psychotherapy deliberate practice tasks. Return strict JSON only that matches EvaluationResult with criterion_scores.";
     const result = await localSuiteStructuredResponse<EvaluationResult>({
       baseUrl: this.baseUrl,
       temperature: 0.2,
-      instructions: systemPrompt,
+      instructions: deliberatePracticeEvaluationPrompt,
       input: JSON.stringify(input),
       schemaName: "EvaluationResult",
       schema: evaluationResultSchema
@@ -58,13 +61,11 @@ class OpenAILlmProviderImpl extends BaseLlmProvider {
   }
 
   protected async doEvaluateDeliberatePractice(input: EvaluationInput) {
-    const systemPrompt =
-      "You are an evaluator for psychotherapy deliberate practice tasks. Return strict JSON only that matches EvaluationResult with criterion_scores.";
     const result = await createStructuredResponse<EvaluationResult>({
       apiKey: this.apiKey,
       model: OPENAI_LLM_MODEL,
       temperature: 0.2,
-      instructions: systemPrompt,
+      instructions: deliberatePracticeEvaluationPrompt,
       input: JSON.stringify(input),
       schemaName: "EvaluationResult",
       schema: evaluationResultSchema

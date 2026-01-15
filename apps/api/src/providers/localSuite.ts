@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import type { SttTranscribeOptions, Transcript } from "@deliberate/shared";
+import { buildStrictJsonSchema } from "@deliberate/shared";
 import { attemptJsonRepair } from "../utils/jsonRepair";
 import { safeTruncate } from "../utils/logger";
 import { createProviderError } from "./providerErrors";
@@ -89,72 +89,6 @@ const extractOutputText = (payload: unknown): string | null => {
     }
   }
   return null;
-};
-
-const buildStrictJsonSchema = (schema: z.ZodSchema<unknown>, schemaName: string) => {
-  const full = zodToJsonSchema(schema, {
-    name: schemaName,
-    $refStrategy: "none",
-    target: "jsonSchema7"
-  }) as Record<string, unknown>;
-  const defs =
-    (full.definitions ?? full.$defs ?? {}) as Record<string, Record<string, unknown>>;
-  let root: Record<string, unknown> = full;
-
-  if (defs?.[schemaName]) {
-    root = defs[schemaName];
-  } else if (typeof full.$ref === "string") {
-    const match = full.$ref.match(/^#\/(definitions|\$defs)\/(.+)$/);
-    if (match && defs?.[match[2]]) {
-      root = defs[match[2]];
-    }
-  }
-
-  if (root && typeof root === "object" && root.type == null && root.properties) {
-    root.type = "object";
-  }
-
-  const ensureRequiredAllProps = (record: Record<string, unknown>) => {
-    if (!record.properties || typeof record.properties !== "object") return;
-    const props = record.properties as Record<string, unknown>;
-    const keys = Object.keys(props);
-    record.required = keys;
-  };
-
-  const enforceStrict = (node: unknown) => {
-    if (!node || typeof node !== "object") return;
-    const record = node as Record<string, unknown>;
-    const type = record.type;
-    if (type === "object" && record.properties) {
-      if (!("additionalProperties" in record)) {
-        record.additionalProperties = false;
-      }
-      ensureRequiredAllProps(record);
-      for (const value of Object.values(record.properties as Record<string, unknown>)) {
-        enforceStrict(value);
-      }
-    }
-    if (type === "array" && record.items) {
-      enforceStrict(record.items);
-    }
-    if (record.anyOf && Array.isArray(record.anyOf)) {
-      for (const value of record.anyOf) {
-        enforceStrict(value);
-      }
-    }
-    if (record.oneOf && Array.isArray(record.oneOf)) {
-      for (const value of record.oneOf) {
-        enforceStrict(value);
-      }
-    }
-    if (record.allOf && Array.isArray(record.allOf)) {
-      for (const value of record.allOf) {
-        enforceStrict(value);
-      }
-    }
-  };
-  enforceStrict(root);
-  return root;
 };
 
 export const localSuiteHealthCheck = async (baseUrl: string) => {

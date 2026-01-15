@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { GatewayLaunchButton } from "./components/GatewayLaunchButton";
 import { useGatewayBoot } from "./hooks/useGatewayBoot";
 import type { GatewayBootState } from "./hooks/useGatewayBoot";
+import { invokeLauncher } from "./lib/tauri";
 
 type ModelSummary = {
   id: string;
@@ -55,6 +55,28 @@ type GatewayConfig = {
   port: number;
   default_models: Record<string, string>;
   prefer_local: boolean;
+};
+
+type GatewayReadinessPayload = {
+  status?: string;
+  startup_checks?: { name?: string; status?: string; detail?: string; duration_ms?: number | null }[];
+  self_test?: { status?: string; started_at?: number | null; finished_at?: number | null };
+  loaded_models?: string[];
+  last_error?: string | null;
+  defaults?: Record<string, string>;
+};
+
+type LauncherStatusPayload = {
+  status: string;
+  managed: boolean;
+  ready?: boolean;
+  readiness?: GatewayReadinessPayload | null;
+};
+
+type HealthProbeResult = {
+  reachable: boolean;
+  ready: boolean;
+  payload: GatewayReadinessPayload | null;
 };
 
 const initialQuickTestsState: QuickTestsState = {
@@ -127,6 +149,7 @@ const formatErrorMessage = (error: unknown) => {
 
 export const App = () => {
   const [status, setStatus] = useState("stopped");
+  const [gatewayManaged, setGatewayManaged] = useState(false);
   const [models, setModels] = useState<ModelSummary[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
   const [doctorChecks, setDoctorChecks] = useState<DoctorCheck[]>([]);
@@ -138,6 +161,8 @@ export const App = () => {
   const [portInput, setPortInput] = useState("8484");
   const [portSaveState, setPortSaveState] = useState<SaveState>("idle");
   const [connectionInfo, setConnectionInfo] = useState<GatewayConnectionInfo | null>(null);
+  const [readiness, setReadiness] = useState<GatewayReadinessPayload | null>(null);
+  const [readyFlag, setReadyFlag] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
   const [simpleSteps, setSimpleSteps] = useState({
     copiedUrl: false,
@@ -163,35 +188,89 @@ export const App = () => {
     setLogs((prev) => [...prev, `[UI ${timestamp}] ${message}`]);
   }, []);
 
-  const refreshStatus = async () => {
-    const result = await invoke<{ status: string }>("gateway_status");
-    setStatus(result.status);
-  };
+  const checkGatewayHealth = useCallback(async (): Promise<HealthProbeResult> => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 1500);
+    try {
+      const response = await fetch(healthUrl, {
+        method: "GET",
+        cache: "no-store",
+        signal: controller.signal
+      });
+      let payload: GatewayReadinessPayload | null = null;
+      const contentType = response.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        try {
+          payload = (await response.json()) as GatewayReadinessPayload;
+        } catch {
+          payload = null;
+        }
+      }
+      const readinessStatus = payload?.status?.toLowerCase() ?? null;
+      const ready = response.ok && readinessStatus === "ready";
+      return { reachable: response.ok, ready, payload };
+    } catch {
+      return { reachable: false, ready: false, payload: null };
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }, [healthUrl]);
 
-  const refreshModels = async () => {
+  const refreshStatus = useCallback(async () => {
+    let shouldProbe = true;
+    try {
+      const result = await invokeLauncher<LauncherStatusPayload>("gateway_status");
+      const normalizedStatus = result.status === "running" ? "running" : "stopped";
+      setStatus(normalizedStatus);
+      setGatewayManaged(Boolean(result.managed));
+      setReadyFlag(Boolean(result.ready));
+      setReadiness(result.readiness ?? null);
+      shouldProbe = normalizedStatus !== "running";
+      if (!shouldProbe) {
+        return;
+      }
+    } catch (error) {
+      console.warn("Failed to read gateway status from launcher:", error);
+    }
+    if (!shouldProbe) return;
+    const health = await checkGatewayHealth();
+    if (health.reachable) {
+      setStatus("running");
+      setGatewayManaged(false);
+      setReadyFlag(health.ready);
+      setReadiness(health.payload);
+    } else {
+      setStatus("stopped");
+      setGatewayManaged(false);
+      setReadyFlag(false);
+      setReadiness(null);
+    }
+  }, [checkGatewayHealth]);
+
+  const refreshModels = useCallback(async () => {
     logEvent("Refreshing model catalog from gateway.");
-    const result = await invoke<{ data: ModelSummary[] }>("gateway_models");
+    const result = await invokeLauncher<{ data: ModelSummary[] }>("gateway_models");
     setModels(result.data ?? []);
-  };
+  }, [logEvent]);
 
-  const refreshLogs = async () => {
-    const result = await invoke<{ logs: string[] }>("gateway_logs");
+  const refreshLogs = useCallback(async () => {
+    const result = await invokeLauncher<{ logs: string[] }>("gateway_logs");
     setLogs((prev) => {
       const gatewayLogs = result.logs ?? [];
       const localLogs = prev.filter((line) => line.startsWith("[UI "));
       return [...localLogs, ...gatewayLogs];
     });
-  };
+  }, []);
 
-  const refreshConnectionInfo = async () => {
-    const result = await invoke<GatewayConnectionInfo>("gateway_connection_info");
+  const refreshConnectionInfo = useCallback(async () => {
+    const result = await invokeLauncher<GatewayConnectionInfo>("gateway_connection_info");
     setConnectionInfo(result);
     setPort(result.port);
     setPortInput(String(result.port));
-  };
+  }, []);
 
-  const refreshConfig = async () => {
-    const result = await invoke<GatewayConfig>("gateway_config");
+  const refreshConfig = useCallback(async () => {
+    const result = await invokeLauncher<GatewayConfig>("gateway_config");
     setPort(result.port);
     setPortInput(String(result.port));
     setPreferLocal(result.prefer_local);
@@ -199,13 +278,13 @@ export const App = () => {
       llm: result.default_models.responses ?? "",
       stt: result.default_models["audio.transcriptions"] ?? ""
     });
-  };
+  }, []);
 
   const saveConfig = async () => {
     setSaveState("saving");
     try {
       logEvent("Saving preferences to gateway config.");
-      await invoke("save_gateway_config", {
+      await invokeLauncher("save_gateway_config", {
         payload: {
           port,
           default_models: {
@@ -231,7 +310,7 @@ export const App = () => {
     setPortSaveState("saving");
     try {
       logEvent(`Saving gateway port to ${parsed}.`);
-      await invoke("save_gateway_config", {
+      await invokeLauncher("save_gateway_config", {
         payload: {
           port: parsed,
           default_models: {
@@ -252,18 +331,18 @@ export const App = () => {
     }
   };
 
-  const runDoctor = async () => {
+  const runDoctor = useCallback(async () => {
     logEvent("Running preflight doctor checks.");
-    const result = await invoke<{ checks: DoctorCheck[] }>("gateway_doctor");
+    const result = await invokeLauncher<{ checks: DoctorCheck[] }>("gateway_doctor");
     setDoctorChecks(result.checks ?? []);
     await refreshLogs();
-  };
+  }, [logEvent, refreshLogs]);
 
-  const startGateway = async () => {
+  const startGateway = useCallback(async () => {
     setStartError(null);
     try {
       logEvent("Starting local gateway.");
-      await invoke("start_gateway");
+      await invokeLauncher("start_gateway");
       await refreshStatus();
       await refreshLogs();
     } catch (error) {
@@ -276,13 +355,7 @@ export const App = () => {
       setStartError(message);
       logEvent(`Gateway failed to start: ${message}`);
     }
-  };
-
-  const restartGateway = async () => {
-    logEvent("Restarting local gateway.");
-    await invoke("stop_gateway");
-    await startGateway();
-  };
+  }, [logEvent, refreshLogs, refreshStatus]);
 
   const copyText = async (value: string) => {
     await navigator.clipboard.writeText(value);
@@ -407,15 +480,55 @@ export const App = () => {
     await refreshLogs();
   };
 
+  const handleBootReady = useCallback(async () => {
+    await refreshStatus();
+    await refreshConnectionInfo();
+    await refreshModels();
+    await refreshLogs();
+  }, [refreshConnectionInfo, refreshLogs, refreshModels, refreshStatus]);
+
   const boot = useGatewayBoot({
     healthUrl,
-    onReady: async () => {
-      await refreshStatus();
-      await refreshConnectionInfo();
-      await refreshModels();
-      await refreshLogs();
-    }
+    onReady: handleBootReady
   });
+
+  const stopGateway = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!gatewayManaged) {
+        if (!options?.silent) {
+          logEvent("Gateway is running outside the launcher. Stop it manually.");
+        }
+        return;
+      }
+      if (!options?.silent) {
+        logEvent("Stopping local gateway.");
+      }
+      try {
+        await invokeLauncher("stop_gateway");
+        boot.reset();
+        await refreshStatus();
+        await refreshLogs();
+      } catch (error) {
+        const message = formatErrorMessage(error);
+        if (!options?.silent) {
+          logEvent(`Failed to stop gateway: ${message}`);
+        } else {
+          console.error("Failed to stop gateway:", message);
+        }
+      }
+    },
+    [boot.reset, gatewayManaged, logEvent, refreshLogs, refreshStatus]
+  );
+
+  const restartGateway = useCallback(async () => {
+    if (!gatewayManaged) {
+      logEvent("Gateway is running outside the launcher. Stop it manually before restarting.");
+      return;
+    }
+    logEvent("Restarting local gateway.");
+    await stopGateway({ silent: true });
+    await startGateway();
+  }, [gatewayManaged, logEvent, startGateway, stopGateway]);
 
   useEffect(() => {
     if (boot.state.phase === "error" && boot.state.error && bootLogRef.current.errorRunId !== boot.state.runId) {
@@ -434,19 +547,14 @@ export const App = () => {
     refreshConnectionInfo();
     refreshConfig();
     runDoctor();
-  }, []);
-
-  useEffect(() => {
-    if (status !== "running") return;
-    refreshModels();
-  }, [status]);
+  }, [refreshConfig, refreshConnectionInfo, refreshLogs, refreshStatus, runDoctor]);
 
   useEffect(() => {
     const interval = setInterval(() => {
       refreshLogs();
     }, 2000);
     return () => clearInterval(interval);
-  }, []);
+  }, [refreshLogs]);
 
   useEffect(() => {
     setSaveState("idle");
@@ -469,6 +577,29 @@ export const App = () => {
     };
   }, [showAdvanced]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refreshStatus();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [refreshStatus]);
+
+  const readinessStatus = readiness?.status ? readiness.status.toLowerCase() : null;
+  const readyFromStatus = readyFlag || readinessStatus === "ready";
+  const gatewayReady = readyFromStatus || boot.state.phase === "ready";
+  const heroBootState: GatewayBootState =
+    gatewayReady && boot.state.phase !== "ready" ? { ...boot.state, phase: "ready" as const } : boot.state;
+  const heroProgress = gatewayReady ? 1 : boot.derived.progress;
+  const heroElapsedMs = gatewayReady ? boot.derived.maxWaitMs : boot.derived.elapsedMs;
+  const isGatewayRunning = status === "running";
+  const heroStatus = gatewayReady ? "ready" : isGatewayRunning ? readinessStatus ?? "starting" : "stopped";
+  const heroStatusLabel = heroStatus.charAt(0).toUpperCase() + heroStatus.slice(1);
+
+  useEffect(() => {
+    if (!gatewayReady) return;
+    refreshModels();
+  }, [refreshModels, gatewayReady]);
+
   const llmOptions = models.filter((model) => model.metadata.api.endpoint === "responses");
   const sttOptions = models.filter((model) =>
     ["audio.transcriptions", "audio.translations"].includes(model.metadata.api.endpoint)
@@ -485,14 +616,14 @@ export const App = () => {
     };
     setDefaults(nextDefaults);
     logEvent(`Selected ${isMac ? "MLX" : "non-MLX"} defaults based on platform.`);
-  }, [models, llmOptions, sttOptions, isMac, defaults.llm, defaults.stt]);
+  }, [models, llmOptions, sttOptions, isMac, defaults.llm, defaults.stt, logEvent]);
 
-  const gatewayReady = status === "running" || boot.state.phase === "ready";
-  const heroBootState: GatewayBootState =
-    gatewayReady && boot.state.phase !== "ready" ? { ...boot.state, phase: "ready" as const } : boot.state;
-  const heroProgress = gatewayReady ? 1 : boot.derived.progress;
-  const heroElapsedMs = gatewayReady ? boot.derived.maxWaitMs : boot.derived.elapsedMs;
-  const isGatewayRunning = status === "running";
+  const canStopGateway = isGatewayRunning && gatewayManaged;
+  const stopDisabledReason = !isGatewayRunning
+    ? "Gateway is not running."
+    : !gatewayManaged
+      ? "Gateway was started outside the launcher. Stop it manually."
+      : undefined;
   const portValue = Number(portInput);
   const portValid = Number.isInteger(portValue) && portValue >= 1024 && portValue <= 65535;
   const portDirty = portValue !== port;
@@ -500,7 +631,7 @@ export const App = () => {
     (check) => check.status === "error" && ["local_runtime import", "Python executable"].includes(check.title)
   );
   const canStartGateway = !doctorBlocking;
-  const canLoadModels = isGatewayRunning;
+  const canLoadModels = gatewayReady;
   const hasModels = models.length > 0;
   const canChooseDefaults = hasModels;
   const defaultsComplete = Boolean(defaults.llm && defaults.stt);
@@ -602,7 +733,15 @@ export const App = () => {
             </div>
           </div>
           <div className="hero-actions">
-            <span className="badge">Status: {status}</span>
+            <span className="badge">Status: {heroStatusLabel}</span>
+            <button
+              className="btn danger"
+              onClick={() => stopGateway()}
+              disabled={!canStopGateway}
+              title={stopDisabledReason}
+            >
+              Stop gateway
+            </button>
             <button className="btn ghost" onClick={() => setShowAdvanced(true)}>
               Advanced controls
             </button>
@@ -769,7 +908,7 @@ export const App = () => {
               <button
                 className="btn"
                 onClick={runQuickTests}
-                disabled={quickTests.status === "running" || status !== "running"}
+                disabled={quickTests.status === "running" || !gatewayReady}
               >
                 {quickTests.status === "running" ? "Running tests..." : "Run LLM + STT Test"}
               </button>
@@ -857,8 +996,9 @@ export const App = () => {
               <div className="warning-banner">
                 <div>
                   Port changed. Restart the gateway to apply the new port.
+                  {!gatewayManaged ? " Stop the external process manually, then relaunch here." : ""}
                 </div>
-                <button className="btn" onClick={restartGateway}>
+                <button className="btn" onClick={restartGateway} disabled={!canStopGateway} title={stopDisabledReason}>
                   Restart gateway
                 </button>
               </div>
@@ -895,8 +1035,8 @@ export const App = () => {
                   <div className="label">Step 1</div>
                   <div className="step-title">Start the gateway</div>
                 </div>
-                <span className={`badge ${isGatewayRunning ? "badge-success" : ""}`}>
-                  {isGatewayRunning ? "Gateway running" : "Gateway stopped"}
+                <span className={`badge ${gatewayReady ? "badge-success" : ""}`}>
+                  {gatewayReady ? "Gateway ready" : isGatewayRunning ? "Gateway starting" : "Gateway stopped"}
                 </span>
               </div>
               <p className="step-description">
@@ -917,7 +1057,7 @@ export const App = () => {
                 <button className="btn primary" onClick={startGateway} disabled={!canStartGateway}>
                   Start gateway
                 </button>
-                <button className="btn" onClick={() => invoke("stop_gateway").then(refreshStatus)}>
+                <button className="btn" onClick={() => stopGateway()} disabled={!canStopGateway} title={stopDisabledReason}>
                   Stop gateway
                 </button>
                 <button className="btn" onClick={runDoctor}>

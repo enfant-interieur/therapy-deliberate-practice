@@ -4,6 +4,7 @@ import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFi
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import ffmpegBinary from "ffmpeg-static";
 
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pythonRoot = path.resolve(desktopDir, "..", "python");
@@ -21,6 +22,7 @@ const targetByPlatform = {
 };
 
 const exeSuffix = process.platform === "win32" ? ".exe" : "";
+const stepTotal = 6;
 const sidecarName = "local-runtime-gateway";
 
 const explicitTarget =
@@ -121,7 +123,7 @@ function ensureVenv() {
 }
 
 function syncBuildVenv() {
-  banner(2, 5, "Preparing build venv...");
+  banner(2, stepTotal, "Preparing build venv...");
   const pyprojectHash = hashPyproject();
   const pythonVersion = readPythonVersion(venvPython);
   const stamp = loadStamp();
@@ -141,7 +143,7 @@ function syncBuildVenv() {
 }
 
 function buildPortableRuntime(target) {
-  banner(3, 5, "Building embedded Python runtime (installing from pyproject.toml)...");
+  banner(3, stepTotal, "Building embedded Python runtime (installing from pyproject.toml)...");
   mkdirSync(runtimeOutDir, { recursive: true });
   rmSync(runtimeOutDir, { recursive: true, force: true });
 
@@ -161,8 +163,52 @@ function buildPortableRuntime(target) {
   );
 }
 
+function embedFfmpegBinary() {
+  banner(4, stepTotal, "Bundling FFmpeg for offline audio decoding...");
+  if (!ffmpegBinary) {
+    throw new Error(
+      "ffmpeg-static did not provide a binary for this platform. Re-run npm install or ensure the platform is supported.",
+    );
+  }
+
+  const resolved = path.resolve(ffmpegBinary);
+  if (!existsSync(resolved)) {
+    throw new Error(`ffmpeg-static binary missing at ${resolved}. Run npm install and try again.`);
+  }
+
+  const binDir = path.resolve(runtimeOutDir, "bin");
+  mkdirSync(binDir, { recursive: true });
+  const targetName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
+  const destPath = path.join(binDir, targetName);
+  rmSync(destPath, { force: true });
+  cpSync(resolved, destPath);
+  if (process.platform !== "win32") {
+    chmodSync(destPath, 0o755);
+  }
+
+  const licenseDir = path.resolve(runtimeOutDir, "licenses");
+  mkdirSync(licenseDir, { recursive: true });
+  const moduleDir = path.dirname(resolved);
+  for (const [sourceName, targetFile] of [
+    ["ffmpeg.LICENSE", "ffmpeg.LICENSE"],
+    ["ffmpeg.README", "ffmpeg.README"],
+  ]) {
+    const source = path.join(moduleDir, sourceName);
+    if (existsSync(source)) {
+      cpSync(source, path.join(licenseDir, targetFile));
+    }
+  }
+
+  try {
+    const versionLine = execFileSync(destPath, ["-version"], { encoding: "utf8" }).split("\n")[0];
+    writeFileSync(path.join(licenseDir, "ffmpeg.VERSION.txt"), `${versionLine}\n`, "utf8");
+  } catch (error) {
+    console.warn("Unable to capture FFmpeg version:", error instanceof Error ? error.message : String(error));
+  }
+}
+
 function buildRustLauncher(target) {
-  banner(4, 5, "Building Rust sidecar launcher...");
+  banner(5, stepTotal, "Building Rust sidecar launcher...");
   runCommand(
     "Cargo build launcher",
     "cargo",
@@ -186,12 +232,13 @@ function buildRustLauncher(target) {
 
 async function main() {
   const target = resolveTarget();
-  banner(1, 5, `Preparing sidecar for ${target} (NO PyInstaller)...`);
+  banner(1, stepTotal, `Preparing sidecar for ${target} (NO PyInstaller)...`);
   ensureVenv();
   syncBuildVenv();
   buildPortableRuntime(target);
+  embedFfmpegBinary();
   const out = buildRustLauncher(target);
-  banner(5, 5, `Sidecar ready: ${out}`);
+  banner(stepTotal, stepTotal, `Sidecar ready: ${out}`);
 }
 
 main().catch((e) => {

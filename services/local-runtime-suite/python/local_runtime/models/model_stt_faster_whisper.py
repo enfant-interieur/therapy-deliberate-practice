@@ -62,8 +62,8 @@ SPEC = {
     "deps": {
         "python_extras": ["stt"],
         "pip": ["faster-whisper"],
-        "system": ["ffmpeg"],
-        "notes": "Requires ffmpeg for decoding audio input.",
+        "system": [],
+        "notes": "FFmpeg is bundled with the desktop runtime for decoding audio input.",
     },
 }
 

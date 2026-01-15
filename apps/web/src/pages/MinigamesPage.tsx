@@ -35,6 +35,7 @@ import {
   useRedrawMinigameRoundMutation
 } from "../store/api";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
+import { useLocalRuntimeClient } from "../hooks/useLocalRuntimeClient";
 import {
   addRoundResult,
   resetMinigame,
@@ -66,6 +67,7 @@ export const MinigamePlayPage = () => {
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const minigames = useAppSelector((state) => state.minigames);
   const settings = useAppSelector((state) => state.settings);
+  const localRuntimeClient = useLocalRuntimeClient();
   const currentPlayerId = minigames.currentPlayerId;
   const [selectOpen, setSelectOpen] = useState(true);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -506,6 +508,8 @@ export const MinigamePlayPage = () => {
     round: currentRound,
     playerId: currentRound?.player_a_id,
     aiMode: settings.aiMode,
+    task: currentTask,
+    localRuntimeClient,
     audioElement,
     patientAudio,
     responseTimerEnabled: timingSettings.responseTimerEnabled,
@@ -571,6 +575,8 @@ export const MinigamePlayPage = () => {
     sessionId: minigames.session?.id ?? "",
     round: currentRound,
     aiMode: settings.aiMode,
+    task: currentTask,
+    localRuntimeClient,
     audioElement,
     patientAudio,
     responseTimerEnabled: timingSettings.responseTimerEnabled,

@@ -1,4 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  encodeWav,
+  mixToMonoBuffer,
+  resampleLinear,
+  resolveAudioContextCtor,
+  TARGET_SAMPLE_RATE,
+  WAV_MIME_TYPE
+} from "../lib/audioEncoding";
 
 export type MicRecorderState =
   | "idle"
@@ -33,22 +41,15 @@ export type MicRecorderResult = {
 
 export type MicRecorderCapabilities = {
   hasGetUserMedia: boolean;
-  hasMediaRecorder: boolean;
-  supportedMimeTypes: string[];
-  bestMimeType: string | null;
+  hasAudioContext: boolean;
 };
 
 type UseMicRecorderOptions = {
   loggerScope?: string;
 };
 
-const MIME_TYPE_CANDIDATES = [
-  "audio/webm;codecs=opus",
-  "audio/webm",
-  "audio/mp4",
-  "audio/aac",
-  "audio/mpeg"
-];
+const MIN_RECORDING_DURATION_MS = 600;
+const MIN_AUDIO_BYTES = 2048;
 
 const blobToBase64 = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -64,15 +65,6 @@ const blobToBase64 = (blob: Blob) =>
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(blob);
   });
-
-export const listSupportedAudioMimeTypes = () => {
-  if (typeof MediaRecorder === "undefined") {
-    return [];
-  }
-  return MIME_TYPE_CANDIDATES.filter((candidate) => MediaRecorder.isTypeSupported(candidate));
-};
-
-export const pickSupportedAudioMimeType = () => listSupportedAudioMimeTypes()[0] ?? null;
 
 export const classifyMicError = (error: unknown): MicRecorderError => {
   const rawName =
@@ -148,23 +140,22 @@ const buildInsecureContextError = (): MicRecorderError => ({
 export const useMicRecorder = ({ loggerScope }: UseMicRecorderOptions = {}) => {
   const [state, setState] = useState<MicRecorderState>("idle");
   const [error, setError] = useState<MicRecorderError | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const lastMimeTypeRef = useRef<string | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const processorRef = useRef<ScriptProcessorNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
+  const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const pcmChunksRef = useRef<Float32Array[]>([]);
+  const samplesCollectedRef = useRef(0);
+  const sampleRateRef = useRef<number>(TARGET_SAMPLE_RATE);
   const lastBlobRef = useRef<Blob | null>(null);
   const requestStartRef = useRef<number | null>(null);
+  const recordingStartRef = useRef<number | null>(null);
 
   const capabilities = useMemo<MicRecorderCapabilities>(() => {
     const hasGetUserMedia = Boolean(navigator?.mediaDevices?.getUserMedia);
-    const hasMediaRecorder = typeof MediaRecorder !== "undefined";
-    const supportedMimeTypes = listSupportedAudioMimeTypes();
-    return {
-      hasGetUserMedia,
-      hasMediaRecorder,
-      supportedMimeTypes,
-      bestMimeType: supportedMimeTypes[0] ?? null
-    };
+    const hasAudioContext = Boolean(resolveAudioContextCtor());
+    return { hasGetUserMedia, hasAudioContext };
   }, []);
 
   const logEvent = useCallback(
@@ -182,41 +173,66 @@ export const useMicRecorder = ({ loggerScope }: UseMicRecorderOptions = {}) => {
     }
   }, []);
 
-  const release = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+  const cleanupAudioGraph = useCallback(async () => {
+    processorRef.current?.disconnect();
+    gainNodeRef.current?.disconnect();
+    sourceRef.current?.disconnect();
+    processorRef.current = null;
+    gainNodeRef.current = null;
+    sourceRef.current = null;
+    const context = audioContextRef.current;
+    audioContextRef.current = null;
+    if (context) {
       try {
-        mediaRecorderRef.current.stop();
-      } catch (err) {
-        logEvent("mic_stop_error", { err });
+        await context.close();
+      } catch {
+        // ignored
       }
     }
-    mediaRecorderRef.current = null;
-    chunksRef.current = [];
+  }, []);
+
+  const release = useCallback(() => {
     stopTracks();
+    void cleanupAudioGraph();
+    pcmChunksRef.current = [];
+    samplesCollectedRef.current = 0;
     setState("idle");
     setError(null);
-  }, [logEvent, stopTracks]);
+  }, [cleanupAudioGraph, stopTracks]);
 
-  useEffect(() => () => stopTracks(), [stopTracks]);
+  useEffect(
+    () => () => {
+      release();
+    },
+    [release]
+  );
 
-  const preflight = useCallback(() => {
-    if (!capabilities.hasGetUserMedia || !capabilities.hasMediaRecorder) {
+  const ensureSupport = useCallback((): MicRecorderError | null => {
+    if (!capabilities.hasGetUserMedia || !capabilities.hasAudioContext) {
       const unsupportedError: MicRecorderError = {
         kind: "unsupported",
         rawName: "NotSupportedError",
-        rawMessage: "Microphone APIs are unavailable.",
+        rawMessage: "Microphone capture APIs are unavailable.",
         recommendedAction: "Try a different browser or device.",
         isRetryable: false
       };
       setError(unsupportedError);
       setState("error");
-      return Promise.reject(unsupportedError);
+      return unsupportedError;
     }
     if (typeof window !== "undefined" && !window.isSecureContext) {
       const insecureError = buildInsecureContextError();
       setError(insecureError);
       setState("error");
-      return Promise.reject(insecureError);
+      return insecureError;
+    }
+    return null;
+  }, [capabilities.hasAudioContext, capabilities.hasGetUserMedia]);
+
+  const preflight = useCallback(() => {
+    const supportError = ensureSupport();
+    if (supportError) {
+      return Promise.reject(supportError);
     }
     const gumPromise = navigator.mediaDevices.getUserMedia({ audio: true });
     setState("requesting_permission");
@@ -224,13 +240,10 @@ export const useMicRecorder = ({ loggerScope }: UseMicRecorderOptions = {}) => {
     requestStartRef.current = Date.now();
     return gumPromise
       .then((stream) => {
-        stopTracks();
         stream.getTracks().forEach((track) => track.stop());
         setState("ready");
         logEvent("mic_preflight_ok", {
-          elapsedMs: requestStartRef.current
-            ? Date.now() - requestStartRef.current
-            : undefined
+          elapsedMs: requestStartRef.current ? Date.now() - requestStartRef.current : undefined
         });
       })
       .catch((err) => {
@@ -240,26 +253,12 @@ export const useMicRecorder = ({ loggerScope }: UseMicRecorderOptions = {}) => {
         logEvent("mic_preflight_error", { classified });
         throw err;
       });
-  }, [capabilities.hasGetUserMedia, capabilities.hasMediaRecorder, logEvent, stopTracks]);
+  }, [ensureSupport, logEvent]);
 
   const startFromUserGesture = useCallback(() => {
-    if (!capabilities.hasGetUserMedia || !capabilities.hasMediaRecorder) {
-      const unsupportedError: MicRecorderError = {
-        kind: "unsupported",
-        rawName: "NotSupportedError",
-        rawMessage: "Microphone APIs are unavailable.",
-        recommendedAction: "Try a different browser or device.",
-        isRetryable: false
-      };
-      setError(unsupportedError);
-      setState("error");
-      return Promise.reject(unsupportedError);
-    }
-    if (typeof window !== "undefined" && !window.isSecureContext) {
-      const insecureError = buildInsecureContextError();
-      setError(insecureError);
-      setState("error");
-      return Promise.reject(insecureError);
+    const supportError = ensureSupport();
+    if (supportError) {
+      return Promise.reject(supportError);
     }
     if (state === "recording" || state === "requesting_permission") {
       return Promise.resolve();
@@ -268,32 +267,43 @@ export const useMicRecorder = ({ loggerScope }: UseMicRecorderOptions = {}) => {
     setState("requesting_permission");
     setError(null);
     requestStartRef.current = Date.now();
-    logEvent("mic_request_start", {
-      userAgent: navigator.userAgent
-    });
+    logEvent("mic_request_start", { userAgent: navigator.userAgent });
     return gumPromise
-      .then((stream) => {
+      .then(async (stream) => {
         streamRef.current = stream;
-        const mimeType = pickSupportedAudioMimeType();
-        const recorder = new MediaRecorder(
-          stream,
-          mimeType ? { mimeType } : undefined
-        );
-        lastMimeTypeRef.current = mimeType ?? recorder.mimeType ?? null;
-        chunksRef.current = [];
-        recorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            chunksRef.current.push(event.data);
-          }
+        const AudioContextCtor = resolveAudioContextCtor();
+        if (!AudioContextCtor) {
+          throw new Error("Audio capture is unavailable.");
+        }
+        const audioContext = new AudioContextCtor();
+        audioContextRef.current = audioContext;
+        sampleRateRef.current = audioContext.sampleRate || TARGET_SAMPLE_RATE;
+        if (audioContext.state === "suspended") {
+          await audioContext.resume().catch(() => undefined);
+        }
+        const source = audioContext.createMediaStreamSource(stream);
+        sourceRef.current = source;
+        const processor = audioContext.createScriptProcessor(4096, source.channelCount || 1, 1);
+        processorRef.current = processor;
+        const gain = audioContext.createGain();
+        gain.gain.value = 0;
+        gainNodeRef.current = gain;
+        processor.connect(gain);
+        gain.connect(audioContext.destination);
+        source.connect(processor);
+        pcmChunksRef.current = [];
+        samplesCollectedRef.current = 0;
+        processor.onaudioprocess = (event) => {
+          const mono = mixToMonoBuffer(event.inputBuffer);
+          if (!mono.length) return;
+          pcmChunksRef.current.push(mono.slice());
+          samplesCollectedRef.current += mono.length;
         };
-        recorder.start();
-        mediaRecorderRef.current = recorder;
+        recordingStartRef.current = Date.now();
         setState("recording");
         logEvent("mic_recording_started", {
-          elapsedMs: requestStartRef.current
-            ? Date.now() - requestStartRef.current
-            : undefined,
-          mimeType: lastMimeTypeRef.current
+          elapsedMs: requestStartRef.current ? Date.now() - requestStartRef.current : undefined,
+          sampleRate: sampleRateRef.current
         });
       })
       .catch((err) => {
@@ -301,53 +311,72 @@ export const useMicRecorder = ({ loggerScope }: UseMicRecorderOptions = {}) => {
         setError(classified);
         setState("error");
         stopTracks();
+        void cleanupAudioGraph();
         logEvent("mic_request_error", { classified });
         throw err;
       });
-  }, [
-    capabilities.hasGetUserMedia,
-    capabilities.hasMediaRecorder,
-    logEvent,
-    state,
-    stopTracks
-  ]);
+  }, [cleanupAudioGraph, ensureSupport, logEvent, state, stopTracks]);
 
   const stop = useCallback(async () => {
-    if (!mediaRecorderRef.current || state !== "recording") {
+    if (state !== "recording") {
       return null;
     }
     setState("processing");
-    const recorder = mediaRecorderRef.current;
-    return new Promise<MicRecorderResult>((resolve, reject) => {
-      recorder.onstop = async () => {
-        stopTracks();
-        const mimeType = lastMimeTypeRef.current ?? recorder.mimeType ?? "audio/webm";
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        lastBlobRef.current = blob;
-        try {
-          const base64 = await blobToBase64(blob);
-          setState("idle");
-          resolve({ base64, mimeType: blob.type, blob });
-          logEvent("mic_recording_stopped", { mimeType: blob.type });
-        } catch (err) {
-          setState("idle");
-          reject(err);
-        }
-      };
-      recorder.stop();
-    });
-  }, [logEvent, state, stopTracks]);
+    const startedAt = recordingStartRef.current;
+    recordingStartRef.current = null;
+    stopTracks();
+    await cleanupAudioGraph();
+    const totalSamples = samplesCollectedRef.current;
+    samplesCollectedRef.current = 0;
+    if (!totalSamples) {
+      pcmChunksRef.current = [];
+      setState("idle");
+      const emptyError = new Error("No audio was captured. Please record again.");
+      logEvent("mic_recording_empty", {});
+      throw emptyError;
+    }
+    const durationMs = startedAt ? Date.now() - startedAt : null;
+    if (durationMs !== null && durationMs < MIN_RECORDING_DURATION_MS) {
+      pcmChunksRef.current = [];
+      setState("idle");
+      const shortError = new Error("Recording was too short. Please speak for at least one second.");
+      logEvent("mic_recording_too_short", { durationMs });
+      throw shortError;
+    }
+    const merged = new Float32Array(totalSamples);
+    let offset = 0;
+    for (const chunk of pcmChunksRef.current) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    pcmChunksRef.current = [];
+    const sampleRate = sampleRateRef.current || TARGET_SAMPLE_RATE;
+    const resampled =
+      sampleRate === TARGET_SAMPLE_RATE ? merged : resampleLinear(merged, sampleRate, TARGET_SAMPLE_RATE);
+    const wavBuffer = encodeWav(resampled, TARGET_SAMPLE_RATE);
+    const blob = new Blob([wavBuffer], { type: WAV_MIME_TYPE });
+    lastBlobRef.current = blob;
+    if (blob.size < MIN_AUDIO_BYTES) {
+      setState("idle");
+      const minSizeError = new Error("Recording was too short. Please speak for at least one second.");
+      logEvent("mic_recording_small_blob", { size: blob.size });
+      throw minSizeError;
+    }
+    const base64 = await blobToBase64(blob);
+    setState("idle");
+    logEvent("mic_recording_stopped", { mimeType: blob.type, size: blob.size });
+    return { base64, mimeType: blob.type, blob };
+  }, [cleanupAudioGraph, logEvent, state, stopTracks]);
 
   const cancel = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.onstop = () => stopTracks();
-      mediaRecorderRef.current.stop();
-    }
-    mediaRecorderRef.current = null;
-    chunksRef.current = [];
+    recordingStartRef.current = null;
+    stopTracks();
+    void cleanupAudioGraph();
+    pcmChunksRef.current = [];
+    samplesCollectedRef.current = 0;
     setState("idle");
     setError(null);
-  }, [stopTracks]);
+  }, [cleanupAudioGraph, stopTracks]);
 
   return {
     state,
