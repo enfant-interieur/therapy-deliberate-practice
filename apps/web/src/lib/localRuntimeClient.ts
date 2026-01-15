@@ -93,7 +93,7 @@ export class LocalRuntimeClient {
   private readonly fetchTimeoutMs: number;
 
   constructor(private readonly options: LocalRuntimeClientOptions = {}) {
-    this.fetchTimeoutMs = options.fetchTimeoutMs ?? 20000;
+    this.fetchTimeoutMs = options.fetchTimeoutMs ?? 60000;
   }
 
   private resolveBase(kind: "stt" | "llm"): string {
@@ -112,14 +112,23 @@ export class LocalRuntimeClient {
     signal?: AbortSignal
   ): Promise<Response> {
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), this.fetchTimeoutMs);
+    const timeout = window.setTimeout(() => {
+      controller.abort(new DOMException("Local runtime request timed out.", "TimeoutError"));
+    }, this.fetchTimeoutMs);
     const cleanup = () => window.clearTimeout(timeout);
 
     if (signal) {
       if (signal.aborted) {
-        controller.abort(signal.reason);
+        controller.abort(
+          signal.reason ??
+            new DOMException("Request aborted by caller.", "AbortError")
+        );
       } else {
-        const onAbort = () => controller.abort(signal.reason);
+        const onAbort = () =>
+          controller.abort(
+            signal.reason ??
+              new DOMException("Request aborted by caller.", "AbortError")
+          );
         signal.addEventListener("abort", onAbort, { once: true });
         controller.signal.addEventListener(
           "abort",

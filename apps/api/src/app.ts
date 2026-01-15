@@ -2898,6 +2898,8 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
           : null;
     let llmProvider: LlmProvider | null = null;
     let llmMeta: { kind: "local" | "openai"; model: string } | null = existingLlmMeta;
+    let evaluation: unknown;
+    let llmDuration: number | undefined;
     if (clientEvaluation) {
       evaluation = clientEvaluation.evaluation;
       llmMeta = clientEvaluation.provider;
@@ -2929,8 +2931,6 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       logEvent("info", "llm.evaluate.skipped", { reason: "skip_scoring" });
     }
 
-    let evaluation: unknown;
-    let llmDuration: number | undefined;
     if (llmProvider) {
       const llmStart = Date.now();
       logEvent("info", "llm.evaluate.start", {
