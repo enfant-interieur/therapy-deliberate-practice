@@ -990,9 +990,9 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
 
     const sessionIds = sessions.map((session) => session.id);
-    // D1 complains about "too many SQL variables" once an IN clause binds too
-    // many values, so keep each chunk comfortably below the limit.
-    const SESSION_CHUNK_SIZE = 100;
+    // D1 surfaces "too many SQL variables" errors once an IN clause has ~100 values,
+    // so stay well under that ceiling to avoid 500s when users hoard sessions.
+    const SESSION_CHUNK_SIZE = 50;
 
     const items: Array<{
       session_id: string | null;

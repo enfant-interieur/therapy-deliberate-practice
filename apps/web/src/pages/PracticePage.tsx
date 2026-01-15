@@ -292,8 +292,11 @@ export const PracticePage = () => {
     autoPlayedOnceRef.current = null;
   }, [patientAudioBank, practiceMode]);
 
+  const newSessionInFlightRef = useRef(false);
+
   const startNewSession = useCallback(async () => {
-    if (!taskId) return;
+    if (!taskId || isStartingSession || newSessionInFlightRef.current) return;
+    newSessionInFlightRef.current = true;
     try {
       const result = await startSession({
         mode: "single_task",
@@ -307,8 +310,10 @@ export const PracticePage = () => {
       await refetchSessions();
     } catch (err) {
       setError(t("practice.error.sessionFailed"));
+    } finally {
+      newSessionInFlightRef.current = false;
     }
-  }, [dispatch, refetchSessions, resetSessionUI, startSession, t, taskId]);
+  }, [dispatch, isStartingSession, refetchSessions, resetSessionUI, startSession, t, taskId]);
 
   const confirmDeleteSession = useCallback(async () => {
     if (!pendingDeleteSessionId) return;

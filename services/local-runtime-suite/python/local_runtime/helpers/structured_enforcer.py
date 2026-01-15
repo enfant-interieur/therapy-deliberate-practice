@@ -4,13 +4,15 @@ import copy
 import json
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 from local_runtime.core.loader import LoadedModel
 from local_runtime.helpers.responses_helpers import stream_events
 from local_runtime.helpers.structured_output import (
     build_retry_feedback,
+    build_schema_array_trimmer,
     build_structured_output_guard,
+    build_diagnostics_defaults_fixer,
     extract_output_text,
     make_openai_strict_schema,
     parse_and_validate_structured_output,
@@ -154,6 +156,23 @@ class StructuredOutputEnforcer:
         self.logger = ctx.logger
         self.request_id = request_id
         self.max_attempts = max(1, DEFAULT_MAX_ATTEMPTS)
+        self.auto_fixers = self._build_auto_fixers()
+
+    def _build_auto_fixers(self) -> list[Callable[[Any], bool]]:
+        provider_defaults = {
+            "stt": {"kind": "local", "model": os.getenv("LOCAL_RUNTIME_STT_MODEL", "local//stt")},
+            "llm": {"kind": "local", "model": self.selected.spec.id},
+        }
+        timing_defaults = {"stt": 0, "llm": 0, "total": 0}
+        fixers: list[Callable[[Any], bool]] = [build_schema_array_trimmer(self.config.schema)]
+        schema_props = {}
+        if isinstance(self.config.schema, dict):
+            schema_props = self.config.schema.get("properties") or {}
+        if isinstance(schema_props, dict) and "diagnostics" in schema_props:
+            fixers.append(
+                build_diagnostics_defaults_fixer(provider_defaults=provider_defaults, timing_defaults=timing_defaults)
+            )
+        return fixers
 
     async def run(self, payload: dict) -> StructuredEnforcementResult:
         base_payload = copy.deepcopy(payload)
@@ -180,7 +199,9 @@ class StructuredOutputEnforcer:
                 last_error = "missing_output_text"
             else:
                 try:
-                    canonical, parsed = parse_and_validate_structured_output(output_text, self.config.effective_schema)
+                    canonical, parsed = parse_and_validate_structured_output(
+                        output_text, self.config.effective_schema, auto_fixers=self.auto_fixers
+                    )
                     self.logger.info(
                         "structured_output.valid",
                         extra={

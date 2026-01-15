@@ -4,7 +4,7 @@ import copy
 import json
 import re
 from functools import lru_cache
-from typing import Any
+from typing import Any, Callable
 
 try:  # pragma: no cover - import guard exercised in tests
     from jsonschema import Draft7Validator
@@ -15,6 +15,9 @@ THINKING_PATTERN = re.compile(r"<\s*(thinking|think)\s*>(.*?)<\s*/\s*\1\s*>", re
 CODE_FENCE_START = re.compile(r"^```[a-z0-9_-]*\s*", re.IGNORECASE)
 CODE_FENCE_END = re.compile(r"\s*```$", re.IGNORECASE)
 TRAILING_COMMA_PATTERN = re.compile(r",\s*(?=[}\]])")
+_WILDCARD = object()
+_OPEN_TO_CLOSE = {"{": "}", "[": "]"}
+_CLOSE_TO_OPEN = {"}": "{", "]": "["}
 
 
 def _strip_code_fences(text: str) -> tuple[str, bool]:
@@ -36,6 +39,40 @@ def strip_thinking(text: str) -> str:
     cleaned = cleaned.strip()
     cleaned, _ = _strip_code_fences(cleaned)
     return cleaned.strip()
+
+
+def _autoclose_json(candidate: str) -> str | None:
+    if not candidate:
+        return None
+    stack: list[str] = []
+    in_string = False
+    escape = False
+    for ch in candidate:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            if in_string:
+                escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in _OPEN_TO_CLOSE:
+            stack.append(ch)
+        elif ch in _CLOSE_TO_OPEN:
+            if stack and stack[-1] == _CLOSE_TO_OPEN[ch]:
+                stack.pop()
+            else:
+                return None
+    if in_string:
+        return None
+    if not stack:
+        return candidate
+    closing = "".join(_OPEN_TO_CLOSE[ch] for ch in reversed(stack))
+    return candidate + closing
 
 
 def extract_json_region(text: str) -> str:
@@ -66,6 +103,10 @@ def repair_json_minimal(text: str) -> str | None:
     trimmed = text.strip()
     unfenced, unfenced_changed = _strip_code_fences(trimmed)
     repaired = TRAILING_COMMA_PATTERN.sub("", unfenced)
+    autoclose = _autoclose_json(repaired)
+    if autoclose and autoclose != repaired:
+        repaired = autoclose
+        unfenced_changed = True
     if repaired != trimmed or unfenced_changed:
         return repaired.strip()
     return None
@@ -171,8 +212,92 @@ def validate_against_schema(obj: Any, schema: dict) -> list[str]:
     return errors
 
 
-def parse_and_validate_structured_output(raw_text: str, schema: dict) -> tuple[str, Any]:
+StructuredOutputFixer = Callable[[Any], bool]
+
+
+def _type_includes(schema_node: dict[str, Any], expected: str) -> bool:
+    schema_type = schema_node.get("type")
+    if isinstance(schema_type, list):
+        return expected in schema_type
+    return schema_type == expected
+
+
+def _collect_array_constraints(schema: Any, path: tuple[Any, ...]) -> list[tuple[tuple[Any, ...], int]]:
+    constraints: list[tuple[tuple[Any, ...], int]] = []
+    if not isinstance(schema, dict):
+        return constraints
+    is_array = _type_includes(schema, "array")
+    max_items = schema.get("maxItems")
+    if is_array and isinstance(max_items, int) and max_items >= 0:
+        constraints.append((path, max_items))
+    if is_array:
+        items = schema.get("items")
+        if isinstance(items, dict):
+            constraints.extend(_collect_array_constraints(items, path + (_WILDCARD,)))
+    if _type_includes(schema, "object") or schema.get("properties"):
+        props = schema.get("properties", {})
+        if isinstance(props, dict):
+            for key, value in props.items():
+                constraints.extend(_collect_array_constraints(value, path + (key,)))
+    return constraints
+
+
+def _apply_array_constraint(target: Any, path: tuple[Any, ...], max_items: int) -> bool:
+    if not path:
+        if isinstance(target, list) and len(target) > max_items:
+            del target[max_items:]
+            return True
+        return False
+    head, *rest = path
+    if head is _WILDCARD:
+        if not isinstance(target, list):
+            return False
+        changed = False
+        for item in target:
+            if rest:
+                changed = _apply_array_constraint(item, tuple(rest), max_items) or changed
+        return changed
+    if not isinstance(target, dict):
+        return False
+    if not rest:
+        arr = target.get(head)
+        if not isinstance(arr, list) or len(arr) <= max_items:
+            return False
+        target[head] = arr[:max_items]
+        return True
+    if head not in target:
+        return False
+    return _apply_array_constraint(target[head], tuple(rest), max_items)
+
+
+def build_schema_array_trimmer(schema: dict[str, Any] | None) -> StructuredOutputFixer:
+    constraints = _collect_array_constraints(schema or {}, ())
+
+    def _fixer(payload: Any) -> bool:
+        if not constraints:
+            return False
+        changed = False
+        for path, max_items in constraints:
+            changed = _apply_array_constraint(payload, path, max_items) or changed
+        return changed
+
+    return _fixer
+
+
+def parse_and_validate_structured_output(
+    raw_text: str, schema: dict, auto_fixers: list[StructuredOutputFixer] | None = None
+) -> tuple[str, Any]:
     canonical, parsed = postprocess_to_json_text(raw_text)
+    changed = False
+    if auto_fixers:
+        for fixer in auto_fixers:
+            try:
+                if fixer(parsed):
+                    changed = True
+            except Exception:  # pragma: no cover - guard rail
+                continue
+    if changed:
+        canonical = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))
     violations = validate_against_schema(parsed, schema)
     if violations:
         raise ValueError(f"schema_validation_failed: {'; '.join(violations)}")
@@ -202,3 +327,62 @@ def build_retry_feedback(attempt: int, reason: str, bad_snippet: str) -> str:
         "No comments, no markdown, no extra keys. "
         f"Problem snippet: {snippet}"
     )
+
+
+def build_diagnostics_defaults_fixer(
+    *, provider_defaults: dict[str, dict[str, str]], timing_defaults: dict[str, float | int] | None = None
+) -> StructuredOutputFixer:
+    def _ensure_provider(existing: Any) -> tuple[dict[str, dict[str, str]], bool]:
+        provider = existing if isinstance(existing, dict) else {}
+        changed = not isinstance(existing, dict)
+        for key, defaults in provider_defaults.items():
+            entry = provider.get(key)
+            if not isinstance(entry, dict):
+                provider[key] = dict(defaults)
+                changed = True
+            else:
+                if "kind" not in entry and "kind" in defaults:
+                    entry["kind"] = defaults["kind"]
+                    changed = True
+                if "model" not in entry and "model" in defaults:
+                    entry["model"] = defaults["model"]
+                    changed = True
+        return provider, changed
+
+    def _ensure_timing(existing: Any) -> tuple[dict[str, float | int], bool]:
+        if not timing_defaults:
+            if isinstance(existing, dict):
+                return existing, False
+            return {}, False
+        timing = existing if isinstance(existing, dict) else {}
+        changed = not isinstance(existing, dict)
+        for key, default_value in timing_defaults.items():
+            if key not in timing:
+                timing[key] = default_value
+                changed = True
+        return timing, changed
+
+    def _fixer(payload: Any) -> bool:
+        if not isinstance(payload, dict):
+            return False
+        diagnostics = payload.get("diagnostics")
+        if diagnostics is None:
+            diagnostics = {}
+            payload["diagnostics"] = diagnostics
+        if not isinstance(diagnostics, dict):
+            return False
+        changed = False
+        provider = diagnostics.get("provider")
+        new_provider, provider_changed = _ensure_provider(provider)
+        if provider_changed or provider is not new_provider:
+            diagnostics["provider"] = new_provider
+            changed = changed or provider_changed
+        if timing_defaults:
+            timing = diagnostics.get("timing_ms")
+            new_timing, timing_changed = _ensure_timing(timing)
+            if timing_changed or timing is not new_timing:
+                diagnostics["timing_ms"] = new_timing
+                changed = True
+        return changed
+
+    return _fixer
