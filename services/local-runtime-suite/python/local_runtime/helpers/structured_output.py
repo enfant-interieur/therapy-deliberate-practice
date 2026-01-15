@@ -128,14 +128,9 @@ def make_openai_strict_schema(schema: dict) -> dict:
             props = node.get("properties")
             if isinstance(props, dict):
                 node["properties"] = {k: _apply(v) for k, v in props.items()}
-                keys = list(node["properties"].keys())
-                if keys:
-                    required = node.get("required")
-                    ordered = list(required) if isinstance(required, list) else []
-                    for key in keys:
-                        if key not in ordered:
-                            ordered.append(key)
-                    node["required"] = ordered
+                required = node.get("required")
+                if isinstance(required, list):
+                    node["required"] = [key for key in required if key in node["properties"]]
                 node.setdefault("additionalProperties", False)
             items = node.get("items")
             if isinstance(items, dict):
