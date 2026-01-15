@@ -993,7 +993,14 @@ async def audio_transcriptions(request: Request) -> Response:
     )
     ctx = _ctx_factory(request_id, endpoint="audio.transcriptions", model_id=model_id)
     start = time.perf_counter()
-    result = await selected.module.run(run_request, ctx)
+    try:
+        result = await selected.module.run(run_request, ctx)
+    except RuntimeError as exc:
+        app.state.logger.warning(
+            "audio.transcriptions.failed",
+            extra={"request_id": request_id, "model_id": model_id, "error": str(exc)},
+        )
+        return format_error(str(exc), err_type="invalid_audio", status_code=400)
     duration_ms = round((time.perf_counter() - start) * 1000, 2)
     app.state.logger.info("audio.transcriptions.run", extra={"request_id": request_id, "model_id": model_id, "duration_ms": duration_ms})
     return format_audio_transcription_response(result, response_format, stream)

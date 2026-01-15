@@ -284,7 +284,8 @@ export const practiceRunResponseSchema = z.object({
         kind: z.enum(["local", "openai"]),
         model: z.string()
       }),
-      duration_ms: z.number()
+      duration_ms: z.number(),
+      origin: z.enum(["local", "openai"])
     })
     .optional(),
   timing_penalty: z.number().optional(),
@@ -296,7 +297,8 @@ export const practiceRunResponseSchema = z.object({
         kind: z.enum(["local", "openai"]),
         model: z.string()
       }),
-      duration_ms: z.number()
+      duration_ms: z.number(),
+      origin: z.enum(["local", "openai"])
     })
     .optional(),
   errors: z

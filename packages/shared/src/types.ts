@@ -110,6 +110,23 @@ export type EvaluationResult = {
   };
 };
 
+export type ProviderDescriptor = {
+  kind: "local" | "openai";
+  model: string;
+};
+
+export type ClientTranscriptPayload = {
+  text: string;
+  provider: ProviderDescriptor;
+  duration_ms: number;
+};
+
+export type ClientEvaluationPayload = {
+  evaluation: EvaluationResult;
+  provider: ProviderDescriptor;
+  duration_ms: number;
+};
+
 export type PracticeRunInput = {
   session_item_id?: string;
   task_id?: string;
@@ -118,8 +135,8 @@ export type PracticeRunInput = {
   audio?: string;
   audio_mime?: string;
   transcript_text?: string;
-  client_transcript?: PracticeRunTranscript;
-  client_evaluation?: PracticeRunScoring;
+  client_transcript?: ClientTranscriptPayload;
+  client_evaluation?: ClientEvaluationPayload;
   skip_scoring?: boolean;
   mode?: "local_prefer" | "openai_only" | "local_only";
   practice_mode?: "standard" | "real_time";
@@ -140,16 +157,12 @@ export type PracticeRunError = {
   message: string;
 };
 
-export type PracticeRunTranscript = {
-  text: string;
-  provider: { kind: "local" | "openai"; model: string };
-  duration_ms: number;
+export type PracticeRunTranscript = ClientTranscriptPayload & {
+  origin: "local" | "openai";
 };
 
-export type PracticeRunScoring = {
-  evaluation: EvaluationResult;
-  provider: { kind: "local" | "openai"; model: string };
-  duration_ms: number;
+export type PracticeRunScoring = ClientEvaluationPayload & {
+  origin: "local" | "openai";
 };
 
 export type PracticeRunResponse = {

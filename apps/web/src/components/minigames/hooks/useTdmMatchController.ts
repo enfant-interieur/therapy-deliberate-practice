@@ -1,10 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { EvaluationInput, Task } from "@deliberate/shared";
 import type { MinigameRound } from "../../../store/api";
 import { useStartMinigameRoundMutation, useSubmitMinigameRoundMutation } from "../../../store/api";
 import { useAudioRecorder } from "./useAudioRecorder";
 import { useResponseTiming, MIN_RESPONSE_TIMER_NEGATIVE } from "./useResponseTiming";
 import type { PatientAudioBankHandle } from "../../../patientAudio/usePatientAudioBank";
-import { applyTimingPenalty, createTimeoutEvaluation, normalizeSubmitResponse } from "./turnSubmit";
+import {
+  applyTimingPenalty,
+  createTimeoutEvaluation,
+  normalizeSubmitResponse
+} from "./turnSubmit";
+import {
+  fallbackLocalSttProvider,
+  runLocalEvaluation,
+  runLocalTranscription,
+  type ClientTranscriptPayload
+} from "../../../lib/localInference";
+import type { LocalRuntimeClient } from "../../../lib/localRuntimeClient";
+import { buildExampleForRound } from "./localRoundUtils";
 
 export type MatchState =
   | "idle"
@@ -25,6 +38,8 @@ type TdmMatchControllerOptions = {
   audioElement?: HTMLAudioElement | null;
   enabled?: boolean;
   aiMode?: string;
+  task?: Task | null;
+  localRuntimeClient?: LocalRuntimeClient | null;
   responseTimerEnabled: boolean;
   responseTimerSeconds?: number;
   maxResponseEnabled: boolean;
@@ -47,6 +62,8 @@ export const useTdmMatchController = ({
   audioElement,
   enabled = true,
   aiMode,
+  task,
+  localRuntimeClient,
   responseTimerEnabled,
   responseTimerSeconds,
   maxResponseEnabled,
@@ -57,6 +74,7 @@ export const useTdmMatchController = ({
 }: TdmMatchControllerOptions) => {
   const [startRound] = useStartMinigameRoundMutation();
   const [submitRound] = useSubmitMinigameRoundMutation();
+  const shouldUseLocalGateway = aiMode === "local_only";
   const { recordingState, startRecording, stopRecording, cancelRecording } = useAudioRecorder();
   const [patientEndedAt, setPatientEndedAt] = useState<number | null>(null);
   const playTokenRef = useRef(0);
@@ -269,15 +287,12 @@ export const useTdmMatchController = ({
     recordResponseStop();
     const timingSnapshot = getTimingSnapshot();
     try {
-      const transcriptionResponse = await submitRound({
+      const submitBase = {
         sessionId,
         roundId: round.id,
         player_id: activePlayerId,
-        audio_base64: recorded.base64,
-        audio_mime: recorded.mimeType,
         mode: aiMode,
-        practice_mode: "real_time",
-        skip_scoring: true,
+        practice_mode: "real_time" as const,
         turn_context: {
           patient_cache_key: patientCacheKey,
           patient_statement_id: round.example_id,
@@ -288,43 +303,90 @@ export const useTdmMatchController = ({
             max_response_duration_seconds: maxResponseEnabled ? maxResponseSeconds : undefined
           }
         }
-      }).unwrap();
+      };
+      let clientTranscript: ClientTranscriptPayload | null = null;
+      const transcriptionResponse = shouldUseLocalGateway
+        ? await (async () => {
+            if (!localRuntimeClient) {
+              throw new Error("Local runtime client unavailable.");
+            }
+            clientTranscript = await runLocalTranscription({
+              client: localRuntimeClient,
+              blob: recorded.blob,
+              mimeType: recorded.mimeType
+            });
+            return submitRound({
+              ...submitBase,
+              skip_scoring: true,
+              client_transcript: clientTranscript
+            }).unwrap();
+          })()
+        : await submitRound({
+            ...submitBase,
+            skip_scoring: true,
+            audio_base64: recorded.base64,
+            audio_mime: recorded.mimeType
+          }).unwrap();
       const parsedTranscript = normalizeSubmitResponse(transcriptionResponse);
+      const transcriptText = parsedTranscript.transcript ?? clientTranscript?.text;
+      const attemptId = parsedTranscript.attemptId;
       onTranscript?.({
-        transcript: parsedTranscript.transcript,
-        attemptId: parsedTranscript.attemptId
+        transcript: transcriptText,
+        attemptId
       });
-      if (!parsedTranscript.transcript || !parsedTranscript.attemptId) {
+      if (!transcriptText || !attemptId) {
         throw new Error("Transcription missing.");
       }
       setState("evaluating");
-      const response = await submitRound({
-        sessionId,
-        roundId: round.id,
-        player_id: activePlayerId,
-        transcript_text: parsedTranscript.transcript,
-        attempt_id: parsedTranscript.attemptId,
-        mode: aiMode,
-        practice_mode: "real_time",
-        turn_context: {
-          patient_cache_key: patientCacheKey,
-          patient_statement_id: round.example_id,
-          timing: {
-            response_delay_ms: timingSnapshot.responseDelayMs,
-            response_duration_ms: timingSnapshot.responseDurationMs,
-            response_timer_seconds: responseTimerEnabled ? responseTimerSeconds : undefined,
-            max_response_duration_seconds: maxResponseEnabled ? maxResponseSeconds : undefined
-          }
-        }
-      }).unwrap();
-      const parsed = normalizeSubmitResponse(response);
+      const evaluationResponse = shouldUseLocalGateway
+        ? await (async () => {
+            if (!localRuntimeClient) {
+              throw new Error("Local runtime client unavailable.");
+            }
+            if (!task) {
+              throw new Error("Task data unavailable for local evaluation.");
+            }
+            const example = buildExampleForRound(round, task);
+            const evaluationInput: EvaluationInput = {
+              task,
+              example,
+              attempt_id: attemptId,
+              transcript: { text: transcriptText }
+            };
+            const localEval = await runLocalEvaluation({
+              client: localRuntimeClient,
+              input: evaluationInput
+            });
+            const transcriptPayload: ClientTranscriptPayload =
+              clientTranscript ?? {
+                text: transcriptText,
+                provider: fallbackLocalSttProvider,
+                duration_ms: 0
+              };
+            return submitRound({
+              ...submitBase,
+              attempt_id: attemptId,
+              client_transcript: transcriptPayload,
+              client_evaluation: {
+                evaluation: localEval.evaluation,
+                provider: localEval.provider,
+                duration_ms: localEval.duration_ms
+              }
+            }).unwrap();
+          })()
+        : await submitRound({
+            ...submitBase,
+            attempt_id: attemptId,
+            transcript_text: transcriptText
+          }).unwrap();
+      const parsed = normalizeSubmitResponse(evaluationResponse);
       const timingPenalty = parsed.timingPenalty ?? timingSnapshot.penalty;
       const adjustedScore = applyTimingPenalty({ score: parsed.score, timingPenalty });
       onResult({
-        transcript: parsed.transcript,
+        transcript: parsed.transcript ?? transcriptText,
         evaluation: parsed.evaluation,
-        score: response.adjusted_score ?? adjustedScore ?? parsed.score,
-        attemptId: parsed.attemptId,
+        score: evaluationResponse.adjusted_score ?? adjustedScore ?? parsed.score,
+        attemptId: parsed.attemptId ?? attemptId,
         timingPenalty,
         playerId: activePlayerId
       });
@@ -338,6 +400,7 @@ export const useTdmMatchController = ({
         setState("complete");
       }
     } catch (error) {
+      console.error("[minigames] tdm_stop_and_submit_error", error);
       setSubmitError("Submission failed. Please try again.");
       setState("patient_ready");
     }
@@ -355,12 +418,15 @@ export const useTdmMatchController = ({
     responseTimerSeconds,
     round,
     sessionId,
+    shouldUseLocalGateway,
     stopRecording,
     submitRound,
     getTimingSnapshot,
     recordResponseStop,
     resetTiming,
-    stop
+    stop,
+    localRuntimeClient,
+    task
   ]);
 
   const abortTurn = useCallback(

@@ -33,6 +33,12 @@ import {
 } from "../store/practiceSlice";
 import { usePatientAudioBank } from "../patientAudio/usePatientAudioBank";
 import { classifyMicError, useMicRecorder } from "../hooks/useMicRecorder";
+import {
+  fallbackLocalSttProvider,
+  runLocalEvaluation,
+  runLocalTranscription,
+  type ClientTranscriptPayload
+} from "../lib/localInference";
 
 const blobToBase64 = (blob: Blob, errorMessage: string) =>
   new Promise<string>((resolve, reject) => {
@@ -50,9 +56,6 @@ const blobToBase64 = (blob: Blob, errorMessage: string) =>
     };
     reader.readAsDataURL(blob);
   });
-
-type ClientTranscriptPayload = NonNullable<PracticeRunInput["client_transcript"]>;
-type ClientEvaluationPayload = NonNullable<PracticeRunInput["client_evaluation"]>;
 
 export const PracticePage = () => {
   const { t } = useTranslation();
@@ -76,7 +79,8 @@ export const PracticePage = () => {
   const practice = useAppSelector((state) => state.practice);
   const settings = useAppSelector((state) => state.settings);
   const localRuntimeClient = useLocalRuntimeClient();
-  const shouldUseLocalGateway = settings.aiMode === "local_only";
+  const preferLocalGateway = settings.aiMode !== "openai_only";
+  const requireLocalGateway = settings.aiMode === "local_only";
   const {
     data: sessionHistory = [],
     isLoading: isLoadingSessions,
@@ -611,37 +615,46 @@ export const PracticePage = () => {
               patient_statement_id: currentExampleId
             }
           : undefined;
-      const basePayload: PracticeRunInput = {
-        session_item_id: currentItem.session_item_id,
-        mode: settings.aiMode,
-        practice_mode: practiceMode,
-        turn_context: turnContext,
-        skip_scoring: true
-      };
       const promise = (async () => {
-        let payload: PracticeRunInput;
-        if (shouldUseLocalGateway) {
-          const client = localRuntimeClient;
-          if (!client) {
-            throw new Error("Local runtime client unavailable.");
+        const basePayload: PracticeRunInput = {
+          session_item_id: currentItem.session_item_id,
+          mode: settings.aiMode,
+          practice_mode: practiceMode,
+          turn_context: turnContext,
+          skip_scoring: true
+        };
+        let result: PracticeRunResponse | null = null;
+        if (preferLocalGateway) {
+          try {
+            const clientTranscript = await runLocalTranscription({
+              client: localRuntimeClient,
+              blob,
+              mimeType
+            });
+            clientTranscriptRef.current = clientTranscript;
+            result = await runPractice({
+              ...basePayload,
+              client_transcript: clientTranscript
+            }).unwrap();
+          } catch (err) {
+            clientTranscriptRef.current = null;
+            if (requireLocalGateway) {
+              throw err;
+            }
+            console.warn("[practice] local transcription failed, falling back to API", err);
           }
-          const localResult = await client.transcribeAudio(blob, { mimeType });
-          const clientTranscript: ClientTranscriptPayload = {
-            text: localResult.text,
-            provider: localResult.provider,
-            duration_ms: localResult.durationMs
-          };
-          clientTranscriptRef.current = clientTranscript;
-          payload = { ...basePayload, client_transcript: clientTranscript };
-        } else {
+        }
+        if (!result) {
           const base64 = await blobToBase64(blob, t("practice.error.readAudio"));
-          payload = {
+          result = await runPractice({
             ...basePayload,
             audio: base64,
             audio_mime: mimeType ?? undefined
-          };
+          }).unwrap();
         }
-        const result = await runPractice(payload).unwrap();
+        if (!result) {
+          throw new Error("Transcription unavailable.");
+        }
         if (transcriptionRequestRef.current !== transcriptionId) {
           return result;
         }
@@ -652,7 +665,7 @@ export const PracticePage = () => {
         dispatch(
           setAttemptForItem({
             sessionItemId: currentItem.session_item_id,
-            transcript: result.transcript?.text,
+            transcript: result.transcript?.text ?? clientTranscriptRef.current?.text,
             attemptId: result.attemptId
           })
         );
@@ -681,9 +694,10 @@ export const PracticePage = () => {
       localRuntimeClient,
       patientCacheKey,
       practiceMode,
+      preferLocalGateway,
+      requireLocalGateway,
       runPractice,
       settings.aiMode,
-      shouldUseLocalGateway,
       t
     ]
   );
@@ -702,7 +716,7 @@ export const PracticePage = () => {
         setEvaluationStatus("error");
         return null;
       }
-      if (shouldUseLocalGateway && !task) {
+      if (requireLocalGateway && !task) {
         setEvaluationStatus("error");
         setError("Task data unavailable for local evaluation.");
         return null;
@@ -722,52 +736,66 @@ export const PracticePage = () => {
           practice_mode: practiceMode,
           turn_context: turnContext
         };
-        let evaluationResult: PracticeRunResponse;
-        if (shouldUseLocalGateway) {
-          if (!task) {
-            throw new Error("Task data unavailable for local evaluation.");
+        let evaluationResult: PracticeRunResponse | null = null;
+        if (preferLocalGateway && task) {
+          try {
+            const transcriptSource =
+              result?.transcript?.text ??
+              clientTranscriptRef.current?.text ??
+              transcriptText;
+            if (!transcriptSource) {
+              throw new Error("Transcript missing for evaluation.");
+            }
+            const example: TaskExample = {
+              id: currentItem.example_id,
+              task_id: currentItem.task_id,
+              difficulty: currentItem.target_difficulty ?? 1,
+              severity_label: null,
+              patient_text: currentItem.patient_text,
+              meta: null
+            };
+            const evaluationInput: EvaluationInput = {
+              task,
+              example,
+              attempt_id: attemptId,
+              transcript: { text: transcriptSource }
+            };
+            const localResult = await runLocalEvaluation({
+              client: localRuntimeClient,
+              input: evaluationInput
+            });
+            const transcriptPayload: ClientTranscriptPayload =
+              result?.transcript ??
+              clientTranscriptRef.current ?? {
+                text: transcriptSource,
+                provider: fallbackLocalSttProvider,
+                duration_ms: clientTranscriptRef.current?.duration_ms ?? 0
+              };
+            evaluationResult = await runPractice({
+              ...basePayload,
+              attempt_id: attemptId,
+              client_transcript: transcriptPayload,
+              client_evaluation: {
+                evaluation: localResult.evaluation,
+                provider: localResult.provider,
+                duration_ms: localResult.duration_ms
+              }
+            }).unwrap();
+          } catch (err) {
+            if (requireLocalGateway) {
+              throw err;
+            }
+            console.warn("[practice] local evaluation failed, falling back to API", err);
           }
-          const client = localRuntimeClient;
-          if (!client) {
-            throw new Error("Local runtime client unavailable.");
-          }
-          const transcriptSource =
-            result?.transcript?.text ??
-            clientTranscriptRef.current?.text ??
-            transcriptText;
-          if (!transcriptSource) {
-            throw new Error("Transcript missing for evaluation.");
-          }
-          const example: TaskExample = {
-            id: currentItem.example_id,
-            task_id: currentItem.task_id,
-            difficulty: currentItem.target_difficulty ?? 1,
-            severity_label: null,
-            patient_text: currentItem.patient_text,
-            meta: null
-          };
-          const evaluationInput: EvaluationInput = {
-            task,
-            example,
-            attempt_id: attemptId,
-            transcript: { text: transcriptSource }
-          };
-          const localResult = await client.evaluateDeliberatePractice(evaluationInput);
-          const clientEvaluation: ClientEvaluationPayload = {
-            evaluation: localResult.evaluation,
-            provider: localResult.provider,
-            duration_ms: localResult.durationMs
-          };
-          evaluationResult = await runPractice({
-            ...basePayload,
-            client_transcript: clientTranscriptRef.current ?? undefined,
-            client_evaluation: clientEvaluation
-          }).unwrap();
-        } else {
+        }
+        if (!evaluationResult) {
           evaluationResult = await runPractice({
             ...basePayload,
             transcript_text: transcriptText
           }).unwrap();
+        }
+        if (!evaluationResult) {
+          throw new Error("Evaluation unavailable.");
         }
         if (evaluationRequestRef.current !== evaluationId) {
           return evaluationResult;
@@ -804,9 +832,10 @@ export const PracticePage = () => {
       practice.currentAttemptId,
       practice.transcript,
       practiceMode,
+      preferLocalGateway,
+      requireLocalGateway,
       runPractice,
       settings.aiMode,
-      shouldUseLocalGateway,
       task
     ]
   );
@@ -830,7 +859,7 @@ export const PracticePage = () => {
       setError("Wait for the patient audio to finish before recording.");
       return;
     }
-    if (!micRecorder.capabilities.hasMediaRecorder || !micRecorder.capabilities.hasGetUserMedia) {
+    if (!micRecorder.capabilities.hasAudioContext || !micRecorder.capabilities.hasGetUserMedia) {
       setError("Audio recording is not supported in this browser.");
       return;
     }
@@ -845,21 +874,29 @@ export const PracticePage = () => {
 
   const stopRecording = () => {
     dispatch(setRecordingState("processing"));
-    void micRecorder.stop().then((recorded) => {
-      if (!recorded) return;
-      const url = URL.createObjectURL(recorded.blob);
-      if (practice.audioBlobRef) {
-        URL.revokeObjectURL(practice.audioBlobRef);
-      }
-      dispatch(setAudioBlobRef({ url, mimeType: recorded.mimeType }));
-      void beginTranscription(recorded.blob, recorded.mimeType)
-        .then((result) => {
-          if (result) {
-            void beginEvaluation(result).catch(() => null);
-          }
-        })
-        .catch(() => null);
-    });
+    void micRecorder
+      .stop()
+      .then((recorded) => {
+        if (!recorded) return;
+        const url = URL.createObjectURL(recorded.blob);
+        if (practice.audioBlobRef) {
+          URL.revokeObjectURL(practice.audioBlobRef);
+        }
+        dispatch(setAudioBlobRef({ url, mimeType: recorded.mimeType }));
+        void beginTranscription(recorded.blob, recorded.mimeType)
+          .then((result) => {
+            if (result) {
+              void beginEvaluation(result).catch(() => null);
+            }
+          })
+          .catch(() => null);
+      })
+      .catch((err) => {
+        const message =
+          err instanceof Error ? err.message : t("practice.error.noAudio");
+        setError(message);
+        dispatch(setRecordingState("ready"));
+      });
   };
 
   const runEvaluation = async () => {

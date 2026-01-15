@@ -153,6 +153,17 @@ const inferLanguage = (text: string) => {
   return "en";
 };
 
+const chunkArray = <T>(values: T[], chunkSize: number): T[][] => {
+  if (chunkSize <= 0) {
+    return [values];
+  }
+  const chunks: T[][] = [];
+  for (let i = 0; i < values.length; i += chunkSize) {
+    chunks.push(values.slice(i, i + chunkSize));
+  }
+  return chunks;
+};
+
 const toLogFn = (loggerInstance: ReturnType<typeof createLogger>): LogFn => {
   return (level, event, fields) => {
     switch (level) {
@@ -979,25 +990,54 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
 
     const sessionIds = sessions.map((session) => session.id);
-    const items = await db
-      .select({
-        session_id: practiceSessionItems.session_id,
-        session_item_id: practiceSessionItems.id,
-        task_id: practiceSessionItems.task_id,
-        example_id: practiceSessionItems.example_id,
-        target_difficulty: practiceSessionItems.target_difficulty,
-        patient_text: taskExamples.patient_text,
-        position: practiceSessionItems.position
-      })
-      .from(practiceSessionItems)
-      .leftJoin(taskExamples, eq(practiceSessionItems.example_id, taskExamples.id))
-      .where(inArray(practiceSessionItems.session_id, sessionIds))
-      .orderBy(practiceSessionItems.session_id, practiceSessionItems.position);
+    // D1 complains about "too many SQL variables" once an IN clause binds too
+    // many values, so keep each chunk comfortably below the limit.
+    const SESSION_CHUNK_SIZE = 100;
 
-    const attemptsRows = await db
-      .select({ session_id: attempts.session_id, session_item_id: attempts.session_item_id })
-      .from(attempts)
-      .where(and(eq(attempts.user_id, user.id), inArray(attempts.session_id, sessionIds)));
+    const items: Array<{
+      session_id: string | null;
+      session_item_id: string;
+      task_id: string;
+      example_id: string | null;
+      target_difficulty: number | null;
+      patient_text: string | null;
+      position: number | null;
+    }> = [];
+    for (const chunk of chunkArray(sessionIds, SESSION_CHUNK_SIZE)) {
+      if (!chunk.length) continue;
+      const chunkItems = await db
+        .select({
+          session_id: practiceSessionItems.session_id,
+          session_item_id: practiceSessionItems.id,
+          task_id: practiceSessionItems.task_id,
+          example_id: practiceSessionItems.example_id,
+          target_difficulty: practiceSessionItems.target_difficulty,
+          patient_text: taskExamples.patient_text,
+          position: practiceSessionItems.position
+        })
+        .from(practiceSessionItems)
+        .leftJoin(taskExamples, eq(practiceSessionItems.example_id, taskExamples.id))
+        .where(inArray(practiceSessionItems.session_id, chunk))
+        .orderBy(practiceSessionItems.session_id, practiceSessionItems.position);
+      items.push(...chunkItems);
+    }
+
+    items.sort((a, b) => {
+      if (a.session_id === b.session_id) {
+        return (a.position ?? 0) - (b.position ?? 0);
+      }
+      return (a.session_id ?? "").localeCompare(b.session_id ?? "");
+    });
+
+    const attemptsRows: Array<{ session_id: string | null; session_item_id: string | null }> = [];
+    for (const chunk of chunkArray(sessionIds, SESSION_CHUNK_SIZE)) {
+      if (!chunk.length) continue;
+      const chunkAttempts = await db
+        .select({ session_id: attempts.session_id, session_item_id: attempts.session_item_id })
+        .from(attempts)
+        .where(and(eq(attempts.user_id, user.id), inArray(attempts.session_id, chunk)));
+      attemptsRows.push(...chunkAttempts);
+    }
 
     const attemptsBySession = attemptsRows.reduce((map, row) => {
       if (!row.session_id || !row.session_item_id) return map;
@@ -2578,7 +2618,8 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
     const audioLength = input.audio?.length ?? 0;
     const minAudioLength = 128;
-    if (!usesProvidedTranscript) {
+    const requiresAudio = !usesProvidedTranscript && !usesClientTranscript;
+    if (requiresAudio) {
       if (!input.audio || audioLength < minAudioLength) {
         logEvent("warn", "input.parse.error", {
           reason: "audio_too_small",
@@ -2753,8 +2794,10 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       existingAttempt?.model_info && typeof existingAttempt.model_info === "object"
         ? (existingAttempt.model_info as {
             provider?: {
-              stt?: { kind?: "local" | "openai"; model?: string };
-              llm?: { kind?: "local" | "openai"; model?: string } | null;
+              stt?: { kind?: "local" | "openai"; model?: string; origin?: "local" | "openai" };
+              llm?:
+                | { kind?: "local" | "openai"; model?: string; origin?: "local" | "openai" }
+                | null;
             };
             timing_ms?: { stt?: number; llm?: number; total?: number };
             practice?: { mode?: string; turn_context?: unknown };
@@ -2942,6 +2985,45 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       }
     }
 
+    const previousSttMeta = existingModelInfo?.provider?.stt;
+    const previousLlmMeta = existingModelInfo?.provider?.llm ?? null;
+    const effectiveSttMeta =
+      sttMeta ??
+      (previousSttMeta
+        ? {
+            kind: previousSttMeta.kind ?? "openai",
+            model: previousSttMeta.model ?? "unknown"
+          }
+        : { kind: "openai", model: "unknown" });
+    const sttOrigin: "local" | "openai" =
+      usesClientTranscript || effectiveSttMeta.kind === "local"
+        ? "local"
+        : previousSttMeta?.origin ?? "openai";
+    const sttProviderInfo = {
+      kind: effectiveSttMeta.kind,
+      model: effectiveSttMeta.model,
+      origin: sttOrigin
+    };
+    const effectiveLlmMeta =
+      llmMeta ??
+      (previousLlmMeta
+        ? {
+            kind: previousLlmMeta.kind ?? "openai",
+            model: previousLlmMeta.model ?? "unknown"
+          }
+        : null);
+    const llmOrigin: "local" | "openai" =
+      clientEvaluation || effectiveLlmMeta?.kind === "local"
+        ? "local"
+        : previousLlmMeta?.origin ?? "openai";
+    const llmProviderInfo = effectiveLlmMeta
+      ? {
+          kind: effectiveLlmMeta.kind,
+          model: effectiveLlmMeta.model,
+          origin: llmOrigin
+        }
+      : null;
+
     let nextDifficulty: number | undefined;
     let overallScore = scoringResult?.overall.score ?? 0;
     let overallPass = scoringResult?.overall.pass ?? false;
@@ -2952,8 +3034,8 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         const llmTiming = llmDuration ?? existingModelInfo?.timing_ms?.llm;
         const modelInfo = {
           provider: {
-            stt: sttMeta,
-            llm: llmMeta ?? existingModelInfo?.provider?.llm ?? null
+            stt: sttProviderInfo,
+            llm: llmProviderInfo
           },
           timing_ms: {
             stt: sttTiming,
@@ -3068,15 +3150,25 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       transcript: transcript
         ? {
             text: transcript.text,
-            provider: sttMeta,
-            duration_ms: responseSttDuration
+            provider: {
+              kind: sttProviderInfo.kind,
+              model: sttProviderInfo.model
+            },
+            duration_ms: responseSttDuration,
+            origin: sttProviderInfo.origin
           }
         : undefined,
       scoring: scoringResult
         ? {
             evaluation: scoringResult,
-            provider: llmMeta ?? { kind: "openai", model: "unknown" },
-            duration_ms: llmDuration ?? 0
+            provider: llmProviderInfo
+              ? {
+                  kind: llmProviderInfo.kind,
+                  model: llmProviderInfo.model
+                }
+              : { kind: "openai", model: "unknown" },
+            duration_ms: llmDuration ?? 0,
+            origin: llmProviderInfo?.origin ?? llmOrigin
           }
         : undefined,
       errors: errors.length ? errors : undefined,
@@ -3084,8 +3176,13 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
         ? {
             timings,
             selectedProviders: {
-              stt: sttMeta,
-              llm: llmMeta
+              stt: {
+                kind: sttProviderInfo.kind,
+                model: sttProviderInfo.model
+              },
+              llm: llmProviderInfo
+                ? { kind: llmProviderInfo.kind, model: llmProviderInfo.model }
+                : llmMeta
             }
           }
         : undefined

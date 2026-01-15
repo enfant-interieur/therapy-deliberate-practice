@@ -1,0 +1,671 @@
+
+> @deliberate/api@0.1.0 build
+> tsc -p tsconfig.json
+
+src/app.ts(189,27): error TS2304: Cannot find name 'logger'.
+src/app.ts(446,11): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never, value: unknown): void', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never, value: never): void', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(454,21): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(454,30): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(464,22): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"logStage"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"logStage"' is not assignable to parameter of type 'never'.
+src/app.ts(475,23): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(475,32): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(483,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(484,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(485,47): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(494,9): error TS2322: Type '{ created_at: number; updated_at: number; user_id: string; ai_mode: string; local_base_url: string | null; local_stt_url: string | null; local_llm_url: string | null; store_audio: boolean; openai_key_ciphertext: string | null; openai_key_iv: string | null; openai_key_kid: string | null; }' is not assignable to type 'UserSettingsInput'.
+  Types of property 'ai_mode' are incompatible.
+    Type 'string' is not assignable to type 'ProviderMode | null | undefined'.
+src/app.ts(500,67): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(object: { error: string; code: ProviderConfigErrorCode; }, status?: ContentfulStatusCode | undefined, headers?: HeaderRecord | undefined): JSONRespondReturn<...>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ContentfulStatusCode | undefined'.
+  Overload 2 of 2, '(object: { error: string; code: ProviderConfigErrorCode; }, init?: ResponseOrInit<ContentfulStatusCode> | undefined): JSONRespondReturn<...>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ResponseOrInit<ContentfulStatusCode> | undefined'.
+src/app.ts(503,26): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(504,17): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(532,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(606,7): error TS2322: Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; ... 7 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<...>; }, ... ...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+  Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+    Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is missing the following properties from type 'SQLiteSelectBase<"tasks", "sync", RunResult, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 4 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLit...': joinsNotNullableMap, tableName, isPartialSelect, session, and 4 more.
+src/app.ts(612,9): error TS2322: Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; ... 7 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<...>; }, ... ...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+  Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+    Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is missing the following properties from type 'SQLiteSelectBase<"tasks", "sync", RunResult, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 4 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLit...': joinsNotNullableMap, tableName, isPartialSelect, session, and 4 more.
+src/app.ts(615,9): error TS2322: Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; ... 7 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<...>; }, ... ...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+  Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+    Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is missing the following properties from type 'SQLiteSelectBase<"tasks", "sync", RunResult, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 4 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLit...': joinsNotNullableMap, tableName, isPartialSelect, session, and 4 more.
+src/app.ts(618,9): error TS2322: Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; ... 7 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<...>; }, ... ...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+  Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+    Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is missing the following properties from type 'SQLiteSelectBase<"tasks", "sync", RunResult, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 4 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLit...': joinsNotNullableMap, tableName, isPartialSelect, session, and 4 more.
+src/app.ts(621,9): error TS2322: Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; ... 7 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<...>; }, ... ...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+  Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+    Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is missing the following properties from type 'SQLiteSelectBase<"tasks", "sync", RunResult, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 4 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLit...': joinsNotNullableMap, tableName, isPartialSelect, session, and 4 more.
+src/app.ts(624,9): error TS2322: Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; ... 7 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<...>; }, ... ...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+  Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+    Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is missing the following properties from type 'SQLiteSelectBase<"tasks", "sync", RunResult, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 4 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLit...': joinsNotNullableMap, tableName, isPartialSelect, session, and 4 more.
+src/app.ts(627,9): error TS2322: Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; ... 7 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<...>; }, ... ...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+  Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is not assignable to type 'SQLiteSelectBase<"tasks", "async", D1Result<unknown>, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; ... 5 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColumn<......'.
+    Type 'Omit<SQLiteSelectBase<"tasks", "async", D1Response & { results: unknown[]; }, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; ... 6 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLiteColum...' is missing the following properties from type 'SQLiteSelectBase<"tasks", "sync", RunResult, { id: SQLiteColumn<{ name: "id"; tableName: "tasks"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; ... 4 more ...; generated: undefined; }, object>; ... 12 more ...; updated_at: SQLit...': joinsNotNullableMap, tableName, isPartialSelect, session, and 4 more.
+src/app.ts(638,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(649,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(665,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(718,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(721,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(757,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(834,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(835,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(855,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(857,35): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(878,53): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(891,48): error TS2345: Argument of type '{ meta: {} | null; id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; }[]' is not assignable to parameter of type 'TaskExample[]'.
+  Type '{ meta: {} | null; id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; }' is not assignable to type 'TaskExample'.
+    Types of property 'meta' are incompatible.
+      Type '{} | null' is not assignable to type 'Record<string, unknown> | null | undefined'.
+        Type '{}' is not assignable to type 'Record<string, unknown>'.
+          Index signature for type 'string' is missing in type '{}'.
+src/app.ts(910,45): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(919,55): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(932,50): error TS2345: Argument of type '{ meta: {} | null; id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; }[]' is not assignable to parameter of type 'TaskExample[]'.
+  Type '{ meta: {} | null; id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; }' is not assignable to type 'TaskExample'.
+    Types of property 'meta' are incompatible.
+      Type '{} | null' is not assignable to type 'Record<string, unknown> | null | undefined'.
+        Type '{}' is not assignable to type 'Record<string, unknown>'.
+          Index signature for type 'string' is missing in type '{}'.
+src/app.ts(951,16): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(976,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(978,51): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1009,17): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(1022,18): error TS2345: Argument of type '{ task_examples: { id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; meta: unknown; } | null; practice_session_items: { ...; }; }' is not assignable to parameter of type '{ session_id: string | null; session_item_id: string; task_id: string; example_id: string | null; target_difficulty: number | null; patient_text: string | null; position: number | null; }'.
+  Type '{ task_examples: { id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; meta: unknown; } | null; practice_session_items: { ...; }; }' is missing the following properties from type '{ session_id: string | null; session_item_id: string; task_id: string; example_id: string | null; target_difficulty: number | null; patient_text: string | null; position: number | null; }': session_id, session_item_id, task_id, example_id, and 3 more.
+src/app.ts(1036,17): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(1038,41): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1051,29): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/app.ts(1055,9): error TS2322: Type 'string | null' is not assignable to type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/app.ts(1056,9): error TS2322: Type 'number | null' is not assignable to type 'number'.
+  Type 'null' is not assignable to type 'number'.
+src/app.ts(1059,15): error TS2345: Argument of type 'string | null' is not assignable to parameter of type 'string'.
+  Type 'null' is not assignable to type 'string'.
+src/app.ts(1082,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(1087,83): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1095,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(1115,31): error TS2339: Property 'session_item_id' does not exist on type '{ task_examples: { id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; meta: unknown; } | null; practice_session_items: { ...; }; }'.
+src/app.ts(1116,23): error TS2339: Property 'task_id' does not exist on type '{ task_examples: { id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; meta: unknown; } | null; practice_session_items: { ...; }; }'.
+src/app.ts(1117,26): error TS2339: Property 'example_id' does not exist on type '{ task_examples: { id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; meta: unknown; } | null; practice_session_items: { ...; }; }'.
+src/app.ts(1118,33): error TS2339: Property 'target_difficulty' does not exist on type '{ task_examples: { id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; meta: unknown; } | null; practice_session_items: { ...; }; }'.
+src/app.ts(1119,28): error TS2339: Property 'patient_text' does not exist on type '{ task_examples: { id: string; created_at: number; language: string; updated_at: number; task_id: string; difficulty: number; severity_label: string | null; patient_text: string; meta: unknown; } | null; practice_session_items: { ...; }; }'.
+src/app.ts(1125,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(1128,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(1130,83): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1138,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(1148,39): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1171,51): error TS2345: Argument of type '{ evaluation: {} | null; id: string; task_id: string; user_id: string; session_id: string | null; example_id: string; session_item_id: string | null; started_at: number; completed_at: number | null; ... 4 more ...; model_info: unknown; }' is not assignable to parameter of type '{ id: string; session_item_id: string; completed_at: number | null; transcript: string; evaluation: unknown; overall_score: number; overall_pass: boolean; }'.
+  Types of property 'session_item_id' are incompatible.
+    Type 'string | null' is not assignable to type 'string'.
+      Type 'null' is not assignable to type 'string'.
+src/app.ts(1179,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(1182,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(1184,83): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1193,39): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1201,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(1206,28): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(1309,21): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(data: Data, status?: 200 | undefined, headers?: HeaderRecord | undefined): Response & TypedResponse<Data, 200, "body">', gave the following error.
+    Argument of type 'Uint8Array<ArrayBufferLike>' is not assignable to parameter of type 'Data'.
+      Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'Uint8Array<ArrayBuffer> | ReadableStream<any>'.
+        Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'Uint8Array<ArrayBuffer>'.
+          Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+            Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.
+              Types of property '[Symbol.toStringTag]' are incompatible.
+                Type '"SharedArrayBuffer"' is not assignable to type '"ArrayBuffer"'.
+  Overload 2 of 4, '(data: null, status?: 200 | undefined, headers?: HeaderRecord | undefined): Response & TypedResponse<null, 200, "body">', gave the following error.
+    Argument of type 'Uint8Array<ArrayBufferLike>' is not assignable to parameter of type 'null'.
+src/app.ts(1320,29): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(1321,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(1323,52): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(1328,23): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(1332,47): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1342,9): error TS2322: Type '{ created_at: number; updated_at: number; user_id: string; ai_mode: string; local_base_url: string | null; local_stt_url: string | null; local_llm_url: string | null; store_audio: boolean; openai_key_ciphertext: string | null; openai_key_iv: string | null; openai_key_kid: string | null; }' is not assignable to type 'UserSettingsInput'.
+  Types of property 'ai_mode' are incompatible.
+    Type 'string' is not assignable to type 'ProviderMode | null | undefined'.
+src/app.ts(1348,67): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(object: { error: string; code: ProviderConfigErrorCode; }, status?: ContentfulStatusCode | undefined, headers?: HeaderRecord | undefined): JSONRespondReturn<...>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ContentfulStatusCode | undefined'.
+  Overload 2 of 2, '(object: { error: string; code: ProviderConfigErrorCode; }, init?: ResponseOrInit<ContentfulStatusCode> | undefined): JSONRespondReturn<...>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ResponseOrInit<ContentfulStatusCode> | undefined'.
+src/app.ts(1352,23): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(1449,29): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(1450,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(1452,52): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(1457,23): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(1461,47): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(1502,9): error TS2322: Type '{ created_at: number; updated_at: number; user_id: string; ai_mode: string; local_base_url: string | null; local_stt_url: string | null; local_llm_url: string | null; store_audio: boolean; openai_key_ciphertext: string | null; openai_key_iv: string | null; openai_key_kid: string | null; }' is not assignable to type 'UserSettingsInput'.
+  Types of property 'ai_mode' are incompatible.
+    Type 'string' is not assignable to type 'ProviderMode | null | undefined'.
+src/app.ts(1508,67): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(object: { error: string; code: ProviderConfigErrorCode; }, status?: ContentfulStatusCode | undefined, headers?: HeaderRecord | undefined): JSONRespondReturn<...>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ContentfulStatusCode | undefined'.
+  Overload 2 of 2, '(object: { error: string; code: ProviderConfigErrorCode; }, init?: ResponseOrInit<ContentfulStatusCode> | undefined): JSONRespondReturn<...>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ResponseOrInit<ContentfulStatusCode> | undefined'.
+src/app.ts(1512,23): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(1584,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(1615,26): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(1676,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2038,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2064,26): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2092,11): error TS2322: Type '{ id: string; label: string; description: string; rubric: {} | undefined; }[]' is not assignable to type 'TaskCriterion[]'.
+  Type '{ id: string; label: string; description: string; rubric: {} | undefined; }' is not assignable to type 'TaskCriterion'.
+    Types of property 'rubric' are incompatible.
+      Type '{} | undefined' is not assignable to type 'CriterionRubric | undefined'.
+        Type '{}' is missing the following properties from type 'CriterionRubric': score_min, score_max, anchors
+src/app.ts(2098,11): error TS2322: Type '{ id: string; difficulty: number; severity_label: string | null; patient_text: string; language: string; meta: {} | null; }[]' is not assignable to type 'TaskExample[]'.
+  Type '{ id: string; difficulty: number; severity_label: string | null; patient_text: string; language: string; meta: {} | null; }' is not assignable to type 'TaskExample'.
+    Types of property 'meta' are incompatible.
+      Type '{} | null' is not assignable to type 'Record<string, unknown> | null | undefined'.
+        Type '{}' is not assignable to type 'Record<string, unknown>'.
+          Index signature for type 'string' is missing in type '{}'.
+src/app.ts(2106,33): error TS2304: Cannot find name 'interactionRows'.
+src/app.ts(2106,54): error TS7006: Parameter 'example' implicitly has an 'any' type.
+src/app.ts(2197,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2292,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2293,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2294,71): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2295,47): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2296,48): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2298,11): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2299,14): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2308,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2309,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2332,63): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2343,27): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2344,43): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2349,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2350,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2351,47): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2353,48): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2356,44): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2361,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2362,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2383,64): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2402,39): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2403,47): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2405,61): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2408,44): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2413,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2414,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2428,28): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2428,50): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2441,39): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2442,46): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2447,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2448,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2457,39): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2458,46): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2463,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2464,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2465,44): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2466,64): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2478,41): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2491,30): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2491,52): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2510,50): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2512,58): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2518,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(2519,49): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(2519,98): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2521,43): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(2526,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(2544,21): error TS2339: Property 'id' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2545,26): error TS2339: Property 'task_id' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2546,29): error TS2339: Property 'task_title' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2547,29): error TS2339: Property 'example_id' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2548,37): error TS2339: Property 'example_difficulty' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2549,29): error TS2339: Property 'session_id' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2550,32): error TS2339: Property 'overall_score' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2551,31): error TS2339: Property 'overall_pass' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2552,40): error TS2339: Property 'completed_at' does not exist on type '{ tasks: { id: string; created_at: number; slug: string; title: string; description: string; skill_domain: string; base_difficulty: number; general_objective: string | null; tags: unknown; authors: unknown; language: string; is_published: boolean; parent_task_id: string | null; updated_at: number; }; task_examples: ...'.
+src/app.ts(2660,9): error TS2322: Type '{ created_at: number; updated_at: number; user_id: string; ai_mode: string; local_base_url: string | null; local_stt_url: string | null; local_llm_url: string | null; store_audio: boolean; openai_key_ciphertext: string | null; openai_key_iv: string | null; openai_key_kid: string | null; }' is not assignable to type 'UserSettingsInput'.
+  Types of property 'ai_mode' are incompatible.
+    Type 'string' is not assignable to type 'ProviderMode | null | undefined'.
+src/app.ts(2765,11): error TS2322: Type '{ id: string; label: string; description: string; rubric: {} | undefined; }[]' is not assignable to type 'TaskCriterion[]'.
+  Type '{ id: string; label: string; description: string; rubric: {} | undefined; }' is not assignable to type 'TaskCriterion'.
+    Types of property 'rubric' are incompatible.
+      Type '{} | undefined' is not assignable to type 'CriterionRubric | undefined'.
+        Type '{}' is missing the following properties from type 'CriterionRubric': score_min, score_max, anchors
+src/app.ts(2777,7): error TS2322: Type '{} | null' is not assignable to type 'Record<string, unknown> | null | undefined'.
+  Type '{}' is not assignable to type 'Record<string, unknown>'.
+    Index signature for type 'string' is missing in type '{}'.
+src/app.ts(2781,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(2896,22): error TS2304: Cannot find name 'LlmProvider'.
+src/app.ts(2899,7): error TS2448: Block-scoped variable 'evaluation' used before its declaration.
+src/app.ts(2901,7): error TS2448: Block-scoped variable 'llmDuration' used before its declaration.
+src/app.ts(2902,21): error TS2448: Block-scoped variable 'llmDuration' used before its declaration.
+src/app.ts(2906,22): error TS2448: Block-scoped variable 'llmDuration' used before its declaration.
+src/app.ts(3184,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3208,16): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3221,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3224,63): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3252,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(3272,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(3298,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3300,62): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3308,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3321,15): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3334,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3336,67): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3344,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3353,40): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3361,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3364,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(3369,40): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3404,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3407,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(3412,40): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3449,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3466,40): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3501,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3509,40): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3560,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3562,62): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3570,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3574,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(3579,40): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3595,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3596,29): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(3600,52): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(3640,15): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(3645,40): error TS18046: 'user' is of type 'unknown'.
+src/app.ts(3677,7): error TS2322: Type 'unknown' is not assignable to type 'string'.
+src/app.ts(3678,7): error TS2322: Type 'unknown' is not assignable to type '{ id: string; }'.
+src/app.ts(3682,40): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(object: Record<string, unknown>, status?: ContentfulStatusCode | undefined, headers?: HeaderRecord | undefined): JSONRespondReturn<Record<string, unknown>, ContentfulStatusCode>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ContentfulStatusCode | undefined'.
+  Overload 2 of 2, '(object: Record<string, unknown>, init?: ResponseOrInit<ContentfulStatusCode> | undefined): JSONRespondReturn<Record<string, unknown>, ContentfulStatusCode>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ResponseOrInit<ContentfulStatusCode> | undefined'.
+src/app.ts(3708,17): error TS2554: Expected 0 arguments, but got 1.
+src/app.ts(3711,25): error TS2339: Property 'count' does not exist on type '{ id: string; created_at: number; overall_pass: boolean; overall_score: number; round_id: string; player_id: string; attempt_id: string; }'.
+src/app.ts(3727,29): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"requestId"' is not assignable to parameter of type 'never'.
+src/app.ts(3728,24): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(key: never): unknown', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+  Overload 2 of 2, '(key: never): never', gave the following error.
+    Argument of type '"user"' is not assignable to parameter of type 'never'.
+src/app.ts(3730,52): error TS2339: Property 'id' does not exist on type '{}'.
+src/app.ts(3748,7): error TS2322: Type 'unknown' is not assignable to type 'string'.
+src/app.ts(3749,7): error TS2322: Type 'unknown' is not assignable to type '{ id: string; }'.
+src/app.ts(3752,35): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(object: Record<string, unknown>, status?: ContentfulStatusCode | undefined, headers?: HeaderRecord | undefined): JSONRespondReturn<Record<string, unknown>, ContentfulStatusCode>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ContentfulStatusCode | undefined'.
+  Overload 2 of 2, '(object: Record<string, unknown>, init?: ResponseOrInit<ContentfulStatusCode> | undefined): JSONRespondReturn<Record<string, unknown>, ContentfulStatusCode>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ResponseOrInit<ContentfulStatusCode> | undefined'.
+src/db/init.ts(3,22): error TS7016: Could not find a declaration file for module 'better-sqlite3'. '/Users/albertbuchard/Documents/Projects/therapy-deliberate-practice/node_modules/better-sqlite3/lib/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/better-sqlite3` if it exists or add a new declaration (.d.ts) file containing `declare module 'better-sqlite3';`
+src/db/sqlite.ts(1,22): error TS7016: Could not find a declaration file for module 'better-sqlite3'. '/Users/albertbuchard/Documents/Projects/therapy-deliberate-practice/node_modules/better-sqlite3/lib/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/better-sqlite3` if it exists or add a new declaration (.d.ts) file containing `declare module 'better-sqlite3';`
+src/middleware/adminAuth.ts(156,48): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(object: { error: string; }, status?: ContentfulStatusCode | undefined, headers?: HeaderRecord | undefined): JSONRespondReturn<{ error: string; }, ContentfulStatusCode>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ContentfulStatusCode | undefined'.
+  Overload 2 of 2, '(object: { error: string; }, init?: ResponseOrInit<ContentfulStatusCode> | undefined): JSONRespondReturn<{ error: string; }, ContentfulStatusCode>', gave the following error.
+    Argument of type 'number' is not assignable to parameter of type 'ResponseOrInit<ContentfulStatusCode> | undefined'.
+src/providers/base.ts(84,23): error TS2420: Class 'BaseSttProvider' incorrectly implements interface 'SttProvider'.
+  Property 'kind' is protected in type 'BaseSttProvider' but public in type 'SttProvider'.
+src/providers/base.ts(109,23): error TS2420: Class 'BaseTtsProvider' incorrectly implements interface 'TtsProvider'.
+  Property 'kind' is protected in type 'BaseTtsProvider' but public in type 'TtsProvider'.
+src/providers/base.ts(127,23): error TS2420: Class 'BaseLlmProvider' incorrectly implements interface 'LlmProvider'.
+  Property 'kind' is protected in type 'BaseLlmProvider' but public in type 'LlmProvider'.
+src/providers/llm.ts(42,19): error TS2416: Property 'doParseExercise' in type 'LocalMlxLlmProviderImpl' is not assignable to the same property in base type 'BaseLlmProvider'.
+  Type '(_input: { sourceText: string; parseMode?: ParseMode | undefined; }) => Promise<void>' is not assignable to type '(input: { sourceText: string; parseMode?: ParseMode | undefined; }) => Promise<TelemetryResult<{ criteria: { id: string; description: string; label: string; rubric?: { score_min: 0; score_max: 4; anchors: { ...; }[]; } | undefined; }[]; examples: { ...; }[]; interaction_examples: { ...; }[]; version: "2.1"; task: { ...'.
+    Type 'Promise<void>' is not assignable to type 'Promise<TelemetryResult<{ criteria: { id: string; description: string; label: string; rubric?: { score_min: 0; score_max: 4; anchors: { score: 0 | 1 | 2 | 3 | 4; meaning: string; }[]; } | undefined; }[]; examples: { id: string; ... 4 more ...; meta?: {} | ... 1 more ... | undefined; }[]; interaction_examples: { ...;...'.
+      Type 'void' is not assignable to type 'TelemetryResult<{ criteria: { id: string; description: string; label: string; rubric?: { score_min: 0; score_max: 4; anchors: { score: 0 | 1 | 2 | 3 | 4; meaning: string; }[]; } | undefined; }[]; examples: { id: string; difficulty: number; severity_label: string | null; patient_text: string; language?: string | unde...'.
+src/providers/llm.ts(46,19): error TS2416: Property 'doTranslateTask' in type 'LocalMlxLlmProviderImpl' is not assignable to the same property in base type 'BaseLlmProvider'.
+  Type '(_input: { source: DeliberatePracticeTaskV2; targetLanguage: string; }) => Promise<void>' is not assignable to type '(input: { source: DeliberatePracticeTaskV2; targetLanguage: string; }) => Promise<TelemetryResult<DeliberatePracticeTaskV2>>'.
+    Type 'Promise<void>' is not assignable to type 'Promise<TelemetryResult<DeliberatePracticeTaskV2>>'.
+      Type 'void' is not assignable to type 'TelemetryResult<DeliberatePracticeTaskV2>'.
+src/providers/llm.ts(258,7): error TS2322: Type 'ZodObject<{ version: ZodLiteral<"2.1">; task: ZodObject<{ title: ZodString; skill_domain: ZodString; base_difficulty: ZodNumber; description: ZodString; general_objective: ZodNullable<...>; tags: ZodArray<...>; language: ZodDefault<...>; }, "strip", ZodTypeAny, { ...; }, { ...; }>; criteria: ZodArray<...>; examples:...' is not assignable to type 'ZodType<{ criteria: { id: string; description: string; label: string; rubric?: { score_min: 0; score_max: 4; anchors: { score: 0 | 1 | 2 | 3 | 4; meaning: string; }[]; } | undefined; }[]; examples: { id: string; difficulty: number; severity_label: string | null; patient_text: string; language?: string | undefined; m...'.
+  The types of '_input.task.language' are incompatible between these types.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/providers/llm.ts(286,7): error TS2322: Type 'ZodObject<{ version: ZodLiteral<"2.1">; task: ZodObject<{ title: ZodString; description: ZodString; skill_domain: ZodString; base_difficulty: ZodNumber; general_objective: ZodOptional<...>; tags: ZodArray<...>; language: ZodDefault<...>; }, "strip", ZodTypeAny, { ...; }, { ...; }>; criteria: ZodArray<...>; examples:...' is not assignable to type 'ZodType<DeliberatePracticeTaskV2, ZodTypeDef, DeliberatePracticeTaskV2>'.
+  The types of '_input.task.language' are incompatible between these types.
+    Type 'string | undefined' is not assignable to type 'string'.
+      Type 'undefined' is not assignable to type 'string'.
+src/providers/llm.ts(293,3): error TS2322: Type 'LocalMlxLlmProviderImpl' is not assignable to type 'LlmProvider'.
+  Property 'kind' is protected in type 'LocalMlxLlmProviderImpl' but public in type 'LlmProvider'.
+src/providers/llm.ts(298,19): error TS2322: Type 'OpenAILlmProviderImpl' is not assignable to type 'LlmProvider'.
+  Property 'kind' is protected in type 'OpenAILlmProviderImpl' but public in type 'LlmProvider'.
+src/providers/localSuite.ts(55,26): error TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+  Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.
+          Types of property '[Symbol.toStringTag]' are incompatible.
+            Type '"SharedArrayBuffer"' is not assignable to type '"ArrayBuffer"'.
+src/providers/openaiStt.ts(43,26): error TS2322: Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'BlobPart'.
+  Type 'Uint8Array<ArrayBufferLike>' is not assignable to type 'ArrayBufferView<ArrayBuffer>'.
+    Types of property 'buffer' are incompatible.
+      Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+        Type 'SharedArrayBuffer' is not assignable to type 'ArrayBuffer'.
+          Types of property '[Symbol.toStringTag]' are incompatible.
+            Type '"SharedArrayBuffer"' is not assignable to type '"ArrayBuffer"'.
+src/providers/openaiStt.ts(74,63): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ chunking_strategy?: string | undefined; extra_body?: { known_speaker_references?: string[] | undefined; known_speaker_names?: string[] | undefined; } | undefined; response_format?: "text" | ... 1 more ... | undefined; prompt?: string | undefined; file: File | (Blob & { ...; }); model: "gpt-4o-mini-transcribe" | .....' is not assignable to parameter of type 'TranscriptionCreateParamsStreaming'.
+      Property 'stream' is missing in type '{ chunking_strategy?: string | undefined; extra_body?: { known_speaker_references?: string[] | undefined; known_speaker_names?: string[] | undefined; } | undefined; response_format?: "text" | ... 1 more ... | undefined; prompt?: string | undefined; file: File | (Blob & { ...; }); model: "gpt-4o-mini-transcribe" | .....' but required in type 'TranscriptionCreateParamsStreaming'.
+src/providers/stt.ts(41,13): error TS2416: Property 'getProviderOverride' in type 'OpenAISttProviderImpl' is not assignable to the same property in base type 'BaseSttProvider'.
+  Type '(opts?: SttTranscribeOptions | undefined) => { kind: string; model: "gpt-4o-mini-transcribe" | "gpt-4o-transcribe" | "gpt-4o-transcribe-diarize" | "whisper-1"; }' is not assignable to type '(_opts?: SttTranscribeOptions | undefined) => { kind: ProviderKind; model?: string | undefined; } | undefined'.
+    Call signature return types '{ kind: string; model: "gpt-4o-mini-transcribe" | "gpt-4o-transcribe" | "gpt-4o-transcribe-diarize" | "whisper-1"; }' and '{ kind: ProviderKind; model?: string | undefined; } | undefined' are incompatible.
+      The types of 'kind' are incompatible between these types.
+        Type 'string' is not assignable to type 'ProviderKind'.
+src/providers/stt.ts(66,3): error TS2322: Type 'LocalWhisperSttProviderImpl' is not assignable to type 'SttProvider'.
+  Property 'kind' is protected in type 'LocalWhisperSttProviderImpl' but public in type 'SttProvider'.
+src/providers/stt.ts(71,19): error TS2322: Type 'OpenAISttProviderImpl' is not assignable to type 'SttProvider'.
+  Property 'kind' is protected in type 'OpenAISttProviderImpl' but public in type 'SttProvider'.
+src/providers/tts.ts(106,19): error TS2322: Type 'LocalTtsProviderImpl' is not assignable to type 'TtsProvider'.
+  Property 'kind' is protected in type 'LocalTtsProviderImpl' but public in type 'TtsProvider'.
+src/providers/tts.ts(117,19): error TS2322: Type 'OpenAITtsProviderImpl' is not assignable to type 'TtsProvider'.
+  Property 'kind' is protected in type 'OpenAITtsProviderImpl' but public in type 'TtsProvider'.
+src/seed.ts(3,22): error TS7016: Could not find a declaration file for module 'better-sqlite3'. '/Users/albertbuchard/Documents/Projects/therapy-deliberate-practice/node_modules/better-sqlite3/lib/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/better-sqlite3` if it exists or add a new declaration (.d.ts) file containing `declare module 'better-sqlite3';`
+src/services/leaderboardService.ts(36,18): error TS2345: Argument of type 'SQL<unknown> | undefined' is not assignable to parameter of type 'SQL<unknown>'.
+  Type 'undefined' is not assignable to type 'SQL<unknown>'.
+src/services/leaderboardService.ts(64,23): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(65,23): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(79,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(92,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(110,57): error TS2339: Property 'overall_score' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(111,67): error TS2339: Property 'task_id' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(112,55): error TS2339: Property 'completed_at' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(115,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(116,31): error TS2339: Property 'user_id' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(124,51): error TS2339: Property 'user_id' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(125,29): error TS2339: Property 'user_id' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(130,18): error TS2339: Property 'user_id' does not exist on type '{ users: { id: string; email: string; display_name: string; bio: string | null; created_at: number; }; latest_attempts: { attempts: { id: string; task_id: string; user_id: string; session_id: string | null; ... 9 more ...; model_info: unknown; }; latest_attempt: { ...; }; }; }'.
+src/services/leaderboardService.ts(131,40): error TS2339: Property 'display_name' does not exist on type '{ users: { id: string; email: string; display_name: string; bio: string | null; created_at: number; }; latest_attempts: { attempts: { id: string; task_id: string; user_id: string; session_id: string | null; ... 9 more ...; model_info: unknown; }; latest_attempt: { ...; }; }; }'.
+src/services/leaderboardService.ts(131,58): error TS2339: Property 'email' does not exist on type '{ users: { id: string; email: string; display_name: string; bio: string | null; created_at: number; }; latest_attempts: { attempts: { id: string; task_id: string; user_id: string; session_id: string | null; ... 9 more ...; model_info: unknown; }; latest_attempt: { ...; }; }; }'.
+src/services/leaderboardService.ts(132,23): error TS2339: Property 'score' does not exist on type '{ users: { id: string; email: string; display_name: string; bio: string | null; created_at: number; }; latest_attempts: { attempts: { id: string; task_id: string; user_id: string; session_id: string | null; ... 9 more ...; model_info: unknown; }; latest_attempt: { ...; }; }; }'.
+src/services/leaderboardService.ts(133,24): error TS2339: Property 'played' does not exist on type '{ users: { id: string; email: string; display_name: string; bio: string | null; created_at: number; }; latest_attempts: { attempts: { id: string; task_id: string; user_id: string; session_id: string | null; ... 9 more ...; model_info: unknown; }; latest_attempt: { ...; }; }; }'.
+src/services/leaderboardService.ts(134,25): error TS2339: Property 'last_active_at' does not exist on type '{ users: { id: string; email: string; display_name: string; bio: string | null; created_at: number; }; latest_attempts: { attempts: { id: string; task_id: string; user_id: string; session_id: string | null; ... 9 more ...; model_info: unknown; }; latest_attempt: { ...; }; }; }'.
+src/services/leaderboardService.ts(143,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(160,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(172,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(190,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/leaderboardService.ts(191,55): error TS2339: Property 'overall_score' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(192,65): error TS2339: Property 'task_id' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(193,56): error TS2339: Property 'completed_at' does not exist on type 'SubqueryWithSelection<{ attempts: { id: SQLiteColumn<{ name: "id"; tableName: "attempts"; dataType: "string"; columnType: "SQLiteText"; data: string; driverParam: string; notNull: true; hasDefault: false; isPrimaryKey: true; isAutoincrement: false; hasRuntimeDefault: false; enumValues: [...]; baseColumn: never; gene...'.
+src/services/leaderboardService.ts(198,32): error TS2339: Property 'average_score' does not exist on type '{ attempts: { id: string; task_id: string; user_id: string; session_id: string | null; example_id: string; session_item_id: string | null; started_at: number; completed_at: number | null; ... 5 more ...; model_info: unknown; }; latest_attempt: { ...; }; }'.
+src/services/leaderboardService.ts(199,31): error TS2339: Property 'tasks_played' does not exist on type '{ attempts: { id: string; task_id: string; user_id: string; session_id: string | null; example_id: string; session_item_id: string | null; started_at: number; completed_at: number | null; ... 5 more ...; model_info: unknown; }; latest_attempt: { ...; }; }'.
+src/services/leaderboardService.ts(200,26): error TS2339: Property 'last_active_at' does not exist on type '{ attempts: { id: string; task_id: string; user_id: string; session_id: string | null; example_id: string; session_item_id: string | null; started_at: number; completed_at: number | null; ... 5 more ...; model_info: unknown; }; latest_attempt: { ...; }; }'.
+src/services/minigameRoundsService.ts(183,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameRoundsService.ts(200,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameRoundsService.ts(387,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameRoundsService.ts(405,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameRoundsService.ts(510,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameRoundsService.ts(543,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameSessionsService.ts(88,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameSessionsService.ts(98,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameSessionsService.ts(107,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameSessionsService.ts(115,13): error TS2554: Expected 0 arguments, but got 1.
+src/services/minigameSessionsService.ts(154,17): error TS2339: Property 'session_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(155,59): error TS2339: Property 'session_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(156,29): error TS2339: Property 'player_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(156,65): error TS2339: Property 'player_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(156,91): error TS2339: Property 'score' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(157,38): error TS2339: Property 'session_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(159,16): error TS2339: Property 'team_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(160,57): error TS2339: Property 'session_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(161,29): error TS2339: Property 'team_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(161,61): error TS2339: Property 'team_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(161,85): error TS2339: Property 'score' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/minigameSessionsService.ts(162,38): error TS2339: Property 'session_id' does not exist on type '{ minigame_players: { id: string; name: string; created_at: number; session_id: string; avatar: string; team_id: string | null; } | null; minigame_rounds: { id: string; task_id: string; session_id: string; ... 8 more ...; status: string; } | null; minigame_round_results: { ...; }; }'.
+src/services/ttsService.ts(171,33): error TS2322: Type '{ id: string; text: string; created_at: number; updated_at: number; status: string; cache_key: string; voice: string; model: string; format: string; r2_key: string; bytes: number | null; content_type: string; etag: string | null; error: string | null; } | null' is not assignable to type '{ id: string; text: string; created_at: number; updated_at: number; status: string; cache_key: string; voice: string; model: string; format: string; r2_key: string; bytes: number | null; content_type: string; etag: string | null; error: string | null; }'.
+  Type 'null' is not assignable to type '{ id: string; text: string; created_at: number; updated_at: number; status: string; cache_key: string; voice: string; model: string; format: string; r2_key: string; bytes: number | null; content_type: string; etag: string | null; error: string | null; }'.
+npm error Lifecycle script `build` failed with error:
+npm error code 2
+npm error path /Users/albertbuchard/Documents/Projects/therapy-deliberate-practice/apps/api
+npm error workspace @deliberate/api@0.1.0
+npm error location /Users/albertbuchard/Documents/Projects/therapy-deliberate-practice/apps/api
+npm error command failed
+npm error command sh -c tsc -p tsconfig.json
