@@ -153,17 +153,6 @@ const inferLanguage = (text: string) => {
   return "en";
 };
 
-const chunkArray = <T>(values: T[], chunkSize: number): T[][] => {
-  if (chunkSize <= 0) {
-    return [values];
-  }
-  const chunks: T[][] = [];
-  for (let i = 0; i < values.length; i += chunkSize) {
-    chunks.push(values.slice(i, i + chunkSize));
-  }
-  return chunks;
-};
-
 const toLogFn = (loggerInstance: ReturnType<typeof createLogger>): LogFn => {
   return (level, event, fields) => {
     switch (level) {
@@ -979,21 +968,19 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     if (taskId) {
       filters.push(eq(practiceSessions.source_task_id, taskId));
     }
+    const sessionWhere = filters.length > 1 ? and(...filters) : filters[0];
+
     const sessions = await db
       .select()
       .from(practiceSessions)
-      .where(filters.length > 1 ? and(...filters) : filters[0])
+      .where(sessionWhere)
       .orderBy(desc(practiceSessions.created_at));
 
     if (!sessions.length) {
       return c.json([]);
     }
 
-    const sessionIds = sessions.map((session) => session.id);
-    // D1 surfaces "too many SQL variables" errors once an IN clause has ~100 values,
-    // so stay well under that ceiling to avoid 500s when users hoard sessions.
-    const SESSION_CHUNK_SIZE = 50;
-
+    const sessionIdSet = new Set(sessions.map((session) => session.id));
     const items: Array<{
       session_id: string | null;
       session_item_id: string;
@@ -1003,23 +990,24 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       patient_text: string | null;
       position: number | null;
     }> = [];
-    for (const chunk of chunkArray(sessionIds, SESSION_CHUNK_SIZE)) {
-      if (!chunk.length) continue;
-      const chunkItems = await db
-        .select({
-          session_id: practiceSessionItems.session_id,
-          session_item_id: practiceSessionItems.id,
-          task_id: practiceSessionItems.task_id,
-          example_id: practiceSessionItems.example_id,
-          target_difficulty: practiceSessionItems.target_difficulty,
-          patient_text: taskExamples.patient_text,
-          position: practiceSessionItems.position
-        })
-        .from(practiceSessionItems)
-        .leftJoin(taskExamples, eq(practiceSessionItems.example_id, taskExamples.id))
-        .where(inArray(practiceSessionItems.session_id, chunk))
-        .orderBy(practiceSessionItems.session_id, practiceSessionItems.position);
-      items.push(...chunkItems);
+    const rawItems = await db
+      .select({
+        session_id: practiceSessionItems.session_id,
+        session_item_id: practiceSessionItems.id,
+        task_id: practiceSessionItems.task_id,
+        example_id: practiceSessionItems.example_id,
+        target_difficulty: practiceSessionItems.target_difficulty,
+        patient_text: taskExamples.patient_text,
+        position: practiceSessionItems.position
+      })
+      .from(practiceSessionItems)
+      .innerJoin(practiceSessions, eq(practiceSessionItems.session_id, practiceSessions.id))
+      .leftJoin(taskExamples, eq(practiceSessionItems.example_id, taskExamples.id))
+      .where(sessionWhere)
+      .orderBy(practiceSessionItems.session_id, practiceSessionItems.position);
+    for (const item of rawItems) {
+      if (!item.session_id || !sessionIdSet.has(item.session_id)) continue;
+      items.push(item);
     }
 
     items.sort((a, b) => {
@@ -1030,13 +1018,14 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     });
 
     const attemptsRows: Array<{ session_id: string | null; session_item_id: string | null }> = [];
-    for (const chunk of chunkArray(sessionIds, SESSION_CHUNK_SIZE)) {
-      if (!chunk.length) continue;
-      const chunkAttempts = await db
-        .select({ session_id: attempts.session_id, session_item_id: attempts.session_item_id })
-        .from(attempts)
-        .where(and(eq(attempts.user_id, user.id), inArray(attempts.session_id, chunk)));
-      attemptsRows.push(...chunkAttempts);
+    const rawAttempts = await db
+      .select({ session_id: attempts.session_id, session_item_id: attempts.session_item_id })
+      .from(attempts)
+      .innerJoin(practiceSessions, eq(attempts.session_id, practiceSessions.id))
+      .where(and(eq(attempts.user_id, user.id), sessionWhere));
+    for (const attempt of rawAttempts) {
+      if (!attempt.session_id || !sessionIdSet.has(attempt.session_id)) continue;
+      attemptsRows.push(attempt);
     }
 
     const attemptsBySession = attemptsRows.reduce((map, row) => {

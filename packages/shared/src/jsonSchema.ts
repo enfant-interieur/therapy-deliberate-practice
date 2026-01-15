@@ -1,20 +1,81 @@
 import type { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === "object");
+
+const isNullSchema = (value: unknown): boolean =>
+  isRecord(value) &&
+  (value.type === "null" ||
+    (Array.isArray(value.type) && value.type.includes("null")) ||
+    (Array.isArray(value.anyOf) && value.anyOf.some((item) => isNullSchema(item))) ||
+    (Array.isArray(value.oneOf) && value.oneOf.some((item) => isNullSchema(item))));
+
+const withNullAllowed = (value: unknown): unknown => {
+  if (!isRecord(value)) {
+    return { anyOf: [value ?? {}, { type: "null" }] };
+  }
+  if (isNullSchema(value)) {
+    return value;
+  }
+  if (typeof value.type === "string") {
+    if (value.type === "null") return value;
+    value.type = [value.type, "null"];
+    return value;
+  }
+  if (Array.isArray(value.type)) {
+    if (!value.type.includes("null")) {
+      value.type = [...value.type, "null"];
+    }
+    return value;
+  }
+  if (Array.isArray(value.anyOf)) {
+    if (!value.anyOf.some(isNullSchema)) {
+      value.anyOf = [...value.anyOf, { type: "null" }];
+    }
+    return value;
+  }
+  if (Array.isArray(value.oneOf)) {
+    if (!value.oneOf.some(isNullSchema)) {
+      value.oneOf = [...value.oneOf, { type: "null" }];
+    }
+    return value;
+  }
+  return {
+    anyOf: [value, { type: "null" }]
+  };
+};
+
 const enforceStrict = (node: unknown): void => {
-  if (!node || typeof node !== "object") return;
+  if (!isRecord(node)) return;
   const record = node as Record<string, unknown>;
   const type = record.type;
   if (type === "object" && record.properties) {
+    const properties = record.properties as Record<string, unknown>;
+    const propertyKeys = Object.keys(properties);
+    const existingRequired = Array.isArray(record.required)
+      ? new Set(record.required as Array<string>)
+      : undefined;
+    for (const value of Object.values(properties)) {
+      enforceStrict(value);
+    }
+    const optionalKeys = propertyKeys.filter((key) => !existingRequired?.has(key));
+    record.required = propertyKeys;
+    for (const key of optionalKeys) {
+      properties[key] = withNullAllowed(properties[key]);
+    }
     if (!("additionalProperties" in record)) {
       record.additionalProperties = false;
     }
-    for (const value of Object.values(record.properties as Record<string, unknown>)) {
-      enforceStrict(value);
-    }
   }
   if (type === "array" && record.items) {
-    enforceStrict(record.items);
+    if (Array.isArray(record.items)) {
+      for (const item of record.items) {
+        enforceStrict(item);
+      }
+    } else {
+      enforceStrict(record.items);
+    }
   }
   if (record.anyOf && Array.isArray(record.anyOf)) {
     for (const value of record.anyOf) {

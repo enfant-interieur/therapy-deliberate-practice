@@ -147,16 +147,17 @@ export const evaluationResultSchema = z.object({
   attempt_id: z.string(),
   transcript: z.object({
     text: z.string(),
-    confidence: z.number().optional(),
+    confidence: z.number().nullable().optional(),
     words: z
       .array(
         z.object({
           w: z.string(),
-          t0: z.number().optional(),
-          t1: z.number().optional(),
-          p: z.number().optional()
+          t0: z.number().nullable().optional(),
+          t1: z.number().nullable().optional(),
+          p: z.number().nullable().optional()
         })
       )
+      .nullable()
       .optional()
   }),
   criterion_scores: z.array(
@@ -164,8 +165,8 @@ export const evaluationResultSchema = z.object({
       criterion_id: z.string(),
       score: z.number().min(0).max(4),
       rationale_short: z.string().max(800),
-      evidence_quotes: z.array(z.string()).optional(),
-      missed_points: z.array(z.string()).optional()
+      evidence_quotes: z.array(z.string()).nullable().optional(),
+      missed_points: z.array(z.string()).nullable().optional()
     })
   ),
   overall: z.object({
@@ -192,29 +193,32 @@ export const evaluationResultSchema = z.object({
     ]),
     action: z
       .enum(["nod", "shake_head", "look_away", "lean_in", "sigh", "smile"])
+      .nullable()
       .optional(),
-    response_text: z.string().optional()
+    response_text: z.string().nullable().optional()
   }),
   diagnostics: z
     .object({
       provider: z.object({
         stt: z.object({
           kind: z.enum(["local", "openai"]),
-          model: z.string().optional()
+          model: z.string().nullable().optional()
         }),
         llm: z.object({
           kind: z.enum(["local", "openai"]),
-          model: z.string().optional()
+          model: z.string().nullable().optional()
         })
       }),
       timing_ms: z
         .object({
-          stt: z.number().optional(),
-          llm: z.number().optional(),
-          total: z.number().optional()
+          stt: z.number().nullable().optional(),
+          llm: z.number().nullable().optional(),
+          total: z.number().nullable().optional()
         })
+        .nullable()
         .optional()
     })
+    .nullable()
     .optional()
 });
 
