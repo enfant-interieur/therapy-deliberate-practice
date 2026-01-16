@@ -3602,6 +3602,21 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
   });
 
+  type MinigameSubmitBody = Record<string, unknown> & {
+    player_id?: unknown;
+    audio?: unknown;
+    audio_base64?: unknown;
+  };
+
+  const normalizeMinigameSubmitBody = (body: unknown): MinigameSubmitBody | null => {
+    if (!body || typeof body !== "object") return null;
+    const normalized = { ...(body as MinigameSubmitBody) };
+    if (typeof normalized.audio !== "string" && typeof normalized.audio_base64 === "string") {
+      normalized.audio = normalized.audio_base64;
+    }
+    return normalized;
+  };
+
   app.get("/api/v1/minigames/sessions/:id/state", async (c) => {
     const user = c.get("user");
     const sessionId = c.req.param("id");
@@ -3644,44 +3659,20 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     const roundId = c.req.param("roundId");
     const logEvent = (level: "debug" | "info" | "warn" | "error", event: string, fields = {}) =>
       log(level, event, { requestId, userId: user?.id ?? null, ...fields });
-    const schema = z
-      .object({
-        player_id: z.string(),
-        audio_base64: z.string().optional(),
-        audio_mime: z.string().optional(),
-        transcript_text: z.string().optional(),
-        attempt_id: z.string().optional(),
-        skip_scoring: z.boolean().optional(),
-        mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional(),
-        practice_mode: z.enum(["standard", "real_time"]).optional(),
-        turn_context: z
-          .object({
-            patient_cache_key: z.string().optional(),
-            patient_statement_id: z.string().optional(),
-            timing: z
-              .object({
-                response_delay_ms: z.number().nullable().optional(),
-                response_duration_ms: z.number().nullable().optional(),
-                response_timer_seconds: z.number().optional(),
-                max_response_duration_seconds: z.number().optional()
-              })
-              .optional()
-          })
-          .optional()
-      })
-      .superRefine((data, ctx) => {
-        if (!data.audio_base64 && !data.transcript_text) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: "Provide audio_base64 or transcript_text."
-          });
-        }
-      });
-    const body = await c.req.json().catch(() => null);
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
+    const rawBody = await c.req.json().catch(() => null);
+    const normalized = normalizeMinigameSubmitBody(rawBody);
+    if (!normalized) {
       return c.json({ error: "Invalid submit payload." }, 400);
     }
+    const practiceInput = practiceRunInputSchema.safeParse(normalized);
+    if (!practiceInput.success) {
+      return c.json({ error: "Invalid submit payload." }, 400);
+    }
+    const playerIdRaw = normalized.player_id;
+    if (typeof playerIdRaw !== "string" || !playerIdRaw) {
+      return c.json({ error: "Invalid submit payload." }, 400);
+    }
+    const body = practiceInput.data;
     const [session] = await db
       .select({ id: minigameSessions.id })
       .from(minigameSessions)
@@ -3707,16 +3698,11 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
 
     const runResult = await runPracticeAttempt({
       body: {
+        ...body,
         task_id: round.task_id,
         example_id: round.example_id,
-        audio: parsed.data.audio_base64,
-        audio_mime: parsed.data.audio_mime,
-        transcript_text: parsed.data.transcript_text,
-        attempt_id: parsed.data.attempt_id,
-        skip_scoring: parsed.data.skip_scoring,
-        mode: parsed.data.mode,
-        practice_mode: parsed.data.practice_mode,
-        turn_context: parsed.data.turn_context
+        mode: body.mode,
+        practice_mode: body.practice_mode
       },
       debugEnabled: env.environment === "development",
       logEvent,
@@ -3728,17 +3714,17 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       return c.json(runResult.payload, runResult.status);
     }
 
-    if (parsed.data.skip_scoring) {
+    if (body.skip_scoring) {
       return c.json(runResult.payload, runResult.status);
     }
 
-    const timingPenalty = calculateTimingPenalty(parsed.data.turn_context?.timing);
+    const timingPenalty = calculateTimingPenalty(body.turn_context?.timing);
     const adjustedScore = Math.max(0, (runResult.overallScore ?? 0) - timingPenalty);
 
     await db.insert(minigameRoundResults).values({
       id: generateUuid(),
       round_id: roundId,
-      player_id: parsed.data.player_id,
+      player_id: playerIdRaw,
       attempt_id: runResult.attemptId,
       overall_score: adjustedScore,
       overall_pass: runResult.overallPass ?? false,
