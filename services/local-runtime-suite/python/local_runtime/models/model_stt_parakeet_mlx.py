@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+import audioop
+import io
 import os
 import time
 import uuid
+import wave
 from typing import Any, AsyncIterator
 
 from local_runtime.helpers.multipart_helpers import UploadedFile
@@ -72,6 +75,9 @@ SPEC = {
 
 DEFAULT_CHUNK_SECONDS = float(os.getenv("LOCAL_RUNTIME_STT_CHUNK_SEC", "120"))
 DEFAULT_OVERLAP_SECONDS = float(os.getenv("LOCAL_RUNTIME_STT_OVERLAP_SEC", "15"))
+BOOST_MIN_RMS = float(os.getenv("LOCAL_RUNTIME_STT_BOOST_MIN_RMS", "400"))
+BOOST_TARGET_RMS = float(os.getenv("LOCAL_RUNTIME_STT_BOOST_TARGET_RMS", "2500"))
+BOOST_MAX_GAIN = float(os.getenv("LOCAL_RUNTIME_STT_BOOST_MAX_GAIN", "8.0"))
 
 
 def load(ctx: RunContext) -> dict[str, Any]:
@@ -112,6 +118,66 @@ def _extract_upload(req: RunRequest) -> UploadedFile:
     if not isinstance(data, (bytes, bytearray)):
         raise ValueError("Invalid audio payload.")
     return UploadedFile(filename=filename, content_type=content_type, data=bytes(data))
+
+
+def _maybe_boost_wav(upload: UploadedFile, ctx: RunContext) -> tuple[UploadedFile, dict[str, float] | None]:
+    """
+    Parakeet occasionally treats very quiet clips as silence. When we detect a WAV payload
+    with a vanishing RMS, boost it before handing it to the model so minigame utterances
+    are still transcribed.
+    """
+    content_type = (upload.content_type or "").lower()
+    filename = (upload.filename or "").lower()
+    if "wav" not in content_type and not filename.endswith(".wav"):
+        return upload, None
+    try:
+        buffer = io.BytesIO(upload.data)
+        with wave.open(buffer, "rb") as reader:
+            params = reader.getparams()
+            if params.sampwidth not in (1, 2, 4):
+                return upload, None
+            if params.comptype not in {"NONE", "NONE\x00"}:
+                return upload, None
+            frames = reader.readframes(params.nframes)
+    except (wave.Error, OSError):
+        return upload, None
+    if not frames:
+        return upload, None
+    try:
+        rms = float(audioop.rms(frames, params.sampwidth))
+        peak = float(audioop.max(frames, params.sampwidth))
+    except audioop.error:
+        return upload, None
+    if rms >= BOOST_MIN_RMS or BOOST_MIN_RMS <= 0:
+        return upload, None
+    gain = min(BOOST_MAX_GAIN, BOOST_TARGET_RMS / max(rms, 1.0))
+    if gain <= 1.01:
+        return upload, None
+    try:
+        boosted_frames = audioop.mul(frames, params.sampwidth, gain)
+    except audioop.error:
+        return upload, None
+    out_buffer = io.BytesIO()
+    with wave.open(out_buffer, "wb") as writer:
+        writer.setnchannels(params.nchannels)
+        writer.setsampwidth(params.sampwidth)
+        writer.setframerate(params.framerate)
+        writer.writeframes(boosted_frames)
+    boosted = UploadedFile(
+        filename=upload.filename,
+        content_type=upload.content_type,
+        data=out_buffer.getvalue(),
+    )
+    ctx.logger.info(
+        "parakeet_mlx.audio.boost",
+        extra={
+            "model_id": SPEC["id"],
+            "rms": round(rms, 2),
+            "peak": round(peak, 2),
+            "gain": round(gain, 2),
+        },
+    )
+    return boosted, {"rms": rms, "peak": peak, "gain": gain}
 
 
 def _write_temp_audio(upload: UploadedFile, cache_dir: str) -> str:
@@ -176,7 +242,8 @@ def _parse_result(result) -> tuple[str, list[dict]]:
 
 async def run(req: RunRequest, ctx: RunContext):
     upload = _extract_upload(req)
-    audio_path = _write_temp_audio(upload, ctx.cache_dir)
+    normalized_upload, boost_meta = _maybe_boost_wav(upload, ctx)
+    audio_path = _write_temp_audio(normalized_upload, ctx.cache_dir)
     model_id = req.model or SPEC["id"]
     instance = await ctx.registry.ensure_instance(model_id, ctx)
     if not instance:
@@ -189,10 +256,18 @@ async def run(req: RunRequest, ctx: RunContext):
     run_meta = {
         "model_id": model_id,
         "stream": bool(req.stream),
-        "input_bytes": len(upload.data),
+        "input_bytes": len(normalized_upload.data),
         "chunk_duration": chunk_duration,
         "overlap_duration": overlap_duration,
     }
+    if boost_meta:
+        run_meta.update(
+            {
+                "audio_boost": True,
+                "audio_boost_gain": round(boost_meta["gain"], 2),
+                "audio_boost_rms": round(boost_meta["rms"], 2),
+            }
+        )
     language = form_data.get("language")
     if language:
         run_meta["language"] = language

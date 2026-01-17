@@ -611,6 +611,11 @@
             "kicker": "Alternative script",
             "body": "Le script fourni démarre une passerelle FastAPI légère qui reprend l'API de la Suite locale."
           },
+          "docs": {
+            "title": "Docs API interactives",
+            "body": "Une fois la passerelle lancée, ouvrez {{url}} pour explorer les endpoints et envoyer des requêtes de test depuis le navigateur.",
+            "cta": "Ouvrir les docs"
+          },
           "codeTitle": "Exemple de passerelle",
           "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import JSONResponse, Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}\n\n@app.post(\"/v1/audio/translations\")\nasync def audio_translations(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}",
           "cta": "Voir les endpoints"

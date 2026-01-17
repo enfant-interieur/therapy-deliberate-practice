@@ -81,6 +81,7 @@ export const MinigamePlayPage = () => {
   const [evaluationModalData, setEvaluationModalData] = useState<EvaluationResult | null>(null);
   const [endGameOpen, setEndGameOpen] = useState(false);
   const [endGamePending, setEndGamePending] = useState(false);
+  const endGamePendingRef = useRef(false);
   const [winnerSummary, setWinnerSummary] = useState<WinnerSummary | null>(null);
   const [switchTargetPlayerId, setSwitchTargetPlayerId] = useState<string | null>(null);
   const [promptExhaustedMessage, setPromptExhaustedMessage] = useState<string | null>(null);
@@ -127,10 +128,15 @@ export const MinigamePlayPage = () => {
   }, []);
 
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    endGamePendingRef.current = endGamePending;
+  }, [endGamePending]);
 
   const closeEvaluationModal = useCallback(() => {
     setEvaluationModalOpen(false);
@@ -338,6 +344,8 @@ export const MinigamePlayPage = () => {
   const endGame = useCallback(async () => {
     if (!minigames.session || endGamePending) return;
     setPendingAutoEndSessionId(null);
+    closeEvaluationModal();
+    setNewPlayerOpen(false);
     try {
       setEndGamePending(true);
       try {
@@ -379,6 +387,7 @@ export const MinigamePlayPage = () => {
       }
     }
   }, [
+    closeEvaluationModal,
     dispatch,
     endSession,
     endGamePending,
@@ -562,7 +571,7 @@ export const MinigamePlayPage = () => {
           })
         );
       }
-      if (payload.evaluation) {
+      if (payload.evaluation && !endGamePendingRef.current) {
         setEvaluationModalData(payload.evaluation as EvaluationResult);
         setEvaluationModalOpen(true);
         setFfaNextRoundBlocked(true);
@@ -617,7 +626,7 @@ export const MinigamePlayPage = () => {
           })
         );
       }
-      if (payload.evaluation) {
+      if (payload.evaluation && !endGamePendingRef.current) {
         setEvaluationModalData(payload.evaluation as EvaluationResult);
         setEvaluationModalOpen(true);
       }

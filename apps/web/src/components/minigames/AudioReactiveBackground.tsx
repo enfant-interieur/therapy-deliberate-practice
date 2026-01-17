@@ -18,6 +18,7 @@ export const AudioReactiveBackground = ({ audioElement, isPlaying }: AudioReacti
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataRef = useRef<Uint8Array | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const particlesRef = useRef<Particle[]>([]);
   const rafRef = useRef<number>();
 
@@ -51,16 +52,77 @@ export const AudioReactiveBackground = ({ audioElement, isPlaying }: AudioReacti
   }, []);
 
   useEffect(() => {
-    if (!audioElement || audioContextRef.current) return;
-    const audioContext = new AudioContext();
-    const analyser = audioContext.createAnalyser();
-    analyser.fftSize = 256;
-    const source = audioContext.createMediaElementSource(audioElement);
-    source.connect(analyser);
-    analyser.connect(audioContext.destination);
-    analyserRef.current = analyser;
-    dataRef.current = new Uint8Array(analyser.frequencyBinCount);
-    audioContextRef.current = audioContext;
+    if (!audioElement) return;
+
+    let disposed = false;
+
+    const ensureAudioContext = () => {
+      if (disposed || !audioElement) return null;
+      if (audioContextRef.current) return audioContextRef.current;
+      const audioContext = new AudioContext();
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 256;
+      const source = audioContext.createMediaElementSource(audioElement);
+      source.connect(analyser);
+      analyser.connect(audioContext.destination);
+      analyserRef.current = analyser;
+      dataRef.current = new Uint8Array(analyser.frequencyBinCount);
+      audioContextRef.current = audioContext;
+      sourceRef.current = source;
+      return audioContext;
+    };
+
+    const resumeAudioContext = () => {
+      const context = ensureAudioContext();
+      if (!context) return;
+      if (context.state === "suspended") {
+        context.resume().catch(() => {
+          /* ignored */
+        });
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        resumeAudioContext();
+      }
+    };
+
+    resumeAudioContext();
+    const gestureEvents = ["pointerdown", "touchstart", "keydown"] as const;
+    gestureEvents.forEach((event) => window.addEventListener(event, resumeAudioContext));
+    audioElement.addEventListener("play", resumeAudioContext);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      disposed = true;
+      gestureEvents.forEach((event) => window.removeEventListener(event, resumeAudioContext));
+      audioElement.removeEventListener("play", resumeAudioContext);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (sourceRef.current) {
+        try {
+          sourceRef.current.disconnect();
+        } catch {
+          /* ignored */
+        }
+        sourceRef.current = null;
+      }
+      if (analyserRef.current) {
+        try {
+          analyserRef.current.disconnect();
+        } catch {
+          /* ignored */
+        }
+        analyserRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close().catch(() => {
+          /* ignored */
+        });
+        audioContextRef.current = null;
+      }
+      dataRef.current = null;
+    };
   }, [audioElement]);
 
   useEffect(() => {

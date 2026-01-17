@@ -13,6 +13,9 @@ npm run dev:local
 
 This runs the FastAPI gateway on `http://127.0.0.1:8484` (configurable via `~/.therapy/local-runtime/config.json`).
 
+- Interactive docs live at [http://127.0.0.1:8484/docs](http://127.0.0.1:8484/docs)
+- The raw OpenAPI schema is available at [http://127.0.0.1:8484/openapi.json](http://127.0.0.1:8484/openapi.json)
+
 ### Desktop launcher
 
 ```bash
