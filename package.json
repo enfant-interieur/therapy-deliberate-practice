@@ -23,6 +23,8 @@
     "format": "prettier --write .",
     "release": "node scripts/release/run-release.mjs",
     "release:dmg": "node scripts/release/run-release.mjs --skip-linux --skip-windows --skip-tag --allow-dirty",
+    "release:linux": "node scripts/release/run-release.mjs --skip-macos --skip-windows --skip-tag --allow-dirty",
+    "release:windows": "node scripts/release/run-release.mjs --skip-macos --skip-linux --skip-tag --allow-dirty",
     "release:appstore": "node scripts/release/run-release-appstore.mjs",
     "release:gh": "node scripts/release/run-release-gh.mjs"
   },

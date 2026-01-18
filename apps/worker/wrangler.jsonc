@@ -34,6 +34,19 @@
       "binding": "deliberate_practice_audio"
     }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "ADMIN_BATCH_PARSE_QUEUE",
+        "queue": "admin-batch-parse"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "admin-batch-parse"
+      }
+    ]
+  },
   // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, SUPABASE_JWT_SECRET,
   //    "ADMIN_EMAILS": "",
   //    "ADMIN_GROUPS": "",
