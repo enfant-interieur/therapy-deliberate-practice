@@ -213,6 +213,7 @@ export const adminBatchParseJobs = sqliteTable(
     id: text("id").primaryKey(),
     status: text("status").notNull(),
     step: text("step").notNull(),
+    parse_mode: text("parse_mode").notNull().default("original"),
     total_segments: integer("total_segments"),
     completed_segments: integer("completed_segments").notNull().default(0),
     created_task_ids: text("created_task_ids", { mode: "json" }).notNull().default("[]"),
@@ -241,6 +242,15 @@ export const adminBatchParseJobEvents = sqliteTable(
     jobIdx: index("admin_batch_parse_job_events_job_idx").on(table.job_id, table.id)
   })
 );
+
+export const adminBatchParseJobPayloads = sqliteTable("admin_batch_parse_job_payloads", {
+  job_id: text("job_id")
+    .primaryKey()
+    .references(() => adminBatchParseJobs.id, { onDelete: "cascade" }),
+  source_text: text("source_text").notNull(),
+  created_at: integer("created_at").notNull(),
+  updated_at: integer("updated_at").notNull()
+});
 
 export const minigameSessions = sqliteTable(
   "minigame_sessions",

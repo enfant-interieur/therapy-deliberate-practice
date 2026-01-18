@@ -5,6 +5,7 @@ import type { RuntimeEnv } from "../env";
 import {
   adminBatchParseJobs,
   adminBatchParseJobEvents,
+  adminBatchParseJobPayloads,
   taskCriteria,
   taskExamples,
   taskInteractionExamples,
@@ -451,7 +452,7 @@ const createDraftTaskFromParsed = async (db: ApiDatabase, parsed: DeliberatePrac
   return { taskId, slug, title: parsed.task.title };
 };
 
-export const createBatchParseJob = async (db: ApiDatabase, sourceText: string) => {
+export const createBatchParseJob = async (db: ApiDatabase, sourceText: string, parseMode: ParseMode = "original") => {
   const jobId = `job_${nanoid(12)}`;
   const ts = now();
   const source_hash = await hashCheap(sourceText);
@@ -459,11 +460,18 @@ export const createBatchParseJob = async (db: ApiDatabase, sourceText: string) =
     id: jobId,
     status: "queued",
     step: "created_job",
+    parse_mode: parseMode,
     total_segments: null,
     completed_segments: 0,
     created_task_ids: [],
     error: null,
     source_hash,
+    created_at: ts,
+    updated_at: ts
+  });
+  await db.insert(adminBatchParseJobPayloads).values({
+    job_id: jobId,
+    source_text: sourceText,
     created_at: ts,
     updated_at: ts
   });
@@ -480,17 +488,40 @@ export type BatchParseJobDeps = {
   logger?: LogFn;
 };
 
+export type BatchParseQueueMessage = {
+  jobId: string;
+};
+
+export type BatchParseQueueProducer = {
+  send: (message: BatchParseQueueMessage) => Promise<void>;
+};
+
 export const runBatchParseJob = async (
   db: ApiDatabase,
   env: RuntimeEnv,
   jobId: string,
-  input: { sourceText: string; parseMode?: ParseMode },
+  input: { sourceText?: string; parseMode?: ParseMode } = {},
   deps: BatchParseJobDeps = {}
 ) => {
+  const [jobRow] = await db.select().from(adminBatchParseJobs).where(eq(adminBatchParseJobs.id, jobId)).limit(1);
+  if (!jobRow) {
+    throw new Error(`Batch parse job ${jobId} not found.`);
+  }
+  const [payloadRow] = await db
+    .select()
+    .from(adminBatchParseJobPayloads)
+    .where(eq(adminBatchParseJobPayloads.job_id, jobId))
+    .limit(1);
+  const storedSource = payloadRow?.source_text ?? "";
+  const sourceText = input.sourceText ?? storedSource;
+  if (!sourceText) {
+    throw new Error(`Batch parse job ${jobId} has no source text payload.`);
+  }
+  const parseMode = input.parseMode ?? (jobRow.parse_mode as ParseMode | undefined) ?? "original";
   const logFn = deps.logger ?? defaultLog;
   const baseLogFields: LogFields = {
     jobId,
-    parseMode: input.parseMode ?? "original"
+    parseMode
   };
   const jobLog = (level: LogLevel, event: string, fields?: LogFields) => {
     logFn(level, event, { ...baseLogFields, ...(fields ?? {}) });
@@ -504,10 +535,10 @@ export const runBatchParseJob = async (
       message: "Analyzing text to detect task boundaries…"
     });
 
-    const { lines, numberedText } = toLineNumbered(input.sourceText);
-    const sourceHash = await hashCheap(input.sourceText);
+    const { lines, numberedText } = toLineNumbered(sourceText);
+    const sourceHash = await hashCheap(sourceText);
     jobLog("info", "batch_parse.job.run_start", {
-      source_char_count: input.sourceText.length,
+      source_char_count: sourceText.length,
       source_line_count: lines.length,
       source_hash: sourceHash
     });
@@ -687,7 +718,7 @@ export const runBatchParseJob = async (
             context_block_count: contextSnippets.length,
             attempt
           });
-          parsed = await parseSegment({ sourceText: segmentPrompt, parseMode: input.parseMode });
+          parsed = await parseSegment({ sourceText: segmentPrompt, parseMode });
           jobLog("info", "batch_parse.segment.parse_ok", {
             segment_index: index + 1,
             duration_ms: now() - parseStarted,
@@ -823,6 +854,15 @@ export const runBatchParseJob = async (
     });
     jobLog("error", "batch_parse.job.failed", safe);
   }
+};
+
+export const handleBatchParseQueueMessage = async (
+  db: ApiDatabase,
+  env: RuntimeEnv,
+  message: BatchParseQueueMessage,
+  deps: BatchParseJobDeps = {}
+) => {
+  await runBatchParseJob(db, env, message.jobId, {}, deps);
 };
 
 const parseJsonArray = (value: unknown): string[] => {

@@ -81,7 +81,8 @@ import {
 import {
   createBatchParseJob,
   getBatchParseStatus,
-  runBatchParseJob
+  runBatchParseJob,
+  type BatchParseQueueProducer
 } from "./services/adminBatchParseService";
 
 export type ApiDependencies = {
@@ -89,6 +90,9 @@ export type ApiDependencies = {
   db: ApiDatabase;
   tts?: {
     storage?: TtsStorage;
+  };
+  queues?: {
+    adminBatchParse?: BatchParseQueueProducer;
   };
 };
 
@@ -252,7 +256,7 @@ const normalizeTask = (row: typeof tasks.$inferSelect): Task => ({
   parent_task_id: row.parent_task_id ?? null
 });
 
-export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
+export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
   const app = new Hono();
   const adminAuth = createAdminAuth(env);
   const userAuth = createUserAuth(env, db);
@@ -1480,19 +1484,22 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       log.warn("Batch parse missing source text");
       return c.json({ error: "Source text is required" }, 400);
     }
-    const jobId = await createBatchParseJob(db, sourceText);
-    const runnerInput = { sourceText, parseMode: body.parseMode };
+    const parseMode = body.parseMode ?? "original";
+    const jobId = await createBatchParseJob(db, sourceText, parseMode);
     const jobLogger = toLogFn(log.child({ jobId, component: "batch_parse_job" }));
-    const runner = async () => runBatchParseJob(db, env, jobId, runnerInput, { logger: jobLogger });
+    const runner = async () => runBatchParseJob(db, env, jobId, { sourceText, parseMode }, { logger: jobLogger });
     const execCtx = (c as Context & { executionCtx?: { waitUntil: (promise: Promise<unknown>) => void } }).executionCtx;
-    if (execCtx?.waitUntil) {
+    const queueProducer = queues?.adminBatchParse;
+    if (queueProducer) {
+      await queueProducer.send({ jobId });
+    } else if (execCtx?.waitUntil) {
       execCtx.waitUntil(runner());
     } else {
       setTimeout(() => {
         void runner();
       }, 0);
     }
-    log.info("Batch parse job queued", { jobId });
+    log.info("Batch parse job queued", { jobId, transport: queueProducer ? "queue" : "inline" });
     return c.json({ jobId });
   });
 

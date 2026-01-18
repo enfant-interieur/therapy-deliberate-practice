@@ -269,6 +269,48 @@ Therapy model: Demo`;
   await rm(dir, { recursive: true, force: true });
 });
 
+test("runBatchParseJob reads persisted payload when no source text override is provided", async () => {
+  const { db, dir } = await createTempDb();
+  const env = resolveEnv({ ENV: "development", BYPASS_ADMIN_AUTH: "true" });
+  const sourceText = "Only segment\nDetails";
+  const jobId = await createBatchParseJob(db, sourceText);
+  const mockParsed: DeliberatePracticeTaskV2 = {
+    version: "2.1",
+    task: {
+      title: "Payload Task",
+      description: "Desc",
+      skill_domain: "demo",
+      base_difficulty: 2,
+      general_objective: null,
+      tags: [],
+      language: "en"
+    },
+    criteria: [],
+    examples: [{ id: "ex", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null }],
+    interaction_examples: []
+  };
+  let sawStoredText = false;
+  await runBatchParseJob(
+    db,
+    env,
+    jobId,
+    {},
+    {
+      planSegments: async ({ numberedText }) => {
+        sawStoredText = numberedText.includes("Only segment");
+        return {
+          tasks: [{ start_line: 1, end_line: 2, title_hint: "Only", confidence: 0.9, reason: "single" }]
+        };
+      },
+      parseSegment: async () => mockParsed
+    }
+  );
+  assert.ok(sawStoredText);
+  const status = await getBatchParseStatus(db, jobId, 0);
+  assert.equal(status?.job.status, "completed");
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("segments parse in parallel", async () => {
   const { db, dir } = await createTempDb();
   const env = resolveEnv({ ENV: "development", BYPASS_ADMIN_AUTH: "true" });
