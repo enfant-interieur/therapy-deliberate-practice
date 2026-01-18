@@ -1482,7 +1482,8 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
     }
     const jobId = await createBatchParseJob(db, sourceText);
     const runnerInput = { sourceText, parseMode: body.parseMode };
-    const runner = async () => runBatchParseJob(db, env, jobId, runnerInput);
+    const jobLogger = toLogFn(log.child({ jobId, component: "batch_parse_job" }));
+    const runner = async () => runBatchParseJob(db, env, jobId, runnerInput, { logger: jobLogger });
     const execCtx = (c as Context & { executionCtx?: { waitUntil: (promise: Promise<unknown>) => void } }).executionCtx;
     if (execCtx?.waitUntil) {
       execCtx.waitUntil(runner());

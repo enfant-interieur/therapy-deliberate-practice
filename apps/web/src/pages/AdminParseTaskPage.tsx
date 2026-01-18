@@ -7,6 +7,7 @@ import { Badge, Button, Card, Input, Label, SectionHeader, Select, Textarea } fr
 import { ToastProvider, useToast } from "../components/admin/ToastProvider";
 import { BatchParseProgressModal } from "../components/admin/BatchParseProgressModal";
 import { useImportTaskMutation, useParseTaskMutation, useStartBatchParseMutation } from "../store/api";
+import { useDevLogger } from "../hooks/useDevLogger";
 
 const SummaryRow = ({ label, value }: { label: string; value: string }) => (
   <div>
@@ -19,6 +20,7 @@ const AdminParseTaskPageContent = () => {
   const { t } = useTranslation();
   const { pushToast } = useToast();
   const navigate = useNavigate();
+  const devLog = useDevLogger("AdminParseTaskPage");
   const [mode, setMode] = useState<"single" | "batch">("single");
   const [freeText, setFreeText] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
@@ -53,6 +55,11 @@ const AdminParseTaskPageContent = () => {
 
   const handleSingleParse = async () => {
     setError(null);
+    devLog("single.parse.start", {
+      parseMode,
+      hasFreeText: Boolean(freeText.trim()),
+      hasSourceUrl: Boolean(sourceUrl.trim())
+    });
     try {
       const parsed = await parseTask({
         free_text: freeText || undefined,
@@ -62,12 +69,20 @@ const AdminParseTaskPageContent = () => {
       setResult(parsed);
       setReviewed(false);
       setJsonVisible(true);
+      devLog("single.parse.success", {
+        taskTitle: parsed.task.title,
+        criteria: parsed.criteria.length,
+        examples: parsed.examples.length
+      });
     } catch (err) {
       setError((err as Error).message);
       pushToast({
         title: t("admin.toast.error"),
         message: (err as Error).message,
         tone: "error"
+      });
+      devLog("single.parse.error", {
+        message: (err as Error).message
       });
     }
   };
@@ -97,6 +112,11 @@ const AdminParseTaskPageContent = () => {
       });
       return;
     }
+    devLog("batch.parse.start", {
+      parseMode,
+      charCount: trimmed.length,
+      lineCount: trimmed.split(/\r?\n/g).length
+    });
     try {
       const response = await startBatchParse({ sourceText: trimmed, parseMode }).unwrap();
       setBatchJobId(response.jobId);
@@ -105,11 +125,17 @@ const AdminParseTaskPageContent = () => {
         message: "Progress will show in the modal.",
         tone: "success"
       });
+      devLog("batch.parse.success", {
+        jobId: response.jobId
+      });
     } catch (err) {
       pushToast({
         title: t("admin.toast.error"),
         message: (err as Error).message,
         tone: "error"
+      });
+      devLog("batch.parse.error", {
+        message: (err as Error).message
       });
     }
   };

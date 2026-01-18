@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Badge, Button, Card } from "./AdminUi";
 import { useAppDispatch } from "../../store/hooks";
 import { api, useGetBatchParseStatusQuery } from "../../store/api";
+import { useDevLogger } from "../../hooks/useDevLogger";
 
 const stepLabels: Record<string, string> = {
   created_job: "Queued",
@@ -26,6 +27,7 @@ type Props = {
 
 export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
   const dispatch = useAppDispatch();
+  const devLog = useDevLogger("BatchParseProgressModal");
   const [afterEventId, setAfterEventId] = useState(0);
   const [events, setEvents] = useState<
     Array<{ id: number; ts: number; level: "info" | "warn" | "error"; step: string; message: string; meta: unknown | null }>
@@ -36,7 +38,8 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
     setAfterEventId(0);
     setEvents([]);
     setPollingMs(800);
-  }, [jobId]);
+    devLog("job.change", { jobId });
+  }, [jobId, devLog]);
 
   const query = useGetBatchParseStatusQuery(
     { jobId, afterEventId },
@@ -47,6 +50,10 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
   useEffect(() => {
     if (!query.data) return;
     if (query.data.events.length) {
+      devLog("events.received", {
+        batchSize: query.data.events.length,
+        lastEventId: query.data.events[query.data.events.length - 1]?.id ?? null
+      });
       setEvents((prev) => {
         const seen = new Set(prev.map((event) => event.id));
         const merged = [...prev, ...query.data!.events.filter((event) => !seen.has(event.id))];
@@ -55,7 +62,7 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
       });
       setAfterEventId(query.data.nextAfterEventId);
     }
-  }, [query.data]);
+  }, [query.data, devLog]);
 
   useEffect(() => {
     if (!job) return;
@@ -64,6 +71,22 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
       dispatch(api.util.invalidateTags(["Task"]));
     }
   }, [job, dispatch]);
+
+  useEffect(() => {
+    if (!job) return;
+    devLog("job.update", {
+      status: job.status,
+      step: job.step,
+      completedSegments: job.completedSegments,
+      totalSegments: job.totalSegments,
+      error: job.error
+    });
+  }, [job?.updatedAt, job?.status, job?.step, job?.completedSegments, job?.totalSegments, job?.error, devLog]);
+
+  useEffect(() => {
+    if (!query.error) return;
+    devLog("poll.error", query.error);
+  }, [query.error, devLog]);
 
   const total = job?.totalSegments ?? null;
   const completed = job?.completedSegments ?? 0;

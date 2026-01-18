@@ -29,7 +29,17 @@ export const batchParsePlanSchema = z.object({
         end_line: z.number().int().min(1),
         title_hint: z.string().trim().min(1).nullable().optional(),
         confidence: z.number().min(0).max(1),
-        reason: z.string().trim().min(1)
+        reason: z.string().trim().min(1),
+        context_blocks: z
+          .array(
+            z.object({
+              start_line: z.number().int().min(1),
+              end_line: z.number().int().min(1),
+              label: z.string().trim().min(1),
+              reason: z.string().trim().min(1).nullable().optional()
+            })
+          )
+          .optional()
       })
     )
     .min(1)
@@ -67,7 +77,11 @@ export const taskExampleSchema = z.object({
   difficulty: z.number().min(1).max(5),
   severity_label: z.string().nullable().optional(),
   patient_text: z.string(),
-  language: z.string().optional(),
+  language: z
+    .string()
+    .optional()
+    .nullable()
+    .transform((value) => (typeof value === "string" && value.trim() ? value : undefined)),
   meta: z
     .record(
       z.union([z.string(), z.number(), z.boolean(), z.null()])

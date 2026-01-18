@@ -913,6 +913,9 @@
       "kicker": "Task editor",
       "pageTitle": "Edit task",
       "pageSubtitle": "Update task details, criteria, and examples in a focused view.",
+      "exportModalKicker": "JSON export",
+      "exportModalTitle": "Task JSON",
+      "exportModalSubtitle": "Copy and share this exact payload, including every criterion, example, and interaction.",
       "save": "Save changes",
       "saving": "Saving...",
       "selectPrompt": "Select a task to edit.",
@@ -979,6 +982,7 @@
       "duplicate": "Duplicate",
       "translate": "Translate",
       "delete": "Delete",
+      "exportJson": "Export JSON",
       "close": "Close",
       "cancel": "Cancel",
       "create": "Create",
@@ -986,7 +990,8 @@
       "save": "Save",
       "backToLibrary": "Back to library",
       "backToPortal": "Back to portal",
-      "reset": "Reset"
+      "reset": "Reset",
+      "copyCode": "Copy code"
     },
     "status": {
       "loading": "Loading",
@@ -1055,7 +1060,8 @@
       "translated": "Task translated",
       "imported": "Task imported",
       "jsonApplied": "JSON applied",
-      "jsonValid": "JSON valid"
+      "jsonValid": "JSON valid",
+      "jsonCopied": "Task JSON copied"
     },
     "translate": {
       "title": "Translate task",
