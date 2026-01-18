@@ -192,18 +192,19 @@ export const PlayersTeamsStep = ({
           ))}
         </div>
       </div>
-      {mode === "tdm" && (
-        <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-          <p className="text-sm font-semibold text-white">Rounds per player</p>
-          <input
-            type="number"
-            min={1}
-            value={roundsPerPlayer}
-            onChange={(event) => onRoundsPerPlayerChange(Number(event.target.value))}
-            className="mt-2 w-24 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white"
-          />
-        </div>
-      )}
+      <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
+        <p className="text-sm font-semibold text-white">Rounds per player</p>
+        <p className="mt-1 text-xs text-slate-300">
+          Each player will complete this many turns across the match.
+        </p>
+        <input
+          type="number"
+          min={1}
+          value={roundsPerPlayer}
+          onChange={(event) => onRoundsPerPlayerChange(Number(event.target.value))}
+          className="mt-2 w-24 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white"
+        />
+      </div>
     </div>
   );
 };
