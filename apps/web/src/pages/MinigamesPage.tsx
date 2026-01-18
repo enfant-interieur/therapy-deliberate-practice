@@ -370,6 +370,29 @@ export const MinigamePlayPage = () => {
     [debugLog, endGame, evaluationModalOpen, minigames.session?.id, roundFlowLocked]
   );
 
+  useEffect(() => {
+    if (!minigames.session?.id) return;
+    const actions = manager.verifyIntegrity({ lockRoundAdvance: roundAdvanceLocked });
+    if (actions.length) {
+      debugLog("integrity.actions", {
+        sessionId: minigames.session.id,
+        lockRoundAdvance: roundAdvanceLocked,
+        actions
+      });
+    }
+    if (actions.some((action) => action.type === "complete_session")) {
+      scheduleAutoEnd("all_rounds_complete");
+    }
+  }, [
+    debugLog,
+    manager,
+    minigames.results,
+    minigames.rounds,
+    minigames.session?.id,
+    roundAdvanceLocked,
+    scheduleAutoEnd
+  ]);
+
   const handleReturnToHub = useCallback(() => {
     manager.reset();
     navigate("/minigames");
