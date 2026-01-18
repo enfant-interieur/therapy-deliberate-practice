@@ -515,23 +515,19 @@ export const api = createApi({
         roundId: string;
         player_id: string;
         audio_base64?: string;
-        audio_mime?: string;
-        transcript_text?: string;
-        attempt_id?: string;
-        skip_scoring?: boolean;
-        mode?: "local_prefer" | "openai_only" | "local_only";
-        practice_mode?: "standard" | "real_time";
-        turn_context?: {
-          patient_cache_key?: string;
-          patient_statement_id?: string;
-          timing?: {
-            response_delay_ms?: number | null;
-            response_duration_ms?: number | null;
-            response_timer_seconds?: number;
-            max_response_duration_seconds?: number;
-          };
-        };
-      }
+      } & Pick<
+        PracticeRunInput,
+        | "audio"
+        | "audio_mime"
+        | "transcript_text"
+        | "attempt_id"
+        | "skip_scoring"
+        | "mode"
+        | "practice_mode"
+        | "turn_context"
+        | "client_transcript"
+        | "client_evaluation"
+      >
     >({
       query: ({ sessionId, roundId, ...body }) => ({
         url: `/minigames/sessions/${sessionId}/rounds/${roundId}/submit`,

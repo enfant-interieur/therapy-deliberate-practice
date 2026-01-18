@@ -19,6 +19,8 @@ import {
 import type { LocalRuntimeClient } from "../../../lib/localRuntimeClient";
 import { buildExampleForRound } from "./localRoundUtils";
 
+const isDev = import.meta.env.DEV;
+
 export type MatchState =
   | "idle"
   | "intro"
@@ -110,6 +112,13 @@ export const useTdmMatchController = ({
   const lastAudioStatusRef = useRef(audioStatus);
   const autoStopRef = useRef(false);
   const autoFailRef = useRef<string | null>(null);
+  const logTdm = useCallback(
+    (event: string, payload: Record<string, unknown> = {}) => {
+      if (!isDev) return;
+      console.info(`[tdm] ${event}`, payload);
+    },
+    []
+  );
 
   useEffect(() => {
     if (!round?.id) return;
@@ -128,8 +137,13 @@ export const useTdmMatchController = ({
       if (audioElement) {
         stop(audioElement);
       }
+      logTdm("round.reset", {
+        roundId: round.id,
+        playerA: round.player_a_id,
+        playerB: round.player_b_id
+      });
     }
-  }, [audioElement, resetTiming, round?.id, round?.player_a_id, stop]);
+  }, [audioElement, logTdm, resetTiming, round?.id, round?.player_a_id, round?.player_b_id, stop]);
 
   useEffect(() => {
     if (!enabled || !round) return;
@@ -181,21 +195,26 @@ export const useTdmMatchController = ({
       if (state === "between_players") {
         resetTiming();
         setState("patient_ready");
+        logTdm("round.resume_between_players", { roundId: round.id });
       }
       return;
     }
+    logTdm("round.start_initiated", { roundId: round.id, state });
     setSubmitError(null);
     setState("patient_loading");
     await startRound({ sessionId, roundId: round.id });
+    logTdm("round.start_server_ack", { roundId: round.id });
     startedRoundRef.current = round.id;
     await preparePatientAudio();
     if (introShownRef.current !== round.id) {
       introShownRef.current = round.id;
       setIntroOpen(true);
       setState("intro");
+      logTdm("round.intro_open", { roundId: round.id });
     } else {
       setState("patient_ready");
       const token = (playTokenRef.current += 1);
+       logTdm("round.auto_play_patient", { roundId: round.id });
       await play(round.task_id, round.example_id, audioElement, {
         shouldPlay: () => playTokenRef.current === token,
         onEnded: () => setPatientEndedAt(Date.now())
@@ -204,6 +223,7 @@ export const useTdmMatchController = ({
   }, [
     audioElement,
     enabled,
+    logTdm,
     preparePatientAudio,
     round,
     sessionId,
@@ -224,12 +244,13 @@ export const useTdmMatchController = ({
     if (!enabled || !round || !audioElement) return;
     setIntroOpen(false);
     setState("patient_ready");
+    logTdm("round.intro_complete", { roundId: round.id });
     const token = (playTokenRef.current += 1);
     await play(round.task_id, round.example_id, audioElement, {
       shouldPlay: () => playTokenRef.current === token,
       onEnded: () => setPatientEndedAt(Date.now())
     });
-  }, [audioElement, enabled, play, round]);
+  }, [audioElement, enabled, logTdm, play, round]);
 
   const playPatient = useCallback(async () => {
     if (!enabled || !round || !audioElement) return;
@@ -257,6 +278,7 @@ export const useTdmMatchController = ({
 
   const startRecordingSafe = useCallback(() => {
     if (!enabled || !round || !activePlayerId) return;
+    logTdm("record.start", { roundId: round.id, playerId: activePlayerId });
     const startPromise = startRecording();
     if (!startedRoundRef.current) {
       void startRoundOrMatch();
@@ -268,10 +290,12 @@ export const useTdmMatchController = ({
     startPromise.catch(() => {
       setSubmitError("Microphone access failed. Please try again.");
       setState("patient_ready");
+      logTdm("record.error", { roundId: round.id, playerId: activePlayerId, reason: "mic_access" });
     });
   }, [
     activePlayerId,
     enabled,
+    logTdm,
     recordResponseStart,
     round,
     startRecording,
@@ -281,6 +305,7 @@ export const useTdmMatchController = ({
 
   const stopAndSubmit = useCallback(async () => {
     if (!enabled || !round || !activePlayerId) return;
+    logTdm("submit.begin", { roundId: round.id, playerId: activePlayerId });
     const recorded = await stopRecording();
     if (!recorded) return;
     setState("transcribing");
@@ -390,19 +415,32 @@ export const useTdmMatchController = ({
         timingPenalty,
         playerId: activePlayerId
       });
+      logTdm("submit.success", {
+        roundId: round.id,
+        playerId: activePlayerId,
+        attemptId: parsed.attemptId ?? attemptId,
+        score: evaluationResponse.adjusted_score ?? adjustedScore ?? parsed.score
+      });
       resetTiming();
       if (round.player_b_id && activePlayerId === round.player_a_id) {
         setActivePlayerId(round.player_b_id);
         setState("between_players");
         playTokenRef.current += 1;
         stop(audioElement);
+        logTdm("round.handoff", {
+          roundId: round.id,
+          fromPlayerId: round.player_a_id,
+          toPlayerId: round.player_b_id
+        });
       } else {
         setState("complete");
+        logTdm("round.complete", { roundId: round.id });
       }
     } catch (error) {
       console.error("[minigames] tdm_stop_and_submit_error", error);
       setSubmitError("Submission failed. Please try again.");
       setState("patient_ready");
+      logTdm("submit.error", { roundId: round?.id ?? null, playerId: activePlayerId, message: (error as Error)?.message });
     }
   }, [
     activePlayerId,
@@ -426,6 +464,7 @@ export const useTdmMatchController = ({
     resetTiming,
     stop,
     localRuntimeClient,
+    logTdm,
     task
   ]);
 
@@ -434,6 +473,7 @@ export const useTdmMatchController = ({
       if (!enabled) return;
       if (reason) {
         console.info("[minigames] abort_turn", { reason, roundId: round?.id, playerId: activePlayerId });
+        logTdm("turn.abort", { reason, roundId: round?.id ?? null, playerId: activePlayerId });
       }
       playTokenRef.current += 1;
       stop(audioElement);
@@ -451,7 +491,7 @@ export const useTdmMatchController = ({
         bank.updateEntry(round.task_id, round.example_id, { status: "ready" });
       }
     },
-    [activePlayerId, audioElement, bank, cancelRecording, enabled, resetTiming, round, stop]
+    [activePlayerId, audioElement, bank, cancelRecording, enabled, logTdm, resetTiming, round, stop]
   );
 
   useEffect(() => {
@@ -542,6 +582,7 @@ export const useTdmMatchController = ({
     const autoFailKey = `${round.id}-${activePlayerId}`;
     if (autoFailRef.current === autoFailKey) return;
     autoFailRef.current = autoFailKey;
+    logTdm("round.auto_fail", { roundId: round.id, playerId: activePlayerId });
     const attemptId = `timeout-${round.id}-${activePlayerId}-${Date.now()}`;
     const evaluation = createTimeoutEvaluation({
       taskId: round.task_id,

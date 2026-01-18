@@ -60,6 +60,7 @@ type DownloadLink = {
 
 const RELEASE_CACHE_KEY = "local-suite-release-assets";
 const RELEASE_CACHE_TTL_MS = 1000 * 60 * 10;
+const DEFAULT_LOCAL_DOCS_URL = "http://127.0.0.1:8484/docs";
 
 export const LocalSuite = () => {
   const { t } = useTranslation();
@@ -283,6 +284,25 @@ export const LocalSuite = () => {
             <pre className="mt-3 whitespace-pre-wrap rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-[11px] text-teal-200">
               {t("help.localSuite.paths.advanced.code")}
             </pre>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-slate-400">
+                  {t("help.localSuite.paths.advanced.docs.title")}
+                </p>
+                <p className="mt-1 text-xs text-slate-300">
+                  {t("help.localSuite.paths.advanced.docs.body", { url: DEFAULT_LOCAL_DOCS_URL })}
+                </p>
+              </div>
+              <a
+                href={DEFAULT_LOCAL_DOCS_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-teal-200 transition hover:-translate-y-0.5 hover:border-white/40"
+              >
+                {t("help.localSuite.paths.advanced.docs.cta")}
+                <span className="text-base">↗</span>
+              </a>
+            </div>
           </article>
         </div>
       </section>

@@ -611,6 +611,11 @@
             "kicker": "Script alternative",
             "body": "The bundled script starts a lightweight FastAPI gateway that mirrors the Local Suite API surface."
           },
+          "docs": {
+            "title": "Interactive API docs",
+            "body": "Once the gateway is running, visit {{url}} to inspect endpoints and issue sample requests directly in your browser.",
+            "cta": "Open docs"
+          },
           "codeTitle": "Example gateway skeleton",
           "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import JSONResponse, Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}\n\n@app.post(\"/v1/audio/translations\")\nasync def audio_translations(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}",
           "cta": "See endpoint details"

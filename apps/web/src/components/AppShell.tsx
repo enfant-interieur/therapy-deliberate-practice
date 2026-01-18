@@ -10,6 +10,7 @@ import { AiSetupModal } from "./AiSetupModal";
 import { Tooltip } from "./Tooltip";
 import { Drawer } from "./Drawer";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { selectIsAppShellHidden } from "../store/minigamesSlice";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -20,7 +21,7 @@ export const AppShell = () => {
   const { t, i18n } = useTranslation();
   const dispatch = useAppDispatch();
   const { isAdmin, isAuthenticated, authChecked, email } = useAppSelector((state) => state.auth);
-  const isAppShellHidden = useAppSelector((state) => state.minigames.ui.appShellHidden);
+  const isAppShellHidden = useAppSelector(selectIsAppShellHidden);
   const { data, isError } = useGetAdminWhoamiQuery();
   const { data: profileData } = useGetMeQuery(undefined, { skip: !isAuthenticated });
   const { data: settingsData } = useGetMeSettingsQuery(undefined, { skip: !isAuthenticated });

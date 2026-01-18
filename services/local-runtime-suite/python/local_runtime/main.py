@@ -6,10 +6,11 @@ import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -58,6 +59,125 @@ if RUNTIME_BIN.exists():
     os.environ.setdefault("FFMPEG_BINARY", str(ffmpeg_binary))
 
 LOGGER = configure_logging()
+
+RESPONSES_REQUEST_OPENAPI: dict[str, Any] = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "application/json": {
+                "schema": {
+                    "type": "object",
+                    "title": "ResponsesCreateRequest",
+                    "description": "Subset of the OpenAI Responses API schema supported by the Local Runtime gateway.",
+                    "properties": {
+                        "model": {"type": "string", "description": "Model ID override (defaults to the selected local model)."},
+                        "instructions": {"type": "string", "description": "Optional system prompt/instructions."},
+                        "input": {
+                            "description": "String or array of content blocks describing the exchange.",
+                            "anyOf": [
+                                {"type": "string"},
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "role": {"type": "string"},
+                                            "content": {"type": "array", "items": {"type": "object"}},
+                                        },
+                                        "additionalProperties": True,
+                                    },
+                                },
+                            ],
+                        },
+                        "metadata": {
+                            "type": "object",
+                            "description": "Arbitrary metadata echoed back in practice responses.",
+                            "additionalProperties": {"type": "string"},
+                        },
+                        "response_format": {
+                            "type": "object",
+                            "description": "Structured Outputs schema enforced for the response.",
+                            "additionalProperties": True,
+                        },
+                        "stream": {"type": "boolean", "description": "Enable server-sent events for streaming output."},
+                    },
+                    "additionalProperties": True,
+                },
+                "example": {
+                    "model": "local//llm/qwen2.5",
+                    "instructions": "You are a therapist evaluating the provided transcript.",
+                    "input": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "input_text", "text": "Score this transcript against the rubric."},
+                                {"type": "input_text", "text": "Transcript: ..."},
+                            ],
+                        }
+                    ],
+                    "stream": False,
+                },
+            }
+        },
+    }
+}
+
+AUDIO_TRANSCRIPTION_OPENAPI: dict[str, Any] = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "file": {"type": "string", "format": "binary", "description": "Audio file to transcribe."},
+                        "model": {"type": "string", "description": "Model ID override for STT."},
+                        "response_format": {
+                            "type": "string",
+                            "enum": ["json", "text", "srt", "vtt"],
+                            "default": "json",
+                            "description": "Desired transcription format.",
+                        },
+                        "language": {"type": "string", "description": "Optional input language hint (e.g., 'en')."},
+                        "prompt": {"type": "string", "description": "Optional priming prompt."},
+                        "temperature": {"type": "number", "description": "Sampling temperature used by some models."},
+                        "stream": {"type": "boolean", "description": "Return partial events via server-sent events."},
+                    },
+                    "required": ["file"],
+                    "additionalProperties": True,
+                }
+            }
+        },
+    }
+}
+
+AUDIO_TRANSLATION_OPENAPI: dict[str, Any] = {
+    "requestBody": {
+        "required": True,
+        "content": {
+            "multipart/form-data": {
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "file": {"type": "string", "format": "binary", "description": "Audio file to translate into English."},
+                        "model": {"type": "string", "description": "Model ID override for translation."},
+                        "response_format": {
+                            "type": "string",
+                            "enum": ["json", "text", "srt", "vtt"],
+                            "default": "json",
+                            "description": "Desired translation format.",
+                        },
+                        "prompt": {"type": "string", "description": "Optional translation instructions."},
+                        "temperature": {"type": "number", "description": "Sampling temperature."},
+                        "stream": {"type": "boolean", "description": "Return partial events via server-sent events."},
+                    },
+                    "required": ["file"],
+                    "additionalProperties": True,
+                }
+            }
+        },
+    }
+}
 
 
 def _parse_log_level(value: str | None) -> int | None:
@@ -697,7 +817,14 @@ async def lifespan(app: FastAPI):
         shutdown_logging()
 
 
-app = FastAPI(title="Local Runtime Gateway", version="0.2.0", lifespan=lifespan)
+app = FastAPI(
+    title="Local Runtime Gateway",
+    version="0.2.0",
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url="/openapi.json",
+)
 
 
 def _parse_csv(value: str | None) -> list[str]:
@@ -789,6 +916,18 @@ def _ctx_factory(request_id: str, endpoint: str | None = None, model_id: str | N
 @app.get("/", response_class=HTMLResponse)
 async def home_page() -> HTMLResponse:
     return HTMLResponse(HOME_HTML)
+
+
+@app.get("/docs", include_in_schema=False)
+async def docs_page() -> HTMLResponse:
+    """Serve interactive API docs using Swagger UI."""
+    openapi_url = app.openapi_url or "/openapi.json"
+    return get_swagger_ui_html(
+        openapi_url=openapi_url,
+        title=f"{app.title} API Docs",
+        swagger_js_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js",
+        swagger_css_url="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css",
+    )
 
 
 @app.middleware("http")
@@ -910,7 +1049,7 @@ def _select_model(endpoint: str, requested: str | None) -> LoadedModel:
     return selection.select(models, endpoint, requested=requested_id)
 
 
-@app.post("/v1/responses")
+@app.post("/v1/responses", openapi_extra=RESPONSES_REQUEST_OPENAPI)
 async def responses(request: Request) -> Response:
     payload = await request.json()
     stream = bool(payload.get("stream"))
@@ -969,7 +1108,7 @@ async def audio_speech(request: Request) -> JSONResponse:
     )
 
 
-@app.post("/v1/audio/transcriptions")
+@app.post("/v1/audio/transcriptions", openapi_extra=AUDIO_TRANSCRIPTION_OPENAPI)
 async def audio_transcriptions(request: Request) -> Response:
     form = await request.form()
     fields, files = extract_form_fields(form)
@@ -1006,7 +1145,7 @@ async def audio_transcriptions(request: Request) -> Response:
     return format_audio_transcription_response(result, response_format, stream)
 
 
-@app.post("/v1/audio/translations")
+@app.post("/v1/audio/translations", openapi_extra=AUDIO_TRANSLATION_OPENAPI)
 async def audio_translations(request: Request) -> Response:
     form = await request.form()
     fields, files = extract_form_fields(form)

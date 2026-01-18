@@ -11,6 +11,7 @@ type EvaluationModalProps = {
   onClose: () => void;
   onNextRound: () => void;
   onAddPlayer?: () => void;
+  nextActionLabel?: string;
 };
 
 const scoreTone = (score?: number) => {
@@ -51,7 +52,8 @@ export const EvaluationModal = ({
   mode,
   onClose,
   onNextRound,
-  onAddPlayer
+  onAddPlayer,
+  nextActionLabel
 }: EvaluationModalProps) => {
   if (!open || !evaluation) return null;
   const criterionMap = new Map(criteria.map((criterion) => [criterion.id, criterion]));
@@ -154,7 +156,7 @@ export const EvaluationModal = ({
             onClick={onNextRound}
             className="rounded-full border border-teal-300/60 bg-teal-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-teal-100 hover:border-teal-200"
           >
-            Next round
+            {nextActionLabel ?? "Next round"}
           </button>
         </div>
         </div>
