@@ -21,6 +21,22 @@ const normalizedStringArraySchema = z
   .optional()
   .transform((value) => normalizeStringArray(value ?? []));
 
+export const batchParsePlanSchema = z.object({
+  tasks: z
+    .array(
+      z.object({
+        start_line: z.number().int().min(1),
+        end_line: z.number().int().min(1),
+        title_hint: z.string().trim().min(1).nullable().optional(),
+        confidence: z.number().min(0).max(1),
+        reason: z.string().trim().min(1)
+      })
+    )
+    .min(1)
+});
+
+export type BatchParsePlan = z.infer<typeof batchParsePlanSchema>;
+
 export const rubricSchema = z.object({
   score_min: z.literal(0),
   score_max: z.literal(4),

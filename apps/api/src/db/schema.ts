@@ -207,6 +207,41 @@ export const userSettings = sqliteTable("user_settings", {
   created_at: integer("created_at").notNull()
 });
 
+export const adminBatchParseJobs = sqliteTable(
+  "admin_batch_parse_jobs",
+  {
+    id: text("id").primaryKey(),
+    status: text("status").notNull(),
+    step: text("step").notNull(),
+    total_segments: integer("total_segments"),
+    completed_segments: integer("completed_segments").notNull().default(0),
+    created_task_ids: text("created_task_ids", { mode: "json" }).notNull().default("[]"),
+    error: text("error"),
+    source_hash: text("source_hash"),
+    created_at: integer("created_at").notNull(),
+    updated_at: integer("updated_at").notNull()
+  },
+  (table) => ({
+    statusIdx: index("admin_batch_parse_jobs_status_idx").on(table.status, table.updated_at)
+  })
+);
+
+export const adminBatchParseJobEvents = sqliteTable(
+  "admin_batch_parse_job_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    job_id: text("job_id").notNull(),
+    ts: integer("ts").notNull(),
+    level: text("level").notNull(),
+    step: text("step").notNull(),
+    message: text("message").notNull(),
+    meta: text("meta", { mode: "json" })
+  },
+  (table) => ({
+    jobIdx: index("admin_batch_parse_job_events_job_idx").on(table.job_id, table.id)
+  })
+);
+
 export const minigameSessions = sqliteTable(
   "minigame_sessions",
   {
