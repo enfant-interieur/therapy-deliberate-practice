@@ -94,6 +94,10 @@ export type ApiDependencies = {
   queues?: {
     adminBatchParse?: BatchParseQueueProducer;
   };
+  providerOverrides?: {
+    selectLlmProvider?: typeof selectLlmProvider;
+    selectSttProvider?: typeof selectSttProvider;
+  };
 };
 
 const stripHtml = (html: string) =>
@@ -256,7 +260,7 @@ const normalizeTask = (row: typeof tasks.$inferSelect): Task => ({
   parent_task_id: row.parent_task_id ?? null
 });
 
-export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
+export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDependencies) => {
   const app = new Hono();
   const adminAuth = createAdminAuth(env);
   const userAuth = createUserAuth(env, db);
@@ -267,6 +271,8 @@ export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
       "TTS storage is not configured. Provide tts.storage (Worker R2 binding)."
     );
   }
+  const llmProviderSelector = providerOverrides?.selectLlmProvider ?? selectLlmProvider;
+  const sttProviderSelector = providerOverrides?.selectSttProvider ?? selectSttProvider;
 
   const getUserSettingsRow = async (userId: string) => {
     const [settings] = await db
@@ -1552,7 +1558,7 @@ export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
     }
     let llmProvider;
     try {
-      const selection = await selectLlmProvider(buildEnvAiConfig(env, "openai_only"), logEvent);
+      const selection = await llmProviderSelector(buildEnvAiConfig(env, "openai_only"), logEvent);
       llmProvider = selection.provider;
     } catch (error) {
       log.error("LLM provider selection failed", { error: safeError(error) });
@@ -1992,6 +1998,11 @@ export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
       .select()
       .from(taskExamples)
       .where(eq(taskExamples.task_id, id));
+    const interactionRows = await db
+      .select()
+      .from(taskInteractionExamples)
+      .where(eq(taskInteractionExamples.task_id, id))
+      .orderBy(taskInteractionExamples.difficulty);
 
     if (!env.openaiApiKey) {
       logServerError("admin.translate_task.openai_key_missing", new Error("OpenAI key missing"), {
@@ -2002,7 +2013,7 @@ export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
 
     let llmProvider;
     try {
-      const selection = await selectLlmProvider(buildEnvAiConfig(env, "openai_only"), logEvent);
+      const selection = await llmProviderSelector(buildEnvAiConfig(env, "openai_only"), logEvent);
       llmProvider = selection.provider;
     } catch (error) {
       log.error("LLM provider selection failed", { error: safeError(error) });
@@ -2766,7 +2777,7 @@ export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
     } else {
       logEvent("info", "stt.select.start", { mode: config.mode });
       try {
-        const sttSelection = await selectSttProvider(config, logEvent);
+        const sttSelection = await sttProviderSelector(config, logEvent);
         sttProvider = sttSelection.provider;
         sttMeta = { kind: sttProvider.kind, model: sttProvider.model ?? "unknown" };
         logEvent("info", "stt.select.ok", {
@@ -2847,7 +2858,7 @@ export const createApiApp = ({ env, db, tts, queues }: ApiDependencies) => {
     } else if (!skipScoring) {
       logEvent("info", "llm.select.start", { mode: config.mode });
       try {
-        const llmSelection = await selectLlmProvider(config, logEvent);
+        const llmSelection = await llmProviderSelector(config, logEvent);
         llmProvider = llmSelection.provider;
         llmMeta = { kind: llmProvider.kind, model: llmProvider.model ?? "unknown" };
         logEvent("info", "llm.select.ok", {
