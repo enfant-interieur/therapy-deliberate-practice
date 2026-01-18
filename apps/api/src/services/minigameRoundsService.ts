@@ -104,13 +104,14 @@ export const generateTdmSchedule = (
 
   const pickPlayerB = (playerA: { id: string; team_id: string | null }) => {
     const candidates = players.filter(
-      (player) =>
-        player.id !== playerA.id && player.team_id !== playerA.team_id && getRemaining(player.id) > 0
+      (player) => player.id !== playerA.id && player.team_id !== playerA.team_id
     );
     if (!candidates.length) return null;
     const opponentsMap = opponentsPlayed.get(playerA.id) ?? new Map();
     const teamsMapA = teamsFaced.get(playerA.id) ?? new Map();
-    candidates.sort((a, b) => {
+    const needingRounds = candidates.filter((player) => getRemaining(player.id) > 0);
+    const pool = needingRounds.length ? needingRounds : candidates;
+    pool.sort((a, b) => {
       const opponentDiff = (opponentsMap.get(a.id) ?? 0) - (opponentsMap.get(b.id) ?? 0);
       if (opponentDiff !== 0) return opponentDiff;
       const teamDiff =
@@ -118,8 +119,8 @@ export const generateTdmSchedule = (
       if (teamDiff !== 0) return teamDiff;
       return (getRemaining(b.id) ?? 0) - (getRemaining(a.id) ?? 0);
     });
-    const bestScore = opponentsMap.get(candidates[0].id) ?? 0;
-    const bestCandidates = candidates.filter((player) => (opponentsMap.get(player.id) ?? 0) === bestScore);
+    const bestScore = opponentsMap.get(pool[0].id) ?? 0;
+    const bestCandidates = pool.filter((player) => (opponentsMap.get(player.id) ?? 0) === bestScore);
     return bestCandidates[Math.floor(rng() * bestCandidates.length)];
   };
 
