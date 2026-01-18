@@ -4,7 +4,9 @@ import type {
   EvaluationResult,
   LlmParseResult,
   DeliberatePracticeTaskV2,
-  ParseMode
+  ParseMode,
+  TaskExample,
+  TaskInteractionExample
 } from "@deliberate/shared";
 import type { LogFn } from "../utils/logger";
 import {
@@ -12,12 +14,62 @@ import {
   deliberatePracticeEvaluationPromptLocal,
   deliberatePracticeTaskV2Schema,
   evaluationResultSchema,
-  llmParseSchema
+  llmParseSchema,
+  taskCriterionSchema,
+  taskInteractionExampleSchema
 } from "@deliberate/shared";
 import { createStructuredResponse } from "./openaiResponses";
 import { OPENAI_LLM_MODEL } from "./models";
 import { BaseLlmProvider } from "./base";
 import { localSuiteHealthCheck, localSuiteStructuredResponse } from "./localSuite";
+import { z } from "zod";
+
+const sanitizeExample = (example: TaskExample, targetLanguage: string) => ({
+  id: example.id,
+  difficulty: example.difficulty,
+  severity_label: example.severity_label ?? null,
+  patient_text: example.patient_text,
+  language: targetLanguage,
+  meta: example.meta ?? null
+});
+
+const sanitizeInteractionExample = (example: TaskInteractionExample) => ({
+  id: example.id,
+  difficulty: example.difficulty,
+  title: example.title ?? null,
+  patient_text: example.patient_text,
+  therapist_text: example.therapist_text
+});
+
+const translationExampleSchema = z.object({
+  id: z.string(),
+  difficulty: z.number().min(1).max(5),
+  severity_label: z.string().nullable().optional(),
+  patient_text: z.string(),
+  language: z.string().optional(),
+  meta: z
+    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .nullable()
+    .optional()
+});
+
+const translationTaskSchema = z.object({
+  version: z.literal("2.1"),
+  task: z.object({
+    title: z.string(),
+    description: z.string(),
+    skill_domain: z.string(),
+    base_difficulty: z.number().min(1).max(5),
+    general_objective: z.string().nullable().optional(),
+    tags: z.array(z.string()),
+    language: z.string()
+  }),
+  criteria: z.array(taskCriterionSchema),
+  examples: z.array(translationExampleSchema),
+  interaction_examples: z.array(taskInteractionExampleSchema).optional()
+});
+
+type TranslationTaskPayload = z.infer<typeof translationTaskSchema>;
 
 class LocalMlxLlmProviderImpl extends BaseLlmProvider {
   constructor(private baseUrl: string, logger?: LogFn) {
@@ -55,6 +107,38 @@ class LocalMlxLlmProviderImpl extends BaseLlmProvider {
 class OpenAILlmProviderImpl extends BaseLlmProvider {
   constructor(private apiKey: string, logger?: LogFn) {
     super("openai", OPENAI_LLM_MODEL, logger);
+  }
+
+  private prepareTranslationPayload(
+    source: DeliberatePracticeTaskV2,
+    targetLanguage: string
+  ): TranslationTaskPayload {
+    const normalizedExamples = source.examples.map((example) =>
+      sanitizeExample(example, targetLanguage)
+    );
+    const normalizedInteractions = source.interaction_examples?.map((interaction) =>
+      sanitizeInteractionExample(interaction)
+    );
+    return {
+      version: "2.1",
+      task: {
+        title: source.task.title,
+        description: source.task.description,
+        skill_domain: source.task.skill_domain,
+        base_difficulty: source.task.base_difficulty,
+        general_objective: source.task.general_objective ?? null,
+        tags: source.task.tags ?? [],
+        language: targetLanguage
+      },
+      criteria: source.criteria.map((criterion) => ({
+        id: criterion.id,
+        label: criterion.label,
+        description: criterion.description,
+        rubric: criterion.rubric
+      })),
+      examples: normalizedExamples,
+      ...(normalizedInteractions ? { interaction_examples: normalizedInteractions } : {})
+    };
   }
 
   healthCheck() {
@@ -280,16 +364,17 @@ Translation rules:
 - Preserve all ids and numeric values exactly as provided.
 - Do NOT reorder arrays.
 - Set task.language and each example.language to "${targetLanguage}".`;
-    const result = await createStructuredResponse<DeliberatePracticeTaskV2>({
+    const payload = this.prepareTranslationPayload(source, targetLanguage);
+    const result = await createStructuredResponse<TranslationTaskPayload>({
       apiKey: this.apiKey,
       model: OPENAI_LLM_MODEL,
       temperature: 0.2,
       instructions: systemPrompt,
-      input: JSON.stringify(source),
+      input: JSON.stringify(payload),
       schemaName: "DeliberatePracticeTaskV2",
-      schema: deliberatePracticeTaskV2Schema
+      schema: translationTaskSchema
     });
-    return { value: result.value, requestId: result.responseId };
+    return { value: deliberatePracticeTaskV2Schema.parse(result.value), requestId: result.responseId };
   }
 }
 
