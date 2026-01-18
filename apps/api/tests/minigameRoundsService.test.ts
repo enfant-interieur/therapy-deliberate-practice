@@ -12,7 +12,11 @@ import {
   taskExamples,
   tasks
 } from "../src/db/schema";
-import { generateMinigameRounds, NoUniquePatientStatementsLeftError } from "../src/services/minigameRoundsService";
+import {
+  generateMinigameRounds,
+  generateTdmSchedule,
+  NoUniquePatientStatementsLeftError
+} from "../src/services/minigameRoundsService";
 
 const setupDb = () => {
   const sqlite = new Database(":memory:");
@@ -117,6 +121,33 @@ const seedTasks = async (db: ReturnType<typeof setupDb>["db"]) => {
     updated_at: now
   });
 };
+
+test("generateTdmSchedule ensures each player meets the minimum rounds even with imbalanced teams", () => {
+  const players = [
+    { id: "alpha-1", team_id: "alpha" },
+    { id: "alpha-2", team_id: "alpha" },
+    { id: "alpha-3", team_id: "alpha" },
+    { id: "beta-1", team_id: "beta" }
+  ];
+  const roundsPerPlayer = 2;
+  const matches = generateTdmSchedule(players, roundsPerPlayer, "imbalanced-seed");
+  const counts = new Map<string, number>();
+  for (const match of matches) {
+    counts.set(match.playerA, (counts.get(match.playerA) ?? 0) + 1);
+    counts.set(match.playerB, (counts.get(match.playerB) ?? 0) + 1);
+  }
+  for (const player of players) {
+    const played = counts.get(player.id) ?? 0;
+    assert.ok(
+      played >= roundsPerPlayer,
+      `expected ${player.id} to have at least ${roundsPerPlayer} rounds, got ${played}`
+    );
+  }
+  assert.ok(
+    (counts.get("beta-1") ?? 0) > roundsPerPlayer,
+    "smaller teams may need extra rounds to satisfy everyone else"
+  );
+});
 
 test("generateMinigameRounds enforces no repeats for FFA and errors on exhaustion", async () => {
   const { db } = setupDb();

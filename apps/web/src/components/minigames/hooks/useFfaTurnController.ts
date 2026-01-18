@@ -132,10 +132,13 @@ export const useFfaTurnController = ({
   }, [enabled, ensureReady, round?.example_id, round?.task_id]);
 
   useEffect(() => {
-    if (audioStatus === "playing") {
+    const audioStateLocked =
+      state === "recording" || state === "transcribing" || state === "evaluating";
+    if (audioStatus === "playing" && !audioStateLocked) {
       setState("patient_playing");
     }
     if (
+      !audioStateLocked &&
       lastAudioStatusRef.current === "playing" &&
       audioStatus !== "playing"
     ) {
@@ -153,7 +156,8 @@ export const useFfaTurnController = ({
     audioStatus,
     patientEndedAt,
     responseTimerEnabled,
-    responseCountdown
+    responseCountdown,
+    state
   ]);
 
   useEffect(() => {

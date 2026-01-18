@@ -370,6 +370,29 @@ export const MinigamePlayPage = () => {
     [debugLog, endGame, evaluationModalOpen, minigames.session?.id, roundFlowLocked]
   );
 
+  useEffect(() => {
+    if (!minigames.session?.id) return;
+    const actions = manager.verifyIntegrity({ lockRoundAdvance: roundAdvanceLocked });
+    if (actions.length) {
+      debugLog("integrity.actions", {
+        sessionId: minigames.session.id,
+        lockRoundAdvance: roundAdvanceLocked,
+        actions
+      });
+    }
+    if (actions.some((action) => action.type === "complete_session")) {
+      scheduleAutoEnd("all_rounds_complete");
+    }
+  }, [
+    debugLog,
+    manager,
+    minigames.results,
+    minigames.rounds,
+    minigames.session?.id,
+    roundAdvanceLocked,
+    scheduleAutoEnd
+  ]);
+
   const handleReturnToHub = useCallback(() => {
     manager.reset();
     navigate("/minigames");
@@ -649,6 +672,7 @@ export const MinigamePlayPage = () => {
     if (ffaNextRoundBlocked) return;
     if (roundFlowLocked) return;
     if (!currentRound || !activePlayerId) return;
+    if (currentRound.status === "completed") return;
     const playedExamples = playedExampleIdsByPlayer.get(activePlayerId);
     const completedRounds = completedRoundIdsByPlayer.get(activePlayerId);
     if (discardedRoundIdsRef.current.has(currentRound.id)) {
@@ -665,7 +689,7 @@ export const MinigamePlayPage = () => {
       return;
     }
     const exampleKey = roundExampleKey(currentRound);
-    if (playedExamples?.has(exampleKey) || completedRounds?.has(currentRound.id)) {
+    if (playedExamples?.has(exampleKey)) {
       const nextRound = getNextRoundForPlayer({
         rounds: minigames.rounds,
         playerId: activePlayerId,
