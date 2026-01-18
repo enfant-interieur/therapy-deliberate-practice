@@ -339,3 +339,76 @@ Line`;
 
   await rm(dir, { recursive: true, force: true });
 });
+
+test("schema validation errors trigger a retry with corrective guidance", async () => {
+  const { db, dir } = await createTempDb();
+  const env = resolveEnv({ ENV: "development", BYPASS_ADMIN_AUTH: "true" });
+  const sourceText = `1) Skill
+Line`;
+  const jobId = await createBatchParseJob(db, sourceText);
+
+  const mockParsed: DeliberatePracticeTaskV2 = {
+    version: "2.1",
+    task: {
+      title: "Mock Task",
+      description: "Desc",
+      skill_domain: "demo",
+      base_difficulty: 3,
+      general_objective: null,
+      tags: [],
+      language: "en"
+    },
+    criteria: [
+      {
+        id: "crit1",
+        label: "Label",
+        description: "Desc",
+        rubric: {
+          score_min: 0,
+          score_max: 4,
+          anchors: [
+            { score: 0, meaning: "low" },
+            { score: 4, meaning: "high" }
+          ]
+        }
+      }
+    ],
+    examples: [
+      { id: "ex1", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null }
+    ],
+    interaction_examples: []
+  };
+
+  const prompts: string[] = [];
+  let call = 0;
+  await runBatchParseJob(
+    db,
+    env,
+    jobId,
+    { sourceText, parseMode: "exact" },
+    {
+      planSegments: async () => ({
+        tasks: [{ start_line: 1, end_line: 2, title_hint: "Skill", confidence: 0.9, reason: "single block" }]
+      }),
+      parseSegment: async ({ sourceText: prompt }) => {
+        prompts.push(prompt);
+        call += 1;
+        if (call === 1) {
+          throw new Error(
+            'OpenAI Responses schema validation failed: [{"code":"invalid_type","expected":"string","received":"null","path":["examples",0,"language"],"message":"Expected string, received null"}]'
+          );
+        }
+        return mockParsed;
+      }
+    }
+  );
+
+  const status = await getBatchParseStatus(db, jobId, 0);
+  assert.ok(status);
+  assert.equal(status.job.status, "completed");
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[1], /RETRY INSTRUCTIONS/i);
+  assert.match(prompts[1], /language/i);
+
+  await rm(dir, { recursive: true, force: true });
+});

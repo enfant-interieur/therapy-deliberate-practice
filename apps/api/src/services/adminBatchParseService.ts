@@ -24,7 +24,14 @@ import { selectLlmProvider } from "../providers";
 import { remapIdReferences, remapUniqueUuids } from "../utils/remap";
 import { sanitizeInteractionExamples } from "../utils/interactionExamples";
 import { slugify } from "../utils/slug";
-import { log as defaultLog, safeError, type LogFields, type LogFn, type LogLevel } from "../utils/logger";
+import {
+  log as defaultLog,
+  safeError,
+  safeTruncate,
+  type LogFields,
+  type LogFn,
+  type LogLevel
+} from "../utils/logger";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "canceled";
 type JobStep = "created_job" | "planning_segments" | "parsing_segment" | "persisting_task" | "done";
@@ -274,6 +281,75 @@ const buildSegmentPrompt = (
   }
   parts.push(`Segment source text:\n${segmentText}`);
   return parts.join("\n\n---\n\n");
+};
+
+const MAX_PARSE_ATTEMPTS = 3;
+const RETRIABLE_PARSE_ERROR_PATTERNS = [
+  /schema validation failed/i,
+  /invalid json/i,
+  /returned empty output/i
+];
+
+const getErrorMessage = (error: unknown) => {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+};
+
+const shouldRetryParseError = (error: unknown) => {
+  const message = getErrorMessage(error);
+  if (!message) return false;
+  return RETRIABLE_PARSE_ERROR_PATTERNS.some((pattern) => pattern.test(message));
+};
+
+const buildRetryHints = (message: string) => {
+  const hints: string[] = [];
+  const lower = message.toLowerCase();
+  if (lower.includes("examples") && lower.includes("language")) {
+    hints.push(
+      "Every example object must include a non-empty `language` field that matches task.language (for English, use \"en\"). Never return null."
+    );
+  }
+  if (lower.includes("interaction_examples") && lower.includes("therapist_text")) {
+    hints.push("Each interaction example needs a single patient_text and therapist_text. Do not omit either field.");
+  }
+  if (lower.includes("criteria") && lower.includes("anchors")) {
+    hints.push(
+      "Each criterion rubric must include anchors for scores 0, 2, and 4 (score_min=0, score_max=4). Supply observable behaviors."
+    );
+  }
+  return hints;
+};
+
+const buildRetryInstruction = (attempt: number, message: string) => {
+  const hints = buildRetryHints(message);
+  const instructions = [
+    `RETRY INSTRUCTIONS (attempt ${attempt}):`,
+    "The previous response failed schema validation. Fix the root cause and regenerate the ENTIRE JSON payload.",
+    `Error summary: ${safeTruncate(message, 600)}`,
+    "Checklist before responding:",
+    "- Validate that every field matches the DeliberatePracticeTask schema.",
+    "- Do not return null or empty strings for required properties.",
+    "- Ensure ids remain stable (c1/c2…, ex1/ex2…, ix1/ix2…).",
+    "- Re-run your internal validation before sending the JSON."
+  ];
+  hints.forEach((hint) => instructions.push(`- ${hint}`));
+  instructions.push(
+    "Return strictly valid JSON only. Do not apologize or describe the fix—just output the corrected object."
+  );
+  return instructions.join("\n");
+};
+
+const buildPromptWithRetryNotes = (basePrompt: string, notes: string[]) => {
+  if (!notes.length) return basePrompt;
+  const noteText = notes
+    .map((note, index) => `Correction block ${index + 1}:\n${note}`)
+    .join("\n\n---\n\n");
+  return `${basePrompt}\n\n---\n\n${noteText}`;
 };
 
 const prepareParsedTask = (parsed: DeliberatePracticeTaskV2) => {
@@ -571,7 +647,7 @@ export const runBatchParseJob = async (
     const processSegment = async (segment: BatchSegment, index: number) => {
       const segmentText = sliceByLines(lines, segment.start, segment.end);
       const contextSnippets = gatherContextSnippets(lines, segment.contextBlocks);
-      const segmentPrompt = buildSegmentPrompt(segmentText, {
+      const baseSegmentPrompt = buildSegmentPrompt(segmentText, {
         titleHint: segment.titleHint,
         segmentIndex: index + 1,
         totalSegments: normalizedSegments.length,
@@ -579,57 +655,87 @@ export const runBatchParseJob = async (
         contextBlocks: contextSnippets
       });
 
-      await appendEvent(db, jobId, {
-        level: "info",
-        step: "parsing_segment",
-        message: `Parsing segment ${index + 1} of ${normalizedSegments.length}…`,
-        meta: {
-          start_line: segment.start,
-          end_line: segment.end,
-          title_hint: segment.titleHint,
-          context_block_count: contextSnippets.length
-        }
-      });
+      const retryNotes: string[] = [];
+      let parsed: DeliberatePracticeTaskV2 | null = null;
+      let lastError: unknown = null;
 
-      const parseStarted = now();
-      let parsed: DeliberatePracticeTaskV2;
-      try {
-        jobLog("info", "batch_parse.segment.parse_start", {
-          segment_index: index + 1,
-          start_line: segment.start,
-          end_line: segment.end,
-          prompt_char_count: segmentPrompt.length,
-          context_block_count: contextSnippets.length
-        });
-        parsed = await parseSegment({ sourceText: segmentPrompt, parseMode: input.parseMode });
-      } catch (error) {
-        const safe = safeError(error);
-        jobLog("error", "batch_parse.segment.parse_error", {
-          segment_index: index + 1,
-          start_line: segment.start,
-          end_line: segment.end,
-          error: safe
-        });
+      for (let attempt = 1; attempt <= MAX_PARSE_ATTEMPTS; attempt += 1) {
+        const segmentPrompt = buildPromptWithRetryNotes(baseSegmentPrompt, retryNotes);
+
         await appendEvent(db, jobId, {
-          level: "error",
+          level: "info",
           step: "parsing_segment",
-          message: `Segment ${index + 1} failed to parse.`,
+          message: `Parsing segment ${index + 1} of ${normalizedSegments.length} (attempt ${attempt}/${MAX_PARSE_ATTEMPTS})…`,
           meta: {
             start_line: segment.start,
             end_line: segment.end,
             title_hint: segment.titleHint,
-            error: safe
+            context_block_count: contextSnippets.length,
+            attempt,
+            max_attempts: MAX_PARSE_ATTEMPTS,
+            prompt_char_count: segmentPrompt.length
           }
         });
-        throw error;
+
+        const parseStarted = now();
+        try {
+          jobLog("info", "batch_parse.segment.parse_start", {
+            segment_index: index + 1,
+            start_line: segment.start,
+            end_line: segment.end,
+            prompt_char_count: segmentPrompt.length,
+            context_block_count: contextSnippets.length,
+            attempt
+          });
+          parsed = await parseSegment({ sourceText: segmentPrompt, parseMode: input.parseMode });
+          jobLog("info", "batch_parse.segment.parse_ok", {
+            segment_index: index + 1,
+            duration_ms: now() - parseStarted,
+            criteria_count: parsed.criteria.length,
+            example_count: parsed.examples.length,
+            interaction_example_count: parsed.interaction_examples?.length ?? 0,
+            attempt
+          });
+          break;
+        } catch (error) {
+          lastError = error;
+          const safe = safeError(error);
+          const retriable = attempt < MAX_PARSE_ATTEMPTS && shouldRetryParseError(error);
+          jobLog("error", "batch_parse.segment.parse_error", {
+            segment_index: index + 1,
+            start_line: segment.start,
+            end_line: segment.end,
+            attempt,
+            retriable,
+            error: safe
+          });
+          await appendEvent(db, jobId, {
+            level: retriable ? "warn" : "error",
+            step: "parsing_segment",
+            message: retriable
+              ? `Segment ${index + 1} attempt ${attempt} failed validation, retrying…`
+              : `Segment ${index + 1} failed to parse.`,
+            meta: {
+              start_line: segment.start,
+              end_line: segment.end,
+              title_hint: segment.titleHint,
+              attempt,
+              retriable,
+              error: safe
+            }
+          });
+          if (!retriable) {
+            throw error;
+          }
+          const errorMessage = getErrorMessage(error);
+          retryNotes.push(buildRetryInstruction(attempt + 1, errorMessage));
+        }
       }
-      jobLog("info", "batch_parse.segment.parse_ok", {
-        segment_index: index + 1,
-        duration_ms: now() - parseStarted,
-        criteria_count: parsed.criteria.length,
-        example_count: parsed.examples.length,
-        interaction_example_count: parsed.interaction_examples?.length ?? 0
-      });
+
+      if (!parsed) {
+        throw lastError ?? new Error(`Segment ${index + 1} failed after ${MAX_PARSE_ATTEMPTS} attempts.`);
+      }
+
       const normalizedParsed = prepareParsedTask(parsed);
       await appendEvent(db, jobId, {
         level: "info",
