@@ -672,6 +672,7 @@ export const MinigamePlayPage = () => {
     if (ffaNextRoundBlocked) return;
     if (roundFlowLocked) return;
     if (!currentRound || !activePlayerId) return;
+    if (currentRound.status === "completed") return;
     const playedExamples = playedExampleIdsByPlayer.get(activePlayerId);
     const completedRounds = completedRoundIdsByPlayer.get(activePlayerId);
     if (discardedRoundIdsRef.current.has(currentRound.id)) {
@@ -688,7 +689,7 @@ export const MinigamePlayPage = () => {
       return;
     }
     const exampleKey = roundExampleKey(currentRound);
-    if (playedExamples?.has(exampleKey) || completedRounds?.has(currentRound.id)) {
+    if (playedExamples?.has(exampleKey)) {
       const nextRound = getNextRoundForPlayer({
         rounds: minigames.rounds,
         playerId: activePlayerId,
