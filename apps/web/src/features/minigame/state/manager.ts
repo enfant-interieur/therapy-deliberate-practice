@@ -11,8 +11,10 @@ import {
   toggleTranscriptHidden
 } from "./slice";
 import {
+  selectFfaRoundCandidates,
   selectMinigameDerivedState,
   selectMinigameSnapshot,
+  selectNextFfaRoundId,
   selectPendingRoundIds
 } from "./selectors";
 import type {
@@ -76,38 +78,48 @@ export class MinigameStateManager {
     return selectPendingRoundIds(this.getState());
   }
 
+  ffaRoundCandidates() {
+    return selectFfaRoundCandidates(this.getState());
+  }
+
   verifyIntegrity(options?: { lockRoundAdvance?: boolean }): MinigameIntegrityAction[] {
     const actions: MinigameIntegrityAction[] = [];
     const derived = selectMinigameDerivedState(this.getState());
     let snapshot = this.snapshot();
     const allowRoundAdvance = !options?.lockRoundAdvance;
     const nextPendingRoundId = derived.pendingRoundIds[0];
+    const fairFfaRoundId =
+      snapshot.session?.game_type === "ffa" ? selectNextFfaRoundId(this.getState()) : undefined;
     const selectActiveRound = () =>
       snapshot.currentRound ??
       (snapshot.currentRoundId ? derived.roundMap[snapshot.currentRoundId] : undefined);
 
     if (allowRoundAdvance) {
       const activeRound = selectActiveRound();
-      if (!activeRound && nextPendingRoundId) {
-        this.setCurrentRound(nextPendingRoundId);
+      const preferredRoundId =
+        snapshot.session?.game_type === "ffa"
+          ? fairFfaRoundId ?? nextPendingRoundId
+          : nextPendingRoundId;
+      if (!activeRound && preferredRoundId) {
+        this.setCurrentRound(preferredRoundId);
         actions.push({
           type: "assign_round",
           reason: "missing_active_round",
-          roundId: nextPendingRoundId
+          roundId: preferredRoundId
         });
         snapshot = this.snapshot();
       } else if (
         activeRound &&
         activeRound.status === "completed" &&
-        nextPendingRoundId &&
-        nextPendingRoundId !== activeRound.id
+        preferredRoundId &&
+        preferredRoundId !== activeRound.id
       ) {
-        this.setCurrentRound(nextPendingRoundId);
+        this.setCurrentRound(preferredRoundId);
         actions.push({
           type: "advance_round",
           reason: "active_round_completed",
           fromRoundId: activeRound.id,
-          toRoundId: nextPendingRoundId
+          toRoundId: preferredRoundId
         });
         snapshot = this.snapshot();
       }

@@ -9,6 +9,7 @@ import {
   setMinigameState
 } from "./slice";
 import {
+  selectFfaRoundCandidates,
   selectMinigameDerivedState,
   selectMinigameSnapshot,
   selectPendingRoundIds
@@ -152,5 +153,91 @@ describe("minigame slice", () => {
 
     const queue = selectPendingRoundIds(root);
     expect(queue).toEqual(["round-ffa"]);
+  });
+
+  it("prioritizes FFA turns so every player completes a cycle", () => {
+    const ffaSession: MinigameSession = {
+      ...createSession(),
+      game_type: "ffa",
+      settings: { rounds_per_player: 2 }
+    };
+    const rounds: MinigameRound[] = [
+      {
+        id: "round-a1",
+        session_id: "session-1",
+        position: 1,
+        task_id: "task-1",
+        example_id: "example-1",
+        player_a_id: "player-a",
+        player_b_id: null,
+        team_a_id: "team-a",
+        team_b_id: null,
+        status: "pending",
+        started_at: null,
+        completed_at: null,
+        patient_text: "Test"
+      },
+      {
+        id: "round-b1",
+        session_id: "session-1",
+        position: 2,
+        task_id: "task-2",
+        example_id: "example-2",
+        player_a_id: "player-b",
+        player_b_id: null,
+        team_a_id: "team-b",
+        team_b_id: null,
+        status: "pending",
+        started_at: null,
+        completed_at: null,
+        patient_text: "Test 2"
+      },
+      {
+        id: "round-a2",
+        session_id: "session-1",
+        position: 3,
+        task_id: "task-3",
+        example_id: "example-3",
+        player_a_id: "player-a",
+        player_b_id: null,
+        team_a_id: "team-a",
+        team_b_id: null,
+        status: "pending",
+        started_at: null,
+        completed_at: null,
+        patient_text: "Test 3"
+      },
+      {
+        id: "round-b2",
+        session_id: "session-1",
+        position: 4,
+        task_id: "task-4",
+        example_id: "example-4",
+        player_a_id: "player-b",
+        player_b_id: null,
+        team_a_id: "team-b",
+        team_b_id: null,
+        status: "pending",
+        started_at: null,
+        completed_at: null,
+        patient_text: "Test 4"
+      }
+    ];
+    let state = minigamesReducer(
+      initialState,
+      setMinigameState({
+        session: ffaSession,
+        teams: createTeams(),
+        players: createPlayers(),
+        rounds,
+        results: []
+      })
+    );
+    const root = withSlice(state);
+    expect(selectFfaRoundCandidates(root)).toEqual(["round-a1", "round-b1"]);
+    state = submitResult(state, { playerId: "player-a", roundId: "round-a1" });
+    expect(selectFfaRoundCandidates(withSlice(state))).toEqual(["round-b1"]);
+    state = submitResult(state, { playerId: "player-b", roundId: "round-b1" });
+    expect(selectFfaRoundCandidates(withSlice(state))).toEqual(["round-a2", "round-b2"]);
   });
 });

@@ -60,6 +60,13 @@ const indexById = <T extends { id: string }>(collection: T[]) =>
 const selectPlayerMap = createSelector(selectActivePlayers, (players) => indexById(players));
 const selectTeamMap = createSelector(selectActiveTeams, (teams) => indexById(teams));
 const selectRoundMap = createSelector(selectActiveRounds, (rounds) => indexById(rounds));
+const selectPlayerOrder = createSelector(selectActivePlayers, (players) => {
+  const order = new Map<string, number>();
+  players.forEach((player, index) => {
+    order.set(player.id, index);
+  });
+  return order;
+});
 
 export const selectCurrentRoundId = (state: RootState) => selectSlice(state).view.currentRoundId;
 export const selectCurrentPlayerId = (state: RootState) => selectSlice(state).view.currentPlayerId;
@@ -174,4 +181,85 @@ export const selectMinigameDerivedState = createSelector(
     playedExampleKeysByPlayer,
     pendingRoundIds
   })
+);
+
+export const selectRoundsPerPlayerTarget = createSelector(selectActiveSession, (session) => {
+  if (!session) return null;
+  const settings = (session.settings ?? {}) as { rounds_per_player?: unknown };
+  const raw = settings.rounds_per_player;
+  const value =
+    typeof raw === "number"
+      ? raw
+      : typeof raw === "string"
+        ? Number.parseInt(raw, 10)
+        : null;
+  if (value == null || Number.isNaN(value) || value <= 0) {
+    return null;
+  }
+  return value;
+});
+
+export const selectFfaRoundCandidates = createSelector(
+  [selectMinigameSnapshot, selectMinigameDerivedState, selectRoundsPerPlayerTarget, selectPlayerOrder],
+  (snapshot, derived, roundsPerPlayerTarget, playerOrder) => {
+    if (snapshot.session?.game_type !== "ffa") return [];
+    const pendingRounds = snapshot.rounds
+      .filter((round) => round.status !== "completed")
+      .sort((a, b) => a.position - b.position);
+    if (!pendingRounds.length) return [];
+    const players = snapshot.players;
+    if (!players.length) return [];
+    const completedCounts = new Map<string, number>();
+    players.forEach((player) => {
+      const count = derived.completedRoundIdsByPlayer[player.id]?.size ?? 0;
+      completedCounts.set(player.id, count);
+    });
+    const pendingByPlayer = new Map<string, boolean>();
+    pendingRounds.forEach((round) => {
+      pendingByPlayer.set(round.player_a_id, true);
+    });
+    const eligiblePlayers = players.filter((player) => {
+      if (!pendingByPlayer.get(player.id)) return false;
+      const completed = completedCounts.get(player.id) ?? 0;
+      if (roundsPerPlayerTarget != null && completed >= roundsPerPlayerTarget) {
+        return false;
+      }
+      return true;
+    });
+    if (!eligiblePlayers.length) return [];
+    const minCompleted = Math.min(...eligiblePlayers.map((player) => completedCounts.get(player.id) ?? 0));
+    const candidatePlayerIds = new Set(
+      eligiblePlayers
+        .filter((player) => (completedCounts.get(player.id) ?? 0) === minCompleted)
+        .map((player) => player.id)
+    );
+    const candidates = pendingRounds
+      .filter((round) => candidatePlayerIds.has(round.player_a_id))
+      .sort((a, b) => {
+        const countA = completedCounts.get(a.player_a_id) ?? 0;
+        const countB = completedCounts.get(b.player_a_id) ?? 0;
+        if (countA !== countB) {
+          return countA - countB;
+        }
+        const orderA = playerOrder.get(a.player_a_id) ?? 0;
+        const orderB = playerOrder.get(b.player_a_id) ?? 0;
+        if (orderA !== orderB) {
+          return orderA - orderB;
+        }
+        return a.position - b.position;
+      });
+    const uniqueCandidates: typeof candidates = [];
+    const seenPlayers = new Set<string>();
+    candidates.forEach((round) => {
+      if (seenPlayers.has(round.player_a_id)) return;
+      seenPlayers.add(round.player_a_id);
+      uniqueCandidates.push(round);
+    });
+    return uniqueCandidates.map((round) => round.id);
+  }
+);
+
+export const selectNextFfaRoundId = createSelector(
+  selectFfaRoundCandidates,
+  (candidates) => candidates[0]
 );

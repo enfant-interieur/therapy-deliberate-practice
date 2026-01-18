@@ -36,7 +36,7 @@ import {
 } from "../store/api";
 import { useAppSelector } from "../store/hooks";
 import { useLocalRuntimeClient } from "../hooks/useLocalRuntimeClient";
-import { useMinigameState } from "../store/minigamesSlice";
+import { useMinigameState, selectFfaRoundCandidates, selectRoundsPerPlayerTarget } from "../store/minigamesSlice";
 import type { PlayerDraft, TeamDraft } from "../components/minigames/PlayersTeamsStep";
 import type { TaskSelectionState } from "../components/minigames/TaskSelectionStep";
 import type { EvaluationResult } from "@deliberate/shared";
@@ -59,6 +59,8 @@ export const MinigamePlayPage = () => {
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
   const { snapshot: minigames, derived: minigameDerived, manager } = useMinigameState();
   const settings = useAppSelector((state) => state.settings);
+  const roundsPerPlayerTarget = useAppSelector(selectRoundsPerPlayerTarget);
+  const ffaRoundCandidates = useAppSelector(selectFfaRoundCandidates);
   const localRuntimeClient = useLocalRuntimeClient();
   const currentPlayerId = minigames.currentPlayerId;
   const currentRound = minigames.currentRound;
@@ -289,23 +291,6 @@ export const MinigamePlayPage = () => {
     return new Map(Object.entries(minigameDerived.playedExampleKeysByPlayer));
   }, [minigameDerived.playedExampleKeysByPlayer]);
 
-  const roundsPerPlayerTarget = useMemo(() => {
-    const settings = (minigames.session?.settings ?? {}) as {
-      rounds_per_player?: unknown;
-    };
-    const raw = settings.rounds_per_player;
-    const numeric =
-      typeof raw === "number"
-        ? raw
-        : typeof raw === "string"
-          ? Number.parseInt(raw, 10)
-          : null;
-    if (numeric == null || Number.isNaN(numeric) || numeric <= 0) {
-      return null;
-    }
-    return numeric;
-  }, [minigames.session?.settings]);
-
   const endGame = useCallback(async () => {
     if (!minigames.session || endGamePending) return;
     setPendingAutoEndSessionId(null);
@@ -384,32 +369,6 @@ export const MinigamePlayPage = () => {
     },
     [debugLog, endGame, evaluationModalOpen, minigames.session?.id, roundFlowLocked]
   );
-
-  useEffect(() => {
-    const actions = manager.verifyIntegrity({ lockRoundAdvance: roundAdvanceLocked });
-    if (actions.length) {
-      debugLog("integrity.actions", {
-        actions,
-        lockRoundAdvance: roundAdvanceLocked,
-        currentRoundId: minigames.currentRoundId
-      });
-      if (actions.some((action) => action.type === "complete_session")) {
-        scheduleAutoEnd("no_rounds_remaining");
-      }
-    }
-  }, [
-    debugLog,
-    ffaNextRoundBlocked,
-    manager,
-    minigameDerived.pendingRoundIds,
-    minigames.currentPlayerId,
-    minigames.currentRoundId,
-    minigames.results,
-    minigames.session?.id,
-    mode,
-    roundAdvanceLocked,
-    scheduleAutoEnd
-  ]);
 
   const handleReturnToHub = useCallback(() => {
     manager.reset();
@@ -797,7 +756,7 @@ export const MinigamePlayPage = () => {
     try {
       await generateRounds({
         sessionId: session.session_id,
-        count: mode === "ffa" ? 3 : undefined
+        count: mode === "ffa" ? payload.players.length * payload.roundsPerPlayer : undefined
       }).unwrap();
     } catch (error) {
       if (handlePromptExhaustionError(error)) return;
@@ -815,23 +774,30 @@ export const MinigamePlayPage = () => {
     if (promptExhaustedMessage) return;
     if (mode === "ffa" && ffaNextRoundBlocked) return;
     if (!options?.force && roundFlowLocked) return;
-    const upcoming = [...minigames.rounds]
-      .filter((round) => round.status !== "completed")
-      .sort((a, b) => a.position - b.position);
-    const next = upcoming.find((round) => {
-      if (discardedRoundIdsRef.current.has(round.id)) return false;
-      const completedRounds = completedRoundIdsByPlayer.get(round.player_a_id);
-      if (completedRounds?.has(round.id)) return false;
-      const playedExamples = playedExampleIdsByPlayer.get(round.player_a_id);
-      if (playedExamples?.has(roundExampleKey(round))) return false;
-      return true;
-    });
+    let nextRoundId: string | undefined;
+    if (mode === "ffa") {
+      nextRoundId = ffaRoundCandidates.find((roundId) => !discardedRoundIdsRef.current.has(roundId));
+    }
+    if (!nextRoundId) {
+      const upcoming = [...minigames.rounds]
+        .filter((round) => round.status !== "completed")
+        .sort((a, b) => a.position - b.position);
+      const fallback = upcoming.find((round) => {
+        if (discardedRoundIdsRef.current.has(round.id)) return false;
+        const completedRounds = completedRoundIdsByPlayer.get(round.player_a_id);
+        if (completedRounds?.has(round.id)) return false;
+        const playedExamples = playedExampleIdsByPlayer.get(round.player_a_id);
+        if (playedExamples?.has(roundExampleKey(round))) return false;
+        return true;
+      });
+      nextRoundId = fallback?.id;
+    }
     debugLog("next_turn", {
       mode,
       currentRoundId: currentRound?.id ?? null,
-      nextRoundId: next?.id ?? null
+      nextRoundId: nextRoundId ?? null
     });
-    manager.setCurrentRound(next?.id);
+    manager.setCurrentRound(nextRoundId);
     setRoundResultScore(null);
     setRoundResultPenalty(null);
   }, [
@@ -839,6 +805,7 @@ export const MinigamePlayPage = () => {
     currentRound?.id,
     debugLog,
     ffaNextRoundBlocked,
+    ffaRoundCandidates,
     manager,
     minigames.rounds,
     mode,
@@ -952,7 +919,10 @@ export const MinigamePlayPage = () => {
     });
     if (!nextForNewPlayer) {
       try {
-        await generateRounds({ sessionId: minigames.session.id, count: refreshed.players.length }).unwrap();
+        await generateRounds({
+          sessionId: minigames.session.id,
+          count: roundsPerPlayerTarget ?? refreshed.players.length
+        }).unwrap();
       } catch (error) {
         if (handlePromptExhaustionError(error)) {
           setNewPlayerOpen(false);
