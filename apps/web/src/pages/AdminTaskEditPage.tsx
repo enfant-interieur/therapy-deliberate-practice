@@ -7,6 +7,7 @@ import { Button, Card, SectionHeader } from "../components/admin/AdminUi";
 import { ConfirmDialog } from "../components/admin/ConfirmDialog";
 import { RightInspectorPanel } from "../components/admin/RightInspectorPanel";
 import { TaskEditorPanel, type EditableTask } from "../components/admin/TaskEditorPanel";
+import { TaskJsonExportModal } from "../components/admin/TaskJsonExportModal";
 import { TranslateTaskDialog } from "../components/admin/TranslateTaskDialog";
 import { ToastProvider, useToast } from "../components/admin/ToastProvider";
 import {
@@ -117,6 +118,7 @@ const AdminTaskEditPageContent = () => {
   const [activeTab, setActiveTab] = useState<"preview" | "json" | "meta">("preview");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
   const [translateLanguage, setTranslateLanguage] = useState("fr");
 
@@ -149,6 +151,7 @@ const AdminTaskEditPageContent = () => {
     Object.keys(validationErrors.interaction_examples).length > 0;
 
   const isDirty = useMemo(() => serializeTask(baseTask) !== serializeTask(draftTask), [baseTask, draftTask]);
+  const exportJsonValue = useMemo(() => (draftTask ? JSON.stringify(draftTask, null, 2) : ""), [draftTask]);
 
   const handleSave = async () => {
     if (!draftTask) return;
@@ -252,6 +255,9 @@ const AdminTaskEditPageContent = () => {
             <Button variant="secondary" onClick={() => setInspectorOpen(true)} disabled={!draftTask}>
               {t("admin.inspector.kicker")}
             </Button>
+            <Button variant="secondary" onClick={() => setExportModalOpen(true)} disabled={!draftTask}>
+              {t("admin.actions.exportJson")}
+            </Button>
             <Button variant="secondary" onClick={() => navigate("/admin/library")}>
               {t("admin.actions.backToLibrary")}
             </Button>
@@ -339,6 +345,13 @@ const AdminTaskEditPageContent = () => {
         onCancel={() => setTranslateOpen(false)}
         onConfirm={handleTranslate}
         isLoading={translateState.isLoading}
+      />
+
+      <TaskJsonExportModal
+        open={exportModalOpen}
+        json={exportJsonValue}
+        onClose={() => setExportModalOpen(false)}
+        onCopy={() => pushToast({ title: t("admin.toast.jsonCopied"), tone: "success" })}
       />
     </div>
   );

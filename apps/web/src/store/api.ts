@@ -94,6 +94,33 @@ export type PracticeSessionAttempt = {
   overall_pass: boolean;
 };
 
+export type BatchParseJob = {
+  id: string;
+  status: "queued" | "running" | "completed" | "failed" | "canceled";
+  step: "created_job" | "planning_segments" | "parsing_segment" | "persisting_task" | "done";
+  totalSegments: number | null;
+  completedSegments: number;
+  createdTaskIds: string[];
+  error: string | null;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type BatchParseEvent = {
+  id: number;
+  ts: number;
+  level: "info" | "warn" | "error";
+  step: BatchParseJob["step"];
+  message: string;
+  meta: unknown | null;
+};
+
+export type BatchParseStatusResponse = {
+  job: BatchParseJob;
+  events: BatchParseEvent[];
+  nextAfterEventId: number;
+};
+
 export type MinigameSession = {
   id: string;
   user_id: string;
@@ -392,6 +419,15 @@ export const api = createApi({
       }),
       invalidatesTags: ["Task"]
     }),
+    startBatchParse: builder.mutation<{ jobId: string }, { sourceText: string; parseMode?: ParseMode }>({
+      query: (body) => ({ url: "/admin/parse/batch", method: "POST", body })
+    }),
+    getBatchParseStatus: builder.query<BatchParseStatusResponse, { jobId: string; afterEventId: number }>({
+      query: ({ jobId, afterEventId }) => ({
+        url: `/admin/parse/batch/${jobId}`,
+        params: { afterEventId }
+      })
+    }),
     parseTask: builder.mutation<
       DeliberatePracticeTaskV2,
       { free_text?: string; source_url?: string | null; parse_mode?: ParseMode }
@@ -610,6 +646,8 @@ export const {
   useDeleteTaskMutation,
   useDuplicateTaskMutation,
   useTranslateTaskMutation,
+  useStartBatchParseMutation,
+  useGetBatchParseStatusQuery,
   useParseTaskMutation,
   useImportTaskMutation,
   useRunPracticeMutation,

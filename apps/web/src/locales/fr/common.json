@@ -913,6 +913,9 @@
       "kicker": "Éditeur de tâches",
       "pageTitle": "Modifier la tâche",
       "pageSubtitle": "Mettez à jour les détails, critères et exemples dans une vue dédiée.",
+      "exportModalKicker": "Export JSON",
+      "exportModalTitle": "JSON de la tâche",
+      "exportModalSubtitle": "Copiez et partagez ce payload complet, avec tous les critères, exemples et échanges.",
       "save": "Enregistrer les modifications",
       "saving": "Enregistrement...",
       "selectPrompt": "Sélectionnez une tâche à modifier.",
@@ -979,6 +982,7 @@
       "duplicate": "Dupliquer",
       "translate": "Traduire",
       "delete": "Supprimer",
+      "exportJson": "Exporter en JSON",
       "close": "Fermer",
       "cancel": "Annuler",
       "create": "Créer",
@@ -986,7 +990,8 @@
       "save": "Enregistrer",
       "backToLibrary": "Retour à la bibliothèque",
       "backToPortal": "Retour au portail",
-      "reset": "Réinitialiser"
+      "reset": "Réinitialiser",
+      "copyCode": "Copier le code"
     },
     "status": {
       "loading": "Chargement",
@@ -1055,7 +1060,8 @@
       "translated": "Tâche traduite",
       "imported": "Tâche importée",
       "jsonApplied": "JSON appliqué",
-      "jsonValid": "JSON valide"
+      "jsonValid": "JSON valide",
+      "jsonCopied": "JSON de la tâche copié"
     },
     "translate": {
       "title": "Traduire la tâche",

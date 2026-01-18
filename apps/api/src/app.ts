@@ -52,6 +52,9 @@ import {
   type LogFn
 } from "./utils/logger";
 import { selectTtsProvider } from "./providers";
+import { remapIdReferences, remapUniqueUuids } from "./utils/remap";
+import { sanitizeInteractionExamples } from "./utils/interactionExamples";
+import { slugify } from "./utils/slug";
 import {
   assertLocalBaseUrl,
   assertOpenAiKey,
@@ -75,6 +78,11 @@ import {
   generateMinigameRounds,
   redrawMinigameRound
 } from "./services/minigameRoundsService";
+import {
+  createBatchParseJob,
+  getBatchParseStatus,
+  runBatchParseJob
+} from "./services/adminBatchParseService";
 
 export type ApiDependencies = {
   env: RuntimeEnv;
@@ -171,116 +179,6 @@ const toLogFn = (loggerInstance: ReturnType<typeof createLogger>): LogFn => {
     }
   };
 };
-
-const remapUniqueUuids = <T extends { id: string }>(
-  items: T[],
-  label: string,
-  log?: ReturnType<typeof logger.child>
-) => {
-  const used = new Set<string>();
-  const idMap = new Map<string, string[]>();
-  const mapped = items.map((item) => {
-    let id = generateUuid();
-    while (used.has(id)) {
-      id = generateUuid();
-    }
-    used.add(id);
-    const existing = idMap.get(item.id);
-    if (existing) {
-      existing.push(id);
-    } else {
-      idMap.set(item.id, [id]);
-    }
-    return { ...item, id };
-  });
-  for (const [sourceId, mappedIds] of idMap.entries()) {
-    if (mappedIds.length > 1) {
-      log?.warn("Duplicate ids detected during parse remap", {
-        label,
-        id: sourceId,
-        count: mappedIds.length
-      });
-    }
-  }
-  return { items: mapped, idMap };
-};
-
-const remapIdReferences = <T>(
-  value: T,
-  idMaps: Array<Map<string, string[]>>
-): T => {
-  const replaceId = (id: string) => {
-    for (const map of idMaps) {
-      const mapped = map.get(id);
-      if (mapped?.length) {
-        return mapped[0];
-      }
-    }
-    return id;
-  };
-
-  const walk = (node: unknown): unknown => {
-    if (Array.isArray(node)) {
-      return node.map((item) => walk(item));
-    }
-    if (node && typeof node === "object") {
-      return Object.fromEntries(
-        Object.entries(node).map(([key, val]) => {
-          if (key.endsWith("_id") && typeof val === "string") {
-            return [key, replaceId(val)];
-          }
-          if (key.endsWith("_ids") && Array.isArray(val)) {
-            return [
-              key,
-              val.map((item) => (typeof item === "string" ? replaceId(item) : item))
-            ];
-          }
-          return [key, walk(val)];
-        })
-      );
-    }
-    return node;
-  };
-
-  return walk(value) as T;
-};
-
-const sanitizeInteractionExamples = (
-  items: TaskInteractionExample[] | undefined,
-  log?: ReturnType<typeof createLogger>
-) => {
-  if (!items?.length) return [];
-  return items
-    .map((item, index) => ({ item, index }))
-    .filter(({ item, index }) => {
-      const difficultyOk =
-        Number.isInteger(item.difficulty) && item.difficulty >= 1 && item.difficulty <= 5;
-      const patientText = item.patient_text?.trim();
-      const therapistText = item.therapist_text?.trim();
-      if (!difficultyOk || !patientText || !therapistText) {
-        log?.warn("Invalid interaction example dropped", {
-          id: item.id,
-          index,
-          difficulty: item.difficulty
-        });
-        return false;
-      }
-      return true;
-    })
-    .map(({ item }) => ({
-      ...item,
-      patient_text: item.patient_text.trim(),
-      therapist_text: item.therapist_text.trim(),
-      title: item.title ?? null
-    }));
-};
-
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)+/g, "");
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX = 10;
@@ -1567,6 +1465,46 @@ export const createApiApp = ({ env, db, tts }: ApiDependencies) => {
       logEvent("error", "tts.prefetch_batch.error", { error: safeError(error) });
       return c.json({ error: "TTS generation failed." }, 500);
     }
+  });
+
+  const batchParseSchema = z.object({
+    sourceText: z.string().min(1),
+    parseMode: z.enum(["original", "exact", "partial_prompt"]).optional()
+  });
+
+  app.post("/api/v1/admin/parse/batch", async (c) => {
+    const log = logger.child({ requestId: c.get("requestId"), endpoint: "admin_batch_parse_start" });
+    const body = batchParseSchema.parse(await c.req.json());
+    const sourceText = body.sourceText.trim();
+    if (!sourceText) {
+      log.warn("Batch parse missing source text");
+      return c.json({ error: "Source text is required" }, 400);
+    }
+    const jobId = await createBatchParseJob(db, sourceText);
+    const runnerInput = { sourceText, parseMode: body.parseMode };
+    const jobLogger = toLogFn(log.child({ jobId, component: "batch_parse_job" }));
+    const runner = async () => runBatchParseJob(db, env, jobId, runnerInput, { logger: jobLogger });
+    const execCtx = (c as Context & { executionCtx?: { waitUntil: (promise: Promise<unknown>) => void } }).executionCtx;
+    if (execCtx?.waitUntil) {
+      execCtx.waitUntil(runner());
+    } else {
+      setTimeout(() => {
+        void runner();
+      }, 0);
+    }
+    log.info("Batch parse job queued", { jobId });
+    return c.json({ jobId });
+  });
+
+  app.get("/api/v1/admin/parse/batch/:jobId", async (c) => {
+    const jobId = c.req.param("jobId");
+    const afterParam = Number(c.req.query("afterEventId") ?? "0");
+    const afterEventId = Number.isFinite(afterParam) ? afterParam : 0;
+    const result = await getBatchParseStatus(db, jobId, afterEventId);
+    if (!result) {
+      return c.json({ error: "Not found" }, 404);
+    }
+    return c.json(result);
   });
 
   app.post("/api/v1/admin/parse-task", async (c) => {

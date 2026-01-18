@@ -92,6 +92,7 @@ Hard rules:
 - Provide a list of patient text examples (short statements) with difficulty 1..5.
 - Provide 2–3 interaction_examples with a single patient statement and a single therapist response.
 - Set task.language to the detected source language (e.g., "en" or "fr").
+- Every example must include example.language with the same ISO code as task.language (use "en" for English, "fr" for French, etc.). Never return null.
 - Create stable ids:
   - criterion ids: "c1", "c2", ...
   - example ids: "ex1", "ex2", ...
@@ -139,7 +140,8 @@ RUBRIC REQUIREMENTS (for each criterion):
 
 LANGUAGE:
 - Keep the generated content in the same language as the source when possible.
-- Also set the task language field accordingly (see schema).`;
+- Also set the task language field accordingly (see schema).
+- Every example must include example.language matching the task language (no nulls).`;
     const partialPromptPrompt = `You are a task generation engine for a psychotherapy deliberate-practice platform.
 The user input is an instruction prompt for creating a NEW deliberate-practice task (not source material to extract or paraphrase).
 
@@ -176,6 +178,7 @@ Interaction examples requirements:
 
 Language:
 - Generate content in the language implied by the prompt and set task.language accordingly.
+- Every example must set example.language to that same ISO code (no nulls).
 
 The following is an example of valid output structure. Do not copy its content unless requested. Do not output the example.
 {
