@@ -39,6 +39,12 @@ export type TtsServiceResult =
     }
   | { status: "generating"; cacheKey: string; retryAfterMs: number };
 
+export type TtsServiceOptions = {
+  forceGenerate?: boolean;
+  skipGenerate?: boolean;
+  retryAfterMs?: number;
+};
+
 const isUniqueConstraintError = (error: unknown) => {
   if (!error || typeof error !== "object") return false;
   const message = "message" in error ? String((error as { message?: string }).message) : "";
@@ -62,7 +68,8 @@ export const getOrCreateTtsAsset = async (
   storage: TtsStorage,
   provider: TtsProvider,
   input: TtsServiceInput,
-  logger?: (level: "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void
+  logger?: (level: "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void,
+  options: TtsServiceOptions = {}
 ): Promise<TtsServiceResult> => {
   const { cacheKey, normalizedText } = await buildTtsCacheKey({
     text: input.text,
@@ -155,7 +162,14 @@ export const getOrCreateTtsAsset = async (
         const updated = await ensureReadyFromHead(head, existing);
         return { status: "ready", asset: updated ?? existing, cacheKey, audioUrl };
       }
-      return { status: "generating", cacheKey, retryAfterMs: 500 };
+      if (!options.forceGenerate) {
+        return {
+          status: "generating",
+          cacheKey,
+          retryAfterMs: options.retryAfterMs ?? 500
+        };
+      }
+      await markGenerating();
     } else {
       const head = await storage.headObject(env.r2Bucket, r2Key);
       if (head.exists) {
@@ -210,7 +224,14 @@ export const getOrCreateTtsAsset = async (
             const updated = await ensureReadyFromHead(head, conflict);
             return { status: "ready", asset: updated ?? conflict, cacheKey, audioUrl };
           }
-          return { status: "generating", cacheKey, retryAfterMs: 500 };
+          if (!options.forceGenerate) {
+            return {
+              status: "generating",
+              cacheKey,
+              retryAfterMs: options.retryAfterMs ?? 500
+            };
+          }
+          await markGenerating();
         } else {
           const head = await storage.headObject(env.r2Bucket, r2Key);
           if (head.exists) {
@@ -221,6 +242,14 @@ export const getOrCreateTtsAsset = async (
         }
       }
     }
+  }
+
+  if (options.skipGenerate) {
+    return {
+      status: "generating",
+      cacheKey,
+      retryAfterMs: options.retryAfterMs ?? 500
+    };
   }
 
   const [activeRow] = await db
