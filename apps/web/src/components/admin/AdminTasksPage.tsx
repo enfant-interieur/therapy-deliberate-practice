@@ -892,10 +892,16 @@ const AdminTasksPageContent = () => {
     }
   };
 
-  const handleImport = async (payload: DeliberatePracticeTaskV2) => {
+  const handleImport = async (payloads: DeliberatePracticeTaskV2[]) => {
     try {
-      await importTask({ task_v2: payload }).unwrap();
-      pushToast({ title: t("admin.toast.imported"), tone: "success" });
+      await Promise.all(payloads.map((payload) => importTask({ task_v2: payload }).unwrap()));
+      pushToast({
+        title:
+          payloads.length > 1
+            ? t("admin.toast.importedMany", { count: payloads.length })
+            : t("admin.toast.imported"),
+        tone: "success"
+      });
     } catch (error) {
       pushToast({
         title: t("admin.toast.error"),
@@ -1014,7 +1020,7 @@ const AdminTasksPageContent = () => {
                 jsonPreviewOpen={parsePreviewOpen}
                 onTogglePreview={() => setParsePreviewOpen((prev) => !prev)}
                 onApplyToEditor={handleApplyParsedToEditor}
-                onImport={() => parseResult && handleImport(parseResult)}
+                onImport={() => parseResult && handleImport([parseResult])}
                 onReset={handleResetParse}
               />
               <ManualJsonPanel
