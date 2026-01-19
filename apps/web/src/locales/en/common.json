@@ -871,7 +871,27 @@
       "searchAction": "Search",
       "showAdvanced": "Show advanced filters",
       "hideAdvanced": "Hide advanced filters",
-      "results": "{{count}} results"
+      "results": "{{count}} results",
+      "selectTask": "Select {{title}}",
+      "bulk": {
+        "kicker": "Bulk actions",
+        "title": "Manage selections",
+        "subtitle": "{{count}} selected",
+        "selectAll": "Select all results",
+        "clear": "Clear selection",
+        "exportLabel": "Export JSON",
+        "exportHint": "Download a JSON array formatted for the import dialog.",
+        "exportAction": "Export selected",
+        "deleteAction": "Delete selected",
+        "deleteTitle": "Delete selected tasks",
+        "deleteDescription": "Delete {{count}} selected tasks? This cannot be undone.",
+        "deleteConfirm": "Delete",
+        "deleteCancel": "Cancel",
+        "tagLabel": "Add a tag to all selected",
+        "tagHint": "Apply a shared tag without overwriting existing tags.",
+        "tagPlaceholder": "e.g. supervision, onboarding",
+        "tagAction": "Apply tag"
+      }
     },
     "searchPlaceholder": "Search tasks",
     "tasksTitle": "Tasks",
@@ -1059,6 +1079,9 @@
       "duplicated": "Task duplicated",
       "translated": "Task translated",
       "imported": "Task imported",
+      "importedMany": "{{count}} tasks imported",
+      "bulkDeleted": "{{count}} tasks deleted",
+      "bulkTagsApplied": "Tag added to {{count}} tasks",
       "jsonApplied": "JSON applied",
       "jsonValid": "JSON valid",
       "jsonCopied": "Task JSON copied"
@@ -1107,7 +1130,7 @@
     },
     "import": {
       "title": "Import JSON",
-      "subtitle": "Paste a Deliberate Practice Task V2 payload.",
+      "subtitle": "Paste a Deliberate Practice Task V2 payload or an array of tasks.",
       "jsonLabel": "Task JSON"
     },
     "create": {

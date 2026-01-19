@@ -8,7 +8,7 @@ type ImportTaskDialogProps = {
   open: boolean;
   isImporting: boolean;
   onClose: () => void;
-  onImport: (payload: DeliberatePracticeTaskV2) => Promise<void>;
+  onImport: (payload: DeliberatePracticeTaskV2[]) => Promise<void>;
 };
 
 export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: ImportTaskDialogProps) => {
@@ -60,7 +60,8 @@ export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: Impor
   const handleImport = async () => {
     try {
       const parsed = JSON.parse(jsonValue);
-      const validated = deliberatePracticeTaskV2Schema.parse(parsed);
+      const payloads = Array.isArray(parsed) ? parsed : [parsed];
+      const validated = payloads.map((payload) => deliberatePracticeTaskV2Schema.parse(payload));
       await onImport(validated);
       handleClose();
     } catch (err) {

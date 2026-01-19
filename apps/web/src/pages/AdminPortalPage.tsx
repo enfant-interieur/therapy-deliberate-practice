@@ -41,11 +41,23 @@ const AdminPortalPageContent = () => {
     }
   };
 
-  const handleImport = async (payload: DeliberatePracticeTaskV2) => {
+  const handleImport = async (payloads: DeliberatePracticeTaskV2[]) => {
     try {
-      const result = await importTask({ task_v2: payload }).unwrap();
-      pushToast({ title: t("admin.toast.imported"), tone: "success" });
-      navigate(`/admin/tasks/${result.id}`);
+      const results = await Promise.all(
+        payloads.map((payload) => importTask({ task_v2: payload }).unwrap())
+      );
+      pushToast({
+        title:
+          results.length > 1
+            ? t("admin.toast.importedMany", { count: results.length })
+            : t("admin.toast.imported"),
+        tone: "success"
+      });
+      if (results.length === 1) {
+        navigate(`/admin/tasks/${results[0].id}`);
+      } else {
+        navigate("/admin/library");
+      }
     } catch (error) {
       pushToast({
         title: t("admin.toast.error"),
