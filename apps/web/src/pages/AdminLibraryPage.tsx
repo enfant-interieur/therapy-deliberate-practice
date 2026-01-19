@@ -65,6 +65,7 @@ const AdminLibraryPageContent = () => {
   const [filters, setFilters] = useState<TaskFilters>(defaultFilters);
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [bulkTag, setBulkTag] = useState("");
   const [exportOpen, setExportOpen] = useState(false);
@@ -120,6 +121,18 @@ const AdminLibraryPageContent = () => {
     event.preventDefault();
     const query = filters.search.trim();
     setSearchParams(query ? { q: query } : {});
+  };
+
+  const handleToggleSelectionMode = () => {
+    setSelectionMode((prev) => {
+      if (prev) {
+        setSelectedTaskIds([]);
+        setBulkTag("");
+        setExportOpen(false);
+        setConfirmBulkDelete(false);
+      }
+      return !prev;
+    });
   };
 
   const handleToggleSelect = (id: string) => {
@@ -222,11 +235,20 @@ const AdminLibraryPageContent = () => {
               </Button>
             </div>
           </form>
-          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
-            <Badge className="border-teal-400/40 text-teal-100">
-              {isLoading ? t("admin.status.loading") : t("admin.status.ready")}
-            </Badge>
-            <span>{t("admin.library.results", { count: filteredTasks.length })}</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge className="border-teal-400/40 text-teal-100">
+                {isLoading ? t("admin.status.loading") : t("admin.status.ready")}
+              </Badge>
+              <span>{t("admin.library.results", { count: filteredTasks.length })}</span>
+            </div>
+            <Button
+              type="button"
+              variant={selectionMode ? "primary" : "secondary"}
+              onClick={handleToggleSelectionMode}
+            >
+              {selectionMode ? t("admin.library.exitSelectAction") : t("admin.library.selectAction")}
+            </Button>
           </div>
           {advancedOpen && (
             <div className="grid gap-3 md:grid-cols-4">
@@ -275,76 +297,78 @@ const AdminLibraryPageContent = () => {
           )}
         </Card>
 
-        <Card className="space-y-4 p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
-                {t("admin.library.bulk.kicker")}
-              </p>
-              <h3 className="text-lg font-semibold text-white">{t("admin.library.bulk.title")}</h3>
-              <p className="text-sm text-slate-400">
-                {t("admin.library.bulk.subtitle", { count: selectedTaskIds.length })}
-              </p>
+        {selectionMode && (
+          <Card className="space-y-4 p-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
+                  {t("admin.library.bulk.kicker")}
+                </p>
+                <h3 className="text-lg font-semibold text-white">{t("admin.library.bulk.title")}</h3>
+                <p className="text-sm text-slate-400">
+                  {t("admin.library.bulk.subtitle", { count: selectedTaskIds.length })}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="secondary" onClick={handleSelectAll} disabled={!filteredTasks.length}>
+                  {t("admin.library.bulk.selectAll")}
+                </Button>
+                <Button variant="ghost" onClick={handleClearSelection} disabled={!selectedTaskIds.length}>
+                  {t("admin.library.bulk.clear")}
+                </Button>
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button variant="secondary" onClick={handleSelectAll} disabled={!filteredTasks.length}>
-                {t("admin.library.bulk.selectAll")}
-              </Button>
-              <Button variant="ghost" onClick={handleClearSelection} disabled={!selectedTaskIds.length}>
-                {t("admin.library.bulk.clear")}
-              </Button>
-            </div>
-          </div>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-            <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-              <Label>{t("admin.library.bulk.exportLabel")}</Label>
-              <p className="text-sm text-slate-400">{t("admin.library.bulk.exportHint")}</p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="primary"
-                  onClick={() => setExportOpen(true)}
-                  disabled={!selectedTaskIds.length}
-                >
-                  {t("admin.library.bulk.exportAction")}
-                </Button>
-                <Button
-                  variant="danger"
-                  onClick={() => setConfirmBulkDelete(true)}
-                  disabled={!selectedTaskIds.length || bulkBusy}
-                >
-                  {t("admin.library.bulk.deleteAction")}
-                </Button>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                <Label>{t("admin.library.bulk.exportLabel")}</Label>
+                <p className="text-sm text-slate-400">{t("admin.library.bulk.exportHint")}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="primary"
+                    onClick={() => setExportOpen(true)}
+                    disabled={!selectedTaskIds.length}
+                  >
+                    {t("admin.library.bulk.exportAction")}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => setConfirmBulkDelete(true)}
+                    disabled={!selectedTaskIds.length || bulkBusy}
+                  >
+                    {t("admin.library.bulk.deleteAction")}
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+                <Label>{t("admin.library.bulk.tagLabel")}</Label>
+                <p className="text-sm text-slate-400">{t("admin.library.bulk.tagHint")}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Input
+                    value={bulkTag}
+                    onChange={(event) => setBulkTag(event.target.value)}
+                    placeholder={t("admin.library.bulk.tagPlaceholder")}
+                    className="min-w-[220px] flex-1"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={handleApplyTag}
+                    disabled={!bulkTag.trim() || !selectedTaskIds.length || bulkBusy}
+                  >
+                    {t("admin.library.bulk.tagAction")}
+                  </Button>
+                </div>
               </div>
             </div>
-            <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
-              <Label>{t("admin.library.bulk.tagLabel")}</Label>
-              <p className="text-sm text-slate-400">{t("admin.library.bulk.tagHint")}</p>
-              <div className="flex flex-wrap gap-2">
-                <Input
-                  value={bulkTag}
-                  onChange={(event) => setBulkTag(event.target.value)}
-                  placeholder={t("admin.library.bulk.tagPlaceholder")}
-                  className="min-w-[220px] flex-1"
-                />
-                <Button
-                  variant="secondary"
-                  onClick={handleApplyTag}
-                  disabled={!bulkTag.trim() || !selectedTaskIds.length || bulkBusy}
-                >
-                  {t("admin.library.bulk.tagAction")}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        )}
 
         <TaskListPanel
           tasks={filteredTasks}
           selectedTaskId={null}
           onSelectTask={(id) => navigate(`/admin/tasks/${id}`)}
           selectedTaskIds={selectedTaskIds}
-          onToggleSelect={handleToggleSelect}
+          onToggleSelect={selectionMode ? handleToggleSelect : undefined}
           isLoading={isLoading}
         />
       </div>

@@ -872,6 +872,8 @@
       "showAdvanced": "Show advanced filters",
       "hideAdvanced": "Hide advanced filters",
       "results": "{{count}} results",
+      "selectAction": "Select",
+      "exitSelectAction": "Done selecting",
       "selectTask": "Select {{title}}",
       "bulk": {
         "kicker": "Bulk actions",
