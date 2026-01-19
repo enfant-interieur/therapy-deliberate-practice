@@ -234,7 +234,7 @@
           "faster-whisper"
         ],
         "system": [],
-        "notes": "FFmpeg ships with the desktop runtime for offline decoding."
+        "notes": "FFmpeg is bundled with the desktop runtime for decoding audio input."
       }
     },
     {
@@ -311,7 +311,7 @@
           "parakeet-mlx>=0.2.0"
         ],
         "system": [],
-        "notes": "FFmpeg ships with the desktop runtime. Install parakeet-mlx for development."
+        "notes": "FFmpeg ships with the desktop runtime; install parakeet-mlx via pip for development."
       }
     }
   ]
