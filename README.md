@@ -113,13 +113,14 @@ You now have all values needed for the `.env` files.
    wrangler secret put R2_SECRET_ACCESS_KEY
    wrangler secret put DEV_ADMIN_TOKEN   # optional, for CLI admin auth
    ```
-6. **Create the batch-parse queue** – the admin parsing UI now dispatches work to a Cloudflare Queue so long-running jobs never block the Worker request thread.
+6. **Create the queues** – long-running admin parsing and patient audio generation now dispatch to Cloudflare Queues so long-running jobs never block the Worker request thread.
    ```bash
    # One time, per environment
    cd apps/worker
    wrangler queues create admin-batch-parse
+   wrangler queues create patient-audio
    ```
-   - The queue binding (`ADMIN_BATCH_PARSE_QUEUE`) is already defined in `apps/worker/wrangler.jsonc`; adjust the `queue_name` if you used a different name.
+   - Queue bindings (`ADMIN_BATCH_PARSE_QUEUE`, `PATIENT_AUDIO_QUEUE`) are defined in `apps/worker/wrangler.jsonc`; adjust the `queue_name` if you used a different name.
    - Deploying via `wrangler deploy` automatically attaches the queue binding; for local `wrangler dev`, Wrangler emulates the queue consumer.
 7. **Verify bindings** by running:
    ```bash

@@ -39,11 +39,18 @@
       {
         "binding": "ADMIN_BATCH_PARSE_QUEUE",
         "queue": "admin-batch-parse"
+      },
+      {
+        "binding": "PATIENT_AUDIO_QUEUE",
+        "queue": "patient-audio"
       }
     ],
     "consumers": [
       {
         "queue": "admin-batch-parse"
+      },
+      {
+        "queue": "patient-audio"
       }
     ]
   },

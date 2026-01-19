@@ -145,6 +145,41 @@ export const PracticePage = () => {
   const patientAudioUrl = currentAudioEntry?.blobUrl ?? currentAudioEntry?.audioUrl ?? null;
   const patientCacheKey = currentAudioEntry?.cacheKey ?? null;
   const patientAudioError = currentAudioEntry?.error ?? null;
+  const patientAudioStatusLabel =
+    patientAudioStatus === "generating"
+      ? "Generating patient audio"
+      : patientAudioStatus === "downloading"
+        ? "Downloading patient audio"
+        : patientAudioStatus === "playing"
+          ? "Patient audio is playing"
+          : patientAudioStatus === "blocked"
+            ? "Tap play to start audio"
+            : patientAudioStatus === "ready"
+              ? "Patient audio ready"
+              : patientAudioStatus === "error"
+                ? "Patient audio unavailable"
+                : "Patient audio idle";
+  const patientAudioStatusDescription =
+    patientAudioStatus === "generating"
+      ? "We’re generating the patient voice. This can take up to a minute when the queue is busy."
+      : patientAudioStatus === "downloading"
+        ? "We’re caching the audio so it plays instantly."
+        : patientAudioStatus === "blocked"
+          ? "Your browser blocked autoplay. Tap play to continue."
+          : patientAudioStatus === "error"
+            ? patientAudioError ?? "We couldn’t prepare the patient audio."
+            : null;
+  const showPatientAudioStatusCard =
+    patientAudioStatus === "generating" ||
+    patientAudioStatus === "downloading" ||
+    patientAudioStatus === "blocked" ||
+    patientAudioStatus === "error";
+  const patientAudioStatusTone =
+    patientAudioStatus === "error" ? "bg-rose-400" : "bg-teal-400";
+  const patientAudioStatusShadow =
+    patientAudioStatus === "error"
+      ? "shadow-[0_0_12px_rgba(251,113,133,0.45)]"
+      : "shadow-[0_0_12px_rgba(45,212,191,0.45)]";
   const taskAuthors = task?.authors ?? [];
   const hasCoachReview = Boolean(practice.evaluation);
   const hasPreviousExample = practice.currentIndex > 0;
@@ -599,6 +634,21 @@ export const PracticePage = () => {
     practiceMode,
     taskId
   ]);
+
+  const retryPatientAudio = useCallback(() => {
+    if (!taskId || !currentExampleId) return;
+    setError(null);
+    patientAudioBank.updateEntry(taskId, currentExampleId, {
+      status: "generating",
+      error: undefined
+    });
+    void ensurePatientAudioReady(taskId, currentExampleId).catch(() => {
+      patientAudioBank.updateEntry(taskId, currentExampleId, {
+        status: "error",
+        error: "Unable to prepare patient audio."
+      });
+    });
+  }, [currentExampleId, ensurePatientAudioReady, patientAudioBank, taskId]);
 
   const beginTranscription = useCallback(
     async (blob: Blob, mimeType?: string | null) => {
@@ -1444,8 +1494,35 @@ export const PracticePage = () => {
                     </div>
                   </div>
                 )}
-                {patientAudioError && (
-                  <p className="text-sm font-light text-rose-300">{patientAudioError}</p>
+                {showPatientAudioStatusCard && (
+                  <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-left">
+                    <div className="flex items-start gap-3">
+                      <span
+                        className={`mt-1 h-2.5 w-2.5 rounded-full ${patientAudioStatusTone} ${patientAudioStatusShadow}`}
+                      />
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-slate-100">
+                          {patientAudioStatusLabel}
+                        </p>
+                        {patientAudioStatusDescription && (
+                          <p className="text-xs text-slate-300">
+                            {patientAudioStatusDescription}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    {patientAudioStatus === "error" && (
+                      <div className="mt-3">
+                        <button
+                          type="button"
+                          onClick={retryPatientAudio}
+                          className="rounded-full border border-rose-300/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-rose-100 transition hover:border-rose-200 hover:bg-rose-500/20"
+                        >
+                          Retry audio
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
                 {patientAudioUrl && (
                   <div className="space-y-3">

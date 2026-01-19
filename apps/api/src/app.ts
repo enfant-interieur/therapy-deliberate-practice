@@ -51,7 +51,6 @@ import {
   safeTruncate,
   type LogFn
 } from "./utils/logger";
-import { selectTtsProvider } from "./providers";
 import { remapIdReferences, remapUniqueUuids } from "./utils/remap";
 import { sanitizeInteractionExamples } from "./utils/interactionExamples";
 import { slugify } from "./utils/slug";
@@ -63,7 +62,7 @@ import {
   type EffectiveAiConfig,
   DEFAULT_LOCAL_BASE_URL
 } from "./providers/config";
-import { isProviderConfigError } from "./providers/providerErrors";
+import { getErrorLogFields, getErrorRequestId, isProviderConfigError } from "./providers/providerErrors";
 import { localSuiteHealthCheck } from "./providers/localSuite";
 import { getOrCreateTtsAsset, type TtsStorage } from "./services/ttsService";
 import { fetchLeaderboardEntries, fetchUserProfileStats } from "./services/leaderboardService";
@@ -84,6 +83,8 @@ import {
   runBatchParseJob,
   type BatchParseQueueProducer
 } from "./services/adminBatchParseService";
+import { selectPatientTtsProvider } from "./services/patientAudioService";
+import type { PatientAudioQueueProducer } from "./services/patientAudioQueueService";
 
 export type ApiDependencies = {
   env: RuntimeEnv;
@@ -93,6 +94,7 @@ export type ApiDependencies = {
   };
   queues?: {
     adminBatchParse?: BatchParseQueueProducer;
+    patientAudio?: PatientAudioQueueProducer;
   };
   providerOverrides?: {
     selectLlmProvider?: typeof selectLlmProvider;
@@ -1133,38 +1135,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
   app.use("/api/v1/sessions/*", userAuth);
 
   const ttsConfigReady = Boolean(env.r2Bucket);
-  const selectPatientTtsProvider = async (
-    config: EffectiveAiConfig,
-    logEvent: (level: "debug" | "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void
-  ) => {
-    const ttsConfig: EffectiveAiConfig = {
-      ...config,
-      mode: "openai_only",
-      local: { ...config.local, baseUrl: null }
-    };
-    logEvent("info", "tts.select.start", { mode: ttsConfig.mode });
-    const ttsSelection = await selectTtsProvider(
-      ttsConfig,
-      {
-        openai: {
-          model: env.openaiTtsModel,
-          voice: env.openaiTtsVoice,
-          format: env.openaiTtsFormat,
-          instructions: env.openaiTtsInstructions
-        },
-        local: {
-          voice: env.localTtsVoice,
-          format: env.localTtsFormat
-        }
-      },
-      logEvent
-    );
-    logEvent("info", "tts.select.ok", {
-      selected: { kind: ttsSelection.provider.kind, model: ttsSelection.provider.model },
-      health: ttsSelection.health
-    });
-    return ttsSelection.provider;
-  };
+  const patientAudioQueue = queues?.patientAudio;
 
   const handleTtsRequest = async (c: Context) => {
     const requestId = c.get("requestId");
@@ -1265,6 +1236,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
 
     const { exercise_id: exerciseId, statement_id: statementId } = parsed.data;
     let patientText: string | null = null;
+    let resolvedStatementId: string | null = statementId ?? null;
 
     if (statementId) {
       const [example] = await db
@@ -1275,6 +1247,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
       if (!example || example.task_id !== exerciseId) {
         return c.json({ error: "Statement not found for exercise." }, 404);
       }
+      resolvedStatementId = example.id;
       patientText = example.patient_text;
     } else {
       const [example] = await db
@@ -1286,6 +1259,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
       if (!example) {
         return c.json({ error: "Exercise has no patient prompt." }, 404);
       }
+      resolvedStatementId = example.id;
       patientText = example.patient_text;
     }
 
@@ -1296,7 +1270,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
 
     let ttsProvider: Awaited<ReturnType<typeof selectPatientTtsProvider>>;
     try {
-      ttsProvider = await selectPatientTtsProvider(config, logEvent);
+      ttsProvider = await selectPatientTtsProvider({ env, config, logEvent });
     } catch (error) {
       logEvent("error", "tts.select.error", { error: safeError(error) });
       return c.json(
@@ -1317,10 +1291,32 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
           model: ttsProvider.model,
           format: ttsProvider.format
         },
-        logEvent
+        logEvent,
+        { skipGenerate: Boolean(patientAudioQueue), retryAfterMs: 1500 }
       );
 
       if (result.status === "generating") {
+        if (patientAudioQueue && resolvedStatementId) {
+          try {
+            await patientAudioQueue.send({
+              userId: user.id,
+              exerciseId,
+              statementId: resolvedStatementId,
+              text: patientText,
+              requestId
+            });
+            logEvent("info", "tts.prefetch.queue_enqueued", {
+              statement_id: resolvedStatementId,
+              cache_key: result.cacheKey
+            });
+          } catch (queueError) {
+            logEvent("error", "tts.prefetch.queue_error", {
+              error: safeError(queueError),
+              statement_id: resolvedStatementId,
+              cache_key: result.cacheKey
+            });
+          }
+        }
         return c.json(
           {
             cache_key: result.cacheKey,
@@ -1337,7 +1333,22 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
         status: "ready"
       });
     } catch (error) {
-      logEvent("error", "tts.prefetch.error", { error: safeError(error) });
+      const errorRequestId = getErrorRequestId(error);
+      const errorLogFields = getErrorLogFields(error);
+      logEvent("error", "tts.prefetch.error", {
+        error: safeError(error),
+        error_request_id: errorRequestId,
+        error_log_fields: errorLogFields,
+        exercise_id: exerciseId,
+        statement_id: resolvedStatementId ?? null,
+        text_length: patientText.length,
+        provider: {
+          kind: ttsProvider.kind,
+          model: ttsProvider.model,
+          voice: ttsProvider.voice,
+          format: ttsProvider.format
+        }
+      });
       return c.json({ error: "TTS generation failed." }, 500);
     }
   });
@@ -1412,7 +1423,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
     }
     let ttsProvider: Awaited<ReturnType<typeof selectPatientTtsProvider>>;
     try {
-      ttsProvider = await selectPatientTtsProvider(config, logEvent);
+      ttsProvider = await selectPatientTtsProvider({ env, config, logEvent });
     } catch (error) {
       logEvent("error", "tts.select.error", { error: safeError(error) });
       return c.json(
@@ -1444,7 +1455,8 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
               model: ttsProvider.model,
               format: ttsProvider.format
             },
-            logEvent
+            logEvent,
+            { skipGenerate: Boolean(patientAudioQueue), retryAfterMs: 1500 }
           );
 
           if (result.status === "ready") {
@@ -1465,6 +1477,36 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
         })
       );
 
+      if (patientAudioQueue) {
+        await Promise.all(
+          results
+            .filter((item) => item.status === "generating")
+            .map(async (item) => {
+              const example = exampleMap.get(item.statement_id);
+              if (!example) return;
+              try {
+                await patientAudioQueue.send({
+                  userId: user.id,
+                  exerciseId,
+                  statementId: item.statement_id,
+                  text: example.patient_text,
+                  requestId
+                });
+                logEvent("info", "tts.prefetch_batch.queue_enqueued", {
+                  statement_id: item.statement_id,
+                  cache_key: item.cache_key
+                });
+              } catch (queueError) {
+                logEvent("error", "tts.prefetch_batch.queue_error", {
+                  error: safeError(queueError),
+                  statement_id: item.statement_id,
+                  cache_key: item.cache_key
+                });
+              }
+            })
+        );
+      }
+
       const readyCount = results.filter((item) => item.status === "ready").length;
       return c.json({
         items: results,
@@ -1472,7 +1514,25 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
         total_count: results.length
       });
     } catch (error) {
-      logEvent("error", "tts.prefetch_batch.error", { error: safeError(error) });
+      const errorRequestId = getErrorRequestId(error);
+      const errorLogFields = getErrorLogFields(error);
+      const textLengths = statementIds.map(
+        (statementId) => exampleMap.get(statementId)?.patient_text.length ?? 0
+      );
+      logEvent("error", "tts.prefetch_batch.error", {
+        error: safeError(error),
+        error_request_id: errorRequestId,
+        error_log_fields: errorLogFields,
+        exercise_id: exerciseId,
+        statement_ids: statementIds,
+        text_lengths: textLengths,
+        provider: {
+          kind: ttsProvider.kind,
+          model: ttsProvider.model,
+          voice: ttsProvider.voice,
+          format: ttsProvider.format
+        }
+      });
       return c.json({ error: "TTS generation failed." }, 500);
     }
   });

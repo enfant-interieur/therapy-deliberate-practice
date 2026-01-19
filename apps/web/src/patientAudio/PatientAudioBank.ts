@@ -52,7 +52,7 @@ type PatientAudioBankOptions = {
 };
 
 const DEFAULT_RETRY_MS = 500;
-const DEFAULT_MAX_ATTEMPTS = 10;
+const DEFAULT_MAX_ATTEMPTS = 30;
 
 const makeKey = (exerciseId: string, statementId: string) => `${exerciseId}:${statementId}`;
 
@@ -195,7 +195,7 @@ export class PatientAudioBank {
       remaining.forEach((statementId) => {
         this.updateEntry(exerciseId, statementId, {
           status: "error",
-          error: "Patient audio took too long to generate."
+          error: "Patient audio is taking longer than usual."
         });
       });
     }
@@ -257,7 +257,7 @@ export class PatientAudioBank {
     if (!signal?.aborted) {
       this.updateEntry(exerciseId, statementId, {
         status: "error",
-        error: "Patient audio took too long to generate."
+        error: "Patient audio is taking longer than usual."
       });
     }
   }
