@@ -871,7 +871,9 @@
       "searchAction": "Rechercher",
       "showAdvanced": "Afficher les filtres avancés",
       "hideAdvanced": "Masquer les filtres avancés",
-      "results": "{{count}} résultats"
+      "results": "{{count}} résultats",
+      "selectAction": "Sélectionner",
+      "exitSelectAction": "Terminer la sélection"
     },
     "searchPlaceholder": "Rechercher des tâches",
     "tasksTitle": "Tâches",

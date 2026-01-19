@@ -53,13 +53,13 @@ export const TaskListPanel = ({
       </div>
       <div className="flex-1 space-y-3 overflow-auto pr-1">
         {tasks.map((task) => (
-          <div key={task.id} className="flex items-start gap-3">
+          <div key={task.id} className="flex items-center gap-3">
             {onToggleSelect && (
-              <div className="pt-3">
+              <div className="flex h-full items-center">
                 <input
                   type="checkbox"
                   aria-label={t("admin.library.selectTask", { title: task.title })}
-                  className="h-4 w-4 rounded border-white/20 bg-slate-900 text-teal-400 focus:ring-2 focus:ring-teal-500/60"
+                  className="h-5 w-5 rounded-md border-2 border-white/20 bg-slate-950/70 text-teal-400 shadow-[0_0_0_1px_rgba(148,163,184,0.2)] accent-teal-400 transition focus:ring-2 focus:ring-teal-500/60 focus:ring-offset-0 checked:border-teal-300 checked:bg-teal-500/30"
                   checked={selectedSet.has(task.id)}
                   onChange={() => onToggleSelect(task.id)}
                 />
