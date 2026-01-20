@@ -43,6 +43,9 @@ const setupDb = () => {
     CREATE TABLE users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT 'Player',
+      bio TEXT,
+      is_profile_public INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE user_settings (

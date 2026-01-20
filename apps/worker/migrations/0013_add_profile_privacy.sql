@@ -1,0 +1,2 @@
+ALTER TABLE users
+ADD COLUMN is_profile_public INTEGER NOT NULL DEFAULT 0;

@@ -11,6 +11,9 @@ const setupDb = () => {
     CREATE TABLE users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT 'Player',
+      bio TEXT,
+      is_profile_public INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE tasks (
@@ -54,8 +57,20 @@ const seedBaseData = async () => {
   const { db } = setupDb();
   const now = Date.now();
   await db.insert(users).values([
-    { id: "user-1", email: "alpha@example.com", created_at: now },
-    { id: "user-2", email: "beta@example.com", created_at: now }
+    {
+      id: "user-1",
+      email: "alpha@example.com",
+      display_name: "alpha",
+      is_profile_public: 1,
+      created_at: now
+    },
+    {
+      id: "user-2",
+      email: "beta@example.com",
+      display_name: "beta",
+      is_profile_public: 1,
+      created_at: now
+    }
   ]);
   await db.insert(tasks).values([
     {

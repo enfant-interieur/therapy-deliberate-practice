@@ -1,8 +1,12 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router-dom";
+import { ProfileInsightsSection, type ProfileInsightsCopy } from "../components/profile/ProfileInsightsSection";
 import { useGetPublicProfileQuery } from "../store/api";
 import { formatDateTime, formatScore } from "../utils/scoreFormatters";
+
+const isHttpStatusError = (error: unknown): error is { status: number } =>
+  typeof error === "object" && error !== null && "status" in error && typeof (error as { status: unknown }).status === "number";
 
 const buildInitials = (name: string) => {
   const parts = name
@@ -22,8 +26,9 @@ export const PublicProfilePage = () => {
   const { t, i18n } = useTranslation();
   const { id } = useParams();
   const profileId = id ?? "";
-  const { data, isLoading, isError } = useGetPublicProfileQuery(profileId, { skip: !profileId });
+  const { data, isLoading, isError, error } = useGetPublicProfileQuery(profileId, { skip: !profileId });
   const profile = data?.profile;
+  const isPrivacyError = isError && isHttpStatusError(error) && error.status === 403;
 
   const joinedDate = useMemo(() => {
     if (!profile?.created_at) return null;
@@ -36,6 +41,66 @@ export const PublicProfilePage = () => {
   }, [profile?.stats.last_active_at, i18n.resolvedLanguage]);
 
   const initials = profile ? buildInitials(profile.display_name) : "?";
+
+  const insightsCopy = useMemo<ProfileInsightsCopy>(
+    () => ({
+      summary: {
+        averageScoreLabel: t("publicProfile.insights.summary.averageScore"),
+        averageScoreHelper: t("publicProfile.insights.summary.averageScoreHelper"),
+        practiceMinutesLabel: t("publicProfile.insights.summary.practiceMinutes"),
+        practiceMinutesHelper: t("publicProfile.insights.summary.practiceMinutesHelper"),
+        sessionsLabel: t("publicProfile.insights.summary.sessions"),
+        sessionsHelper: (count) => t("publicProfile.insights.summary.sessionsHelper", { count }),
+        streakLabel: t("publicProfile.insights.summary.streak"),
+        streakValue: (days) => t("publicProfile.insights.summary.streakValue", { days }),
+        streakHelper: (days) => t("publicProfile.insights.summary.streakHelper", { days })
+      },
+      timeline: {
+        title: t("publicProfile.insights.timeline.title"),
+        subtitle: t("publicProfile.insights.timeline.subtitle"),
+        empty: t("publicProfile.insights.timeline.empty"),
+        tooltip: (count) => t("publicProfile.insights.timeline.tooltip", { count })
+      },
+      difficulty: {
+        title: t("publicProfile.insights.difficulty.title"),
+        subtitle: t("publicProfile.insights.difficulty.subtitle"),
+        empty: t("publicProfile.insights.difficulty.empty"),
+        label: (level) => t("publicProfile.insights.difficulty.sliceLabel", { level }),
+        tooltip: (count, score) => t("publicProfile.insights.difficulty.tooltip", { count, score })
+      },
+      skill: {
+        title: t("publicProfile.insights.skill.title"),
+        subtitle: t("publicProfile.insights.skill.subtitle"),
+        empty: t("publicProfile.insights.skill.empty"),
+        tooltip: (count, score) => t("publicProfile.insights.skill.tooltip", { count, score })
+      },
+      tags: {
+        title: t("publicProfile.insights.tags.title"),
+        subtitle: t("publicProfile.insights.tags.subtitle"),
+        empty: t("publicProfile.insights.tags.empty"),
+        tooltip: (count, score) => t("publicProfile.insights.tags.tooltip", { count, score })
+      },
+      practice: {
+        title: t("publicProfile.insights.practiceCard.title"),
+        totalAttempts: t("publicProfile.insights.practiceCard.totalAttempts"),
+        averageSession: t("publicProfile.insights.practiceCard.averageSession"),
+        currentStreak: t("publicProfile.insights.practiceCard.currentStreak"),
+        bestStreak: t("publicProfile.insights.practiceCard.bestStreak")
+      },
+      minigame: {
+        title: t("publicProfile.insights.minigame.title"),
+        sessionsHosted: t("publicProfile.insights.minigame.sessionsHosted"),
+        roundsCompleted: t("publicProfile.insights.minigame.roundsCompleted"),
+        players: t("publicProfile.insights.minigame.players"),
+        avgRounds: t("publicProfile.insights.minigame.avgRounds"),
+        recentTitle: t("publicProfile.insights.minigame.recentTitle"),
+        recentMeta: (rounds, players, minutes) =>
+          t("publicProfile.insights.minigame.recentMeta", { rounds, players, minutes })
+      },
+      minigameEmpty: t("publicProfile.insights.minigameEmpty")
+    }),
+    [t]
+  );
 
   return (
     <div className="space-y-8">
@@ -72,7 +137,8 @@ export const PublicProfilePage = () => {
 
       <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-6">
         {isLoading && <p className="text-sm text-slate-400">{t("publicProfile.loading")}</p>}
-        {isError && <p className="text-sm text-rose-300">{t("publicProfile.error")}</p>}
+        {isError && !isPrivacyError && <p className="text-sm text-rose-300">{t("publicProfile.error")}</p>}
+        {isPrivacyError && <p className="text-sm text-amber-300">{t("publicProfile.private")}</p>}
         {!isLoading && !isError && !profile && (
           <p className="text-sm text-slate-400">{t("publicProfile.missing")}</p>
         )}
@@ -82,17 +148,15 @@ export const PublicProfilePage = () => {
               <h2 className="text-lg font-semibold text-white">{t("publicProfile.statsTitle")}</h2>
               <p className="mt-2 text-sm text-slate-300">{t("publicProfile.statsSubtitle")}</p>
             </div>
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{t("publicProfile.stats.averageScore")}</p>
-                <p className="mt-3 text-2xl font-semibold text-teal-200">
-                  {formatScore(profile.stats.average_score)}
-                </p>
+                <p className="mt-3 text-3xl font-semibold text-teal-200">{formatScore(profile.stats.average_score)}</p>
                 <p className="mt-2 text-xs text-slate-400">{t("publicProfile.stats.averageScoreHint")}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{t("publicProfile.stats.tasksPlayed")}</p>
-                <p className="mt-3 text-2xl font-semibold text-white">{profile.stats.tasks_played}</p>
+                <p className="mt-3 text-3xl font-semibold text-white">{profile.stats.tasks_played}</p>
                 <p className="mt-2 text-xs text-slate-400">{t("publicProfile.stats.tasksPlayedHint")}</p>
               </div>
               <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
@@ -102,10 +166,26 @@ export const PublicProfilePage = () => {
                 </p>
                 <p className="mt-2 text-xs text-slate-400">{t("publicProfile.stats.lastActiveHint")}</p>
               </div>
+              <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-5">
+                <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{t("publicProfile.stats.joinedLabel")}</p>
+                <p className="mt-3 text-2xl font-semibold text-white">{joinedDate ?? t("publicProfile.joinedUnknown")}</p>
+                <p className="mt-2 text-xs text-slate-400">{t("publicProfile.stats.joinedHint")}</p>
+              </div>
             </div>
           </div>
         )}
       </section>
+
+      {profile && (
+        <ProfileInsightsSection
+          heading={t("publicProfile.insights.title")}
+          description={t("publicProfile.insights.subtitle")}
+          emptyLabel={t("publicProfile.insights.empty")}
+          insights={profile.insights}
+          loading={isLoading}
+          copy={insightsCopy}
+        />
+      )}
     </div>
   );
 };

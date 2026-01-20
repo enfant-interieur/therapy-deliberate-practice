@@ -193,7 +193,79 @@
     "profileSave": "Enregistrer le profil",
     "profileSaving": "Enregistrement...",
     "profileSaved": "Profil enregistré",
-    "profileError": "Impossible d'enregistrer votre profil. Réessayez."
+    "profileError": "Impossible d'enregistrer votre profil. Réessayez.",
+    "privacy": {
+      "title": "Présence publique",
+      "subtitle": "Décidez si vos insights apparaissent sur la page publique.",
+      "ariaLabel": "Basculer la visibilité du profil public",
+      "toggleOn": "Public",
+      "toggleOff": "Privé",
+      "helperOn": "Toute personne possédant votre lien peut explorer vos statistiques.",
+      "helperOff": "Vous seul voyez ce profil riche tant que vous ne le partagez pas.",
+      "linkLabel": "Lien partageable",
+      "copyLink": "Copier le lien",
+      "copied": "Copié !",
+      "copyError": "Erreur de copie",
+      "privateHint": "Gardez votre progression discrète jusqu'à être prêt à la montrer."
+    },
+    "insights": {
+      "title": "Analyse de performance",
+      "subtitle": "Vos tendances personnalisées entre pratique guidée et minijeux hébergés.",
+      "empty": "Terminez une séance de pratique pour débloquer les analyses.",
+      "summary": {
+        "averageScore": "Score moyen",
+        "averageScoreHelper": "Dernières tentatives",
+        "practiceMinutes": "Minutes de pratique",
+        "practiceMinutesHelper": "Temps investi",
+        "sessions": "Sessions",
+        "sessionsHelper": "{{count}} tentatives",
+        "streak": "Série",
+        "streakValue": "{{days}} jours",
+        "streakHelper": "Meilleure série : {{days}} j"
+      },
+      "timeline": {
+        "title": "Courbe du score moyen",
+        "subtitle": "Vue hebdomadaire",
+        "empty": "Pas encore de chronologie.",
+        "tooltip": "{{count}} tentatives"
+      },
+      "difficulty": {
+        "title": "Répartition des difficultés",
+        "subtitle": "Part des tentatives",
+        "empty": "Aucune donnée de difficulté.",
+        "tooltip": "{{count}} tentatives · Moy. {{score}} / 4",
+        "sliceLabel": "Difficulté {{level}}"
+      },
+      "skill": {
+        "title": "Domaines de compétence",
+        "subtitle": "Score moyen",
+        "empty": "Aucun signal par compétence.",
+        "tooltip": "{{count}} tentatives · Moy. {{score}} / 4"
+      },
+      "tags": {
+        "title": "Tags",
+        "subtitle": "Score moyen",
+        "empty": "Aucun signal par tag.",
+        "tooltip": "{{count}} tentatives · Moy. {{score}} / 4"
+      },
+      "practiceCard": {
+        "title": "Résumé de pratique",
+        "totalAttempts": "Tentatives totales",
+        "averageSession": "Session moyenne",
+        "currentStreak": "Série en cours",
+        "bestStreak": "Meilleure série"
+      },
+      "minigame": {
+        "title": "Hub minijeux",
+        "sessionsHosted": "Sessions animées",
+        "roundsCompleted": "Manches terminées",
+        "players": "Joueurs impliqués",
+        "avgRounds": "Manches moy. / session",
+        "recentTitle": "Sessions récentes",
+        "recentMeta": "{{rounds}} manches · {{players}} joueurs · {{minutes}} min"
+      },
+      "minigameEmpty": "Animez un minijeu pour voir ces métriques."
+    }
   },
   "publicProfile": {
     "tagline": "En lumière",
@@ -201,6 +273,7 @@
     "loading": "Chargement du profil...",
     "error": "Impossible de charger ce profil. Réessayez.",
     "missing": "Ce profil n'est plus disponible.",
+    "private": "Ce profil est privé. Le joueur n'a pas encore partagé ses statistiques.",
     "bioEmpty": "Ce joueur n'a pas encore ajouté de bio.",
     "backToLeaderboard": "Retour au classement",
     "joined": "Inscrit le {{date}}",
@@ -214,7 +287,67 @@
       "tasksPlayedHint": "Tâches uniques avec une tentative terminée.",
       "lastActive": "Dernière activité",
       "lastActiveHint": "Horodatage de la dernière tentative terminée.",
-      "lastActiveUnknown": "Pas encore actif"
+      "lastActiveUnknown": "Pas encore actif",
+      "joinedLabel": "Inscription",
+      "joinedHint": "Première pratique enregistrée"
+    },
+    "insights": {
+      "title": "Analyse publique",
+      "subtitle": "Activité en temps réel sur les tâches et minijeux.",
+      "empty": "Ce joueur doit encore pratiquer pour afficher des insights.",
+      "summary": {
+        "averageScore": "Score moyen",
+        "averageScoreHelper": "Dernières tentatives",
+        "practiceMinutes": "Minutes de pratique",
+        "practiceMinutesHelper": "Durée estimée",
+        "sessions": "Sessions",
+        "sessionsHelper": "{{count}} tentatives",
+        "streak": "Série active",
+        "streakValue": "{{days}} jours",
+        "streakHelper": "Pic {{days}} j"
+      },
+      "timeline": {
+        "title": "Progression du score",
+        "subtitle": "Vue hebdomadaire",
+        "empty": "Pas encore de chronologie.",
+        "tooltip": "{{count}} tentatives"
+      },
+      "difficulty": {
+        "title": "Mix de difficultés",
+        "subtitle": "Part des tentatives",
+        "empty": "Aucune donnée de difficulté.",
+        "tooltip": "{{count}} tentatives · Moy. {{score}} / 4",
+        "sliceLabel": "Difficulté {{level}}"
+      },
+      "skill": {
+        "title": "Domaines",
+        "subtitle": "Score moyen",
+        "empty": "Pas de signal de compétence.",
+        "tooltip": "{{count}} tentatives · Moy. {{score}} / 4"
+      },
+      "tags": {
+        "title": "Tags",
+        "subtitle": "Score moyen",
+        "empty": "Pas de signal de tag.",
+        "tooltip": "{{count}} tentatives · Moy. {{score}} / 4"
+      },
+      "practiceCard": {
+        "title": "Résumé de pratique",
+        "totalAttempts": "Tentatives totales",
+        "averageSession": "Session moyenne",
+        "currentStreak": "Série en cours",
+        "bestStreak": "Meilleure série"
+      },
+      "minigame": {
+        "title": "Minijeux animés",
+        "sessionsHosted": "Sessions animées",
+        "roundsCompleted": "Manches terminées",
+        "players": "Joueurs impliqués",
+        "avgRounds": "Manches moy. / session",
+        "recentTitle": "Salles récentes",
+        "recentMeta": "{{rounds}} manches · {{players}} joueurs · {{minutes}} min"
+      },
+      "minigameEmpty": "Aucun minijeu public pour l'instant."
     }
   },
   "settings": {
