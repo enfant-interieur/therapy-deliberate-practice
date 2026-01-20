@@ -66,6 +66,7 @@ import { getErrorLogFields, getErrorRequestId, isProviderConfigError } from "./p
 import { localSuiteHealthCheck } from "./providers/localSuite";
 import { getOrCreateTtsAsset, type TtsStorage } from "./services/ttsService";
 import { fetchLeaderboardEntries, fetchUserProfileStats } from "./services/leaderboardService";
+import { fetchProfileInsights } from "./services/profileInsightsService";
 import {
   listMinigameSessions,
   softDeleteMinigameSession,
@@ -613,6 +614,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
   });
 
   app.get("/api/v1/profiles/:id", userAuth, async (c) => {
+    const user = c.get("user");
     const profileId = c.req.param("id");
     const log = logger.child({ requestId: c.get("requestId"), endpoint: "profile_public", profileId });
 
@@ -621,6 +623,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
         id: users.id,
         display_name: users.display_name,
         bio: users.bio,
+        is_profile_public: users.is_profile_public,
         created_at: users.created_at
       })
       .from(users)
@@ -632,7 +635,15 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
       return c.json({ error: "Not found" }, 404);
     }
 
-    const stats = await fetchUserProfileStats(db, row.id);
+    if (!row.is_profile_public && user.id !== row.id) {
+      log.warn("Profile is private");
+      return c.json({ error: "Profile is private" }, 403);
+    }
+
+    const [stats, insights] = await Promise.all([
+      fetchUserProfileStats(db, row.id),
+      fetchProfileInsights(db, row.id)
+    ]);
     log.info("Public profile fetched");
 
     return c.json({
@@ -645,7 +656,8 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
           average_score: stats.average_score,
           tasks_played: stats.tasks_played,
           last_active_at: stats.last_active_at ? new Date(stats.last_active_at).toISOString() : null
-        }
+        },
+        insights
       }
     });
   });
@@ -2304,6 +2316,7 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
       email: user.email,
       display_name: record?.display_name ?? "Player",
       bio: record?.bio ?? null,
+      is_profile_public: record?.is_profile_public ?? false,
       created_at: record?.created_at ? new Date(record.created_at).toISOString() : null,
       hasOpenAiKey: Boolean(settings?.openai_key_ciphertext && settings?.openai_key_iv)
     });
@@ -2330,7 +2343,8 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
         .trim()
         .max(160, "Bio is too long.")
         .optional()
-        .nullable()
+        .nullable(),
+      isPublicProfile: z.boolean().optional()
     });
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
@@ -2339,15 +2353,22 @@ export const createApiApp = ({ env, db, tts, queues, providerOverrides }: ApiDep
     }
     const data = parsed.data;
     const normalizedBio = data.bio?.trim() || null;
+    const isPublicProfile = data.isPublicProfile ?? false;
     await db
       .update(users)
       .set({
         display_name: data.displayName,
-        bio: normalizedBio
+        bio: normalizedBio,
+        is_profile_public: isPublicProfile
       })
       .where(eq(users.id, user.id));
     log.info("Profile updated", { userId: user.id });
-    return c.json({ ok: true, display_name: data.displayName, bio: normalizedBio });
+    return c.json({
+      ok: true,
+      display_name: data.displayName,
+      bio: normalizedBio,
+      is_profile_public: isPublicProfile
+    });
   });
 
   app.get("/api/v1/me/settings", async (c) => {

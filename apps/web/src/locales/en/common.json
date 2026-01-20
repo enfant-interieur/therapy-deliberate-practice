@@ -193,7 +193,79 @@
     "profileSave": "Save profile",
     "profileSaving": "Saving...",
     "profileSaved": "Profile saved",
-    "profileError": "We couldn't save your profile. Try again."
+    "profileError": "We couldn't save your profile. Try again.",
+    "privacy": {
+      "title": "Public presence",
+      "subtitle": "Choose if your insights appear on the public profile page.",
+      "ariaLabel": "Toggle public profile visibility",
+      "toggleOn": "Public",
+      "toggleOff": "Private",
+      "helperOn": "Anyone with your link can explore your live stats.",
+      "helperOff": "Only you can see this rich profile until you share it.",
+      "linkLabel": "Shareable link",
+      "copyLink": "Copy link",
+      "copied": "Copied!",
+      "copyError": "Copy failed",
+      "privateHint": "Keep practicing privately until you're ready to showcase."
+    },
+    "insights": {
+      "title": "Performance intelligence",
+      "subtitle": "Your personalized trends across practice and hosted minigames.",
+      "empty": "Complete a practice run to unlock detailed analytics.",
+      "summary": {
+        "averageScore": "Avg score",
+        "averageScoreHelper": "Latest attempts",
+        "practiceMinutes": "Practice minutes",
+        "practiceMinutesHelper": "Time invested",
+        "sessions": "Sessions",
+        "sessionsHelper": "{{count}} attempts",
+        "streak": "Streak",
+        "streakValue": "{{days}} days",
+        "streakHelper": "Best {{days}} days"
+      },
+      "timeline": {
+        "title": "Average score trend",
+        "subtitle": "Weekly view",
+        "empty": "No timeline data yet.",
+        "tooltip": "{{count}} attempts"
+      },
+      "difficulty": {
+        "title": "Difficulty mix",
+        "subtitle": "Share of attempts",
+        "empty": "No difficulty data yet.",
+        "tooltip": "{{count}} attempts · Avg {{score}} / 4",
+        "sliceLabel": "Difficulty {{level}}"
+      },
+      "skill": {
+        "title": "Skill domains",
+        "subtitle": "Average score",
+        "empty": "No skill data yet.",
+        "tooltip": "{{count}} attempts · Avg {{score}} / 4"
+      },
+      "tags": {
+        "title": "Tags",
+        "subtitle": "Average score",
+        "empty": "No tag data yet.",
+        "tooltip": "{{count}} attempts · Avg {{score}} / 4"
+      },
+      "practiceCard": {
+        "title": "Practice summary",
+        "totalAttempts": "Total attempts",
+        "averageSession": "Average session",
+        "currentStreak": "Current streak",
+        "bestStreak": "Best streak"
+      },
+      "minigame": {
+        "title": "Minigame hub",
+        "sessionsHosted": "Sessions hosted",
+        "roundsCompleted": "Rounds completed",
+        "players": "Players engaged",
+        "avgRounds": "Avg rounds per session",
+        "recentTitle": "Recent sessions",
+        "recentMeta": "{{rounds}} rounds · {{players}} players · {{minutes}} min"
+      },
+      "minigameEmpty": "Host a minigame session to see these stats."
+    }
   },
   "publicProfile": {
     "tagline": "Player spotlight",
@@ -201,6 +273,7 @@
     "loading": "Loading profile...",
     "error": "We couldn't load this profile. Try again.",
     "missing": "This profile is no longer available.",
+    "private": "This profile is private. The player hasn't shared their stats yet.",
     "bioEmpty": "This player hasn't added a bio yet.",
     "backToLeaderboard": "Back to leaderboard",
     "joined": "Joined {{date}}",
@@ -214,7 +287,67 @@
       "tasksPlayedHint": "Unique tasks with a completed attempt.",
       "lastActive": "Last active",
       "lastActiveHint": "Latest completed attempt timestamp.",
-      "lastActiveUnknown": "Not yet active"
+      "lastActiveUnknown": "Not yet active",
+      "joinedLabel": "Joined",
+      "joinedHint": "First recorded practice"
+    },
+    "insights": {
+      "title": "Performance breakdown",
+      "subtitle": "Live signal across tasks, domains, and hosted events.",
+      "empty": "This player needs more practice to showcase insights.",
+      "summary": {
+        "averageScore": "Avg score",
+        "averageScoreHelper": "Latest attempts",
+        "practiceMinutes": "Practice minutes",
+        "practiceMinutesHelper": "Estimated practice time",
+        "sessions": "Sessions",
+        "sessionsHelper": "{{count}} attempts",
+        "streak": "Active streak",
+        "streakValue": "{{days}} days",
+        "streakHelper": "Peak {{days}} days"
+      },
+      "timeline": {
+        "title": "Average score trend",
+        "subtitle": "Weekly progression",
+        "empty": "No timeline yet.",
+        "tooltip": "{{count}} attempts"
+      },
+      "difficulty": {
+        "title": "Difficulty mix",
+        "subtitle": "Share of attempts",
+        "empty": "No difficulty distribution yet.",
+        "tooltip": "{{count}} attempts · Avg {{score}} / 4",
+        "sliceLabel": "Difficulty {{level}}"
+      },
+      "skill": {
+        "title": "Skill domains",
+        "subtitle": "Avg score",
+        "empty": "No skill signals yet.",
+        "tooltip": "{{count}} attempts · Avg {{score}} / 4"
+      },
+      "tags": {
+        "title": "Tags",
+        "subtitle": "Avg score",
+        "empty": "No tag signals yet.",
+        "tooltip": "{{count}} attempts · Avg {{score}} / 4"
+      },
+      "practiceCard": {
+        "title": "Practice summary",
+        "totalAttempts": "Total attempts",
+        "averageSession": "Average session",
+        "currentStreak": "Current streak",
+        "bestStreak": "Best streak"
+      },
+      "minigame": {
+        "title": "Hosted minigames",
+        "sessionsHosted": "Sessions hosted",
+        "roundsCompleted": "Rounds completed",
+        "players": "Players engaged",
+        "avgRounds": "Avg rounds per session",
+        "recentTitle": "Latest rooms",
+        "recentMeta": "{{rounds}} rounds · {{players}} players · {{minutes}} min"
+      },
+      "minigameEmpty": "No public minigame sessions yet."
     }
   },
   "settings": {

@@ -23,6 +23,7 @@ export type UserProfile = {
   email: string | null;
   display_name: string;
   bio: string | null;
+  is_profile_public: boolean;
   created_at: string | null;
   hasOpenAiKey: boolean;
 };
@@ -47,6 +48,7 @@ export type UserSettingsInput = {
 export type UserProfileInput = {
   displayName: string;
   bio?: string | null;
+  isPublicProfile: boolean;
 };
 
 export type PublicProfile = {
@@ -59,6 +61,61 @@ export type PublicProfile = {
     tasks_played: number;
     last_active_at: string | null;
   };
+  insights: ProfileInsights;
+};
+
+export type ScoreTrendPoint = {
+  period_start: number;
+  period_end: number;
+  average_score: number;
+  attempts: number;
+};
+
+export type BreakdownEntry = {
+  label: string;
+  average_score: number;
+  attempts: number;
+};
+
+export type DifficultyMixEntry = {
+  difficulty: number;
+  average_score: number;
+  attempts: number;
+};
+
+export type PracticeSummary = {
+  total_attempts: number;
+  total_minutes: number;
+  sessions: number;
+  average_session_minutes: number;
+  average_attempt_score: number;
+  current_streak_days: number;
+  best_streak_days: number;
+};
+
+export type MinigameSummary = {
+  sessions_hosted: number;
+  rounds_logged: number;
+  completed_rounds: number;
+  players_hosted: number;
+  average_rounds_per_session: number;
+  recent_sessions: Array<{
+    session_id: string;
+    started_at: number;
+    ended_at: number | null;
+    duration_minutes: number;
+    rounds: number;
+    players: number;
+  }>;
+};
+
+export type ProfileInsights = {
+  score_trend: ScoreTrendPoint[];
+  skill_domain_breakdown: BreakdownEntry[];
+  tag_breakdown: BreakdownEntry[];
+  difficulty_mix: DifficultyMixEntry[];
+  practice_summary: PracticeSummary;
+  minigame_summary: MinigameSummary;
 };
 
 export type PublicProfileResponse = {
@@ -242,7 +299,10 @@ export const api = createApi({
     getMe: builder.query<UserProfile, void>({
       query: () => "/me"
     }),
-    updateMeProfile: builder.mutation<{ ok: boolean; display_name: string; bio: string | null }, UserProfileInput>({
+    updateMeProfile: builder.mutation<
+      { ok: boolean; display_name: string; bio: string | null; is_profile_public: boolean },
+      UserProfileInput
+    >({
       query: (body) => ({ url: "/me/profile", method: "PUT", body })
     }),
     getPublicProfile: builder.query<PublicProfileResponse, string>({

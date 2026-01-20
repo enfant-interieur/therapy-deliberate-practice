@@ -42,6 +42,9 @@ const setupDb = () => {
     CREATE TABLE users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT 'Player',
+      bio TEXT,
+      is_profile_public INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE user_settings (
@@ -88,7 +91,13 @@ test("practice run returns 400 when openai_only has no key", async () => {
   const app = createApiApp({ env, db, tts: { storage } });
   const userId = "user-1";
 
-  await db.insert(users).values({ id: userId, email: "user@example.com", created_at: Date.now() });
+  await db.insert(users).values({
+    id: userId,
+    email: "user@example.com",
+    display_name: "Player One",
+    is_profile_public: 1,
+    created_at: Date.now()
+  });
   await db.insert(userSettings).values({
     user_id: userId,
     ai_mode: "openai_only",

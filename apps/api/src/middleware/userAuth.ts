@@ -11,15 +11,23 @@ export type UserIdentity = {
   email: string | null;
 };
 
+const buildAnonymousDisplayName = (userId: string) => {
+  const fallback = userId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() || "PLAYER";
+  const suffix = fallback.slice(0, 6).padEnd(6, "X");
+  return `Player ${suffix}`;
+};
+
 const ensureUserRecords = async (db: ApiDatabase, identity: UserIdentity) => {
   const now = Date.now();
+  const defaultDisplayName = buildAnonymousDisplayName(identity.id);
   if (identity.email) {
     await db
       .insert(users)
       .values({
         id: identity.id,
         email: identity.email,
-        display_name: identity.email.split("@")[0] || "Player",
+        display_name: defaultDisplayName,
+        is_profile_public: true,
         created_at: now
       })
       .onConflictDoUpdate({
@@ -32,7 +40,8 @@ const ensureUserRecords = async (db: ApiDatabase, identity: UserIdentity) => {
       .values({
         id: identity.id,
         email: `user-${identity.id}@example.invalid`,
-        display_name: "Player",
+        display_name: defaultDisplayName,
+        is_profile_public: true,
         created_at: now
       })
       .onConflictDoNothing();
