@@ -130,13 +130,13 @@ export const LibraryPage = () => {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-          <div>
+      <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 sm:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
             <h2 className="text-2xl font-semibold">{t("library.title")}</h2>
             <p className="text-sm text-slate-300">{t("library.subtitle")}</p>
           </div>
-          <div className="w-full md:max-w-xl">
+          <div className="min-w-0 w-full lg:max-w-xl">
             <LibrarySearchBar
               ref={inputRef}
               query={searchState.q}

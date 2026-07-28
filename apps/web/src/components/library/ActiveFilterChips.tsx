@@ -97,16 +97,16 @@ export const ActiveFilterChips = ({
       <span className="text-sm text-slate-300">
         {t("library.resultsSummary", { count: total })}
       </span>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="min-w-0 max-w-full flex flex-wrap items-center gap-2">
         {chips.map((chip) => (
           <button
             key={chip.key}
             type="button"
             onClick={chip.onRemove}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/60 px-3 py-1 text-xs text-slate-200 transition hover:border-white/30"
+            className="inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-slate-900/60 px-3 py-1 text-xs text-slate-200 transition hover:border-white/30"
           >
-            {chip.label}
-            <span className="text-slate-400">×</span>
+            <span className="min-w-0 break-words text-left">{chip.label}</span>
+            <span className="shrink-0 text-slate-400">×</span>
           </button>
         ))}
         <button
