@@ -97,10 +97,17 @@ test.describe("patient audio warmup and playback", () => {
         open: async () => cache,
       } as CacheStorage;
 
-      let fetchCalls = 0;
-      window.fetch = async () => {
-        fetchCalls += 1;
-        return new Response(new Blob(["audio"]), { status: 200 });
+      const originalFetch = window.fetch.bind(window);
+      let audioFetchCalls = 0;
+      window.fetch = async (input, init) => {
+        const requestUrl =
+          input instanceof Request ? input.url : String(input);
+        const url = new URL(requestUrl, window.location.href);
+        if (url.pathname === "/api/v1/tts/cache-1") {
+          audioFetchCalls += 1;
+          return new Response(new Blob(["audio"]), { status: 200 });
+        }
+        return originalFetch(input, init);
       };
 
       const bank = new PatientAudioBank({
@@ -131,10 +138,10 @@ test.describe("patient audio warmup and playback", () => {
       const blobReady =
         Boolean(entry?.blobUrl) && audio.src.startsWith("blob:");
       revokeAllBlobUrls();
-      return { blobReady, fetchCalls };
+      return { audioFetchCalls, blobReady };
     });
 
-    expect(result.fetchCalls).toBe(1);
+    expect(result.audioFetchCalls).toBe(1);
     expect(result.blobReady).toBe(true);
   });
 
