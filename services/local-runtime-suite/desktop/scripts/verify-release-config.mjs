@@ -122,9 +122,9 @@ if (minimumMacVersion !== "14.0") {
 }
 
 const rpmCompression = tauriConfig.bundle?.linux?.rpm?.compression;
-if (rpmCompression?.type !== "zstd" || rpmCompression?.level !== 3) {
+if (rpmCompression?.type !== "zstd" || rpmCompression?.level !== -7) {
   throw new Error(
-    "Linux RPM packaging must use Zstandard level 3 so the portable runtime bundles within the native-build time budget.",
+    "Linux RPM packaging must use Zstandard fast level 7 so the portable runtime bundles within the native-build time budget.",
   );
 }
 
