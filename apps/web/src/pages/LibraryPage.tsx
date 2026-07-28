@@ -208,44 +208,48 @@ export const LibraryPage = () => {
           data.map((task) => (
             <article
               key={task.id}
-              className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg"
+              className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg"
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
+              <div className="flex min-w-0 items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="break-words text-xs uppercase tracking-[0.3em] text-teal-300">
                     {task.skill_domain}
                   </p>
-                  <h3 className="text-xl font-semibold">{task.title}</h3>
+                  <h3 className="break-words text-xl font-semibold">
+                    {task.title}
+                  </h3>
                 </div>
-                <span className="rounded-full bg-teal-500/10 px-3 py-1 text-xs text-teal-200">
+                <span className="shrink-0 rounded-full bg-teal-500/10 px-3 py-1 text-xs text-teal-200">
                   {t("library.difficulty", {
                     difficulty: task.base_difficulty,
                   })}
                 </span>
               </div>
-              <p className="mt-4 text-sm text-slate-300">{task.description}</p>
+              <p className="mt-4 break-words text-sm text-slate-300">
+                {task.description}
+              </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {task.tags.map((tag) => (
                   <span
                     key={tag}
-                    className="rounded-full border border-white/10 px-3 py-1 text-xs"
+                    className="max-w-full break-words rounded-full border border-white/10 px-3 py-1 text-xs"
                   >
                     {tag}
                   </span>
                 ))}
               </div>
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Link
                   to={`/tasks/${task.id}`}
                   state={{ libraryReturnTo }}
-                  className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
+                  className="rounded-full bg-white px-4 py-2 text-center text-sm font-semibold text-slate-950"
                 >
                   {t("library.viewDetails")}
                 </Link>
                 <Link
                   to={`/practice/${task.id}`}
                   state={{ libraryReturnTo }}
-                  className="rounded-full border border-white/20 px-4 py-2 text-sm"
+                  className="rounded-full border border-white/20 px-4 py-2 text-center text-sm"
                 >
                   {t("library.startPractice")}
                 </Link>

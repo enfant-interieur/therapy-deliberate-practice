@@ -1,25 +1,34 @@
 import { createHash } from "node:crypto";
 import { execFile, execFileSync, spawn } from "node:child_process";
-import { once } from "node:events";
 import {
   mkdtempSync,
   readFileSync,
   readdirSync,
   rmSync,
   statSync,
-  writeFileSync
+  writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const webRoot = resolve(import.meta.dirname, "..");
 const repositoryRoot = resolve(webRoot, "..", "..");
 const distRoot = join(webRoot, "dist");
-const gatewayRoot = resolve(repositoryRoot, "services", "local-runtime-suite", "python");
-const playwrightCli = resolve(repositoryRoot, "node_modules", "@playwright", "test", "cli.js");
+const gatewayRoot = resolve(
+  repositoryRoot,
+  "services",
+  "local-runtime-suite",
+  "python",
+);
+const playwrightCli = resolve(
+  repositoryRoot,
+  "node_modules",
+  "@playwright",
+  "test",
+  "cli.js",
+);
 const python = process.env.LOCAL_RUNTIME_PYTHON;
 const receiptPath =
   process.env.LOCAL_RUNTIME_SMOKE_RECEIPT ||
@@ -27,8 +36,35 @@ const receiptPath =
 const deployedAppUrl =
   process.env.DEPLOYED_APP_URL || "https://therapy-deliberate-practice.com";
 const pairingKey = "network-smoke-" + "7".repeat(64);
-const workingDirectory = mkdtempSync(join(tmpdir(), "therapy-local-network-smoke-"));
+const workingDirectory = mkdtempSync(
+  join(tmpdir(), "therapy-local-network-smoke-"),
+);
 const configPath = join(workingDirectory, "gateway-config.json");
+
+const childHasExited = (child) =>
+  child.exitCode !== null || child.signalCode !== null;
+
+const waitForChildExit = (child, timeoutMs) => {
+  if (childHasExited(child)) return Promise.resolve(true);
+
+  return new Promise((resolveExit) => {
+    let settled = false;
+    const finish = (exited) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      child.off("exit", onExit);
+      resolveExit(exited);
+    };
+    const onExit = () => finish(true);
+    const timeout = setTimeout(() => finish(false), timeoutMs);
+
+    child.once("exit", onExit);
+    // Close the race in which the process exits between the first status check
+    // and listener registration.
+    if (childHasExited(child)) finish(true);
+  });
+};
 
 const findOpenPort = async () => {
   const { createServer } = await import("node:net");
@@ -50,13 +86,16 @@ const findOpenPort = async () => {
 const waitForGateway = async (origin, child) => {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
-    if (child.exitCode !== null) {
-      throw new Error(`The local runtime exited before becoming ready (code ${child.exitCode}).`);
+    if (childHasExited(child)) {
+      throw new Error(
+        `The local runtime exited before becoming ready (code ${child.exitCode}, signal ${child.signalCode}).`,
+      );
     }
     try {
       const response = await fetch(`${origin}/health`, { cache: "no-store" });
       const payload = await response.json();
-      if (response.ok && payload.service === "therapy-local-runtime") return payload;
+      if (response.ok && payload.service === "therapy-local-runtime")
+        return payload;
     } catch {
       // The subprocess may still be importing its dependencies.
     }
@@ -98,11 +137,11 @@ writeFileSync(
       default_models: {},
       prefer_local: true,
       data_dir: join(workingDirectory, "data"),
-      cache_dir: join(workingDirectory, "cache")
+      cache_dir: join(workingDirectory, "cache"),
     },
     null,
-    2
-  )
+    2,
+  ),
 );
 
 const gatewayArguments = [
@@ -111,7 +150,7 @@ const gatewayArguments = [
   "--port",
   String(gatewayPort),
   "--config",
-  configPath
+  configPath,
 ];
 const gateway = spawn(
   python || "uv",
@@ -125,7 +164,7 @@ const gateway = spawn(
         "--with-requirements",
         join(gatewayRoot, "requirements-test.txt"),
         "python",
-        ...gatewayArguments
+        ...gatewayArguments,
       ],
   {
     cwd: gatewayRoot,
@@ -134,10 +173,10 @@ const gateway = spawn(
       LOCAL_RUNTIME_ALLOW_ORIGINS: new URL(deployedAppUrl).origin,
       LOCAL_RUNTIME_PRELOAD_ALL: "0",
       LOCAL_RUNTIME_PRELOAD_DEFAULTS: "0",
-      LOCAL_RUNTIME_SELFTEST: "0"
+      LOCAL_RUNTIME_SELFTEST: "0",
     },
-    stdio: ["ignore", "pipe", "pipe"]
-  }
+    stdio: ["ignore", "pipe", "pipe"],
+  },
 );
 let gatewayOutput = "";
 gateway.stdout.on("data", (chunk) => {
@@ -148,6 +187,7 @@ gateway.stderr.on("data", (chunk) => {
 });
 
 const startedAt = new Date().toISOString();
+let cleanupError = null;
 try {
   const gatewayIdentity = await waitForGateway(gatewayOrigin, gateway);
   const playwright = spawn(
@@ -157,7 +197,7 @@ try {
       "test",
       "tests/localRuntimeFlows.spec.ts",
       "--grep",
-      "the existing deployed HTTPS origin can reach a real loopback gateway"
+      "the existing deployed HTTPS origin can reach a real loopback gateway",
     ],
     {
       cwd: webRoot,
@@ -165,19 +205,26 @@ try {
         ...process.env,
         REAL_HTTPS_APP_URL: deployedAppUrl,
         REAL_GATEWAY_ORIGIN: gatewayOrigin,
-        REAL_PAIRING_KEY: pairingKey
+        REAL_PAIRING_KEY: pairingKey,
       },
-      stdio: "inherit"
-    }
+      stdio: "inherit",
+    },
   );
-  const exitCode = await new Promise((resolveExit) => playwright.once("exit", resolveExit));
+  const exitCode = await new Promise((resolveExit) =>
+    playwright.once("exit", resolveExit),
+  );
   if (exitCode !== 0) {
-    throw new Error(`Playwright network smoke failed with exit code ${exitCode}.`);
+    throw new Error(
+      `Playwright network smoke failed with exit code ${exitCode}.`,
+    );
   }
   const { stdout: browserVersion } = await execFileAsync(
     process.execPath,
-    ["-e", "import('playwright').then(async p=>{const b=await p.chromium.launch();console.log(b.version());await b.close()})"],
-    { cwd: repositoryRoot }
+    [
+      "-e",
+      "import('playwright').then(async p=>{const b=await p.chromium.launch();console.log(b.version());await b.close()})",
+    ],
+    { cwd: repositoryRoot },
   );
   const receipt = {
     schema_version: 1,
@@ -186,47 +233,57 @@ try {
     finished_at: new Date().toISOString(),
     app: {
       url: deployedAppUrl,
-      kind: "existing deployed public HTTPS origin (read-only smoke)"
+      kind: "existing deployed public HTTPS origin (read-only smoke)",
     },
     candidate_build: {
       kind: "latest local production build covered by the functional browser suite",
-      dist_sha256: hashProductionBuild()
+      dist_sha256: hashProductionBuild(),
     },
     gateway: {
       origin: gatewayOrigin,
-      identity: gatewayIdentity
+      identity: gatewayIdentity,
     },
     browser: {
       name: "Chromium",
       version: browserVersion.trim(),
-      local_network_access_permission: "granted for the deployed origin to model user consent"
+      local_network_access_permission:
+        "granted for the deployed origin to model user consent",
     },
     source: {
       git_head: execFileSync("git", ["rev-parse", "HEAD"], {
         cwd: repositoryRoot,
-        encoding: "utf8"
+        encoding: "utf8",
       }).trim(),
       working_tree_dirty:
         execFileSync("git", ["status", "--porcelain"], {
           cwd: repositoryRoot,
-          encoding: "utf8"
-        }).trim().length > 0
-    }
+          encoding: "utf8",
+        }).trim().length > 0,
+    },
   };
-  writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
+  writeFileSync(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, {
+    mode: 0o600,
+  });
   console.log(`Network-smoke receipt: ${receiptPath}`);
 } catch (error) {
   console.error(error);
   if (gatewayOutput.trim()) console.error(gatewayOutput.trim());
   throw error;
 } finally {
-  if (gateway.exitCode === null) {
+  if (!childHasExited(gateway)) {
     gateway.kill("SIGTERM");
-    await Promise.race([once(gateway, "exit"), delay(5_000)]);
+    await waitForChildExit(gateway, 5_000);
   }
-  if (gateway.exitCode === null) {
+  let stopped = childHasExited(gateway);
+  if (!stopped) {
     gateway.kill("SIGKILL");
-    await once(gateway, "exit");
+    stopped = await waitForChildExit(gateway, 5_000);
   }
   rmSync(workingDirectory, { recursive: true, force: true });
+  if (!stopped) {
+    cleanupError = new Error(
+      "The local runtime did not stop after SIGTERM and SIGKILL.",
+    );
+  }
 }
+if (cleanupError) throw cleanupError;
