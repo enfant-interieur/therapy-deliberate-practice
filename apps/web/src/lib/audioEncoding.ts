@@ -3,11 +3,19 @@ const WAV_HEADER_SIZE = 44;
 export const TARGET_SAMPLE_RATE = 16000;
 export const WAV_MIME_TYPE = "audio/wav";
 
-const floatTo16BitPCM = (view: DataView, offset: number, input: Float32Array) => {
+const floatTo16BitPCM = (
+  view: DataView,
+  offset: number,
+  input: Float32Array,
+) => {
   let writeOffset = offset;
   for (let i = 0; i < input.length; i += 1) {
     const sample = Math.max(-1, Math.min(1, input[i]));
-    view.setInt16(writeOffset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+    view.setInt16(
+      writeOffset,
+      sample < 0 ? sample * 0x8000 : sample * 0x7fff,
+      true,
+    );
     writeOffset += 2;
   }
 };
@@ -30,7 +38,11 @@ export const mixToMonoBuffer = (buffer: AudioBuffer) => {
   return result;
 };
 
-export const resampleLinear = (input: Float32Array, inRate: number, outRate: number) => {
+export const resampleLinear = (
+  input: Float32Array,
+  inRate: number,
+  outRate: number,
+) => {
   if (inRate === outRate) {
     return input;
   }
@@ -76,12 +88,17 @@ export const shouldForceWav = (mimeType?: string | null) => {
   if (!mimeType) return true;
   const normalized = mimeType.toLowerCase();
   if (normalized.includes("wav")) return false;
-  return ["webm", "mp4", "aac", "mpeg", "ogg"].some((token) => normalized.includes(token));
+  return ["webm", "mp4", "aac", "mpeg", "ogg"].some((token) =>
+    normalized.includes(token),
+  );
 };
 
 export const resolveAudioContextCtor = () => {
   if (typeof window === "undefined") return null;
-  const candidate = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  const candidate =
+    window.AudioContext ||
+    (window as typeof window & { webkitAudioContext?: typeof AudioContext })
+      .webkitAudioContext;
   return candidate ?? null;
 };
 
@@ -95,7 +112,11 @@ export const convertBlobToWav = async (blob: Blob) => {
   try {
     const decoded = await context.decodeAudioData(audioData.slice(0));
     const mono = mixToMonoBuffer(decoded);
-    const resampled = resampleLinear(mono, decoded.sampleRate, TARGET_SAMPLE_RATE);
+    const resampled = resampleLinear(
+      mono,
+      decoded.sampleRate,
+      TARGET_SAMPLE_RATE,
+    );
     const wavBuffer = encodeWav(resampled, TARGET_SAMPLE_RATE);
     return new Blob([wavBuffer], { type: WAV_MIME_TYPE });
   } finally {
@@ -109,7 +130,7 @@ export const convertBlobToWav = async (blob: Blob) => {
 
 export const normalizeUploadBlob = async (
   blob: Blob,
-  mimeType?: string | null
+  mimeType?: string | null,
 ): Promise<{ blob: Blob; mimeType: string }> => {
   if (!shouldForceWav(mimeType ?? blob.type)) {
     return { blob, mimeType: mimeType ?? blob.type ?? WAV_MIME_TYPE };
@@ -118,7 +139,10 @@ export const normalizeUploadBlob = async (
     const wavBlob = await convertBlobToWav(blob);
     return { blob: wavBlob, mimeType: WAV_MIME_TYPE };
   } catch (error) {
-    console.warn("Failed to convert audio blob to WAV; sending original payload.", error);
+    console.warn(
+      "Failed to convert audio blob to WAV; sending original payload.",
+      error,
+    );
     return { blob, mimeType: mimeType ?? blob.type ?? WAV_MIME_TYPE };
   }
 };

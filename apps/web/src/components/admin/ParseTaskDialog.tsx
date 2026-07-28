@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { DeliberatePracticeTaskV2, ParseMode } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
-import { Button, Label, Textarea, Input, Select } from "./AdminUi";
+import { Button, Input, Label, Textarea, Select } from "./AdminUi";
+import { useAccessibleDialog } from "../../hooks/useAccessibleDialog";
 
 const SummaryRow = ({ label, value }: { label: string; value: string }) => (
   <div>
-    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+      {label}
+    </p>
     <p className="text-sm text-white">{value}</p>
   </div>
 );
@@ -29,7 +32,7 @@ export const ParseTaskDialog = ({
   isImporting,
   onClose,
   onParse,
-  onImport
+  onImport,
 }: ParseTaskDialogProps) => {
   const { t } = useTranslation();
   const [freeText, setFreeText] = useState("");
@@ -37,61 +40,53 @@ export const ParseTaskDialog = ({
   const [parseMode, setParseMode] = useState<ParseMode>("original");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<DeliberatePracticeTaskV2 | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const isPartialPrompt = parseMode === "partial_prompt";
   const freeTextLabel = isPartialPrompt
-    ? "Instruction prompt"
+    ? t("admin.parse.inputs.instructionPrompt")
     : t("admin.createFromText.placeholderText");
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setFreeText("");
     setSourceUrl("");
     setParseMode("original");
     setResult(null);
     setError(null);
     onClose();
-  };
+  }, [onClose]);
 
-  useEffect(() => {
-    if (!open) return;
-    const firstInput = containerRef.current?.querySelector<HTMLElement>(
-      "textarea, input, button"
-    );
-    firstInput?.focus();
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        handleClose();
-      }
-      if (event.key === "Tab") {
-        const focusable = Array.from(
-          containerRef.current?.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])'
-          ) ?? []
-        );
-        if (!focusable.length) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          last.focus();
-          event.preventDefault();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          first.focus();
-          event.preventDefault();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
-  }, [open]);
+  const { dialogRef, titleId } = useAccessibleDialog(open, handleClose);
 
   if (!open) return null;
+
+  const clearParsedResult = () => {
+    setResult(null);
+    setError(null);
+  };
+
+  const handleFreeTextChange = (value: string) => {
+    setFreeText(value);
+    if (value.trim()) setSourceUrl("");
+    clearParsedResult();
+  };
+
+  const handleSourceUrlChange = (value: string) => {
+    setSourceUrl(value);
+    if (value.trim()) setFreeText("");
+    clearParsedResult();
+  };
+
+  const handleParseModeChange = (nextMode: ParseMode) => {
+    setParseMode(nextMode);
+    if (nextMode === "partial_prompt") setSourceUrl("");
+    clearParsedResult();
+  };
 
   const handleParse = async () => {
     setError(null);
     const parsed = await onParse({
       free_text: freeText || undefined,
       source_url: sourceUrl || undefined,
-      parse_mode: parseMode
+      parse_mode: parseMode,
     });
     if (!parsed) {
       setError(t("admin.createFromText.errorFallback"));
@@ -107,15 +102,23 @@ export const ParseTaskDialog = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm">
       <div
-        ref={containerRef}
-        className="w-full max-w-3xl rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl"
       >
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-white">{t("admin.parse.title")}</h3>
-            <p className="text-sm text-slate-400">{t("admin.parse.subtitle")}</p>
+            <h3 id={titleId} className="text-lg font-semibold text-white">
+              {t("admin.parse.title")}
+            </h3>
+            <p className="text-sm text-slate-400">
+              {t("admin.parse.subtitle")}
+            </p>
           </div>
           <Button variant="ghost" onClick={handleClose}>
             {t("admin.actions.close")}
@@ -123,28 +126,55 @@ export const ParseTaskDialog = ({
         </div>
         <div className="mt-6 grid gap-4 md:grid-cols-2">
           <div className="space-y-2 md:col-span-2">
-            <Label>{freeTextLabel}</Label>
+            <Label htmlFor="parse-task-text">{freeTextLabel}</Label>
             <Textarea
+              id="parse-task-text"
+              data-dialog-autofocus
               className="min-h-[140px]"
               value={freeText}
-              onChange={(event) => setFreeText(event.target.value)}
+              onChange={(event) => handleFreeTextChange(event.target.value)}
             />
             {isPartialPrompt && (
               <p className="text-xs text-slate-400">
-                Provide instructions for the task you want generated (not source material to parse).
+                {t("admin.parse.inputs.instructionHint")}
               </p>
             )}
           </div>
+          {!isPartialPrompt && (
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="parse-task-source-url">
+                {t("admin.parse.inputs.sourceUrl")}
+              </Label>
+              <Input
+                id="parse-task-source-url"
+                value={sourceUrl}
+                onChange={(event) =>
+                  handleSourceUrlChange(event.target.value)
+                }
+                placeholder="https://"
+              />
+              <p className="text-xs text-slate-400">
+                {t("admin.parse.inputs.sourceChoiceHint")}
+              </p>
+            </div>
+          )}
           <div className="space-y-2 md:col-span-2">
-            <Label>{t("admin.createFromText.placeholderUrl")}</Label>
-            <Input value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} />
-          </div>
-          <div className="space-y-2 md:col-span-2">
-            <Label>Parse mode</Label>
-            <Select value={parseMode} onChange={(event) => setParseMode(event.target.value as ParseMode)}>
-              <option value="original">Original Generation</option>
-              <option value="exact">Exact parsing</option>
-              <option value="partial_prompt">From partial prompt</option>
+            <Label htmlFor="parse-task-mode">
+              {t("admin.parse.inputs.parseMode")}
+            </Label>
+            <Select
+              id="parse-task-mode"
+              aria-label={t("admin.parse.inputs.parseMode")}
+              value={parseMode}
+              onChange={(event) =>
+                handleParseModeChange(event.target.value as ParseMode)
+              }
+            >
+              <option value="original">{t("admin.parse.mode.original")}</option>
+              <option value="exact">{t("admin.parse.mode.exact")}</option>
+              <option value="partial_prompt">
+                {t("admin.parse.mode.partialPrompt")}
+              </option>
             </Select>
           </div>
         </div>
@@ -154,14 +184,22 @@ export const ParseTaskDialog = ({
             {t("admin.actions.cancel")}
           </Button>
           <Button variant="primary" onClick={handleParse} disabled={isParsing}>
-            {isParsing ? t("admin.createFromText.parsing") : t("admin.createFromText.parse")}
+            {isParsing
+              ? t("admin.createFromText.parsing")
+              : t("admin.createFromText.parse")}
           </Button>
         </div>
         {result && (
           <div className="mt-6 rounded-2xl border border-white/10 bg-slate-950/50 p-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <SummaryRow label={t("admin.task.titleLabel")} value={result.task.title} />
-              <SummaryRow label={t("admin.task.skillDomainLabel")} value={result.task.skill_domain} />
+              <SummaryRow
+                label={t("admin.task.titleLabel")}
+                value={result.task.title}
+              />
+              <SummaryRow
+                label={t("admin.task.skillDomainLabel")}
+                value={result.task.skill_domain}
+              />
               <SummaryRow
                 label={t("admin.task.difficultyLabel")}
                 value={String(result.task.base_difficulty)}
@@ -170,11 +208,20 @@ export const ParseTaskDialog = ({
                 label={t("admin.content.criteria")}
                 value={String(result.criteria.length)}
               />
-              <SummaryRow label="Language" value={result.task.language ?? "en"} />
+              <SummaryRow
+                label={t("admin.task.languageLabel")}
+                value={result.task.language ?? "en"}
+              />
             </div>
             <div className="mt-4 flex justify-end">
-              <Button variant="primary" onClick={handleImport} disabled={isImporting}>
-                {isImporting ? t("admin.task.importing") : t("admin.task.import")}
+              <Button
+                variant="primary"
+                onClick={handleImport}
+                disabled={isImporting}
+              >
+                {isImporting
+                  ? t("admin.task.importing")
+                  : t("admin.task.import")}
               </Button>
             </div>
           </div>

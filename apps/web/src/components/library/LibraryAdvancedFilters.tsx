@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { clampDifficultyRange, type LibrarySearchState, type LibrarySortOption } from "../../pages/library/searchState";
+import {
+  clampDifficultyRange,
+  type LibrarySearchState,
+  type LibrarySortOption,
+} from "../../pages/library/searchState";
 
 type LibraryAdvancedFiltersProps = {
   draft: LibrarySearchState;
@@ -20,7 +24,7 @@ const sortOptions: Array<{ value: LibrarySortOption; labelKey: string }> = [
   { value: "difficulty_asc", labelKey: "library.sort.difficultyAsc" },
   { value: "difficulty_desc", labelKey: "library.sort.difficultyDesc" },
   { value: "title_asc", labelKey: "library.sort.titleAsc" },
-  { value: "title_desc", labelKey: "library.sort.titleDesc" }
+  { value: "title_desc", labelKey: "library.sort.titleDesc" },
 ];
 
 export const LibraryAdvancedFilters = ({
@@ -30,7 +34,7 @@ export const LibraryAdvancedFilters = ({
   isOpen,
   onChange,
   onApply,
-  onReset
+  onReset,
 }: LibraryAdvancedFiltersProps) => {
   const { t } = useTranslation();
   const [tagQuery, setTagQuery] = useState("");
@@ -52,15 +56,25 @@ export const LibraryAdvancedFilters = ({
     onChange({ ...draft, tags: nextTags });
   };
 
-  const updateDifficulty = (field: "difficulty_min" | "difficulty_max", value: string) => {
+  const updateDifficulty = (
+    field: "difficulty_min" | "difficulty_max",
+    value: string,
+  ) => {
     const parsed = value ? Number(value) : null;
     const nextValue = Number.isFinite(parsed) ? (parsed as number) : null;
     const next = {
       ...draft,
-      [field]: nextValue
+      [field]: nextValue,
     } as LibrarySearchState;
-    const clamped = clampDifficultyRange(next.difficulty_min, next.difficulty_max);
-    onChange({ ...next, difficulty_min: clamped.min, difficulty_max: clamped.max });
+    const clamped = clampDifficultyRange(
+      next.difficulty_min,
+      next.difficulty_max,
+    );
+    onChange({
+      ...next,
+      difficulty_min: clamped.min,
+      difficulty_max: clamped.max,
+    });
   };
 
   return (
@@ -72,8 +86,12 @@ export const LibraryAdvancedFilters = ({
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-semibold text-white">{t("library.filters.title")}</h3>
-              <p className="text-xs text-slate-400">{t("library.filters.subtitle")}</p>
+              <h3 className="text-sm font-semibold text-white">
+                {t("library.filters.title")}
+              </h3>
+              <p className="text-xs text-slate-400">
+                {t("library.filters.subtitle")}
+              </p>
             </div>
           </div>
           <div>
@@ -89,7 +107,9 @@ export const LibraryAdvancedFilters = ({
             />
             <div className="mt-3 flex flex-wrap gap-2">
               {filteredTags.length === 0 && (
-                <span className="text-xs text-slate-500">{t("library.filters.noTags")}</span>
+                <span className="text-xs text-slate-500">
+                  {t("library.filters.noTags")}
+                </span>
               )}
               {filteredTags.map((tag) => {
                 const selected = draft.tags.includes(tag);
@@ -114,14 +134,19 @@ export const LibraryAdvancedFilters = ({
 
         <div className="space-y-4">
           <div>
-            <label htmlFor="library-skill-domain" className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            <label
+              htmlFor="library-skill-domain"
+              className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"
+            >
               {t("library.filters.skillDomain")}
             </label>
             <select
               id="library-skill-domain"
               className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
               value={draft.skill_domain ?? ""}
-              onChange={(event) => onChange({ ...draft, skill_domain: event.target.value || null })}
+              onChange={(event) =>
+                onChange({ ...draft, skill_domain: event.target.value || null })
+              }
             >
               <option value="">{t("library.filters.all")}</option>
               {skillDomains.map((domain) => (
@@ -140,7 +165,9 @@ export const LibraryAdvancedFilters = ({
               <select
                 className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
                 value={draft.difficulty_min ?? ""}
-                onChange={(event) => updateDifficulty("difficulty_min", event.target.value)}
+                onChange={(event) =>
+                  updateDifficulty("difficulty_min", event.target.value)
+                }
               >
                 <option value="">{t("library.filters.min")}</option>
                 {difficultyOptions.map((value) => (
@@ -152,7 +179,9 @@ export const LibraryAdvancedFilters = ({
               <select
                 className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
                 value={draft.difficulty_max ?? ""}
-                onChange={(event) => updateDifficulty("difficulty_max", event.target.value)}
+                onChange={(event) =>
+                  updateDifficulty("difficulty_max", event.target.value)
+                }
               >
                 <option value="">{t("library.filters.max")}</option>
                 {difficultyOptions.map((value) => (
@@ -165,14 +194,22 @@ export const LibraryAdvancedFilters = ({
           </div>
 
           <div>
-            <label htmlFor="library-sort" className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+            <label
+              htmlFor="library-sort"
+              className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400"
+            >
               {t("library.filters.sort")}
             </label>
             <select
               id="library-sort"
               className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-xs text-white"
               value={draft.sort}
-              onChange={(event) => onChange({ ...draft, sort: event.target.value as LibrarySortOption })}
+              onChange={(event) =>
+                onChange({
+                  ...draft,
+                  sort: event.target.value as LibrarySortOption,
+                })
+              }
             >
               {sortOptions.map((option) => (
                 <option key={option.value} value={option.value}>

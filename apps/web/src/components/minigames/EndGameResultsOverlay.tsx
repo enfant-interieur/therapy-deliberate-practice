@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type {
   MinigamePlayer,
   MinigameRound,
   MinigameRoundResult,
-  MinigameTeam
+  MinigameTeam,
 } from "../../store/api";
 import { LeaderboardPanel } from "./LeaderboardPanel";
 import { GameAnalysisPanel } from "./GameAnalysisPanel";
@@ -31,8 +32,9 @@ export const EndGameResultsOverlay = ({
   rounds,
   results,
   winner,
-  onClose
+  onClose,
 }: EndGameResultsOverlayProps) => {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<"intro" | "docked" | "reveal">("intro");
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -52,7 +54,9 @@ export const EndGameResultsOverlay = ({
     if (!open) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
-    const focusable = dialog ? Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector)) : [];
+    const focusable = dialog
+      ? Array.from(dialog.querySelectorAll<HTMLElement>(focusableSelector))
+      : [];
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
 
@@ -88,7 +92,7 @@ export const EndGameResultsOverlay = ({
     };
   }, [open, onClose]);
 
-  const winnerLabel = winner?.label ?? "Final results";
+  const winnerLabel = winner?.label ?? t("minigameUi.finalResults");
   const winnerSubLabel = winner?.subLabel;
   const winnerAccent = useMemo(() => {
     if (winner?.kind === "team" && winner.winnerIds.length) {
@@ -99,7 +103,7 @@ export const EndGameResultsOverlay = ({
         amber: "from-amber-300/80 via-amber-100/90 to-white/70",
         rose: "from-rose-300/80 via-rose-100/90 to-white/70",
         sky: "from-sky-300/80 via-sky-100/90 to-white/70",
-        lime: "from-lime-300/80 via-lime-100/90 to-white/70"
+        lime: "from-lime-300/80 via-lime-100/90 to-white/70",
       };
       if (team?.color && teamGradientMap[team.color]) {
         return teamGradientMap[team.color];
@@ -135,7 +139,7 @@ export const EndGameResultsOverlay = ({
             onClick={onClose}
             className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] text-white/70 transition hover:border-white/30 hover:text-white"
           >
-            Close
+            {t("minigameUi.close")}
           </button>
         </div>
 
@@ -162,29 +166,33 @@ export const EndGameResultsOverlay = ({
             id="endgame-subtitle"
             className="mt-2 text-xs uppercase tracking-[0.35em] text-white/70"
           >
-            {winnerSubLabel ?? "Final scoreboard locked"}
+            {winnerSubLabel ?? t("minigameUi.finalScoreboardLocked")}
           </p>
         </div>
 
         <div className="relative mt-32 flex flex-col items-center gap-6 md:mt-40">
           <div
             className={`w-full transition-all duration-700 ease-out motion-reduce:transition-none ${
-              phase === "reveal" ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0"
+              phase === "reveal"
+                ? "translate-y-0 opacity-100"
+                : "translate-y-6 opacity-0"
             }`}
           >
             <div className="rounded-3xl border border-white/10 bg-slate-950/90 p-6 shadow-[0_0_45px_rgba(15,23,42,0.65)] backdrop-blur">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="text-xs uppercase tracking-[0.35em] text-teal-200/70">
-                    Final results
+                    {t("minigameUi.finalResults")}
                   </p>
                   <h3 className="mt-2 text-2xl font-semibold text-white">
-                    Match breakdown
+                    {t("minigameUi.matchBreakdown")}
                   </h3>
                 </div>
                 <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-white/60">
                   <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                    {mode === "tdm" ? "Team Deathmatch" : "Free For All"}
+                    {mode === "tdm"
+                      ? t("minigameUi.teamDeathmatch")
+                      : t("minigameUi.freeForAll")}
                   </span>
                 </div>
               </div>
@@ -198,13 +206,19 @@ export const EndGameResultsOverlay = ({
                   <div className="space-y-6">
                     <div>
                       <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-white">Game analysis</h4>
+                        <h4 className="text-sm font-semibold text-white">
+                          {t("minigameUi.gameAnalysis")}
+                        </h4>
                         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
-                          Rounds
+                          {t("minigameUi.rounds")}
                         </span>
                       </div>
                       <div className="mt-4">
-                        <GameAnalysisPanel rounds={rounds} results={results} players={players} />
+                        <GameAnalysisPanel
+                          rounds={rounds}
+                          results={results}
+                          players={players}
+                        />
                       </div>
                     </div>
                   </div>
@@ -212,9 +226,11 @@ export const EndGameResultsOverlay = ({
                   <div className="space-y-6">
                     <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4">
                       <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-white">Final leaderboard</h4>
+                        <h4 className="text-sm font-semibold text-white">
+                          {t("minigameUi.finalLeaderboard")}
+                        </h4>
                         <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-white/60">
-                          Final
+                          {t("minigameUi.final")}
                         </span>
                       </div>
                       <div className="mt-4">
@@ -224,16 +240,17 @@ export const EndGameResultsOverlay = ({
                           teams={teams}
                           results={results}
                           variant="embedded"
-                          badgeLabel="Final"
+                          badgeLabel={t("minigameUi.final")}
                         />
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 text-xs text-slate-300">
-                      <p className="uppercase tracking-[0.25em] text-slate-400">Next steps</p>
+                      <p className="uppercase tracking-[0.25em] text-slate-400">
+                        {t("minigameUi.nextSteps")}
+                      </p>
                       <p className="mt-2 text-sm text-white">
-                        Wrap the session, review highlights, and head back to the dashboard when
-                        you are ready.
+                        {t("minigameUi.nextStepsDescription")}
                       </p>
                     </div>
                   </div>
@@ -246,7 +263,7 @@ export const EndGameResultsOverlay = ({
                   onClick={onClose}
                   className="rounded-full border border-white/20 px-4 py-2 text-xs uppercase tracking-[0.2em] text-slate-200 transition hover:border-white/40"
                 >
-                  Exit results
+                  {t("minigameUi.exitResults")}
                 </button>
               </div>
             </div>

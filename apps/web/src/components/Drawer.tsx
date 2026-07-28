@@ -1,4 +1,6 @@
 import { useEffect, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { useAccessibleDialog } from "../hooks/useAccessibleDialog";
 
 type DrawerProps = {
   open: boolean;
@@ -7,7 +9,9 @@ type DrawerProps = {
   ariaLabel?: string;
 };
 
-export const Drawer = ({ open, onClose, children, ariaLabel = "Navigation drawer" }: DrawerProps) => {
+export const Drawer = ({ open, onClose, children, ariaLabel }: DrawerProps) => {
+  const { t } = useTranslation();
+  const { dialogRef } = useAccessibleDialog(open, onClose);
   useEffect(() => {
     if (!open) return undefined;
     const { overflow } = document.body.style;
@@ -17,18 +21,6 @@ export const Drawer = ({ open, onClose, children, ariaLabel = "Navigation drawer
     };
   }, [open]);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, open]);
-
   if (!open) return null;
 
   return (
@@ -36,13 +28,15 @@ export const Drawer = ({ open, onClose, children, ariaLabel = "Navigation drawer
       <button
         type="button"
         className="absolute inset-0 cursor-pointer bg-slate-950/80 backdrop-blur"
-        aria-label="Close drawer"
+        aria-label={t("drawer.close")}
         onClick={onClose}
       />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={ariaLabel}
+        aria-label={ariaLabel ?? t("drawer.navigation")}
+        tabIndex={-1}
         className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-white/10 bg-slate-950/95 px-6 py-6 shadow-2xl shadow-black/40 transition-transform duration-300 ease-out sm:max-w-sm"
       >
         {children}

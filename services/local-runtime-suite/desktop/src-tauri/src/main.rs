@@ -1,86 +1,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use atomicwrites::{AllowOverwrite, AtomicFile};
 use serde::Serialize;
-use serde_json::{json, Value};
 use std::collections::{HashMap, VecDeque};
-use std::ffi::OsString;
-use std::fs::OpenOptions;
-use std::io::{BufWriter, Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::io::{Read, Write};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::{
-    mpsc::{self, Sender},
-    Arc, Mutex,
-};
+use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
-use tauri::{Manager, RunEvent, WindowEvent};
+use std::time::{Duration, Instant};
+use tauri::Manager;
 use tauri_plugin_shell::{process::CommandEvent, ShellExt};
 
 const MAX_LOG_LINES: usize = 500;
-const DEFAULT_GATEWAY_ALLOWED_ORIGINS: [&str; 1] = ["*"];
-
-#[derive(Clone)]
-struct LogSink {
-    sender: Sender<LogCommand>,
-}
-
-enum LogCommand {
-    SetTarget(PathBuf),
-    Append(String),
-}
-
-impl LogSink {
-    fn new() -> Self {
-        let (sender, receiver) = mpsc::channel::<LogCommand>();
-        thread::spawn(move || {
-            let mut writer: Option<BufWriter<std::fs::File>> = None;
-            while let Ok(message) = receiver.recv() {
-                match message {
-                    LogCommand::SetTarget(path) => {
-                        if let Some(parent) = path.parent() {
-                            let _ = std::fs::create_dir_all(parent);
-                        }
-                        match OpenOptions::new().create(true).append(true).open(&path) {
-                            Ok(file) => {
-                                writer = Some(BufWriter::new(file));
-                            }
-                            Err(err) => {
-                                eprintln!(
-                                    "launcher log sink failed to open {}: {}",
-                                    path.display(),
-                                    err
-                                );
-                                writer = None;
-                            }
-                        }
-                    }
-                    LogCommand::Append(line) => {
-                        if let Some(target) = writer.as_mut() {
-                            if writeln!(target, "{}", line).is_err() {
-                                writer = None;
-                            } else {
-                                let _ = target.flush();
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        Self { sender }
-    }
-
-    fn set_target(&self, path: PathBuf) {
-        let _ = self.sender.send(LogCommand::SetTarget(path));
-    }
-
-    fn append(&self, line: String) {
-        let _ = self.sender.send(LogCommand::Append(line));
-    }
-}
+const GATEWAY_SERVICE_ID: &str = "therapy-local-runtime";
+const GATEWAY_PROTOCOL_VERSION: &str = "1";
+const GATEWAY_HTTP_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(serde::Deserialize)]
 struct ConfigPayload {
@@ -92,7 +30,7 @@ struct ConfigPayload {
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", content = "message")]
 enum GatewayError {
-    SpawnFailed(GatewayErrorDetails),
+    SpawnFailed(Box<GatewayErrorDetails>),
     Io(String),
     ConfigDir(String),
     Config(String),
@@ -101,14 +39,15 @@ enum GatewayError {
 #[derive(Default)]
 struct GatewayState {
     child: Option<GatewayChild>,
+    child_port: Option<u16>,
+    child_generation: u64,
+    orphaned_sidecar: Option<(u32, u16)>,
     logs: VecDeque<String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct GatewayManager {
     inner: Arc<Mutex<GatewayState>>,
-    log_sink: LogSink,
-    log_dir: Arc<Mutex<Option<PathBuf>>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -136,12 +75,11 @@ enum GatewayChild {
 struct GatewayLaunchConfig {
     mode: GatewayLaunchMode,
     port: u16,
+    access_token: String,
     python_path: Option<String>,
     gateway_root: Option<PathBuf>,
-    runtime_bin: Option<PathBuf>,
     config_path: PathBuf,
     args: Vec<String>,
-    build_version: String,
 }
 
 #[derive(Serialize)]
@@ -160,17 +98,39 @@ struct GatewayEndpointExamples {
     stt_example: String,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
+struct GatewayStoragePaths {
+    config_file: String,
+    data_dir: String,
+    cache_dir: String,
+    logging_policy: &'static str,
+}
+
+#[derive(Debug, Serialize)]
 struct StatusResponse {
     status: String,
-    managed: bool,
-    ready: bool,
-    readiness: Option<Value>,
 }
 
 #[derive(Serialize)]
 struct ModelsResponse {
     data: Vec<serde_json::Value>,
+}
+
+#[derive(Serialize)]
+struct GatewayRuntimeStateResponse {
+    platform_id: Option<String>,
+    defaults: HashMap<String, String>,
+    loaded_models: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct LoadModelsCommandPayload {
+    models: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct LoadJobCommandPayload {
+    job_id: String,
 }
 
 #[derive(Serialize)]
@@ -187,54 +147,42 @@ struct DoctorResponse {
 struct GatewayConfigFile {
     port: Option<u16>,
     default_models: Option<HashMap<String, String>>,
+    data_dir: Option<String>,
+    cache_dir: Option<String>,
     prefer_local: Option<bool>,
+    access_token: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 struct GatewayConfigResponse {
     port: u16,
     default_models: HashMap<String, String>,
+    data_dir: String,
+    cache_dir: String,
     prefer_local: bool,
+    #[serde(skip_serializing)]
+    access_token: String,
+}
+
+#[derive(Debug, Serialize)]
+struct PairingTokenResponse {
+    token: String,
+    masked: String,
 }
 
 impl GatewayManager {
     fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(GatewayState::default())),
-            log_sink: LogSink::new(),
-            log_dir: Arc::new(Mutex::new(None)),
         }
-    }
-
-    fn initialize(&self, app: &tauri::AppHandle) {
-        if let Ok(dir) = app.path().app_log_dir() {
-            self.configure_log_dir(dir);
-        } else if let Ok(config_dir) = app.path().app_config_dir() {
-            self.configure_log_dir(config_dir.join("logs"));
-        }
-    }
-
-    fn configure_log_dir(&self, dir: PathBuf) {
-        if std::fs::create_dir_all(&dir).is_err() {
-            return;
-        }
-        let log_file = dir.join("launcher.log");
-        self.log_sink.set_target(log_file.clone());
-        if let Ok(mut guard) = self.log_dir.lock() {
-            *guard = Some(dir);
-        }
-        self.push_log(format!("launcher: writing logs to {}", log_file.display()));
     }
 
     fn push_log(&self, line: impl Into<String>) {
-        let message = line.into();
         let mut guard = self.inner.lock().expect("state lock");
-        guard.logs.push_back(message.clone());
+        guard.logs.push_back(line.into());
         if guard.logs.len() > MAX_LOG_LINES {
             guard.logs.pop_front();
         }
-        drop(guard);
-        self.log_sink.append(message);
     }
 
     fn refresh_child_state(guard: &mut GatewayState) {
@@ -243,6 +191,7 @@ impl GatewayManager {
                 GatewayChild::Python(child) => {
                     if let Ok(Some(_)) = child.try_wait() {
                         guard.child = None;
+                        guard.child_port = None;
                     }
                 }
                 GatewayChild::Sidecar(_) => {}
@@ -250,71 +199,137 @@ impl GatewayManager {
         }
     }
 
-    fn stop(&self) -> Result<StatusResponse, GatewayError> {
+    fn stop(&self, configured_port: Option<u16>) -> Result<StatusResponse, GatewayError> {
         let mut guard = self.inner.lock().expect("state lock");
+        Self::refresh_child_state(&mut guard);
         let child = guard.child.take();
+        let child_port = guard.child_port.take();
+        let orphaned_sidecar = guard.orphaned_sidecar.take();
         drop(guard);
+        let port = child_port
+            .or_else(|| orphaned_sidecar.map(|(_, port)| port))
+            .or(configured_port);
+        let Some(port) = port else {
+            let mut guard = self.inner.lock().expect("state lock");
+            guard.child = child;
+            guard.child_port = child_port;
+            guard.orphaned_sidecar = orphaned_sidecar;
+            return if guard.child.is_some() || guard.orphaned_sidecar.is_some() {
+                Err(GatewayError::Config(
+                    "The desktop app owns a gateway process but no longer knows which port it uses."
+                        .into(),
+                ))
+            } else {
+                Ok(StatusResponse {
+                    status: "stopped".into(),
+                })
+            };
+        };
+        let mut sidecar_to_recover = orphaned_sidecar;
 
-        if let Some(child) = child {
-            match child {
-                GatewayChild::Python(mut child) => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                }
-                GatewayChild::Sidecar(child) => {
-                    let _ = child.kill();
+        match child {
+            Some(GatewayChild::Python(mut child)) => {
+                if let Err(error) = terminate_python_child(&mut child, Duration::from_secs(5)) {
+                    let mut guard = self.inner.lock().expect("state lock");
+                    guard.child = Some(GatewayChild::Python(child));
+                    guard.child_port = Some(port);
+                    return Err(GatewayError::Io(format!(
+                        "Could not stop the Python gateway process: {error}"
+                    )));
                 }
             }
-            self.push_log("Gateway stopped");
+            Some(GatewayChild::Sidecar(child)) => {
+                let pid = child.pid();
+                sidecar_to_recover = Some((pid, port));
+                if let Err(error) = child.kill() {
+                    let mut guard = self.inner.lock().expect("state lock");
+                    guard.orphaned_sidecar = Some((pid, port));
+                    return Err(GatewayError::Io(format!(
+                        "Could not stop the sidecar process (PID {pid}): {error}"
+                    )));
+                }
+            }
+            None if orphaned_sidecar.is_some() => {
+                let (pid, _) = orphaned_sidecar.expect("checked above");
+                if let Err(error) = terminate_process_by_pid(pid) {
+                    let mut guard = self.inner.lock().expect("state lock");
+                    guard.orphaned_sidecar = Some((pid, port));
+                    return Err(GatewayError::Io(format!(
+                        "Could not stop the previously orphaned sidecar process (PID {pid}): {error}"
+                    )));
+                }
+            }
+            None => {
+                if !loopback_port_is_closed(port) {
+                    return Err(GatewayError::Config(format!(
+                        "A process is listening on port {port}, but it is not owned by this desktop app and cannot be stopped here."
+                    )));
+                }
+                return Ok(StatusResponse {
+                    status: "stopped".into(),
+                });
+            }
         }
 
+        if !wait_for_loopback_port_closed(port, Duration::from_secs(5)) {
+            if let Some((pid, owned_port)) = sidecar_to_recover {
+                let mut guard = self.inner.lock().expect("state lock");
+                guard.orphaned_sidecar = Some((pid, owned_port));
+            }
+            return Err(GatewayError::Io(format!(
+                "The gateway process was signalled to stop, but port {port} is still accepting connections."
+            )));
+        }
+
+        self.push_log("Gateway stopped");
         Ok(StatusResponse {
             status: "stopped".into(),
-            managed: false,
-            ready: false,
-            readiness: None,
         })
     }
 
     fn status(&self) -> StatusResponse {
         let mut guard = self.inner.lock().expect("state lock");
         Self::refresh_child_state(&mut guard);
-        let managed = guard.child.is_some();
-        let status = if managed { "running" } else { "stopped" };
+        let status = if guard.child.is_some() {
+            "starting"
+        } else {
+            "stopped"
+        };
         StatusResponse {
             status: status.into(),
-            managed,
-            ready: false,
-            readiness: None,
         }
     }
 
     fn status_with_health(&self, port: u16) -> StatusResponse {
         let mut guard = self.inner.lock().expect("state lock");
         Self::refresh_child_state(&mut guard);
-        let managed = guard.child.is_some();
+        let has_tracked_child = guard.child.is_some();
+        let orphaned_sidecar = guard.orphaned_sidecar;
+        let has_orphaned_sidecar = orphaned_sidecar.is_some();
+        let effective_port = guard
+            .child_port
+            .or_else(|| orphaned_sidecar.map(|(_, port)| port))
+            .unwrap_or(port);
         drop(guard);
 
-        match http_get_localhost(port, "/health") {
-            Ok(body) => {
-                let (ready, readiness) = parse_readiness(&body);
-                StatusResponse {
-                    status: "running".into(),
-                    managed,
-                    ready,
-                    readiness,
-                }
+        if gateway_health(effective_port).is_ok() {
+            StatusResponse {
+                status: "running".into(),
             }
-            Err(_) => StatusResponse {
-                status: if managed {
-                    "running".into()
-                } else {
-                    "stopped".into()
-                },
-                managed,
-                ready: false,
-                readiness: None,
-            },
+        } else if has_tracked_child
+            || (has_orphaned_sidecar && !loopback_port_is_closed(effective_port))
+        {
+            StatusResponse {
+                status: "starting".into(),
+            }
+        } else {
+            if has_orphaned_sidecar {
+                let mut guard = self.inner.lock().expect("state lock");
+                guard.orphaned_sidecar = None;
+            }
+            StatusResponse {
+                status: "stopped".into(),
+            }
         }
     }
 
@@ -330,62 +345,106 @@ impl GatewayManager {
         self.push_log(format!("launcher: {}", message.into()));
     }
 
-    fn clear_child(&self) {
+    fn clear_child_if_generation(&self, generation: u64) {
         let mut guard = self.inner.lock().expect("state lock");
-        guard.child = None;
-    }
-
-    fn log_directory(&self) -> Option<PathBuf> {
-        self.log_dir.lock().ok().and_then(|path| path.clone())
-    }
-
-    fn write_report(&self, prefix: &str, payload: &serde_json::Value) -> Option<PathBuf> {
-        let dir = self.log_directory()?;
-        let reports_dir = dir.join("reports");
-        if std::fs::create_dir_all(&reports_dir).is_err() {
-            return None;
-        }
-        let timestamp = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|dur| dur.as_secs())
-            .unwrap_or(0);
-        let filename = format!("{}-{}.json", prefix, timestamp);
-        let path = reports_dir.join(filename);
-        let data = serde_json::to_vec_pretty(payload).ok()?;
-        if std::fs::write(&path, data).is_ok() {
-            Some(path)
-        } else {
-            None
+        if guard.child_generation == generation {
+            guard.child = None;
+            guard.child_port = None;
+            guard.orphaned_sidecar = None;
         }
     }
 
-    fn record_spawn_failure(
-        &self,
-        context: &GatewayLaunchConfig,
-        details: &GatewayErrorDetails,
-        phase: &str,
-    ) {
-        if let Ok(payload) = serde_json::to_value(details) {
-            let report = json!({
-                "phase": phase,
-                "mode": format!("{:?}", context.mode),
-                "port": context.port,
-                "args": context.args,
-                "launcher": &details.launcher,
-                "config_path": &details.config_path,
-                "gateway_root": &details.gateway_root,
-                "error": &details.message,
-                "hint": &details.hint,
-                "details": payload,
-            });
-            if let Some(path) = self.write_report("spawn-failure", &report) {
-                self.push_notice(format!(
-                    "launcher: spawn failure report saved to {}",
-                    path.display()
-                ));
-            }
-        }
+    fn owns_gateway_process(&self) -> bool {
+        let mut guard = self.inner.lock().expect("state lock");
+        Self::refresh_child_state(&mut guard);
+        guard.child.is_some() || guard.orphaned_sidecar.is_some()
     }
+}
+
+fn loopback_port_is_closed(port: u16) -> bool {
+    let address = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port);
+    TcpStream::connect_timeout(&address, Duration::from_millis(150)).is_err()
+}
+
+fn wait_for_loopback_port_closed(port: u16, timeout: Duration) -> bool {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if loopback_port_is_closed(port) {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    loopback_port_is_closed(port)
+}
+
+fn wait_for_gateway_ready(port: u16, timeout: Duration) -> Result<(), GatewayError> {
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if gateway_health(port).is_ok() {
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    gateway_health(port).map(|_| ()).map_err(|error| {
+        GatewayError::Io(format!(
+            "The gateway did not become ready after restart: {error:?}"
+        ))
+    })
+}
+
+fn terminate_python_child(child: &mut Child, timeout: Duration) -> std::io::Result<()> {
+    if child.try_wait()?.is_some() {
+        return Ok(());
+    }
+    if let Err(kill_error) = child.kill() {
+        if child.try_wait()?.is_some() {
+            return Ok(());
+        }
+        return Err(kill_error);
+    }
+
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if child.try_wait()?.is_some() {
+            return Ok(());
+        }
+        thread::sleep(Duration::from_millis(25));
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::TimedOut,
+        "process did not exit after termination",
+    ))
+}
+
+#[cfg(unix)]
+fn terminate_process_by_pid(pid: u32) -> Result<(), String> {
+    let status = Command::new("kill")
+        .args(["-KILL", &pid.to_string()])
+        .status()
+        .map_err(|error| error.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("kill exited with status {status}"))
+    }
+}
+
+#[cfg(windows)]
+fn terminate_process_by_pid(pid: u32) -> Result<(), String> {
+    let status = Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .status()
+        .map_err(|error| error.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("taskkill exited with status {status}"))
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn terminate_process_by_pid(_pid: u32) -> Result<(), String> {
+    Err("process termination is unsupported on this platform".into())
 }
 
 #[tauri::command]
@@ -397,8 +456,12 @@ fn start_gateway(
 }
 
 #[tauri::command]
-fn stop_gateway(state: tauri::State<GatewayManager>) -> Result<StatusResponse, GatewayError> {
-    state.stop()
+fn stop_gateway(
+    app: tauri::AppHandle,
+    state: tauri::State<GatewayManager>,
+) -> Result<StatusResponse, GatewayError> {
+    let configured_port = build_launch_config(&app).ok().map(|config| config.port);
+    state.stop(configured_port)
 }
 
 #[tauri::command]
@@ -420,13 +483,12 @@ fn gateway_doctor(app: tauri::AppHandle, state: tauri::State<GatewayManager>) ->
     let config = match build_launch_config(&app) {
         Ok(config) => config,
         Err(error) => {
-            let (details, hint) = describe_gateway_error(&error);
+            let (details, _) = describe_gateway_error(&error);
             return DoctorResponse {
                 checks: vec![serde_json::json!({
-                    "title": "Gateway configuration",
+                    "code": "gateway_configuration",
                     "status": "error",
                     "details": details,
-                    "fix": hint.unwrap_or_else(|| "Ensure LOCAL_RUNTIME_ROOT is set or bundle the local runtime resources.".to_string())
                 })],
             };
         }
@@ -457,18 +519,16 @@ fn gateway_doctor(app: tauri::AppHandle, state: tauri::State<GatewayManager>) ->
             match python_check {
                 Ok(version) => {
                     checks.push(serde_json::json!( {
-                        "title": "Python executable",
+                        "code": "python_executable",
                         "status": "ok",
-                        "details": if version.is_empty() { "Python is available.".to_string() } else { format!("Using {version}") },
-                        "fix": null
+                        "details": if version.is_empty() { None } else { Some(version) },
                     }));
                 }
                 Err(error) => {
                     checks.push(serde_json::json!( {
-                        "title": "Python executable",
+                        "code": "python_executable",
                         "status": "error",
-                        "details": format!("Unable to run Python: {error}"),
-                        "fix": "Install Python 3.10+ or set LOCAL_RUNTIME_PYTHON to a valid interpreter."
+                        "details": error,
                     }));
                 }
             }
@@ -476,19 +536,17 @@ fn gateway_doctor(app: tauri::AppHandle, state: tauri::State<GatewayManager>) ->
             match run_python_import_check(&config) {
                 Ok(path) => {
                     checks.push(serde_json::json!( {
-                        "title": "local_runtime import",
+                        "code": "local_runtime_import",
                         "status": "ok",
-                        "details": format!("Resolved local_runtime at {path}"),
-                        "fix": null
+                        "details": path,
                     }));
                 }
                 Err(error) => {
-                    let (details, hint) = describe_gateway_error(&error);
+                    let (details, _) = describe_gateway_error(&error);
                     checks.push(serde_json::json!( {
-                        "title": "local_runtime import",
+                        "code": "local_runtime_import",
                         "status": "error",
                         "details": details,
-                        "fix": hint.unwrap_or_else(|| "Set LOCAL_RUNTIME_ROOT to the python package root or ensure resources/local_runtime is bundled.".to_string())
                     }));
                 }
             }
@@ -496,28 +554,25 @@ fn gateway_doctor(app: tauri::AppHandle, state: tauri::State<GatewayManager>) ->
         GatewayLaunchMode::Sidecar => match resolve_sidecar_path(&app) {
             Some(path) => {
                 checks.push(serde_json::json!( {
-                    "title": "Gateway sidecar binary",
+                    "code": "gateway_sidecar_binary",
                     "status": "ok",
-                    "details": format!("Found sidecar at {}", path.display()),
-                    "fix": null
+                    "details": path.display().to_string(),
                 }));
 
                 if !is_executable(&path) {
                     checks.push(serde_json::json!( {
-                        "title": "Gateway sidecar permissions",
+                        "code": "gateway_sidecar_permissions",
                         "status": "error",
-                        "details": "Sidecar is not executable.".to_string(),
-                        "fix": "Ensure the sidecar file has execute permissions."
+                        "details": path.display().to_string(),
                     }));
                 }
             }
             None => {
                 checks.push(serde_json::json!( {
-                        "title": "Gateway sidecar binary",
-                        "status": "error",
-                        "details": "Sidecar binary not found.".to_string(),
-                        "fix": "Sidecar not resolvable. Ensure you run `tauri dev` with src-tauri/tauri.sidecar.conf.json (see `npm run tauri:dev`) or run `npm run sidecar:build`."
-                    }));
+                    "code": "gateway_sidecar_binary",
+                    "status": "error",
+                    "details": null,
+                }));
             }
         },
     }
@@ -526,52 +581,52 @@ fn gateway_doctor(app: tauri::AppHandle, state: tauri::State<GatewayManager>) ->
     let port_in_use = TcpListener::bind(("127.0.0.1", config.port)).is_err();
     if port_in_use && status == "running" {
         checks.push(serde_json::json!({
-            "title": "Port availability",
+            "code": "port_availability",
             "status": "ok",
-            "details": format!("Port {} is bound by the running gateway.", config.port),
-            "fix": null
+            "port": config.port,
+            "gateway_status": status,
         }));
     } else if port_in_use {
         checks.push(serde_json::json!({
-            "title": "Port availability",
-            "status": "error",
-            "details": format!("Port {} is already in use.", config.port),
-            "fix": "Choose another port in the desktop app or stop the process using this port."
+            "code": "port_availability",
+            "status": if status == "starting" { "warning" } else { "error" },
+            "port": config.port,
+            "gateway_status": status,
         }));
     } else {
         checks.push(serde_json::json!({
-            "title": "Port availability",
+            "code": "port_availability",
             "status": "ok",
-            "details": format!("Port {} is free.", config.port),
-            "fix": null
+            "port": config.port,
+            "gateway_status": "free",
         }));
     }
 
     if status == "running" {
-        match http_get_localhost(config.port, "/health") {
-            Ok(body) => {
+        match gateway_health(config.port) {
+            Ok(health) => {
                 checks.push(serde_json::json!({
-                    "title": "Gateway health",
+                    "code": "gateway_health",
                     "status": "ok",
-                    "details": format!("Health check OK: {body}"),
-                    "fix": null
+                    "details": health.body,
+                    "gateway_status": status,
                 }));
             }
             Err(error) => {
                 checks.push(serde_json::json!({
-                    "title": "Gateway health",
+                    "code": "gateway_health",
                     "status": "warning",
-                    "details": format!("Gateway responded but health check failed: {:?}", error),
-                    "fix": "Open the gateway logs to inspect startup errors."
+                    "details": format!("{error:?}"),
+                    "gateway_status": status,
                 }));
             }
         }
     } else {
         checks.push(serde_json::json!({
-            "title": "Gateway health",
+            "code": "gateway_health",
             "status": "warning",
-            "details": "Gateway is not running yet.",
-            "fix": "Start the gateway to verify health."
+            "details": null,
+            "gateway_status": status,
         }));
     }
 
@@ -588,15 +643,27 @@ fn gateway_models(app: tauri::AppHandle, state: tauri::State<GatewayManager>) ->
         }
     };
 
-    match http_get_localhost(config.port, "/v1/models") {
-        Ok(body) => {
-            let payload: serde_json::Value = serde_json::from_str(&body).unwrap_or_default();
+    if let Err(error) = gateway_health(config.port) {
+        state.push_notice(format!("Gateway identity check failed: {:?}", error));
+        return ModelsResponse { data: vec![] };
+    }
+    match http_get_localhost(config.port, "/v1/models", Some(&config.access_token)) {
+        Ok(response) if (200..300).contains(&response.status) => {
+            let payload: serde_json::Value =
+                serde_json::from_str(&response.body).unwrap_or_default();
             let data = payload
                 .get("data")
                 .and_then(|value| value.as_array())
                 .cloned()
                 .unwrap_or_default();
             ModelsResponse { data }
+        }
+        Ok(response) => {
+            state.push_notice(format!(
+                "Gateway models request returned HTTP {}",
+                response.status
+            ));
+            ModelsResponse { data: vec![] }
         }
         Err(error) => {
             state.push_notice(format!("Gateway models request failed: {:?}", error));
@@ -606,22 +673,105 @@ fn gateway_models(app: tauri::AppHandle, state: tauri::State<GatewayManager>) ->
 }
 
 #[tauri::command]
+fn gateway_runtime_state(
+    app: tauri::AppHandle,
+    state: tauri::State<GatewayManager>,
+) -> Result<GatewayRuntimeStateResponse, GatewayError> {
+    let config = build_launch_config(&app)?;
+    gateway_health(config.port)?;
+    let response = http_get_localhost(config.port, "/health/details", Some(&config.access_token))?;
+    let payload = parse_gateway_json(response, "runtime state")?;
+    validate_gateway_identity_payload(&payload)?;
+    let defaults: HashMap<String, String> = payload
+        .get("defaults")
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|error| GatewayError::Io(format!("Invalid gateway defaults: {error}")))?
+        .unwrap_or_default();
+    let loaded_models: Vec<String> = payload
+        .get("loaded_models")
+        .cloned()
+        .map(serde_json::from_value)
+        .transpose()
+        .map_err(|error| GatewayError::Io(format!("Invalid loaded-model state: {error}")))?
+        .unwrap_or_default();
+    state.push_notice(format!(
+        "Gateway reports {} model(s) loaded.",
+        loaded_models.len()
+    ));
+    Ok(GatewayRuntimeStateResponse {
+        platform_id: payload
+            .get("platform_id")
+            .and_then(|value| value.as_str())
+            .map(ToOwned::to_owned),
+        defaults,
+        loaded_models,
+    })
+}
+
+#[tauri::command]
+fn gateway_load_models(
+    app: tauri::AppHandle,
+    state: tauri::State<GatewayManager>,
+    payload: LoadModelsCommandPayload,
+) -> Result<serde_json::Value, GatewayError> {
+    let models = validate_model_ids(payload.models)?;
+    let config = build_launch_config(&app)?;
+    gateway_health(config.port)?;
+    let body = serde_json::to_string(&serde_json::json!({ "models": models }))
+        .map_err(|error| GatewayError::Config(error.to_string()))?;
+    let response =
+        http_post_json_localhost(config.port, "/load_models", &config.access_token, &body)?;
+    let value = parse_gateway_json(response, "model-load request")?;
+    state.push_notice("Started selected model download/load job.");
+    Ok(value)
+}
+
+#[tauri::command]
+fn gateway_model_load_status(
+    app: tauri::AppHandle,
+    payload: LoadJobCommandPayload,
+) -> Result<serde_json::Value, GatewayError> {
+    validate_load_job_id(&payload.job_id)?;
+    let config = build_launch_config(&app)?;
+    gateway_health(config.port)?;
+    let path = format!("/load_models/{}", payload.job_id);
+    let response = http_get_localhost(config.port, &path, Some(&config.access_token))?;
+    parse_gateway_json(response, "model-load status")
+}
+
+#[tauri::command]
 fn save_gateway_config(app: tauri::AppHandle, payload: ConfigPayload) -> Result<(), GatewayError> {
     let config_path = resolve_config_path(&app)?;
-    let target_dir = config_path
-        .parent()
-        .ok_or_else(|| GatewayError::Config("Config path missing parent".into()))?;
-    std::fs::create_dir_all(&target_dir).map_err(|err| GatewayError::Io(err.to_string()))?;
-    let json = serde_json::json!({
-        "port": payload.port,
-        "default_models": payload.default_models,
-        "prefer_local": payload.prefer_local,
-        "data_dir": target_dir.join("data").to_string_lossy(),
-        "cache_dir": target_dir.join("cache").to_string_lossy()
-    });
-    std::fs::write(config_path, serde_json::to_vec_pretty(&json).unwrap())
-        .map_err(|err| GatewayError::Io(err.to_string()))?;
-    Ok(())
+    let existing = read_gateway_config(&app)?;
+    let has_complete_defaults = payload.default_models.contains_key("responses")
+        && payload.default_models.contains_key("audio.transcriptions");
+    if has_complete_defaults && gateway_health(existing.port).is_ok() {
+        let body = serde_json::to_string(&serde_json::json!({
+            "port": payload.port,
+            "default_models": payload.default_models,
+            "prefer_local": payload.prefer_local,
+        }))
+        .map_err(|error| GatewayError::Config(error.to_string()))?;
+        let response = http_post_json_localhost(
+            existing.port,
+            "/runtime/config",
+            &existing.access_token,
+            &body,
+        )?;
+        parse_gateway_json(response, "configuration update")?;
+        return Ok(());
+    }
+    write_gateway_config(
+        &config_path,
+        payload.port,
+        &payload.default_models,
+        &existing.data_dir,
+        &existing.cache_dir,
+        payload.prefer_local,
+        &existing.access_token,
+    )
 }
 
 #[tauri::command]
@@ -646,6 +796,53 @@ fn gateway_connection_info(app: tauri::AppHandle) -> Result<GatewayConnectionInf
     })
 }
 
+fn storage_paths_from_config(
+    config_path: &Path,
+    config: &GatewayConfigResponse,
+) -> GatewayStoragePaths {
+    GatewayStoragePaths {
+        config_file: config_path.to_string_lossy().into_owned(),
+        data_dir: config.data_dir.clone(),
+        cache_dir: config.cache_dir.clone(),
+        logging_policy: "metadata_only",
+    }
+}
+
+#[tauri::command]
+fn gateway_storage_paths(app: tauri::AppHandle) -> Result<GatewayStoragePaths, GatewayError> {
+    let config_path = resolve_config_path(&app)?;
+    let config = read_gateway_config(&app)?;
+    Ok(storage_paths_from_config(&config_path, &config))
+}
+
+#[tauri::command]
+fn gateway_pairing_token(app: tauri::AppHandle) -> Result<PairingTokenResponse, GatewayError> {
+    let config = read_gateway_config(&app)?;
+    Ok(pairing_token_response(config.access_token))
+}
+
+#[tauri::command]
+fn rotate_gateway_pairing_token(
+    app: tauri::AppHandle,
+    state: tauri::State<GatewayManager>,
+) -> Result<PairingTokenResponse, GatewayError> {
+    let config_path = resolve_config_path(&app)?;
+    let config = read_gateway_config(&app)?;
+    let was_running = state.owns_gateway_process() || gateway_health(config.port).is_ok();
+    let new_token = generate_access_token()?;
+    rotate_pairing_token_transaction(
+        &config_path,
+        &config,
+        new_token,
+        was_running,
+        || state.stop(Some(config.port)).map(|_| ()),
+        || {
+            state.start(&app)?;
+            wait_for_gateway_ready(config.port, Duration::from_secs(30))
+        },
+    )
+}
+
 fn default_python_binary() -> String {
     if cfg!(windows) {
         "python".to_string()
@@ -665,30 +862,232 @@ fn resolve_config_path(app: &tauri::AppHandle) -> Result<PathBuf, GatewayError> 
         .join("config.json"))
 }
 
+fn resolve_configured_directory(
+    config_parent: &Path,
+    configured: Option<String>,
+    fallback_name: &str,
+) -> (String, bool) {
+    match configured.filter(|path| !path.trim().is_empty()) {
+        Some(path) if Path::new(&path).is_absolute() => (path, false),
+        Some(path) => (
+            config_parent.join(path).to_string_lossy().into_owned(),
+            true,
+        ),
+        None => (
+            config_parent
+                .join(fallback_name)
+                .to_string_lossy()
+                .into_owned(),
+            true,
+        ),
+    }
+}
+
 fn read_gateway_config(app: &tauri::AppHandle) -> Result<GatewayConfigResponse, GatewayError> {
     let config_path = resolve_config_path(app)?;
-    if !config_path.exists() {
-        return Ok(GatewayConfigResponse {
-            port: 8484,
-            default_models: HashMap::new(),
-            prefer_local: true,
-        });
+    let parsed = if config_path.exists() {
+        let data = std::fs::read(&config_path).map_err(|err| GatewayError::Io(err.to_string()))?;
+        serde_json::from_slice::<GatewayConfigFile>(&data)
+            .map_err(|err| GatewayError::Config(err.to_string()))?
+    } else {
+        GatewayConfigFile {
+            port: None,
+            default_models: None,
+            data_dir: None,
+            cache_dir: None,
+            prefer_local: None,
+            access_token: None,
+        }
+    };
+    let GatewayConfigFile {
+        port,
+        default_models,
+        data_dir,
+        cache_dir,
+        prefer_local,
+        access_token,
+    } = parsed;
+    let target_dir = config_path
+        .parent()
+        .ok_or_else(|| GatewayError::Config("Config path missing parent".into()))?;
+    let (resolved_data_dir, data_dir_needs_write) =
+        resolve_configured_directory(target_dir, data_dir, "data");
+    let (resolved_cache_dir, cache_dir_needs_write) =
+        resolve_configured_directory(target_dir, cache_dir, "cache");
+    let existing_token = access_token.filter(|token| is_valid_access_token(token));
+    let needs_write = !config_path.exists()
+        || existing_token.is_none()
+        || data_dir_needs_write
+        || cache_dir_needs_write;
+    let response = GatewayConfigResponse {
+        port: port.unwrap_or(8484),
+        default_models: default_models.unwrap_or_default(),
+        data_dir: resolved_data_dir,
+        cache_dir: resolved_cache_dir,
+        prefer_local: prefer_local.unwrap_or(true),
+        access_token: match existing_token {
+            Some(token) => token,
+            None => generate_access_token()?,
+        },
+    };
+    if needs_write {
+        write_gateway_config(
+            &config_path,
+            response.port,
+            &response.default_models,
+            &response.data_dir,
+            &response.cache_dir,
+            response.prefer_local,
+            &response.access_token,
+        )?;
     }
-    let data = std::fs::read(&config_path).map_err(|err| GatewayError::Io(err.to_string()))?;
-    let parsed: GatewayConfigFile =
-        serde_json::from_slice(&data).map_err(|err| GatewayError::Config(err.to_string()))?;
-    Ok(GatewayConfigResponse {
-        port: parsed.port.unwrap_or(8484),
-        default_models: parsed.default_models.unwrap_or_default(),
-        prefer_local: parsed.prefer_local.unwrap_or(true),
-    })
+    Ok(response)
+}
+
+fn generate_access_token() -> Result<String, GatewayError> {
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes)
+        .map_err(|error| GatewayError::Config(format!("Unable to create pairing key: {error}")))?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
+}
+
+fn is_valid_access_token(token: &str) -> bool {
+    (32..=256).contains(&token.len())
+        && token
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+}
+
+fn pairing_token_response(token: String) -> PairingTokenResponse {
+    let suffix_start = token.len().saturating_sub(6);
+    PairingTokenResponse {
+        masked: format!("••••••••••••{}", &token[suffix_start..]),
+        token,
+    }
+}
+
+fn rotate_pairing_token_transaction<Stop, Start>(
+    config_path: &Path,
+    current: &GatewayConfigResponse,
+    new_token: String,
+    was_running: bool,
+    mut stop: Stop,
+    mut start_and_wait: Start,
+) -> Result<PairingTokenResponse, GatewayError>
+where
+    Stop: FnMut() -> Result<(), GatewayError>,
+    Start: FnMut() -> Result<(), GatewayError>,
+{
+    if was_running {
+        stop()?;
+    }
+
+    let write_new_result = write_gateway_config(
+        config_path,
+        current.port,
+        &current.default_models,
+        &current.data_dir,
+        &current.cache_dir,
+        current.prefer_local,
+        &new_token,
+    );
+    if let Err(write_error) = write_new_result {
+        let restore_result = write_gateway_config(
+            config_path,
+            current.port,
+            &current.default_models,
+            &current.data_dir,
+            &current.cache_dir,
+            current.prefer_local,
+            &current.access_token,
+        )
+        .and_then(|_| {
+            if was_running {
+                start_and_wait()
+            } else {
+                Ok(())
+            }
+        });
+        return match restore_result {
+            Ok(()) => Err(write_error),
+            Err(restore_error) => Err(GatewayError::Config(format!(
+                "Pairing-key rotation failed and the previous gateway state could not be restored: \
+                 rotation error: {write_error:?}; recovery error: {restore_error:?}"
+            ))),
+        };
+    }
+
+    if was_running {
+        if let Err(start_error) = start_and_wait() {
+            let stop_error = stop().err();
+            let restore_result = write_gateway_config(
+                config_path,
+                current.port,
+                &current.default_models,
+                &current.data_dir,
+                &current.cache_dir,
+                current.prefer_local,
+                &current.access_token,
+            )
+            .and_then(|_| start_and_wait());
+            return match restore_result {
+                Ok(()) => Err(GatewayError::Config(format!(
+                    "Pairing-key rotation failed, so the previous key was restored and the gateway \
+                     was restarted: {start_error:?}"
+                ))),
+                Err(restore_error) => Err(GatewayError::Config(format!(
+                    "Pairing-key rotation failed and the previous gateway state could not be \
+                     restored: start error: {start_error:?}; cleanup error: {stop_error:?}; \
+                     recovery error: {restore_error:?}"
+                ))),
+            };
+        }
+    }
+
+    Ok(pairing_token_response(new_token))
+}
+
+fn write_gateway_config(
+    config_path: &Path,
+    port: u16,
+    default_models: &HashMap<String, String>,
+    data_dir: &str,
+    cache_dir: &str,
+    prefer_local: bool,
+    access_token: &str,
+) -> Result<(), GatewayError> {
+    let target_dir = config_path
+        .parent()
+        .ok_or_else(|| GatewayError::Config("Config path missing parent".into()))?;
+    std::fs::create_dir_all(target_dir).map_err(|err| GatewayError::Io(err.to_string()))?;
+    #[cfg(unix)]
+    std::fs::set_permissions(target_dir, std::fs::Permissions::from_mode(0o700))
+        .map_err(|err| GatewayError::Io(err.to_string()))?;
+
+    let json = serde_json::json!({
+        "port": port,
+        "default_models": default_models,
+        "prefer_local": prefer_local,
+        "access_token": access_token,
+        "data_dir": data_dir,
+        "cache_dir": cache_dir
+    });
+    let mut serialized =
+        serde_json::to_vec_pretty(&json).map_err(|err| GatewayError::Config(err.to_string()))?;
+    serialized.push(b'\n');
+    AtomicFile::new(config_path, AllowOverwrite)
+        .write(|file| file.write_all(&serialized))
+        .map_err(|err| GatewayError::Io(err.to_string()))?;
+    #[cfg(unix)]
+    std::fs::set_permissions(config_path, std::fs::Permissions::from_mode(0o600))
+        .map_err(|err| GatewayError::Io(err.to_string()))?;
+    Ok(())
 }
 
 fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, GatewayError> {
     let config = read_gateway_config(app)?;
     let config_path = resolve_config_path(app)?;
-    let build_version = app.package_info().version.to_string();
-    let base_args = vec![
+    let args = vec![
         "--port".to_string(),
         config.port.to_string(),
         "--config".to_string(),
@@ -705,199 +1104,51 @@ fn build_launch_config(app: &tauri::AppHandle) -> Result<GatewayLaunchConfig, Ga
         .unwrap_or(false);
     let sidecar_available =
         resolve_sidecar_path(app).is_some() && resolve_sidecar_command(app).is_ok();
-    let embedded_runtime = if prefer_sidecar {
-        None
+    let mode = if cfg!(debug_assertions) {
+        if prefer_python {
+            GatewayLaunchMode::Python
+        } else if prefer_sidecar || sidecar_available {
+            GatewayLaunchMode::Sidecar
+        } else {
+            GatewayLaunchMode::Python
+        }
     } else {
-        resolve_embedded_python_runtime(app)
-    };
-    let (repo_python, mut repo_python_err) = match resolve_repo_python(app) {
-        Ok(value) => (Some(value), None),
-        Err(err) => (None, Some(err)),
+        GatewayLaunchMode::Sidecar
     };
 
-    let make_sidecar_config = || GatewayLaunchConfig {
-        mode: GatewayLaunchMode::Sidecar,
-        port: config.port,
-        python_path: None,
-        gateway_root: None,
-        runtime_bin: None,
-        config_path: config_path.clone(),
-        args: base_args.clone(),
-        build_version: build_version.clone(),
-    };
+    if matches!(mode, GatewayLaunchMode::Sidecar) && !sidecar_available {
+        return Err(GatewayError::Config(
+            "Gateway sidecar is missing; run `npm run sidecar:build` or ensure tauri.sidecar.conf.json is included.".into(),
+        ));
+    }
 
-    let make_python_config = |python_path: &str,
-                              gateway_root: &Path,
-                              runtime_bin: Option<&Path>|
-     -> GatewayLaunchConfig {
-        let mut args = Vec::with_capacity(base_args.len() + 2);
-        args.push("-m".to_string());
-        args.push("local_runtime.main".to_string());
-        args.extend(base_args.iter().cloned());
-        GatewayLaunchConfig {
-            mode: GatewayLaunchMode::Python,
+    match mode {
+        GatewayLaunchMode::Sidecar => Ok(GatewayLaunchConfig {
+            mode,
             port: config.port,
-            python_path: Some(python_path.to_string()),
-            gateway_root: Some(gateway_root.to_path_buf()),
-            runtime_bin: runtime_bin.map(|path| path.to_path_buf()),
-            config_path: config_path.clone(),
+            access_token: config.access_token,
+            python_path: None,
+            gateway_root: None,
+            config_path,
             args,
-            build_version: build_version.clone(),
-        }
-    };
-
-    let make_embedded_python_config = |runtime: &EmbeddedPythonRuntime| {
-        let python_path = runtime.python_path.to_string_lossy().to_string();
-        make_python_config(
-            &python_path,
-            &runtime.pylibs_path,
-            runtime.bin_path.as_deref(),
-        )
-    };
-
-    if prefer_sidecar {
-        if !sidecar_available {
-            return Err(GatewayError::Config(
-                "Gateway sidecar is missing; run `npm run sidecar:build` or ensure tauri.sidecar.conf.json is included.".into(),
-            ));
-        }
-        return Ok(make_sidecar_config());
-    }
-
-    if prefer_python {
-        if let Some((python_path, gateway_root)) = repo_python.clone() {
-            return Ok(make_python_config(&python_path, &gateway_root, None));
-        }
-        return Err(repo_python_err.take().unwrap_or_else(|| {
-            GatewayError::Config(
-                "LOCAL_RUNTIME_ROOT is missing; run inside the repo or set LOCAL_RUNTIME_PYTHON."
-                    .into(),
-            )
-        }));
-    }
-
-    if let Some(runtime) = embedded_runtime.clone() {
-        return Ok(make_embedded_python_config(&runtime));
-    }
-
-    if sidecar_available {
-        return Ok(make_sidecar_config());
-    }
-
-    if let Some((python_path, gateway_root)) = repo_python.clone() {
-        return Ok(make_python_config(&python_path, &gateway_root, None));
-    }
-
-    Err(repo_python_err.take().unwrap_or_else(|| {
-        GatewayError::Config(
-            "Unable to locate a usable gateway runtime. Reinstall the Local Runtime resources."
-                .into(),
-        )
-    }))
-}
-
-fn resolve_repo_python(app: &tauri::AppHandle) -> Result<(String, PathBuf), GatewayError> {
-    let python_path =
-        std::env::var("LOCAL_RUNTIME_PYTHON").unwrap_or_else(|_| default_python_binary());
-    let gateway_root = resolve_gateway_root(app)?;
-    Ok((python_path, gateway_root))
-}
-
-#[derive(Clone)]
-struct EmbeddedPythonRuntime {
-    python_path: PathBuf,
-    pylibs_path: PathBuf,
-    bin_path: Option<PathBuf>,
-}
-
-fn resolve_embedded_python_runtime(app: &tauri::AppHandle) -> Option<EmbeddedPythonRuntime> {
-    for root in embedded_runtime_candidates(app) {
-        if let Some(runtime) = EmbeddedPythonRuntime::from_root(&root) {
-            return Some(runtime);
+        }),
+        GatewayLaunchMode::Python => {
+            let python_path =
+                std::env::var("LOCAL_RUNTIME_PYTHON").unwrap_or_else(|_| default_python_binary());
+            let gateway_root = resolve_gateway_root(app)?;
+            let mut python_args = vec!["-m".to_string(), "local_runtime.main".to_string()];
+            python_args.extend(args.clone());
+            Ok(GatewayLaunchConfig {
+                mode,
+                port: config.port,
+                access_token: config.access_token,
+                python_path: Some(python_path),
+                gateway_root: Some(gateway_root),
+                config_path,
+                args: python_args,
+            })
         }
     }
-    None
-}
-
-fn embedded_runtime_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
-    let mut candidates = Vec::new();
-    if let Ok(explicit) = std::env::var("LOCAL_RUNTIME_EMBEDDED_ROOT") {
-        candidates.push(PathBuf::from(explicit));
-    }
-    if let Ok(resource_dir) = app.path().resource_dir() {
-        candidates.push(resource_dir.join("local-runtime-python"));
-    }
-    if let Ok(current_exe) = std::env::current_exe() {
-        if let Some(dir) = current_exe.parent() {
-            candidates.push(dir.join("local-runtime-python"));
-            if let Some(parent) = dir.parent() {
-                candidates.push(parent.join("local-runtime-python"));
-                candidates.push(parent.join("Resources").join("local-runtime-python"));
-            }
-        }
-    }
-    if let Ok(current_dir) = std::env::current_dir() {
-        for ancestor in current_dir.ancestors() {
-            candidates.push(
-                ancestor
-                    .join("services")
-                    .join("local-runtime-suite")
-                    .join("desktop")
-                    .join("src-tauri")
-                    .join("local-runtime-python"),
-            );
-        }
-    }
-    candidates
-}
-
-impl EmbeddedPythonRuntime {
-    fn from_root(root: &Path) -> Option<Self> {
-        if !root.exists() {
-            return None;
-        }
-        let pylibs = root.join("pylibs");
-        if !pylibs.exists() {
-            return None;
-        }
-        let bin_path = {
-            let candidate = root.join("bin");
-            if candidate.exists() {
-                Some(candidate)
-            } else {
-                None
-            }
-        };
-        for candidate in python_binary_candidates(root) {
-            if candidate.exists() {
-                return Some(Self {
-                    python_path: candidate,
-                    pylibs_path: pylibs.clone(),
-                    bin_path: bin_path.clone(),
-                });
-            }
-        }
-        None
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn python_binary_candidates(root: &Path) -> Vec<PathBuf> {
-    vec![
-        root.join("python").join("python.exe"),
-        root.join("python.exe"),
-    ]
-}
-
-#[cfg(not(target_os = "windows"))]
-fn python_binary_candidates(root: &Path) -> Vec<PathBuf> {
-    let bin = root.join("python").join("bin");
-    vec![
-        bin.join("python3"),
-        bin.join("python"),
-        bin.join("python3.12"),
-        bin.join("python3.11"),
-    ]
 }
 
 fn resolve_gateway_root(app: &tauri::AppHandle) -> Result<PathBuf, GatewayError> {
@@ -968,14 +1219,6 @@ fn build_pythonpath(gateway_root: &Path) -> Result<String, GatewayError> {
     Ok(joined.to_string_lossy().to_string())
 }
 
-fn default_allowed_origins_env() -> Option<String> {
-    if std::env::var_os("LOCAL_RUNTIME_ALLOW_ORIGINS").is_some() {
-        None
-    } else {
-        Some(DEFAULT_GATEWAY_ALLOWED_ORIGINS.join(","))
-    }
-}
-
 fn apply_python_env(
     command: &mut Command,
     config: &GatewayLaunchConfig,
@@ -987,26 +1230,8 @@ fn apply_python_env(
     let pythonpath = build_pythonpath(gateway_root)?;
     command.env("PYTHONPATH", pythonpath);
     command.env("PYTHONNOUSERSITE", "1");
-    if let Some(bin_dir) = config.runtime_bin.as_ref() {
-        if bin_dir.exists() {
-            let mut combined = OsString::new();
-            combined.push(bin_dir);
-            if let Some(existing) = std::env::var_os("PATH") {
-                if cfg!(windows) {
-                    combined.push(";");
-                } else {
-                    combined.push(":");
-                }
-                combined.push(existing);
-            }
-            command.env("PATH", combined);
-        }
-    }
-    if cfg!(debug_assertions) && config.runtime_bin.is_none() {
+    if cfg!(debug_assertions) {
         command.env("LOCAL_RUNTIME_RELOAD", "1");
-    }
-    if let Some(origins) = default_allowed_origins_env() {
-        command.env("LOCAL_RUNTIME_ALLOW_ORIGINS", origins);
     }
     Ok(())
 }
@@ -1036,7 +1261,7 @@ fn run_python_import_check(config: &GatewayLaunchConfig) -> Result<String, Gatew
         .current_dir(gateway_root);
     apply_python_env(&mut command, config)?;
     let output = command.output().map_err(|err| {
-        GatewayError::SpawnFailed(GatewayErrorDetails {
+        GatewayError::SpawnFailed(Box::new(GatewayErrorDetails {
             message: err.to_string(),
             launcher: python_path.to_string(),
             gateway_root: Some(gateway_root.to_string_lossy().to_string()),
@@ -1045,11 +1270,11 @@ fn run_python_import_check(config: &GatewayLaunchConfig) -> Result<String, Gatew
             hint: Some(
                 "local_runtime not found; check resources or set LOCAL_RUNTIME_ROOT.".to_string(),
             ),
-        })
+        }))
     })?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(GatewayError::SpawnFailed(GatewayErrorDetails {
+        return Err(GatewayError::SpawnFailed(Box::new(GatewayErrorDetails {
             message: stderr.trim().to_string(),
             launcher: python_path.to_string(),
             gateway_root: Some(gateway_root.to_string_lossy().to_string()),
@@ -1058,18 +1283,50 @@ fn run_python_import_check(config: &GatewayLaunchConfig) -> Result<String, Gatew
             hint: Some(
                 "local_runtime not found; check resources or set LOCAL_RUNTIME_ROOT.".to_string(),
             ),
-        }));
+        })));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-fn http_get_localhost(port: u16, path: &str) -> Result<String, GatewayError> {
+struct LocalHttpResponse {
+    status: u16,
+    body: String,
+}
+
+fn http_get_localhost(
+    port: u16,
+    path: &str,
+    access_token: Option<&str>,
+) -> Result<LocalHttpResponse, GatewayError> {
+    http_request_localhost(port, "GET", path, access_token, None)
+}
+
+fn http_post_json_localhost(
+    port: u16,
+    path: &str,
+    access_token: &str,
+    body: &str,
+) -> Result<LocalHttpResponse, GatewayError> {
+    http_request_localhost(port, "POST", path, Some(access_token), Some(body))
+}
+
+fn http_request_localhost(
+    port: u16,
+    method: &str,
+    path: &str,
+    access_token: Option<&str>,
+    body: Option<&str>,
+) -> Result<LocalHttpResponse, GatewayError> {
     let mut stream =
         TcpStream::connect(("127.0.0.1", port)).map_err(|err| GatewayError::Io(err.to_string()))?;
-    let request = format!(
-        "GET {} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
-        path, port
-    );
+    let timeout = Some(GATEWAY_HTTP_TIMEOUT);
+    stream
+        .set_read_timeout(timeout)
+        .map_err(|err| GatewayError::Io(err.to_string()))?;
+    stream
+        .set_write_timeout(timeout)
+        .map_err(|err| GatewayError::Io(err.to_string()))?;
+    let request = build_http_request(port, method, path, access_token, body)?;
     stream
         .write_all(request.as_bytes())
         .map_err(|err| GatewayError::Io(err.to_string()))?;
@@ -1077,62 +1334,184 @@ fn http_get_localhost(port: u16, path: &str) -> Result<String, GatewayError> {
     stream
         .read_to_string(&mut response)
         .map_err(|err| GatewayError::Io(err.to_string()))?;
-    if let Some((_, body)) = response.split_once("\r\n\r\n") {
-        return Ok(body.trim().to_string());
-    }
-    Ok(response.trim().to_string())
+    parse_http_response(&response)
 }
 
-fn parse_readiness(body: &str) -> (bool, Option<Value>) {
-    match serde_json::from_str::<Value>(body) {
-        Ok(value) => {
-            let ready = value
-                .get("status")
-                .and_then(|status| status.as_str())
-                .map(|status| status.eq_ignore_ascii_case("ready"))
-                .unwrap_or(false);
-            (ready, Some(value))
-        }
-        Err(_) => (false, None),
+#[cfg(test)]
+fn build_get_request(port: u16, path: &str, access_token: Option<&str>) -> String {
+    build_http_request(port, "GET", path, access_token, None)
+        .expect("fixed internal GET request must be valid")
+}
+
+fn build_http_request(
+    port: u16,
+    method: &str,
+    path: &str,
+    access_token: Option<&str>,
+    body: Option<&str>,
+) -> Result<String, GatewayError> {
+    if !matches!(method, "GET" | "POST") {
+        return Err(GatewayError::Config(
+            "Unsupported local HTTP method.".into(),
+        ));
     }
+    if !path.starts_with('/') || path.contains('\r') || path.contains('\n') {
+        return Err(GatewayError::Config("Invalid local gateway path.".into()));
+    }
+    if access_token.is_some_and(|token| !is_valid_access_token(token)) {
+        return Err(GatewayError::Config(
+            "The local pairing key is invalid; rotate it in the desktop app.".into(),
+        ));
+    }
+    let authorization = access_token
+        .map(|token| format!("Authorization: Bearer {token}\r\n"))
+        .unwrap_or_default();
+    let body = body.unwrap_or_default();
+    let content_headers = if method == "POST" {
+        format!(
+            "Content-Type: application/json\r\nContent-Length: {}\r\n",
+            body.len()
+        )
+    } else {
+        String::new()
+    };
+    Ok(format!(
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{authorization}{content_headers}Connection: close\r\n\r\n{body}"
+    ))
+}
+
+fn parse_http_response(response: &str) -> Result<LocalHttpResponse, GatewayError> {
+    let (headers, body) = response
+        .split_once("\r\n\r\n")
+        .ok_or_else(|| GatewayError::Io("Gateway returned an invalid HTTP response.".into()))?;
+    let status = headers
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|value| value.parse::<u16>().ok())
+        .ok_or_else(|| GatewayError::Io("Gateway returned an invalid HTTP status.".into()))?;
+    Ok(LocalHttpResponse {
+        status,
+        body: body.trim().to_string(),
+    })
+}
+
+fn gateway_health(port: u16) -> Result<LocalHttpResponse, GatewayError> {
+    let response = http_get_localhost(port, "/health", None)?;
+    validate_gateway_health(&response)?;
+    Ok(response)
+}
+
+fn parse_gateway_json(
+    response: LocalHttpResponse,
+    operation: &str,
+) -> Result<serde_json::Value, GatewayError> {
+    if !(200..300).contains(&response.status) {
+        let detail = serde_json::from_str::<serde_json::Value>(&response.body)
+            .ok()
+            .and_then(|payload| {
+                payload
+                    .pointer("/error/message")
+                    .or_else(|| payload.get("detail"))
+                    .and_then(|value| value.as_str())
+                    .map(ToOwned::to_owned)
+            })
+            .unwrap_or_else(|| format!("HTTP {}", response.status));
+        return Err(GatewayError::Io(format!(
+            "Gateway {operation} failed: {detail}"
+        )));
+    }
+    serde_json::from_str(&response.body).map_err(|error| {
+        GatewayError::Io(format!(
+            "Gateway {operation} returned invalid JSON: {error}"
+        ))
+    })
+}
+
+fn validate_gateway_identity_payload(payload: &serde_json::Value) -> Result<(), GatewayError> {
+    if payload.get("service").and_then(|value| value.as_str()) != Some(GATEWAY_SERVICE_ID)
+        || payload
+            .get("protocol_version")
+            .and_then(|value| value.as_str())
+            != Some(GATEWAY_PROTOCOL_VERSION)
+    {
+        return Err(GatewayError::Io(
+            "The listener on this port is not the Therapy Local Runtime.".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_gateway_health(response: &LocalHttpResponse) -> Result<(), GatewayError> {
+    if response.status != 200 {
+        return Err(GatewayError::Io(format!(
+            "Gateway health returned HTTP {}.",
+            response.status
+        )));
+    }
+    let payload: serde_json::Value = serde_json::from_str(&response.body)
+        .map_err(|_| GatewayError::Io("Gateway health returned invalid JSON.".into()))?;
+    validate_gateway_identity_payload(&payload)
+}
+
+fn validate_model_ids(models: Vec<String>) -> Result<Vec<String>, GatewayError> {
+    let mut validated = Vec::new();
+    for model_id in models {
+        if model_id.is_empty()
+            || model_id.len() > 160
+            || !model_id.bytes().all(|byte| {
+                byte.is_ascii_alphanumeric() || matches!(byte, b'/' | b'.' | b'_' | b'-' | b':')
+            })
+        {
+            return Err(GatewayError::Config("Invalid model identifier.".into()));
+        }
+        if !validated.contains(&model_id) {
+            validated.push(model_id);
+        }
+    }
+    if validated.is_empty() {
+        return Err(GatewayError::Config(
+            "Select at least one model before loading.".into(),
+        ));
+    }
+    if validated.len() > 8 {
+        return Err(GatewayError::Config(
+            "No more than eight models can be loaded in one job.".into(),
+        ));
+    }
+    Ok(validated)
+}
+
+fn validate_load_job_id(job_id: &str) -> Result<(), GatewayError> {
+    let suffix = job_id.strip_prefix("load_").unwrap_or_default();
+    if suffix.len() != 32 || !suffix.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(GatewayError::Config(
+            "Invalid model-load job identifier.".into(),
+        ));
+    }
+    Ok(())
 }
 
 impl GatewayManager {
     fn start(&self, app: &tauri::AppHandle) -> Result<StatusResponse, GatewayError> {
+        let config = build_launch_config(app)?;
         let mut guard = self.inner.lock().expect("state lock");
         Self::refresh_child_state(&mut guard);
         if guard.child.is_some() {
-            return Ok(StatusResponse {
-                status: "running".into(),
-                managed: true,
-                ready: false,
-                readiness: None,
-            });
+            drop(guard);
+            return Ok(self.status_with_health(config.port));
         }
-        drop(guard);
 
-        let config = build_launch_config(app)?;
-        self.push_log(format!(
-            "launcher: start requested via {:?} (port {} build {} config {})",
-            config.mode,
-            config.port,
-            config.build_version,
-            config.config_path.display()
-        ));
         let port_in_use = TcpListener::bind(("127.0.0.1", config.port)).is_err();
         if port_in_use {
-            match http_get_localhost(config.port, "/health") {
-                Ok(body) => {
+            match gateway_health(config.port) {
+                Ok(health) => {
                     self.push_log(format!(
-                        "Gateway already running on port {} (health: {body})",
-                        config.port
+                        "Gateway already running on port {} (health: {})",
+                        config.port, health.body
                     ));
-                    let (ready, readiness) = parse_readiness(&body);
                     return Ok(StatusResponse {
                         status: "running".into(),
-                        managed: false,
-                        ready,
-                        readiness,
                     });
                 }
                 Err(error) => {
@@ -1164,48 +1543,36 @@ impl GatewayManager {
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped());
                 apply_python_env(&mut command, &config)?;
-                command.env("LOCAL_RUNTIME_VERSION", &config.build_version);
 
-                self.push_log(format!(
-                    "launcher: spawning python gateway via {}",
-                    python_path
-                ));
-                let spawn_result = command.spawn();
-                let mut child = match spawn_result {
-                    Ok(child) => child,
-                    Err(err) => {
-                        self.push_notice(format!("launcher: python spawn failed: {err}"));
-                        let details = GatewayErrorDetails {
-                            message: err.to_string(),
-                            launcher: python_path.to_string(),
-                            gateway_root: Some(gateway_root.to_string_lossy().to_string()),
-                            config_path: config.config_path.to_string_lossy().to_string(),
-                            args: config.args.clone(),
-                            hint: Some(
-                                "local_runtime not found; check resources or set LOCAL_RUNTIME_ROOT."
-                                    .to_string(),
-                            ),
-                        };
-                        self.record_spawn_failure(&config, &details, "python_spawn");
-                        return Err(GatewayError::SpawnFailed(details));
-                    }
-                };
-                let child_pid = child.id();
+                let mut child = command.spawn().map_err(|err| {
+                    GatewayError::SpawnFailed(Box::new(GatewayErrorDetails {
+                        message: err.to_string(),
+                        launcher: python_path.to_string(),
+                        gateway_root: Some(gateway_root.to_string_lossy().to_string()),
+                        config_path: config.config_path.to_string_lossy().to_string(),
+                        args: config.args.clone(),
+                        hint: Some(
+                            "local_runtime not found; check resources or set LOCAL_RUNTIME_ROOT."
+                                .to_string(),
+                        ),
+                    }))
+                })?;
 
                 let stdout = child.stdout.take();
                 let stderr = child.stderr.take();
-                let mut guard = self.inner.lock().expect("state lock");
+                guard.child_generation = guard.child_generation.wrapping_add(1);
+                guard.child_port = Some(config.port);
                 guard.child = Some(GatewayChild::Python(child));
                 drop(guard);
 
-                self.push_log(format!("launcher: python gateway pid {}", child_pid));
+                self.push_log("Gateway started (python)");
 
                 if let Some(stream) = stdout {
                     let manager = self.clone();
                     std::thread::spawn(move || {
                         use std::io::{BufRead, BufReader};
                         let reader = BufReader::new(stream);
-                        for line in reader.lines().flatten() {
+                        for line in reader.lines().map_while(Result::ok) {
                             manager.push_log(line);
                         }
                     });
@@ -1216,46 +1583,47 @@ impl GatewayManager {
                     std::thread::spawn(move || {
                         use std::io::{BufRead, BufReader};
                         let reader = BufReader::new(stream);
-                        for line in reader.lines().flatten() {
+                        for line in reader.lines().map_while(Result::ok) {
                             manager.push_log(line);
                         }
                     });
                 }
             }
             GatewayLaunchMode::Sidecar => {
-                let mut command = resolve_sidecar_command(app)?
-                    .args(&config.args)
-                    .env("LOCAL_RUNTIME_VERSION", &config.build_version);
-                if let Some(origins) = default_allowed_origins_env() {
-                    command = command.env("LOCAL_RUNTIME_ALLOW_ORIGINS", origins);
-                }
-                self.push_log("launcher: spawning gateway sidecar");
-                let spawn_result = command.spawn();
-                let (mut rx, child) = match spawn_result {
-                    Ok(value) => value,
-                    Err(err) => {
-                        self.push_notice(format!("launcher: sidecar spawn failed: {err}"));
-                        let details = GatewayErrorDetails {
-                            message: err.to_string(),
-                            launcher: "sidecar:local-runtime-gateway".into(),
-                            gateway_root: None,
-                            config_path: config.config_path.to_string_lossy().to_string(),
-                            args: config.args.clone(),
-                            hint: Some(
-                                "Sidecar not resolvable. Ensure tauri.sidecar.conf.json is used (see `npm run tauri:dev`) or run `npm run sidecar:build`."
-                                    .to_string(),
-                            ),
-                        };
-                        self.record_spawn_failure(&config, &details, "sidecar_spawn");
-                        return Err(GatewayError::SpawnFailed(details));
-                    }
-                };
+                let packaged_runtime_root = app
+                    .path()
+                    .resource_dir()
+                    .map_err(|err| {
+                        GatewayError::Config(format!(
+                            "Unable to resolve packaged resource directory: {err}"
+                        ))
+                    })?
+                    .join("local-runtime-python");
+                let command = resolve_sidecar_command(app)?
+                    .env("LOCAL_RUNTIME_PACKAGED_ROOT", packaged_runtime_root)
+                    .args(&config.args);
+                let (mut rx, child) = command.spawn().map_err(|err| {
+                    GatewayError::SpawnFailed(Box::new(GatewayErrorDetails {
+                        message: err.to_string(),
+                        launcher: "sidecar:local-runtime-gateway".into(),
+                        gateway_root: None,
+                        config_path: config.config_path.to_string_lossy().to_string(),
+                        args: config.args.clone(),
+                        hint: Some(
+                            "Sidecar not resolvable. Ensure tauri.sidecar.conf.json is used (see `npm run tauri:dev`) or run `npm run sidecar:build`."
+                                .to_string(),
+                        ),
+                    }))
+                })?;
 
-                let mut guard = self.inner.lock().expect("state lock");
+                let sidecar_pid = child.pid();
+                guard.child_generation = guard.child_generation.wrapping_add(1);
+                let generation = guard.child_generation;
+                guard.child_port = Some(config.port);
                 guard.child = Some(GatewayChild::Sidecar(child));
                 drop(guard);
 
-                self.push_log("launcher: sidecar gateway spawned");
+                self.push_log("Gateway started (sidecar)");
 
                 let manager = self.clone();
                 tauri::async_runtime::spawn(async move {
@@ -1272,10 +1640,10 @@ impl GatewayManager {
                             }
                             CommandEvent::Terminated(payload) => {
                                 manager.push_notice(format!(
-                                    "Gateway sidecar exited with code {:?}",
-                                    payload.code
+                                    "Gateway sidecar PID {} exited with code {:?}",
+                                    sidecar_pid, payload.code
                                 ));
-                                manager.clear_child();
+                                manager.clear_child_if_generation(generation);
                             }
                             _ => {}
                         }
@@ -1285,10 +1653,7 @@ impl GatewayManager {
         }
 
         Ok(StatusResponse {
-            status: "running".into(),
-            managed: true,
-            ready: false,
-            readiness: None,
+            status: "starting".into(),
         })
     }
 }
@@ -1389,28 +1754,10 @@ fn target_triple() -> &'static str {
 }
 
 fn main() {
-    let app = tauri::Builder::default()
+    tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .manage(GatewayManager::new())
-        .setup(|app| {
-            if let Some(manager) = app.try_state::<GatewayManager>() {
-                manager.initialize(&app.handle());
-            }
-            Ok(())
-        })
-        .on_window_event(|window, event| {
-            if matches!(
-                event,
-                WindowEvent::CloseRequested { .. } | WindowEvent::Destroyed
-            ) {
-                if let Some(manager) = window.try_state::<GatewayManager>() {
-                    if let Err(err) = manager.stop() {
-                        eprintln!("Failed to stop gateway during window event: {:?}", err);
-                    }
-                }
-            }
-        })
         .invoke_handler(tauri::generate_handler![
             start_gateway,
             stop_gateway,
@@ -1418,21 +1765,353 @@ fn main() {
             gateway_logs,
             gateway_doctor,
             gateway_models,
+            gateway_runtime_state,
+            gateway_load_models,
+            gateway_model_load_status,
             save_gateway_config,
             gateway_config,
-            gateway_connection_info
+            gateway_connection_info,
+            gateway_storage_paths,
+            gateway_pairing_token,
+            rotate_gateway_pairing_token
         ])
-        .build(tauri::generate_context!())
-        .expect("error while building tauri application");
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
 
-    app.run(|app_handle, event| match event {
-        RunEvent::ExitRequested { .. } | RunEvent::Exit => {
-            if let Some(manager) = app_handle.try_state::<GatewayManager>() {
-                if let Err(err) = manager.stop() {
-                    eprintln!("Failed to stop gateway during exit: {:?}", err);
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_http_status_and_body() {
+        let response = parse_http_response(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n\r\n{\"status\":\"ready\"}",
+        )
+        .expect("valid response");
+
+        assert_eq!(response.status, 200);
+        assert_eq!(response.body, "{\"status\":\"ready\"}");
+    }
+
+    #[test]
+    fn authenticated_request_places_token_in_header_only() {
+        let token = "a".repeat(64);
+        let request = build_get_request(8484, "/v1/models", Some(&token));
+
+        assert!(request.starts_with("GET /v1/models HTTP/1.1\r\n"));
+        assert!(request.contains(&format!("Authorization: Bearer {token}\r\n")));
+        assert!(!request.lines().next().unwrap_or_default().contains(&token));
+    }
+
+    #[test]
+    fn post_request_has_json_body_and_exact_length() {
+        let token = "b".repeat(64);
+        let body = r#"{"models":["local//llm/qwen3-hf"]}"#;
+        let request = build_http_request(8484, "POST", "/load_models", Some(&token), Some(body))
+            .expect("valid POST request");
+
+        assert!(request.starts_with("POST /load_models HTTP/1.1\r\n"));
+        assert!(request.contains("Content-Type: application/json\r\n"));
+        assert!(request.contains(&format!("Content-Length: {}\r\n", body.len())));
+        assert!(request.ends_with(body));
+    }
+
+    #[test]
+    fn request_builder_rejects_header_injection() {
+        let invalid_token = format!("{}\r\nInjected: yes", "a".repeat(32));
+        assert!(build_http_request(8484, "GET", "/v1/models", Some(&invalid_token), None).is_err());
+        assert!(
+            build_http_request(8484, "GET", "/v1/models\r\nInjected: yes", None, None).is_err()
+        );
+    }
+
+    #[test]
+    fn validates_model_and_load_job_identifiers() {
+        assert_eq!(
+            validate_model_ids(vec![
+                "local//llm/qwen3-hf".into(),
+                "local//llm/qwen3-hf".into()
+            ])
+            .expect("valid model ids"),
+            vec!["local//llm/qwen3-hf"]
+        );
+        assert!(validate_model_ids(vec!["local model\r\n".into()]).is_err());
+        assert!(validate_load_job_id(&format!("load_{}", "f".repeat(32))).is_ok());
+        assert!(validate_load_job_id("load_not-hex").is_err());
+    }
+
+    #[test]
+    fn health_requires_therapy_gateway_identity() {
+        let valid = LocalHttpResponse {
+            status: 200,
+            body: serde_json::json!({
+                "service": GATEWAY_SERVICE_ID,
+                "protocol_version": GATEWAY_PROTOCOL_VERSION,
+                "status": "ready"
+            })
+            .to_string(),
+        };
+        assert!(validate_gateway_health(&valid).is_ok());
+
+        let unrelated = LocalHttpResponse {
+            status: 200,
+            body: r#"{"service":"unrelated-server","status":"ready"}"#.to_string(),
+        };
+        assert!(validate_gateway_health(&unrelated).is_err());
+    }
+
+    #[test]
+    fn config_write_is_private_and_preserves_token() {
+        let directory = tempfile::tempdir().expect("temporary config directory");
+        let config_path = directory.path().join("nested").join("config.json");
+        let token = generate_access_token().expect("secure token");
+
+        write_gateway_config(
+            &config_path,
+            8484,
+            &HashMap::new(),
+            "/private/runtime-data",
+            "/private/model-cache",
+            true,
+            &token,
+        )
+        .expect("write config");
+
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&config_path).expect("read config"))
+                .expect("parse config");
+        assert_eq!(value["access_token"], token);
+        assert_eq!(value["data_dir"], "/private/runtime-data");
+        assert_eq!(value["cache_dir"], "/private/model-cache");
+        #[cfg(unix)]
+        assert_eq!(
+            std::fs::metadata(&config_path)
+                .expect("config metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
+
+    #[test]
+    fn storage_paths_report_the_authoritative_configured_locations() {
+        let config_path = PathBuf::from("/tmp/therapy/local-runtime/config.json");
+        let config = GatewayConfigResponse {
+            port: 8484,
+            default_models: HashMap::new(),
+            data_dir: "/custom/private-data".into(),
+            cache_dir: "/custom/model-cache".into(),
+            prefer_local: true,
+            access_token: "a".repeat(64),
+        };
+        let paths = storage_paths_from_config(&config_path, &config);
+
+        assert_eq!(paths.config_file, "/tmp/therapy/local-runtime/config.json");
+        assert_eq!(paths.data_dir, "/custom/private-data");
+        assert_eq!(paths.cache_dir, "/custom/model-cache");
+        assert_eq!(paths.logging_policy, "metadata_only");
+    }
+
+    #[test]
+    fn relative_storage_paths_resolve_against_the_config_directory() {
+        let config_parent = PathBuf::from("/tmp/therapy/local-runtime");
+
+        let (data_dir, data_changed) =
+            resolve_configured_directory(&config_parent, Some("private-data".into()), "data");
+        let (cache_dir, cache_changed) =
+            resolve_configured_directory(&config_parent, Some("model-cache".into()), "cache");
+        let (absolute_dir, absolute_changed) = resolve_configured_directory(
+            &config_parent,
+            Some("/custom/absolute-cache".into()),
+            "cache",
+        );
+
+        assert_eq!(data_dir, "/tmp/therapy/local-runtime/private-data");
+        assert_eq!(cache_dir, "/tmp/therapy/local-runtime/model-cache");
+        assert!(data_changed);
+        assert!(cache_changed);
+        assert_eq!(absolute_dir, "/custom/absolute-cache");
+        assert!(!absolute_changed);
+    }
+
+    #[test]
+    fn pairing_rotation_restores_the_previous_key_when_restart_fails() {
+        let directory = tempfile::tempdir().expect("temporary config directory");
+        let config_path = directory.path().join("config.json");
+        let current = GatewayConfigResponse {
+            port: 8484,
+            default_models: HashMap::new(),
+            data_dir: directory.path().join("data").to_string_lossy().into_owned(),
+            cache_dir: directory
+                .path()
+                .join("cache")
+                .to_string_lossy()
+                .into_owned(),
+            prefer_local: true,
+            access_token: "a".repeat(64),
+        };
+        write_gateway_config(
+            &config_path,
+            current.port,
+            &current.default_models,
+            &current.data_dir,
+            &current.cache_dir,
+            current.prefer_local,
+            &current.access_token,
+        )
+        .expect("write initial config");
+        let mut stop_calls = 0;
+        let mut start_calls = 0;
+
+        let error = rotate_pairing_token_transaction(
+            &config_path,
+            &current,
+            "b".repeat(64),
+            true,
+            || {
+                stop_calls += 1;
+                Ok(())
+            },
+            || {
+                start_calls += 1;
+                if start_calls == 1 {
+                    Err(GatewayError::Io("simulated restart failure".into()))
+                } else {
+                    Ok(())
                 }
+            },
+        )
+        .expect_err("failed restart must fail the rotation");
+
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&config_path).expect("read restored config"))
+                .expect("parse restored config");
+        assert_eq!(value["access_token"], current.access_token);
+        assert_eq!(stop_calls, 2);
+        assert_eq!(start_calls, 2);
+        match error {
+            GatewayError::Config(message) => {
+                assert!(message.contains("previous key was restored"));
             }
+            other => panic!("unexpected gateway error: {other:?}"),
         }
-        _ => {}
-    });
+    }
+
+    #[test]
+    fn pairing_rotation_returns_new_key_only_after_a_successful_restart() {
+        let directory = tempfile::tempdir().expect("temporary config directory");
+        let config_path = directory.path().join("config.json");
+        let current = GatewayConfigResponse {
+            port: 8484,
+            default_models: HashMap::new(),
+            data_dir: directory.path().join("data").to_string_lossy().into_owned(),
+            cache_dir: directory
+                .path()
+                .join("cache")
+                .to_string_lossy()
+                .into_owned(),
+            prefer_local: true,
+            access_token: "a".repeat(64),
+        };
+        let new_token = "b".repeat(64);
+        let mut stopped = false;
+        let mut started = false;
+
+        let response = rotate_pairing_token_transaction(
+            &config_path,
+            &current,
+            new_token.clone(),
+            true,
+            || {
+                stopped = true;
+                Ok(())
+            },
+            || {
+                started = true;
+                Ok(())
+            },
+        )
+        .expect("successful rotation");
+
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&config_path).expect("read rotated config"))
+                .expect("parse rotated config");
+        assert!(stopped);
+        assert!(started);
+        assert_eq!(response.token, new_token);
+        assert_eq!(value["access_token"], new_token);
+    }
+
+    #[test]
+    fn stop_reports_stopped_without_an_owned_process_or_listener() {
+        let manager = GatewayManager::new();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("reserve test port");
+        let port = listener.local_addr().expect("listener address").port();
+        drop(listener);
+
+        let response = manager.stop(Some(port)).expect("nothing to stop");
+
+        assert_eq!(response.status, "stopped");
+    }
+
+    #[test]
+    fn stop_refuses_to_claim_an_unowned_listener_was_stopped() {
+        let manager = GatewayManager::new();
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("test listener");
+        let port = listener.local_addr().expect("listener address").port();
+
+        let error = manager
+            .stop(Some(port))
+            .expect_err("unowned listener must not be reported as stopped");
+
+        match error {
+            GatewayError::Config(message) => {
+                assert!(message.contains("not owned by this desktop app"));
+            }
+            other => panic!("unexpected gateway error: {other:?}"),
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn stop_terminates_and_reaps_an_owned_python_child() {
+        let manager = GatewayManager::new();
+        let child = Command::new("sh")
+            .args(["-c", "sleep 30"])
+            .spawn()
+            .expect("spawn test child");
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("reserve test port");
+        let port = listener.local_addr().expect("listener address").port();
+        drop(listener);
+        {
+            let mut guard = manager.inner.lock().expect("state lock");
+            guard.child = Some(GatewayChild::Python(child));
+            guard.child_port = Some(port);
+            guard.child_generation = 1;
+        }
+
+        let response = manager.stop(None).expect("stop owned child");
+
+        assert_eq!(response.status, "stopped");
+        assert!(manager.inner.lock().expect("state lock").child.is_none());
+    }
+
+    #[test]
+    fn stale_termination_event_cannot_clear_newer_gateway_state() {
+        let manager = GatewayManager::new();
+        {
+            let mut guard = manager.inner.lock().expect("state lock");
+            guard.child_generation = 2;
+            guard.child_port = Some(8485);
+            guard.orphaned_sidecar = Some((123, 8485));
+        }
+
+        manager.clear_child_if_generation(1);
+
+        let guard = manager.inner.lock().expect("state lock");
+        assert_eq!(guard.child_port, Some(8485));
+        assert_eq!(guard.orphaned_sidecar, Some((123, 8485)));
+    }
 }

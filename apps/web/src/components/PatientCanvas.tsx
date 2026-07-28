@@ -13,11 +13,11 @@ const emotionColors: Record<
   anxious: 0xfbbf24,
   angry: 0xf87171,
   relieved: 0x34d399,
-  engaged: 0xa78bfa
+  engaged: 0xa78bfa,
 };
 
 export const PatientCanvas = ({
-  reaction
+  reaction,
 }: {
   reaction?: EvaluationResult["patient_reaction"];
 }) => {
@@ -42,7 +42,7 @@ export const PatientCanvas = ({
         width: 520,
         height: 360,
         backgroundAlpha: 0,
-        antialias: true
+        antialias: true,
       });
 
       if (cancelled) {
@@ -56,7 +56,10 @@ export const PatientCanvas = ({
       app.stage.addChild(stage);
 
       const body = new Graphics();
-      body.beginFill(0x1f2937).drawRoundedRect(160, 140, 200, 160, 32).endFill();
+      body
+        .beginFill(0x1f2937)
+        .drawRoundedRect(160, 140, 200, 160, 32)
+        .endFill();
 
       const face = new Graphics();
       face.beginFill(0xf8fafc).drawCircle(260, 150, 60).endFill();
@@ -71,18 +74,21 @@ export const PatientCanvas = ({
         .drawCircle(285, 140, 6)
         .endFill();
 
-      const moodText = new Text(t("practice.patientReady"), new TextStyle({ fill: 0xe2e8f0, fontSize: 14 }));
+      const moodText = new Text(
+        t("practice.patientReady"),
+        new TextStyle({ fill: 0xe2e8f0, fontSize: 14 }),
+      );
       moodText.x = 210;
       moodText.y = 260;
 
       stage.addChild(emotionGlow, body, face, eyes, moodText);
 
-      let t = 0;
+      let animationTime = 0;
       app.ticker.add(() => {
-        t += 0.02;
-        eyes.y = 140 + Math.sin(t) * 2;
-        face.y = Math.sin(t * 0.7) * 3;
-        body.y = Math.sin(t * 0.4) * 2;
+        animationTime += 0.02;
+        eyes.y = 140 + Math.sin(animationTime) * 2;
+        face.y = Math.sin(animationTime * 0.7) * 3;
+        body.y = Math.sin(animationTime * 0.4) * 2;
       });
     };
 
@@ -102,7 +108,9 @@ export const PatientCanvas = ({
     const canvas = canvasRef.current.querySelector("canvas");
     if (!canvas) return;
 
-    const color = reaction ? emotionColors[reaction.emotion] : emotionColors.neutral;
+    const color = reaction
+      ? emotionColors[reaction.emotion]
+      : emotionColors.neutral;
     canvas.style.backgroundColor = "transparent";
     canvas.style.border = "0";
     canvas.style.display = "block";

@@ -12,23 +12,31 @@ from local_runtime.helpers.structured_output import (
 
 
 def test_postprocess_strips_thinking():
-    canonical, parsed = parse_and_validate_structured_output('<thinking>plan</thinking>{"a":1}', {"type": "object", "properties": {"a": {"type": "number"}}})
+    canonical, parsed = parse_and_validate_structured_output(
+        '<thinking>plan</thinking>{"a":1}', {"type": "object", "properties": {"a": {"type": "number"}}}
+    )
     assert canonical == '{"a":1}'
     assert parsed == {"a": 1}
 
 
 def test_postprocess_strips_code_fences():
-    canonical, _ = parse_and_validate_structured_output("```json\n{\"a\":1}\n```", {"type": "object", "properties": {"a": {"type": "number"}}})
+    canonical, _ = parse_and_validate_structured_output(
+        '```json\n{"a":1}\n```', {"type": "object", "properties": {"a": {"type": "number"}}}
+    )
     assert canonical == '{"a":1}'
 
 
 def test_postprocess_extracts_from_prose():
-    canonical, _ = parse_and_validate_structured_output("ok {\"a\":1} thanks", {"type": "object", "properties": {"a": {"type": "number"}}})
+    canonical, _ = parse_and_validate_structured_output(
+        'ok {"a":1} thanks', {"type": "object", "properties": {"a": {"type": "number"}}}
+    )
     assert canonical == '{"a":1}'
 
 
 def test_postprocess_repairs_trailing_commas():
-    canonical, _ = parse_and_validate_structured_output('{"a":1,}', {"type": "object", "properties": {"a": {"type": "number"}}})
+    canonical, _ = parse_and_validate_structured_output(
+        '{"a":1,}', {"type": "object", "properties": {"a": {"type": "number"}}}
+    )
     assert canonical == '{"a":1}'
 
 

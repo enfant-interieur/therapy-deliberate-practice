@@ -3,13 +3,13 @@ import { test } from "node:test";
 import {
   NoUniquePatientStatementsLeftError,
   pickUnusedExampleForPair,
-  pickUnusedExampleForPlayer
+  pickUnusedExampleForPlayer,
 } from "../src/services/minigamePromptSelection";
 
 const examples = [
   { id: "ex-1", task_id: "task-1" },
   { id: "ex-2", task_id: "task-1" },
-  { id: "ex-3", task_id: "task-1" }
+  { id: "ex-3", task_id: "task-1" },
 ];
 
 test("pickUnusedExampleForPlayer avoids repeats and is deterministic", () => {
@@ -19,7 +19,7 @@ test("pickUnusedExampleForPlayer avoids repeats and is deterministic", () => {
     const example = pickUnusedExampleForPlayer({
       examples,
       usedExampleIds: used,
-      seedKey: `seed:player-a:${i}`
+      seedKey: `seed:player-a:${i}`,
     });
     assert.ok(!used.has(example.id));
     used.add(example.id);
@@ -30,12 +30,12 @@ test("pickUnusedExampleForPlayer avoids repeats and is deterministic", () => {
   const deterministic = pickUnusedExampleForPlayer({
     examples,
     usedExampleIds: new Set(),
-    seedKey: "seed:player-a:0"
+    seedKey: "seed:player-a:0",
   });
   const deterministicAgain = pickUnusedExampleForPlayer({
     examples,
     usedExampleIds: new Set(),
-    seedKey: "seed:player-a:0"
+    seedKey: "seed:player-a:0",
   });
   assert.equal(deterministic.id, deterministicAgain.id);
 });
@@ -47,12 +47,12 @@ test("pickUnusedExampleForPlayer throws when exhausted", () => {
       pickUnusedExampleForPlayer({
         examples,
         usedExampleIds: used,
-        seedKey: "seed:player-a:0"
+        seedKey: "seed:player-a:0",
       }),
     (error) => {
       assert.ok(error instanceof NoUniquePatientStatementsLeftError);
       return true;
-    }
+    },
   );
 });
 
@@ -64,7 +64,7 @@ test("pickUnusedExampleForPair avoids repeats per player", () => {
     examples,
     usedByPlayerA: usedByA,
     usedByPlayerB: usedByB,
-    seedKey: "seed:pair:0"
+    seedKey: "seed:pair:0",
   });
   usedByA.add(first.id);
   usedByB.add(first.id);
@@ -73,7 +73,7 @@ test("pickUnusedExampleForPair avoids repeats per player", () => {
     examples,
     usedByPlayerA: usedByA,
     usedByPlayerB: usedByB,
-    seedKey: "seed:pair:1"
+    seedKey: "seed:pair:1",
   });
   assert.notEqual(second.id, first.id);
 });

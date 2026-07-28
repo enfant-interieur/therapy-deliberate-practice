@@ -4,34 +4,61 @@ import { useTranslation } from "react-i18next";
 import { Badge, Button, IconButton, Input, Label, Textarea } from "./AdminUi";
 
 const ArrowUp = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M12 19V5m0 0l-6 6m6-6l6 6" strokeLinecap="round" />
   </svg>
 );
 
 const ArrowDown = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M12 5v14m0 0l-6-6m6 6l6-6" strokeLinecap="round" />
   </svg>
 );
 
 const DuplicateIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M8 8h10v10H8z" />
     <path d="M6 16H4V4h12v2" />
   </svg>
 );
 
 const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M4 7h16" strokeLinecap="round" />
     <path d="M9 7V5h6v2" strokeLinecap="round" />
     <path d="M8 7l1 12h6l1-12" strokeLinecap="round" />
   </svg>
 );
 
-const updateArrayItem = <T,>(items: T[], index: number, updater: (item: T) => T): T[] =>
-  items.map((item, idx) => (idx === index ? updater(item) : item));
+const updateArrayItem = <T,>(
+  items: T[],
+  index: number,
+  updater: (item: T) => T,
+): T[] => items.map((item, idx) => (idx === index ? updater(item) : item));
 
 type InteractionErrors = {
   id?: string;
@@ -49,20 +76,27 @@ type InteractionExamplesEditorProps = {
 export const InteractionExamplesEditor = ({
   interactions,
   errors,
-  onChange
+  onChange,
 }: InteractionExamplesEditorProps) => {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [difficultyFilter, setDifficultyFilter] = useState<number | "all">("all");
+  const [difficultyFilter, setDifficultyFilter] = useState<number | "all">(
+    "all",
+  );
 
   const filtered = useMemo(() => {
     if (difficultyFilter === "all") return interactions;
-    return interactions.filter((example) => example.difficulty === difficultyFilter);
+    return interactions.filter(
+      (example) => example.difficulty === difficultyFilter,
+    );
   }, [difficultyFilter, interactions]);
 
   const averageDifficulty = useMemo(() => {
     if (!interactions.length) return 0;
-    return interactions.reduce((sum, example) => sum + example.difficulty, 0) / interactions.length;
+    return (
+      interactions.reduce((sum, example) => sum + example.difficulty, 0) /
+      interactions.length
+    );
   }, [interactions]);
 
   const addInteraction = () => {
@@ -74,14 +108,17 @@ export const InteractionExamplesEditor = ({
         difficulty: 3,
         title: "",
         patient_text: "",
-        therapist_text: ""
-      }
+        therapist_text: "",
+      },
     ]);
   };
 
   const duplicateInteraction = (index: number) => {
     const base = interactions[index];
-    const clone = { ...base, id: `${base.id || "ix"}${interactions.length + 1}` };
+    const clone = {
+      ...base,
+      id: `${base.id || "ix"}${interactions.length + 1}`,
+    };
     const next = [...interactions];
     next.splice(index + 1, 0, clone);
     onChange(next);
@@ -104,8 +141,12 @@ export const InteractionExamplesEditor = ({
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.interactions")}</h4>
-          <p className="text-xs text-slate-400">{t("admin.content.interactionsHint")}</p>
+          <h4 className="text-sm font-semibold text-teal-200">
+            {t("admin.content.interactions")}
+          </h4>
+          <p className="text-xs text-slate-400">
+            {t("admin.content.interactionsHint")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2 text-xs text-slate-300">
@@ -118,7 +159,9 @@ export const InteractionExamplesEditor = ({
               </span>
               <span className="text-slate-500">•</span>
               <span>
-                {t("admin.content.avgDifficulty", { value: averageDifficulty.toFixed(1) })}
+                {t("admin.content.avgDifficulty", {
+                  value: averageDifficulty.toFixed(1),
+                })}
               </span>
             </div>
           </div>
@@ -131,7 +174,9 @@ export const InteractionExamplesEditor = ({
                 key={`interaction-filter-${value}`}
                 type="button"
                 className={`rounded-full px-2 py-1 text-xs font-semibold transition ${
-                  difficultyFilter === value ? "bg-teal-400/20 text-teal-100" : "text-slate-300"
+                  difficultyFilter === value
+                    ? "bg-teal-400/20 text-teal-100"
+                    : "text-slate-300"
                 }`}
                 onClick={() => setDifficultyFilter(value as number | "all")}
               >
@@ -147,7 +192,9 @@ export const InteractionExamplesEditor = ({
 
       <div className="space-y-4">
         {filtered.map((interaction) => {
-          const index = interactions.findIndex((item) => item.id === interaction.id);
+          const index = interactions.findIndex(
+            (item) => item.id === interaction.id,
+          );
           const interactionErrors = errors[index] || {};
           const isCollapsed = collapsed[interaction.id];
           return (
@@ -160,14 +207,19 @@ export const InteractionExamplesEditor = ({
                   type="button"
                   className="text-left"
                   onClick={() =>
-                    setCollapsed((prev) => ({ ...prev, [interaction.id]: !prev[interaction.id] }))
+                    setCollapsed((prev) => ({
+                      ...prev,
+                      [interaction.id]: !prev[interaction.id],
+                    }))
                   }
                 >
                   <p className="text-sm font-semibold text-white">
                     {interaction.title?.trim() || interaction.id}
                   </p>
                   <p className="text-xs text-slate-400">
-                    {t("admin.content.difficultyLabel", { difficulty: interaction.difficulty })}
+                    {t("admin.content.difficultyLabel", {
+                      difficulty: interaction.difficulty,
+                    })}
                   </p>
                 </button>
                 <div className="flex flex-wrap items-center gap-2">
@@ -213,13 +265,15 @@ export const InteractionExamplesEditor = ({
                           onChange(
                             updateArrayItem(interactions, index, (item) => ({
                               ...item,
-                              id: event.target.value
-                            }))
+                              id: event.target.value,
+                            })),
                           )
                         }
                       />
                       {interactionErrors.id && (
-                        <p className="text-xs text-rose-300">{interactionErrors.id}</p>
+                        <p className="text-xs text-rose-300">
+                          {interactionErrors.id}
+                        </p>
                       )}
                     </div>
                     <div className="space-y-2">
@@ -230,11 +284,13 @@ export const InteractionExamplesEditor = ({
                           onChange(
                             updateArrayItem(interactions, index, (item) => ({
                               ...item,
-                              title: event.target.value || null
-                            }))
+                              title: event.target.value || null,
+                            })),
                           )
                         }
-                        placeholder={t("admin.content.interactionTitlePlaceholder")}
+                        placeholder={t(
+                          "admin.content.interactionTitlePlaceholder",
+                        )}
                       />
                     </div>
                     <div className="space-y-2">
@@ -251,10 +307,14 @@ export const InteractionExamplesEditor = ({
                             }`}
                             onClick={() =>
                               onChange(
-                                updateArrayItem(interactions, index, (item) => ({
-                                  ...item,
-                                  difficulty: value
-                                }))
+                                updateArrayItem(
+                                  interactions,
+                                  index,
+                                  (item) => ({
+                                    ...item,
+                                    difficulty: value,
+                                  }),
+                                ),
                               )
                             }
                           >
@@ -263,7 +323,9 @@ export const InteractionExamplesEditor = ({
                         ))}
                       </div>
                       {interactionErrors.difficulty && (
-                        <p className="text-xs text-rose-300">{interactionErrors.difficulty}</p>
+                        <p className="text-xs text-rose-300">
+                          {interactionErrors.difficulty}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -278,18 +340,21 @@ export const InteractionExamplesEditor = ({
                           onChange(
                             updateArrayItem(interactions, index, (item) => ({
                               ...item,
-                              patient_text: event.target.value
-                            }))
+                              patient_text: event.target.value,
+                            })),
                           )
                         }
                         placeholder={t("admin.content.patientTextPlaceholder")}
                       />
                       <div className="flex items-center justify-between text-xs text-slate-400">
                         {interactionErrors.patient_text && (
-                          <span className="text-rose-300">{interactionErrors.patient_text}</span>
+                          <span className="text-rose-300">
+                            {interactionErrors.patient_text}
+                          </span>
                         )}
                         <span>
-                          {interaction.patient_text.length} {t("admin.content.characters")}
+                          {interaction.patient_text.length}{" "}
+                          {t("admin.content.characters")}
                         </span>
                       </div>
                     </div>
@@ -302,11 +367,13 @@ export const InteractionExamplesEditor = ({
                           onChange(
                             updateArrayItem(interactions, index, (item) => ({
                               ...item,
-                              therapist_text: event.target.value
-                            }))
+                              therapist_text: event.target.value,
+                            })),
                           )
                         }
-                        placeholder={t("admin.content.therapistTextPlaceholder")}
+                        placeholder={t(
+                          "admin.content.therapistTextPlaceholder",
+                        )}
                       />
                       <div className="flex items-center justify-between text-xs text-slate-400">
                         {interactionErrors.therapist_text && (
@@ -315,7 +382,8 @@ export const InteractionExamplesEditor = ({
                           </span>
                         )}
                         <span>
-                          {interaction.therapist_text.length} {t("admin.content.characters")}
+                          {interaction.therapist_text.length}{" "}
+                          {t("admin.content.characters")}
                         </span>
                       </div>
                     </div>

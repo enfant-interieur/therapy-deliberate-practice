@@ -3,11 +3,14 @@ from __future__ import annotations
 import asyncio
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
-from local_runtime.core.registry import ModelRegistry
 from local_runtime.core.readiness import ReadinessTracker
+from local_runtime.core.registry import ModelRegistry
+
+MAX_RETAINED_LOAD_JOBS = 100
 
 
 @dataclass
@@ -87,9 +90,7 @@ class ModelLoadManager:
     async def _run_job(self, job: ModelLoadJob) -> None:
         job.status = "running"
         job.started_at = time.time()
-        self.logger.info(
-            "models.load.start", extra={"job_id": job.id, "targets": job.models}
-        )
+        self.logger.info("models.load.start", extra={"job_id": job.id, "targets": job.models})
         tasks = [asyncio.create_task(self._load_single(job, model_id)) for model_id in job.models]
         await asyncio.gather(*tasks)
         job.finished_at = time.time()
@@ -98,6 +99,7 @@ class ModelLoadManager:
         else:
             job.status = "completed"
         self.readiness.loaded_models = sorted(self.registry.model_instances.keys())
+        self._prune_finished_jobs()
         self.logger.info(
             "models.load.done",
             extra={
@@ -109,6 +111,14 @@ class ModelLoadManager:
             },
         )
 
+    def _prune_finished_jobs(self) -> None:
+        finished = sorted(
+            (candidate for candidate in self.jobs.values() if candidate.finished_at is not None),
+            key=lambda candidate: candidate.finished_at or candidate.created_at,
+        )
+        for expired in finished[:-MAX_RETAINED_LOAD_JOBS]:
+            self.jobs.pop(expired.id, None)
+
     async def _load_single(self, job: ModelLoadJob, model_id: str) -> None:
         status = job.statuses[model_id]
         status.status = "loading"
@@ -118,12 +128,13 @@ class ModelLoadManager:
             success = await self.registry.preload_model(
                 model_id,
                 lambda label: self.ctx_factory(f"{ctx_label}:{label}"),
+                raise_errors=True,
             )
             if success:
                 status.status = "loaded"
             else:
                 status.status = "skipped"
-        except Exception as exc:  # pragma: no cover - registry already logs details
+        except Exception as exc:  # noqa: BLE001 - model plugins may raise backend-specific errors
             status.status = "error"
             status.error = str(exc)
         finally:

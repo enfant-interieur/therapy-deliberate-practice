@@ -2,7 +2,11 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
-import { useGetAdminWhoamiQuery, useGetMeQuery, useGetMeSettingsQuery } from "../store/api";
+import {
+  useGetAdminWhoamiQuery,
+  useGetMeQuery,
+  useGetMeSettingsQuery,
+} from "../store/api";
 import { setAdminStatus, setUser } from "../store/authSlice";
 import { supabase } from "../supabase/client";
 import { hydrateSettings } from "../store/settingsSlice";
@@ -10,7 +14,7 @@ import { AiSetupModal } from "./AiSetupModal";
 import { Tooltip } from "./Tooltip";
 import { Drawer } from "./Drawer";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { selectIsAppShellHidden } from "../store/minigamesSlice";
+import { safeInternalReturnTo } from "../utils/safeReturnTo";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -20,11 +24,19 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export const AppShell = () => {
   const { t, i18n } = useTranslation();
   const dispatch = useAppDispatch();
-  const { isAdmin, isAuthenticated, authChecked, email } = useAppSelector((state) => state.auth);
-  const isAppShellHidden = useAppSelector(selectIsAppShellHidden);
+  const { isAdmin, isAuthenticated, authChecked, email } = useAppSelector(
+    (state) => state.auth,
+  );
+  const isAppShellHidden = useAppSelector(
+    (state) => state.minigames.ui.appShellHidden,
+  );
   const { data, isError } = useGetAdminWhoamiQuery();
-  const { data: profileData } = useGetMeQuery(undefined, { skip: !isAuthenticated });
-  const { data: settingsData } = useGetMeSettingsQuery(undefined, { skip: !isAuthenticated });
+  const { data: profileData } = useGetMeQuery(undefined, {
+    skip: !isAuthenticated,
+  });
+  const { data: settingsData } = useGetMeSettingsQuery(undefined, {
+    skip: !isAuthenticated,
+  });
   const navigate = useNavigate();
   const location = useLocation();
   const selectedLanguage = i18n.resolvedLanguage ?? i18n.language;
@@ -46,33 +58,45 @@ export const AppShell = () => {
 
       const code = url.searchParams.get("code");
       const urlError =
-        url.searchParams.get("error_description") || url.searchParams.get("error") || null;
+        url.searchParams.get("error_description") ||
+        url.searchParams.get("error") ||
+        null;
 
       const hashParams = new URLSearchParams(
-        window.location.hash.startsWith("#") ? window.location.hash.slice(1) : window.location.hash
+        window.location.hash.startsWith("#")
+          ? window.location.hash.slice(1)
+          : window.location.hash,
       );
-      const hashHasTokens = hashParams.has("access_token") || hashParams.has("refresh_token");
-      const hashError = hashParams.get("error_description") || hashParams.get("error") || null;
+      const hashHasTokens =
+        hashParams.has("access_token") || hashParams.has("refresh_token");
+      const hashError =
+        hashParams.get("error_description") || hashParams.get("error") || null;
 
-      const hasAuthCallback = Boolean(code || hashHasTokens || urlError || hashError);
+      const hasAuthCallback = Boolean(
+        code || hashHasTokens || urlError || hashError,
+      );
       if (!hasAuthCallback) return;
 
-      const signature = [code ?? "", hashHasTokens ? "tokens" : "", urlError ?? "", hashError ?? ""].join(
-        "|"
-      );
+      const signature = [
+        code ?? "",
+        hashHasTokens ? "tokens" : "",
+        urlError ?? "",
+        hashError ?? "",
+      ].join("|");
       if (handledAuthSignatureRef.current === signature) return;
       handledAuthSignatureRef.current = signature;
 
-      const errorMessage = urlError || hashError;
-      if (errorMessage) {
-        window.localStorage.setItem("authError", errorMessage);
-      }
+      let errorMessage = urlError || hashError;
 
       try {
         if (code) {
           await supabase.auth.exchangeCodeForSession(code);
         } else if (hashHasTokens) {
-          const authAny = supabase.auth as { getSessionFromUrl?: (options: { storeSession: boolean }) => Promise<unknown> };
+          const authAny = supabase.auth as {
+            getSessionFromUrl?: (options: {
+              storeSession: boolean;
+            }) => Promise<unknown>;
+          };
           if (typeof authAny.getSessionFromUrl === "function") {
             await authAny.getSessionFromUrl({ storeSession: true });
           } else {
@@ -80,25 +104,29 @@ export const AppShell = () => {
           }
         }
         await supabase.auth.getSession();
-      } finally {
-        const returnToFromUrl = url.searchParams.get("returnTo");
-        const storedReturnTo = window.localStorage.getItem("authReturnTo");
+      } catch (error) {
+        errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Authentication callback failed.";
+      }
 
-        const safeReturnTo = (value: string | null) => {
-          if (!value || !value.startsWith("/")) return null;
-          if (value === "/login") return "/";
-          return value;
-        };
+      const returnToFromUrl = url.searchParams.get("returnTo");
+      const storedReturnTo = window.localStorage.getItem("authReturnTo");
 
-        const returnTo = safeReturnTo(returnToFromUrl) ?? safeReturnTo(storedReturnTo) ?? "/";
+      const returnTo =
+        safeInternalReturnTo(returnToFromUrl) ??
+        safeInternalReturnTo(storedReturnTo) ??
+        "/";
 
-        window.localStorage.removeItem("authReturnTo");
+      window.localStorage.removeItem("authReturnTo");
 
-        if (errorMessage) {
-          navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, { replace: true });
-          return;
-        }
-
+      if (errorMessage) {
+        window.localStorage.setItem("authError", errorMessage);
+        navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, {
+          replace: true,
+        });
+      } else {
         navigate(returnTo, { replace: true });
       }
     };
@@ -118,8 +146,8 @@ export const AppShell = () => {
           email: session?.user?.email ?? null,
           accessToken: session?.access_token ?? null,
           isAuthenticated: Boolean(session?.user?.id),
-          authChecked: true
-        })
+          authChecked: true,
+        }),
       );
     };
     void init();
@@ -130,8 +158,8 @@ export const AppShell = () => {
           email: session?.user?.email ?? null,
           accessToken: session?.access_token ?? null,
           isAuthenticated: Boolean(session?.user?.id),
-          authChecked: true
-        })
+          authChecked: true,
+        }),
       );
     });
     return () => {
@@ -151,7 +179,8 @@ export const AppShell = () => {
     const dismissed = window.sessionStorage.getItem("aiSetupDismissed") === "1";
     if (dismissed) return;
     const missingLocal =
-      !settingsData.localAiBaseUrl && (!settingsData.localLlmUrl || !settingsData.localSttUrl);
+      !settingsData.localAiBaseUrl &&
+      (!settingsData.localLlmUrl || !settingsData.localSttUrl);
     const missingOpenAi = !settingsData.hasOpenAiKey;
     if (missingLocal || missingOpenAi) {
       setShowAiSetup(true);
@@ -164,16 +193,16 @@ export const AppShell = () => {
         setAdminStatus({
           isAdmin: data.isAdmin,
           email: data.email,
-          isAuthenticated: data.isAuthenticated
-        })
+          isAuthenticated: data.isAuthenticated,
+        }),
       );
     } else if (isError) {
       dispatch(
         setAdminStatus({
           isAdmin: false,
           email: null,
-          isAuthenticated: false
-        })
+          isAuthenticated: false,
+        }),
       );
     }
   }, [data, isError, dispatch]);
@@ -228,10 +257,16 @@ export const AppShell = () => {
 
   const navItems = [
     { key: "library", label: t("appShell.nav.library"), to: "/", exact: true },
-    ...(isAdmin ? [{ key: "admin", label: t("appShell.nav.admin"), to: "/admin" }] : []),
-    { key: "minigames", label: t("appShell.nav.minigames"), onClick: handleDrawerMinigames },
+    ...(isAdmin
+      ? [{ key: "admin", label: t("appShell.nav.admin"), to: "/admin" }]
+      : []),
+    {
+      key: "minigames",
+      label: t("appShell.nav.minigames"),
+      onClick: handleDrawerMinigames,
+    },
     { key: "leaderboard", label: t("leaderboard.tooltip"), to: "/leaderboard" },
-    { key: "help", label: t("appShell.nav.help"), to: "/help" }
+    { key: "help", label: t("appShell.nav.help"), to: "/help" },
   ];
 
   return (
@@ -250,7 +285,9 @@ export const AppShell = () => {
         <header className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-teal-400">{t("appShell.brand")}</p>
+              <p className="text-sm uppercase tracking-[0.3em] text-teal-400">
+                {t("appShell.brand")}
+              </p>
               <h1 className="text-lg font-semibold">{t("appShell.title")}</h1>
             </div>
             <nav className="flex items-center gap-2">
@@ -261,8 +298,18 @@ export const AppShell = () => {
                   className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:border-white/20 hover:text-white"
                   aria-label={t("appShell.nav.menu")}
                 >
-                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M4 6h16M4 12h16M4 18h16"
+                    />
                   </svg>
                 </button>
               ) : (
@@ -288,7 +335,13 @@ export const AppShell = () => {
                       className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:border-white/20 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70"
                       aria-label={t("leaderboard.tooltip")}
                     >
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+                      <svg
+                        viewBox="0 0 24 24"
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.6"
+                      >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -302,7 +355,13 @@ export const AppShell = () => {
                     className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 text-slate-200 transition hover:border-white/20 hover:text-white"
                     aria-label={t("appShell.nav.help")}
                   >
-                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+                    <svg
+                      viewBox="0 0 24 24"
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                    >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -323,7 +382,10 @@ export const AppShell = () => {
                     <option value="fr">{t("appShell.language.french")}</option>
                   </select>
                   {authChecked && !isAuthenticated && (
-                    <NavLink to="/login" className="rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-950">
+                    <NavLink
+                      to="/login"
+                      className="rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-950"
+                    >
                       {t("appShell.nav.login")}
                     </NavLink>
                   )}
@@ -337,7 +399,13 @@ export const AppShell = () => {
                         aria-expanded={isUserMenuOpen}
                         onClick={() => setIsUserMenuOpen((open) => !open)}
                       >
-                        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <svg
+                          viewBox="0 0 24 24"
+                          className="h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                        >
                           <path
                             strokeLinecap="round"
                             strokeLinejoin="round"
@@ -351,9 +419,15 @@ export const AppShell = () => {
                           role="menu"
                         >
                           <div className="px-3 py-2">
-                            <p className="text-xs uppercase tracking-[0.2em] text-teal-400">{t("appShell.nav.profile")}</p>
-                            <p className="text-sm font-semibold text-white">{displayName || " "}</p>
-                            <p className="text-xs text-slate-400">{email ?? " "}</p>
+                            <p className="text-xs uppercase tracking-[0.2em] text-teal-400">
+                              {t("appShell.nav.profile")}
+                            </p>
+                            <p className="text-sm font-semibold text-white">
+                              {displayName || " "}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {email ?? " "}
+                            </p>
                           </div>
                           <div className="my-2 h-px bg-white/10" />
                           <NavLink
@@ -409,11 +483,19 @@ export const AppShell = () => {
           </div>
         </header>
       )}
-      <Drawer open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} ariaLabel={t("appShell.nav.menu")}>
+      <Drawer
+        open={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        ariaLabel={t("appShell.nav.menu")}
+      >
         <div className="flex h-full flex-col gap-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.3em] text-teal-400">{t("appShell.brand")}</p>
-            <h2 className="mt-1 text-xl font-semibold text-white">{t("appShell.title")}</h2>
+            <p className="text-xs uppercase tracking-[0.3em] text-teal-400">
+              {t("appShell.brand")}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-white">
+              {t("appShell.title")}
+            </h2>
           </div>
           <div className="space-y-1">
             {navItems.map((item) =>
@@ -436,13 +518,16 @@ export const AppShell = () => {
                 >
                   {item.label}
                 </button>
-              )
+              ),
             )}
           </div>
           <div className="mt-auto space-y-4 rounded-3xl border border-white/10 bg-white/5 p-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">{t("appShell.language.label")}</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+                {t("appShell.language.label")}
+              </p>
               <select
+                aria-label={t("appShell.language.label")}
                 className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2 text-sm text-white"
                 value={selectedLanguage}
                 onChange={handleLanguageChange}
@@ -463,8 +548,12 @@ export const AppShell = () => {
             {authChecked && isAuthenticated && (
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-teal-300">{t("appShell.nav.profile")}</p>
-                  <p className="text-sm font-semibold text-white">{displayName || " "}</p>
+                  <p className="text-xs uppercase tracking-[0.2em] text-teal-300">
+                    {t("appShell.nav.profile")}
+                  </p>
+                  <p className="text-sm font-semibold text-white">
+                    {displayName || " "}
+                  </p>
                   <p className="text-xs text-slate-400">{email ?? " "}</p>
                 </div>
                 <div className="grid gap-2">
@@ -505,7 +594,11 @@ export const AppShell = () => {
           </div>
         </div>
       </Drawer>
-      <main className={isAppShellHidden ? "w-full p-0" : "mx-auto max-w-6xl px-6 pb-10 pt-24"}>
+      <main
+        className={
+          isAppShellHidden ? "w-full p-0" : "mx-auto max-w-6xl px-6 pb-10 pt-24"
+        }
+      >
         <Outlet context={{ openAiSetup }} />
       </main>
     </div>

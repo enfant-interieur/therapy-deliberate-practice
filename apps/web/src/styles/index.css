@@ -11,9 +11,15 @@ audio.audio-player {
   height: 52px;
   border-radius: 9999px;
   /*border: 1px solid rgba(148, 163, 184, 0.2);*/
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.6));
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.8),
+    rgba(30, 41, 59, 0.6)
+  );
   /*padding: 6px 16px;*/
-  box-shadow: 0 12px 30px -20px rgba(15, 23, 42, 0.9), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  box-shadow:
+    0 12px 30px -20px rgba(15, 23, 42, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   color: white;
 }
 
@@ -23,7 +29,11 @@ audio.audio-player::-webkit-media-controls-panel {
 
 audio.audio-player::-webkit-media-controls-enclosure {
   border-radius: 9999px;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.75), rgba(30, 41, 59, 0.65));
+  background: linear-gradient(
+    135deg,
+    rgba(15, 23, 42, 0.75),
+    rgba(30, 41, 59, 0.65)
+  );
   box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.15);
   color: white;
 }

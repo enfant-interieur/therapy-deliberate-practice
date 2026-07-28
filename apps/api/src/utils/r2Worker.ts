@@ -10,7 +10,7 @@ export const createR2BucketStorage = (bucket: R2Bucket): TtsStorage => {
     return {
       exists: true,
       etag: result.etag ?? undefined,
-      size: result.size ?? undefined
+      size: result.size ?? undefined,
     };
   };
 
@@ -18,10 +18,10 @@ export const createR2BucketStorage = (bucket: R2Bucket): TtsStorage => {
     _bucketName: string,
     key: string,
     bytes: Uint8Array,
-    contentType: string
+    contentType: string,
   ) => {
     const result = await bucket.put(key, bytes, {
-      httpMetadata: { contentType }
+      httpMetadata: { contentType },
     });
     return { etag: result?.etag ?? undefined };
   };
@@ -36,7 +36,7 @@ export const createR2BucketStorage = (bucket: R2Bucket): TtsStorage => {
       body,
       contentType: result.httpMetadata?.contentType ?? "audio/mpeg",
       etag: result.etag ?? undefined,
-      contentLength: result.size ?? undefined
+      contentLength: result.size ?? undefined,
     };
   };
 

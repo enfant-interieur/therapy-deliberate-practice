@@ -23,7 +23,7 @@ type PrefetchBatchResult = {
 const createResponse = (body = "audio") =>
   new Response(new Blob([body]), { status: 200 });
 
-const createDeferred = <T,>() => {
+const createDeferred = <T>() => {
   let resolve: (value: T) => void;
   let reject: (error: unknown) => void;
   const promise = new Promise<T>((res, rej) => {
@@ -35,15 +35,28 @@ const createDeferred = <T,>() => {
 
 const setupCacheStorage = () => {
   const store = new Map<string, Response>();
-  const cache = {
-    match: vi.fn(async (url: string) => store.get(url)),
-    put: vi.fn(async (url: string, response: Response) => {
-      store.set(url, response);
-    })
+  const requestKey = (request: RequestInfo | URL) =>
+    typeof request === "string" ? request : request.toString();
+  const cache: Cache = {
+    add: vi.fn(async () => undefined),
+    addAll: vi.fn(async () => undefined),
+    delete: vi.fn(async () => false),
+    keys: vi.fn(async () => []),
+    match: vi.fn(async (request: RequestInfo | URL) =>
+      store.get(requestKey(request)),
+    ),
+    matchAll: vi.fn(async () => []),
+    put: vi.fn(async (request: RequestInfo | URL, response: Response) => {
+      store.set(requestKey(request), response);
+    }),
   };
-  const caches = {
-    open: vi.fn(async () => cache)
-  } as CacheStorage;
+  const caches: CacheStorage = {
+    open: vi.fn(async () => cache),
+    delete: vi.fn(async () => false),
+    has: vi.fn(async () => false),
+    keys: vi.fn(async () => []),
+    match: vi.fn(async () => undefined),
+  };
   Object.assign(globalThis, { caches });
   return { store, cache };
 };
@@ -51,7 +64,9 @@ const setupCacheStorage = () => {
 beforeEach(() => {
   setupCacheStorage();
   globalThis.fetch = vi.fn(async () => createResponse()) as typeof fetch;
-  globalThis.URL.createObjectURL = vi.fn(() => "blob:audio") as typeof URL.createObjectURL;
+  globalThis.URL.createObjectURL = vi.fn(
+    () => "blob:audio",
+  ) as typeof URL.createObjectURL;
 });
 
 afterEach(() => {
@@ -63,7 +78,9 @@ describe("PatientAudioBank", () => {
   it("dedupes in-flight work by exerciseId + statementId", async () => {
     const deferred = createDeferred<PrefetchResult>();
     const prefetchSingle = vi.fn(() => deferred.promise);
-    const prefetchBatch = vi.fn(async () => ({ items: [] }) as PrefetchBatchResult);
+    const prefetchBatch = vi.fn(
+      async () => ({ items: [] }) as PrefetchBatchResult,
+    );
     const bank = new PatientAudioBank({ prefetchSingle, prefetchBatch });
 
     const first = bank.ensureReady("exercise", "statement");
@@ -74,7 +91,7 @@ describe("PatientAudioBank", () => {
     deferred.resolve({
       cache_key: "cache-key",
       status: "ready",
-      audio_url: "/api/v1/tts/cache-key"
+      audio_url: "/api/v1/tts/cache-key",
     });
 
     await Promise.all([first, second]);
@@ -87,8 +104,14 @@ describe("PatientAudioBank", () => {
 
     const prefetchSingle = vi
       .fn()
-      .mockResolvedValue({ cache_key: "cache-hit", status: "ready", audio_url: audioUrl });
-    const prefetchBatch = vi.fn(async () => ({ items: [] }) as PrefetchBatchResult);
+      .mockResolvedValue({
+        cache_key: "cache-hit",
+        status: "ready",
+        audio_url: audioUrl,
+      });
+    const prefetchBatch = vi.fn(
+      async () => ({ items: [] }) as PrefetchBatchResult,
+    );
     const bank = new PatientAudioBank({ prefetchSingle, prefetchBatch });
 
     await bank.ensureReady("exercise", "statement");
@@ -100,13 +123,19 @@ describe("PatientAudioBank", () => {
 
   it("respects retry_after_ms and caps attempts", async () => {
     vi.useFakeTimers();
-    const prefetchSingle = vi.fn(async () => ({
+    const prefetchSingle = vi.fn(async (): Promise<PrefetchResult> => ({
       cache_key: "cache-wait",
       status: "generating",
-      retry_after_ms: 200
+      retry_after_ms: 200,
     }));
-    const prefetchBatch = vi.fn(async () => ({ items: [] }) as PrefetchBatchResult);
-    const bank = new PatientAudioBank({ prefetchSingle, prefetchBatch, maxAttempts: 2 });
+    const prefetchBatch = vi.fn(
+      async () => ({ items: [] }) as PrefetchBatchResult,
+    );
+    const bank = new PatientAudioBank({
+      prefetchSingle,
+      prefetchBatch,
+      maxAttempts: 2,
+    });
 
     const promise = bank.ensureReady("exercise", "statement");
 
@@ -122,16 +151,22 @@ describe("PatientAudioBank", () => {
 
   it("aborts polling and avoids late state updates", async () => {
     vi.useFakeTimers();
-    const prefetchSingle = vi.fn(async () => ({
+    const prefetchSingle = vi.fn(async (): Promise<PrefetchResult> => ({
       cache_key: "cache-abort",
       status: "generating",
-      retry_after_ms: 200
+      retry_after_ms: 200,
     }));
-    const prefetchBatch = vi.fn(async () => ({ items: [] }) as PrefetchBatchResult);
+    const prefetchBatch = vi.fn(
+      async () => ({ items: [] }) as PrefetchBatchResult,
+    );
     const bank = new PatientAudioBank({ prefetchSingle, prefetchBatch });
     const controller = new AbortController();
 
-    const promise = bank.ensureReady("exercise", "statement", controller.signal);
+    const promise = bank.ensureReady(
+      "exercise",
+      "statement",
+      controller.signal,
+    );
     controller.abort();
 
     await vi.runAllTimersAsync();
@@ -145,12 +180,14 @@ describe("PatientAudioBank", () => {
   });
 
   it("transitions through generating and downloading statuses", async () => {
-    const prefetchSingle = vi.fn(async () => ({
+    const prefetchSingle = vi.fn(async (): Promise<PrefetchResult> => ({
       cache_key: "cache-ready",
       status: "ready",
-      audio_url: "/api/v1/tts/cache-ready"
+      audio_url: "/api/v1/tts/cache-ready",
     }));
-    const prefetchBatch = vi.fn(async () => ({ items: [] }) as PrefetchBatchResult);
+    const prefetchBatch = vi.fn(
+      async () => ({ items: [] }) as PrefetchBatchResult,
+    );
     const bank = new PatientAudioBank({ prefetchSingle, prefetchBatch });
     const statuses: string[] = [];
 

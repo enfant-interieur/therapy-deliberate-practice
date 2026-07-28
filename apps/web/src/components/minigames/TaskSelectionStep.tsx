@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { useGetTasksQuery } from "../../store/api";
 
 export type TaskSelectionState = {
@@ -15,56 +16,77 @@ type TaskSelectionStepProps = {
   onChange: (next: TaskSelectionState) => void;
 };
 
-export const TaskSelectionStep = ({ value, onChange }: TaskSelectionStepProps) => {
+export const TaskSelectionStep = ({
+  value,
+  onChange,
+}: TaskSelectionStepProps) => {
+  const { t } = useTranslation();
   const { data: tasks = [] } = useGetTasksQuery({ published: 1 });
   const tags = useMemo(
     () =>
       Array.from(
         new Set(
-          tasks.flatMap((task) => (task.tags ?? []) as string[]).filter(Boolean)
-        )
+          tasks
+            .flatMap((task) => (task.tags ?? []) as string[])
+            .filter(Boolean),
+        ),
       ),
-    [tasks]
+    [tasks],
   );
   const skillDomains = useMemo(
-    () => Array.from(new Set(tasks.map((task) => task.skill_domain).filter(Boolean))),
-    [tasks]
+    () =>
+      Array.from(
+        new Set(tasks.map((task) => task.skill_domain).filter(Boolean)),
+      ),
+    [tasks],
   );
 
   return (
     <div className="space-y-6">
       <div>
-        <p className="text-sm font-semibold text-white">Task strategy</p>
+        <p className="text-sm font-semibold text-white">
+          {t("minigameUi.taskStrategy")}
+        </p>
         <div className="mt-3 flex flex-wrap gap-3">
-          {(["manual", "random", "filtered_random"] as const).map((strategy) => (
-            <button
-              key={strategy}
-              onClick={() =>
-                onChange({
-                  ...value,
-                  strategy,
-                  task_ids: strategy === "manual" ? value.task_ids ?? [] : undefined
-                })
-              }
-              className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wide ${
-                value.strategy === strategy
-                  ? "border-teal-300/70 bg-teal-500/20 text-teal-100"
-                  : "border-white/10 bg-white/5 text-white/70 hover:border-white/40"
-              }`}
-            >
-              {strategy.replace("_", " ")}
-            </button>
-          ))}
+          {(["manual", "random", "filtered_random"] as const).map(
+            (strategy) => (
+              <button
+                key={strategy}
+                onClick={() =>
+                  onChange({
+                    ...value,
+                    strategy,
+                    task_ids:
+                      strategy === "manual"
+                        ? (value.task_ids ?? [])
+                        : undefined,
+                  })
+                }
+                className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-wide ${
+                  value.strategy === strategy
+                    ? "border-teal-300/70 bg-teal-500/20 text-teal-100"
+                    : "border-white/10 bg-white/5 text-white/70 hover:border-white/40"
+                }`}
+              >
+                {t(`minigameUi.strategy.${strategy}`)}
+              </button>
+            ),
+          )}
         </div>
       </div>
       {value.strategy === "manual" && (
         <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pick tasks</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+            {t("minigameUi.pickTasks")}
+          </p>
           <div className="mt-3 max-h-56 space-y-2 overflow-auto rounded-2xl border border-white/10 bg-slate-900/40 p-4">
             {tasks.map((task) => {
               const checked = value.task_ids?.includes(task.id) ?? false;
               return (
-                <label key={task.id} className="flex items-center gap-3 text-sm text-slate-200">
+                <label
+                  key={task.id}
+                  className="flex items-center gap-3 text-sm text-slate-200"
+                >
                   <input
                     type="checkbox"
                     checked={checked}
@@ -89,7 +111,9 @@ export const TaskSelectionStep = ({ value, onChange }: TaskSelectionStepProps) =
       {value.strategy === "filtered_random" && (
         <div className="grid gap-6 md:grid-cols-2">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Tags</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+              {t("minigameUi.tags")}
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {tags.map((tag) => {
                 const active = value.tags?.includes(tag);
@@ -118,7 +142,9 @@ export const TaskSelectionStep = ({ value, onChange }: TaskSelectionStepProps) =
             </div>
           </div>
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Skill domain</p>
+            <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+              {t("minigameUi.skillDomain")}
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {skillDomains.map((domain) => {
                 const active = value.skill_domains?.includes(domain);
@@ -150,10 +176,16 @@ export const TaskSelectionStep = ({ value, onChange }: TaskSelectionStepProps) =
       )}
       <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/40 p-4">
         <div>
-          <p className="text-sm font-semibold text-white">Shuffle each round</p>
-          <p className="text-xs text-slate-300">Re-randomize tasks between turns.</p>
+          <p className="text-sm font-semibold text-white">
+            {t("minigameUi.shuffleEachRound")}
+          </p>
+          <p className="text-xs text-slate-300">
+            {t("minigameUi.shuffleDescription")}
+          </p>
         </div>
         <button
+          aria-label={t("minigameUi.shuffleEachRound")}
+          aria-pressed={value.shuffle}
           onClick={() => onChange({ ...value, shuffle: !value.shuffle })}
           className={`relative inline-flex h-6 w-12 items-center rounded-full transition ${
             value.shuffle ? "bg-teal-400" : "bg-slate-700"

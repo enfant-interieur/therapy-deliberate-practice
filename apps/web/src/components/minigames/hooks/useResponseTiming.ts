@@ -23,7 +23,7 @@ export const calculateTimingPenalty = ({
   maxResponseEnabled,
   maxResponseSeconds,
   responseDelayMs,
-  responseDurationMs
+  responseDurationMs,
 }: {
   responseTimerEnabled: boolean;
   responseTimerSeconds?: number;
@@ -38,7 +38,10 @@ export const calculateTimingPenalty = ({
   if (responseTimerEnabled && responseTimerSeconds && responseDelayMs != null) {
     const minDelayMs = responseTimerSeconds * 1000;
     if (responseDelayMs < minDelayMs) {
-      delaySeverity = Math.min(1, Math.max(0, 1 - responseDelayMs / minDelayMs));
+      delaySeverity = Math.min(
+        1,
+        Math.max(0, 1 - responseDelayMs / minDelayMs),
+      );
     }
   }
 
@@ -47,7 +50,7 @@ export const calculateTimingPenalty = ({
     if (responseDurationMs > maxDurationMs) {
       durationSeverity = Math.min(
         1,
-        Math.max(0, (responseDurationMs - maxDurationMs) / maxDurationMs)
+        Math.max(0, (responseDurationMs - maxDurationMs) / maxDurationMs),
       );
     }
   }
@@ -59,8 +62,8 @@ export const calculateTimingPenalty = ({
     penalty,
     violations: {
       delaySeverity: delaySeverity > 0 ? delaySeverity : undefined,
-      durationSeverity: durationSeverity > 0 ? durationSeverity : undefined
-    }
+      durationSeverity: durationSeverity > 0 ? durationSeverity : undefined,
+    },
   };
 };
 
@@ -69,7 +72,7 @@ export const useResponseTiming = ({
   responseTimerSeconds,
   maxResponseEnabled,
   maxResponseSeconds,
-  patientEndedAt
+  patientEndedAt,
 }: ResponseTimingOptions) => {
   const [responseStartAt, setResponseStartAt] = useState<number | null>(null);
   const [responseStopAt, setResponseStopAt] = useState<number | null>(null);
@@ -122,22 +125,44 @@ export const useResponseTiming = ({
   }, [responseStartAt, responseStopAt]);
 
   const responseCountdown = useMemo(() => {
-    if (!responseTimerEnabled || !responseTimerSeconds || !patientEndedAt || responseStartAt) {
+    if (
+      !responseTimerEnabled ||
+      !responseTimerSeconds ||
+      !patientEndedAt ||
+      responseStartAt
+    ) {
       return null;
     }
     const elapsed = (now - patientEndedAt) / 1000;
     const remaining = responseTimerSeconds - elapsed;
     return Math.max(-MIN_RESPONSE_TIMER_NEGATIVE, remaining);
-  }, [now, patientEndedAt, responseStartAt, responseTimerEnabled, responseTimerSeconds]);
+  }, [
+    now,
+    patientEndedAt,
+    responseStartAt,
+    responseTimerEnabled,
+    responseTimerSeconds,
+  ]);
 
   const maxDurationRemaining = useMemo(() => {
-    if (!maxResponseEnabled || !maxResponseSeconds || !responseStartAt || responseStopAt) {
+    if (
+      !maxResponseEnabled ||
+      !maxResponseSeconds ||
+      !responseStartAt ||
+      responseStopAt
+    ) {
       return null;
     }
     const elapsed = (now - responseStartAt) / 1000;
     const remaining = maxResponseSeconds - elapsed;
     return remaining > 0 ? remaining : 0;
-  }, [maxResponseEnabled, maxResponseSeconds, now, responseStartAt, responseStopAt]);
+  }, [
+    maxResponseEnabled,
+    maxResponseSeconds,
+    now,
+    responseStartAt,
+    responseStopAt,
+  ]);
 
   const computed = useMemo(() => {
     const { penalty, violations } = calculateTimingPenalty({
@@ -146,11 +171,11 @@ export const useResponseTiming = ({
       maxResponseEnabled,
       maxResponseSeconds,
       responseDelayMs,
-      responseDurationMs
+      responseDurationMs,
     });
     return {
       penalty,
-      violations
+      violations,
     };
   }, [
     maxResponseEnabled,
@@ -158,7 +183,7 @@ export const useResponseTiming = ({
     responseDelayMs,
     responseDurationMs,
     responseTimerEnabled,
-    responseTimerSeconds
+    responseTimerSeconds,
   ]);
 
   const getTimingSnapshot = useCallback(() => {
@@ -176,19 +201,19 @@ export const useResponseTiming = ({
       maxResponseEnabled,
       maxResponseSeconds,
       responseDelayMs: delayMs,
-      responseDurationMs: durationMs
+      responseDurationMs: durationMs,
     });
     return {
       responseDelayMs: delayMs,
       responseDurationMs: durationMs,
       penalty,
-      violations
+      violations,
     };
   }, [
     maxResponseEnabled,
     maxResponseSeconds,
     responseTimerEnabled,
-    responseTimerSeconds
+    responseTimerSeconds,
   ]);
 
   return {
@@ -201,12 +226,12 @@ export const useResponseTiming = ({
     timingViolations: {
       responseDelayMs: responseDelayMs ?? undefined,
       responseDurationMs: responseDurationMs ?? undefined,
-      ...computed.violations
+      ...computed.violations,
     },
     penalty: computed.penalty,
     recordResponseStart,
     recordResponseStop,
     reset,
-    getTimingSnapshot
+    getTimingSnapshot,
   };
 };

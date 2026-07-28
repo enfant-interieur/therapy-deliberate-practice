@@ -5,12 +5,15 @@ const relativeTimeUnits: Array<[Intl.RelativeTimeFormatUnit, number]> = [
   ["day", 1000 * 60 * 60 * 24],
   ["hour", 1000 * 60 * 60],
   ["minute", 1000 * 60],
-  ["second", 1000]
+  ["second", 1000],
 ];
 
 export const formatScore = (value: number) => value.toFixed(1);
 
-export const formatRelativeTime = (timestamp: number | null, locale: string) => {
+export const formatRelativeTime = (
+  timestamp: number | null,
+  locale: string,
+) => {
   if (!timestamp) {
     return "—";
   }
@@ -20,7 +23,10 @@ export const formatRelativeTime = (timestamp: number | null, locale: string) => 
   for (const [unit, unitMs] of relativeTimeUnits) {
     if (absolute >= unitMs || unit === "second") {
       const value = Math.round(diff / unitMs);
-      return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(value, unit);
+      return new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+        value,
+        unit,
+      );
     }
   }
   return "—";
@@ -32,6 +38,6 @@ export const formatDateTime = (timestamp: number | null, locale: string) => {
   }
   return new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: "short",
   }).format(new Date(timestamp));
 };

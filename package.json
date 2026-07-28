@@ -4,7 +4,6 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "services/*",
     "services/local-runtime-suite/desktop"
   ],
   "scripts": {
@@ -14,22 +13,31 @@
     "dev:api": "npm run dev -w apps/api",
     "dev:old": "npm run build -w apps/web && npm run dev:worker",
     "dev:worker:old": "npm run dev -w apps/worker",
-    "dev:local": "npm run dev -w services/local-runtime-suite",
+    "dev:local": "npm --prefix services/local-runtime-suite run dev",
     "build": "npm run build -w apps/web && npm run build -w apps/api && npm run build -w apps/worker",
-    "build:local": "npm run build -w services/local-runtime-suite && npm --prefix services/local-runtime-suite/desktop run build",
+    "build:local": "npm --prefix services/local-runtime-suite run build && npm run build -w services/local-runtime-suite/desktop",
     "deploy:prod": "npm run build -w apps/web && npm run deploy:ci -w apps/worker",
-    "lint": "npm run lint -w apps/web",
-    "lint:local": "npm run lint -w services/local-runtime-suite && npm --prefix services/local-runtime-suite/desktop run lint && python services/local-runtime-suite/tools/gen_models_json.py",
+    "lint": "npm run lint -w apps/web && npm --prefix services/local-runtime-suite run lint && npm run lint -w services/local-runtime-suite/desktop",
+    "test": "npm test --workspaces --if-present && npm --prefix services/local-runtime-suite test",
+    "lint:local": "npm --prefix services/local-runtime-suite run lint && npm run lint -w services/local-runtime-suite/desktop && python services/local-runtime-suite/tools/gen_models_json.py",
     "format": "prettier --write .",
-    "release": "node scripts/release/run-release.mjs",
-    "release:dmg": "node scripts/release/run-release.mjs --skip-linux --skip-windows --skip-tag --allow-dirty",
-    "release:linux": "node scripts/release/run-release.mjs --skip-macos --skip-windows --skip-tag --allow-dirty",
-    "release:windows": "node scripts/release/run-release.mjs --skip-macos --skip-linux --skip-tag --allow-dirty",
-    "release:appstore": "node scripts/release/run-release-appstore.mjs",
-    "release:gh": "node scripts/release/run-release-gh.mjs"
+    "format:check": "prettier --check .",
+    "audit:production": "node scripts/audit-production-dependencies.mjs"
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.12.1",
+  "overrides": {
+    "@xmldom/xmldom": "0.8.13",
+    "ws": "8.21.1"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.4",
     "prettier": "^3.3.3",
-    "semver": "^7.7.3"
+    "vite": "^8.1.5",
+    "wrangler": "^4.114.0",
+    "ws": "8.21.1"
   }
 }

@@ -1,14 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   usePrefetchPatientAudioBatchMutation,
-  usePrefetchPatientAudioMutation
+  usePrefetchPatientAudioMutation,
 } from "../store/api";
 import { PatientAudioBank, type PatientAudioEntry } from "./PatientAudioBank";
 import { createPatientAudioLogger } from "./logger";
 
 export type WarmupTargets =
-  | Array<{ exerciseId: string; statementId: string }>
-  | Record<string, string[]>;
+  Array<{ exerciseId: string; statementId: string }> | Record<string, string[]>;
 
 type WarmupOptions = {
   signal?: AbortSignal;
@@ -27,6 +26,35 @@ type PlayOptions = {
 type UsePatientAudioBankOptions = {
   loggerScope?: string;
   maxAttempts?: number;
+};
+
+export const pausePatientAudio = (audioElement?: HTMLAudioElement | null) => {
+  audioElement?.pause();
+};
+
+export const stopAndRewindPatientAudio = (
+  audioElement?: HTMLAudioElement | null,
+) => {
+  if (!audioElement) return;
+  audioElement.pause();
+  audioElement.currentTime = 0;
+};
+
+export const preparePatientAudioPlayback = (
+  audioElement: HTMLAudioElement,
+  source: string,
+) => {
+  const sourceChanged = audioElement.getAttribute("src") !== source;
+  if (sourceChanged) {
+    audioElement.pause();
+    audioElement.currentTime = 0;
+    audioElement.src = source;
+    audioElement.load();
+    return;
+  }
+  if (audioElement.ended) {
+    audioElement.currentTime = 0;
+  }
 };
 
 const normalizeWarmupTargets = (targets: WarmupTargets) => {
@@ -51,9 +79,9 @@ export const usePatientAudioBank = (options?: UsePatientAudioBankOptions) => {
   const [prefetchBatchTrigger] = usePrefetchPatientAudioBatchMutation();
   const logger = useMemo(
     () => createPatientAudioLogger(options?.loggerScope ?? "bank"),
-    [options?.loggerScope]
+    [options?.loggerScope],
   );
-  const bankRef = useRef<PatientAudioBank>();
+  const bankRef = useRef<PatientAudioBank | undefined>(undefined);
 
   if (!bankRef.current) {
     bankRef.current = new PatientAudioBank({
@@ -61,7 +89,7 @@ export const usePatientAudioBank = (options?: UsePatientAudioBankOptions) => {
         const promise = prefetchSingleTrigger({
           exercise_id: exerciseId,
           practice_mode: "real_time",
-          statement_id: statementId
+          statement_id: statementId,
         });
         let onAbort: (() => void) | undefined;
         if (signal) {
@@ -84,7 +112,7 @@ export const usePatientAudioBank = (options?: UsePatientAudioBankOptions) => {
         const promise = prefetchBatchTrigger({
           exercise_id: exerciseId,
           practice_mode: "real_time",
-          statement_ids: statementIds
+          statement_ids: statementIds,
         });
         let onAbort: (() => void) | undefined;
         if (signal) {
@@ -104,12 +132,12 @@ export const usePatientAudioBank = (options?: UsePatientAudioBankOptions) => {
         }
       },
       logger,
-      maxAttempts: options?.maxAttempts
+      maxAttempts: options?.maxAttempts,
     });
   }
 
   const bank = bankRef.current;
-  const [version, setVersion] = useState(0);
+  const [, setVersion] = useState(0);
 
   useEffect(() => bank.subscribe(() => setVersion((prev) => prev + 1)), [bank]);
 
@@ -118,31 +146,28 @@ export const usePatientAudioBank = (options?: UsePatientAudioBankOptions) => {
       const grouped = normalizeWarmupTargets(targets);
       await Promise.all(
         Array.from(grouped.entries()).map(([exerciseId, statementIds]) =>
-          bank.warmupBatch(exerciseId, Array.from(statementIds), opts?.signal)
-        )
+          bank.warmupBatch(exerciseId, Array.from(statementIds), opts?.signal),
+        ),
       );
     },
-    [bank]
+    [bank],
   );
 
   const ensureReady = useCallback(
     (exerciseId: string, statementId: string, opts?: EnsureOptions) =>
       bank.ensureReady(exerciseId, statementId, opts?.signal),
-    [bank]
+    [bank],
   );
 
-  const stop = useCallback((audioElement?: HTMLAudioElement | null) => {
-    if (!audioElement) return;
-    audioElement.pause();
-    audioElement.currentTime = 0;
-  }, []);
+  const pause = useCallback(pausePatientAudio, []);
+  const stopAndRewind = useCallback(stopAndRewindPatientAudio, []);
 
   const play = useCallback(
     async (
       exerciseId: string,
       statementId: string,
       audioElement?: HTMLAudioElement | null,
-      opts?: PlayOptions
+      opts?: PlayOptions,
     ) => {
       if (!audioElement) return;
       if (opts?.signal?.aborted) return;
@@ -159,63 +184,66 @@ export const usePatientAudioBank = (options?: UsePatientAudioBankOptions) => {
         return;
       }
 
-      audioElement.pause();
-      audioElement.currentTime = 0;
-      audioElement.src = entry.blobUrl;
-      audioElement.load();
+      preparePatientAudioPlayback(audioElement, entry.blobUrl);
       audioElement.onended = () => {
+        audioElement.currentTime = 0;
         bank.updateEntry(exerciseId, statementId, { status: "ready" });
         opts?.onEnded?.();
       };
       audioElement.onerror = () => {
         bank.updateEntry(exerciseId, statementId, {
           status: "error",
-          error: "Audio failed to load. Try again."
+          error: "Audio failed to load. Try again.",
         });
       };
 
       try {
         await audioElement.play();
         logger("play.start", { exerciseId, statementId });
-        bank.updateEntry(exerciseId, statementId, { status: "playing", error: undefined });
+        bank.updateEntry(exerciseId, statementId, {
+          status: "playing",
+          error: undefined,
+        });
       } catch (error) {
         const errorName = error instanceof Error ? error.name : "UnknownError";
         if (errorName === "NotAllowedError") {
           logger("play.blocked", { exerciseId, statementId });
           bank.updateEntry(exerciseId, statementId, {
             status: "blocked",
-            error: "Autoplay was blocked. Tap play to begin."
+            error: "Autoplay was blocked. Tap play to begin.",
           });
         } else {
           bank.updateEntry(exerciseId, statementId, {
             status: "error",
-            error: "Audio failed to play."
+            error: "Audio failed to play.",
           });
         }
       }
     },
-    [bank, logger]
+    [bank, logger],
   );
 
   const getEntry = useCallback(
-    (exerciseId: string, statementId: string) => bank.getEntry(exerciseId, statementId),
-    [bank]
+    (exerciseId: string, statementId: string) =>
+      bank.getEntry(exerciseId, statementId),
+    [bank],
   );
 
-  const progress = useMemo(() => {
-    const entries = bank.getEntries();
-    const ready = entries.filter((entry) => entry.status === "ready").length;
-    return { ready, total: entries.length };
-  }, [bank, version]);
+  const entries = bank.getEntries();
+  const progress = {
+    ready: entries.filter((entry) => entry.status === "ready").length,
+    total: entries.length,
+  };
 
   return {
     bank,
     warmup,
     ensureReady,
     play,
-    stop,
+    pause,
+    stopAndRewind,
     getEntry,
-    progress
+    progress,
   };
 };
 

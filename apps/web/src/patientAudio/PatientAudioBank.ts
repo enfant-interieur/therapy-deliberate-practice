@@ -1,4 +1,11 @@
-import { getBlobUrlForAudio, getCachedResponse, putIfMissing, revokeAllBlobUrls, revokeBlobUrl, toBlobUrl } from "./cache";
+import {
+  getBlobUrlForAudio,
+  getCachedResponse,
+  putIfMissing,
+  revokeAllBlobUrls,
+  revokeBlobUrl,
+  toBlobUrl,
+} from "./cache";
 import type { PatientAudioLogger } from "./logger";
 
 export type PatientAudioStatus =
@@ -41,11 +48,11 @@ type PrefetchBatchResponse = {
 type PatientAudioBankOptions = {
   prefetchSingle: (
     input: { exerciseId: string; statementId: string },
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ) => Promise<PrefetchSingleResponse>;
   prefetchBatch: (
     input: { exerciseId: string; statementIds: string[] },
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ) => Promise<PrefetchBatchResponse>;
   logger?: PatientAudioLogger;
   maxAttempts?: number;
@@ -54,7 +61,8 @@ type PatientAudioBankOptions = {
 const DEFAULT_RETRY_MS = 500;
 const DEFAULT_MAX_ATTEMPTS = 30;
 
-const makeKey = (exerciseId: string, statementId: string) => `${exerciseId}:${statementId}`;
+const makeKey = (exerciseId: string, statementId: string) =>
+  `${exerciseId}:${statementId}`;
 
 export class PatientAudioBank {
   private entries = new Map<string, PatientAudioEntry>();
@@ -73,7 +81,9 @@ export class PatientAudioBank {
 
   subscribe(listener: () => void) {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   getEntry(exerciseId: string, statementId: string) {
@@ -84,14 +94,18 @@ export class PatientAudioBank {
     return Array.from(this.entries.values());
   }
 
-  updateEntry(exerciseId: string, statementId: string, update: Partial<PatientAudioEntry>) {
+  updateEntry(
+    exerciseId: string,
+    statementId: string,
+    update: Partial<PatientAudioEntry>,
+  ) {
     const key = makeKey(exerciseId, statementId);
     const existing = this.entries.get(key) ?? { status: "idle" };
     const next: PatientAudioEntry = {
       ...existing,
       ...update,
       inFlight: "inFlight" in update ? update.inFlight : existing.inFlight,
-      lastUpdatedAt: Date.now()
+      lastUpdatedAt: Date.now(),
     };
     if (existing.status === "generating" && next.status === "downloading") {
       this.log("status.downloading", { exerciseId, statementId });
@@ -104,12 +118,16 @@ export class PatientAudioBank {
     exerciseId: string,
     statementId: string,
     status: PatientAudioStatus,
-    update?: Pick<PatientAudioEntry, "error">
+    update?: Pick<PatientAudioEntry, "error">,
   ) {
     this.updateEntry(exerciseId, statementId, { status, ...update });
   }
 
-  async ensureReady(exerciseId: string, statementId: string, signal?: AbortSignal) {
+  async ensureReady(
+    exerciseId: string,
+    statementId: string,
+    signal?: AbortSignal,
+  ) {
     const key = makeKey(exerciseId, statementId);
     const existing = this.entries.get(key);
     if (existing?.status === "ready" && existing.blobUrl) return;
@@ -130,7 +148,11 @@ export class PatientAudioBank {
     }
   }
 
-  async warmupBatch(exerciseId: string, statementIds: string[], signal?: AbortSignal) {
+  async warmupBatch(
+    exerciseId: string,
+    statementIds: string[],
+    signal?: AbortSignal,
+  ) {
     const candidates = statementIds.filter((statementId) => {
       const entry = this.getEntry(exerciseId, statementId);
       return !(entry?.status === "ready" && entry.blobUrl) && !entry?.inFlight;
@@ -141,11 +163,15 @@ export class PatientAudioBank {
     let remaining = new Set(candidates);
     let attempts = 0;
 
-    while (!signal?.aborted && remaining.size > 0 && attempts < this.maxAttempts) {
+    while (
+      !signal?.aborted &&
+      remaining.size > 0 &&
+      attempts < this.maxAttempts
+    ) {
       attempts += 1;
       const response = await this.prefetchBatch(
         { exerciseId, statementIds: Array.from(remaining) },
-        signal
+        signal,
       );
       if (signal?.aborted) return;
 
@@ -162,7 +188,7 @@ export class PatientAudioBank {
             statementId,
             item.audio_url,
             item.cache_key,
-            signal
+            signal,
           );
           this.updateEntry(exerciseId, statementId, { inFlight: downloadTask });
           downloadTasks.push(downloadTask);
@@ -171,7 +197,7 @@ export class PatientAudioBank {
             status: "generating",
             cacheKey: item.cache_key,
             retryAfterMs: item.retry_after_ms,
-            error: undefined
+            error: undefined,
           });
           nextRemaining.add(statementId);
         }
@@ -186,7 +212,7 @@ export class PatientAudioBank {
       const retryAfter = Math.min(
         ...response.items
           .filter((item) => item.status !== "ready")
-          .map((item) => item.retry_after_ms ?? DEFAULT_RETRY_MS)
+          .map((item) => item.retry_after_ms ?? DEFAULT_RETRY_MS),
       );
       await this.waitWithAbort(retryAfter, signal);
     }
@@ -195,7 +221,7 @@ export class PatientAudioBank {
       remaining.forEach((statementId) => {
         this.updateEntry(exerciseId, statementId, {
           status: "error",
-          error: "Patient audio is taking longer than usual."
+          error: "Patient audio is taking longer than usual.",
         });
       });
     }
@@ -220,14 +246,24 @@ export class PatientAudioBank {
     this.emit();
   }
 
-  private async runEnsureReady(exerciseId: string, statementId: string, signal?: AbortSignal) {
-    this.updateEntry(exerciseId, statementId, { status: "generating", error: undefined });
+  private async runEnsureReady(
+    exerciseId: string,
+    statementId: string,
+    signal?: AbortSignal,
+  ) {
+    this.updateEntry(exerciseId, statementId, {
+      status: "generating",
+      error: undefined,
+    });
     let attempts = 0;
 
     while (!signal?.aborted && attempts < this.maxAttempts) {
       attempts += 1;
       try {
-        const result = await this.prefetchSingle({ exerciseId, statementId }, signal);
+        const result = await this.prefetchSingle(
+          { exerciseId, statementId },
+          signal,
+        );
         if (signal?.aborted) return;
 
         this.updateEntry(exerciseId, statementId, {
@@ -235,20 +271,29 @@ export class PatientAudioBank {
           status: result.status,
           audioUrl: result.audio_url,
           retryAfterMs: result.retry_after_ms,
-          error: undefined
+          error: undefined,
         });
 
         if (result.status === "ready" && result.audio_url) {
-          await this.runDownload(exerciseId, statementId, result.audio_url, result.cache_key, signal);
+          await this.runDownload(
+            exerciseId,
+            statementId,
+            result.audio_url,
+            result.cache_key,
+            signal,
+          );
           return;
         }
 
-        await this.waitWithAbort(result.retry_after_ms ?? DEFAULT_RETRY_MS, signal);
-      } catch (error) {
+        await this.waitWithAbort(
+          result.retry_after_ms ?? DEFAULT_RETRY_MS,
+          signal,
+        );
+      } catch {
         if (signal?.aborted) return;
         this.updateEntry(exerciseId, statementId, {
           status: "error",
-          error: "Unable to prepare patient audio."
+          error: "Unable to prepare patient audio.",
         });
         return;
       }
@@ -257,7 +302,7 @@ export class PatientAudioBank {
     if (!signal?.aborted) {
       this.updateEntry(exerciseId, statementId, {
         status: "error",
-        error: "Patient audio is taking longer than usual."
+        error: "Patient audio is taking longer than usual.",
       });
     }
   }
@@ -267,7 +312,7 @@ export class PatientAudioBank {
     statementId: string,
     audioUrl: string,
     cacheKey: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ) {
     try {
       if (signal?.aborted) return;
@@ -278,7 +323,7 @@ export class PatientAudioBank {
           cacheKey,
           audioUrl,
           blobUrl: cachedBlobUrl,
-          error: undefined
+          error: undefined,
         });
         return;
       }
@@ -287,20 +332,21 @@ export class PatientAudioBank {
         status: "downloading",
         cacheKey,
         audioUrl,
-        error: undefined
+        error: undefined,
       });
 
       const cachedResponse = await getCachedResponse(audioUrl, signal);
       if (signal?.aborted) return;
 
-      let response = cachedResponse;
+      let response: Response;
       if (cachedResponse) {
         this.log("cache.hit", { audioUrl });
+        response = cachedResponse;
       } else {
         this.log("cache.miss", { audioUrl });
         response = await fetch(audioUrl, { signal });
         if (!response.ok) {
-          throw new Error("Failed to fetch patient audio.");
+          throw new Error(i18n.t("practice.error.patientAudioFetch"));
         }
         await putIfMissing(audioUrl, response.clone());
       }
@@ -311,13 +357,13 @@ export class PatientAudioBank {
         cacheKey,
         audioUrl,
         blobUrl,
-        error: undefined
+        error: undefined,
       });
-    } catch (error) {
+    } catch {
       if (signal?.aborted) return;
       this.updateEntry(exerciseId, statementId, {
         status: "error",
-        error: "Unable to cache patient audio."
+        error: "Unable to cache patient audio.",
       });
     } finally {
       const entry = this.getEntry(exerciseId, statementId);
@@ -354,3 +400,4 @@ export class PatientAudioBank {
     this.logger?.(event, payload);
   }
 }
+import i18n from "../i18n";

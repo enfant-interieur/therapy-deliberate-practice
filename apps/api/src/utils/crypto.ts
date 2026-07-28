@@ -4,8 +4,7 @@ const getWebCrypto = async () => {
   if (globalThis.crypto?.subtle) {
     return globalThis.crypto;
   }
-  const { webcrypto } = await import("node:crypto");
-  return webcrypto as Crypto;
+  throw new Error("Web Crypto is unavailable in this runtime.");
 };
 
 const base64Encode = (buffer: ArrayBuffer) => {
@@ -37,7 +36,10 @@ const deriveKey = async (secret: string) => {
   const crypto = await getWebCrypto();
   const secretBytes = encoder.encode(secret);
   const digest = await crypto.subtle.digest("SHA-256", secretBytes);
-  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, [
+    "encrypt",
+    "decrypt",
+  ]);
 };
 
 export type EncryptedOpenAiKey = {
@@ -48,7 +50,7 @@ export type EncryptedOpenAiKey = {
 
 export const encryptOpenAiKey = async (
   secret: string,
-  plaintext: string
+  plaintext: string,
 ): Promise<EncryptedOpenAiKey> => {
   const crypto = await getWebCrypto();
   const key = await deriveKey(secret);
@@ -56,25 +58,25 @@ export const encryptOpenAiKey = async (
   const ciphertext = await crypto.subtle.encrypt(
     { name: "AES-GCM", iv },
     key,
-    encoder.encode(plaintext)
+    encoder.encode(plaintext),
   );
   return {
     ciphertextB64: base64Encode(ciphertext),
     ivB64: base64Encode(iv.buffer),
-    kid: "v1"
+    kid: "v1",
   };
 };
 
 export const decryptOpenAiKey = async (
   secret: string,
-  record: { ciphertextB64: string; ivB64: string }
+  record: { ciphertextB64: string; ivB64: string },
 ): Promise<string> => {
   const crypto = await getWebCrypto();
   const key = await deriveKey(secret);
   const plaintext = await crypto.subtle.decrypt(
     { name: "AES-GCM", iv: new Uint8Array(base64Decode(record.ivB64)) },
     key,
-    base64Decode(record.ciphertextB64)
+    base64Decode(record.ciphertextB64),
   );
   return new TextDecoder().decode(plaintext);
 };

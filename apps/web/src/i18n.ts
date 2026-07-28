@@ -10,30 +10,37 @@ i18n
   .init({
     resources: {
       en: { common: en },
-      fr: { common: fr }
+      fr: { common: fr },
     },
     fallbackLng: "en",
     supportedLngs: ["en", "fr"],
     defaultNS: "common",
     ns: ["common"],
     interpolation: {
-      escapeValue: false
+      escapeValue: false,
     },
     detection: {
       order: ["localStorage", "navigator"],
-      caches: ["localStorage"]
+      caches: ["localStorage"],
     },
     react: {
-      useSuspense: false
-    }
+      useSuspense: false,
+    },
   });
 
+const updateDocumentLanguage = (language?: string) => {
+  if (typeof document === "undefined") return;
+  document.documentElement.lang = language ?? "en";
+};
+
 i18n.on("languageChanged", (language) => {
-  document.documentElement.lang = language;
+  updateDocumentLanguage(language);
 });
 
 i18n.on("initialized", () => {
-  document.documentElement.lang = i18n.resolvedLanguage ?? i18n.language;
+  updateDocumentLanguage(i18n.resolvedLanguage ?? i18n.language);
 });
+
+updateDocumentLanguage(i18n.resolvedLanguage ?? i18n.language);
 
 export default i18n;

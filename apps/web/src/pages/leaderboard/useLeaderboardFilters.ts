@@ -16,7 +16,8 @@ const normalizeTags = (tags: string[]) =>
 const normalizeParam = (value: string | null) => {
   if (!value) return null;
   const normalized = value.trim();
-  if (!normalized || normalized === "null" || normalized === "undefined") return null;
+  if (!normalized || normalized === "null" || normalized === "undefined")
+    return null;
   return normalized;
 };
 
@@ -26,18 +27,19 @@ export const useLeaderboardFilters = () => {
   const filters = useMemo<LeaderboardFilters>(() => {
     const tags = normalizeTags([
       ...searchParams.getAll("tag"),
-      ...(searchParams.get("tags")?.split(",") ?? [])
+      ...(searchParams.get("tags")?.split(",") ?? []),
     ]);
     const skillDomain = normalizeParam(searchParams.get("skill_domain"));
     const language = normalizeParam(searchParams.get("language"));
     const limitValue = Number(searchParams.get("limit"));
-    const limit = Number.isFinite(limitValue) && limitValue > 0 ? limitValue : defaultLimit;
+    const limit =
+      Number.isFinite(limitValue) && limitValue > 0 ? limitValue : defaultLimit;
 
     return {
       tags,
       skillDomain,
       language,
-      limit
+      limit,
     };
   }, [searchParams]);
 
@@ -72,28 +74,28 @@ export const useLeaderboardFilters = () => {
 
       setSearchParams(updated, { replace: true });
     },
-    [filters, searchParams, setSearchParams]
+    [filters, searchParams, setSearchParams],
   );
 
   const setSkillDomain = useCallback(
     (value: string | null) => {
       updateSearchParams({ skillDomain: value });
     },
-    [updateSearchParams]
+    [updateSearchParams],
   );
 
   const setLanguage = useCallback(
     (value: string | null) => {
       updateSearchParams({ language: value });
     },
-    [updateSearchParams]
+    [updateSearchParams],
   );
 
   const setLimit = useCallback(
     (value: number) => {
       updateSearchParams({ limit: value });
     },
-    [updateSearchParams]
+    [updateSearchParams],
   );
 
   const toggleTag = useCallback(
@@ -103,7 +105,7 @@ export const useLeaderboardFilters = () => {
         : [...filters.tags, tag];
       updateSearchParams({ tags: nextTags });
     },
-    [filters.tags, updateSearchParams]
+    [filters.tags, updateSearchParams],
   );
 
   const clearTags = useCallback(() => {
@@ -111,7 +113,12 @@ export const useLeaderboardFilters = () => {
   }, [updateSearchParams]);
 
   const clearAll = useCallback(() => {
-    updateSearchParams({ tags: [], skillDomain: null, language: null, limit: defaultLimit });
+    updateSearchParams({
+      tags: [],
+      skillDomain: null,
+      language: null,
+      limit: defaultLimit,
+    });
   }, [updateSearchParams]);
 
   return {
@@ -122,6 +129,6 @@ export const useLeaderboardFilters = () => {
     toggleTag,
     clearTags,
     clearAll,
-    defaultLimit
+    defaultLimit,
   };
 };

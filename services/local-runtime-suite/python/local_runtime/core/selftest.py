@@ -3,7 +3,8 @@ from __future__ import annotations
 import io
 import time
 import wave
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from local_runtime.api.openai_compat import format_responses_create
 from local_runtime.core.loader import LoadedModel
@@ -124,8 +125,10 @@ async def run_startup_self_test(
             try:
                 result, duration_ms = await _invoke_model(loaded.module, run_request, ctx)
                 _validate_result(endpoint, run_request, result, ctx)
-                readiness.record_self_test_check(f"{endpoint}:{loaded.spec.id}", "ok", duration_ms=duration_ms)
-            except Exception as exc:
+                readiness.record_self_test_check(
+                    f"{endpoint}:{loaded.spec.id}", "ok", duration_ms=duration_ms
+                )
+            except Exception as exc:  # noqa: BLE001 - each backend must be reported without stopping the matrix
                 failed = True
                 readiness.record_self_test_check(f"{endpoint}:{loaded.spec.id}", "error", detail=str(exc))
 
@@ -147,7 +150,7 @@ async def run_startup_self_test(
             if not {"response.output_text.delta", "response.completed"}.issubset(set(events)):
                 raise AssertionError("missing response stream events")
             readiness.record_self_test_check("responses_stream", "ok", duration_ms=duration_ms)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - backend-specific stream errors become readiness evidence
             failed = True
             readiness.record_self_test_check("responses_stream", "error", detail=str(exc))
 
@@ -159,17 +162,21 @@ async def run_startup_self_test(
         if model and model.spec.api.supports_stream:
             stt_stream_model = model
     if stt_stream_model:
-        ctx_stream = ctx_factory("selftest.audio.transcriptions.stream", "audio.transcriptions", stt_stream_model.spec.id)
+        ctx_stream = ctx_factory(
+            "selftest.audio.transcriptions.stream", "audio.transcriptions", stt_stream_model.spec.id
+        )
         run_request_stream = _build_run_request(stt_stream_model, stream=True)
         try:
-            result_stream, duration_ms = await _invoke_model(stt_stream_model.module, run_request_stream, ctx_stream)
+            result_stream, duration_ms = await _invoke_model(
+                stt_stream_model.module, run_request_stream, ctx_stream
+            )
             events = []
             async for event in result_stream:
                 events.append(event.get("event"))
             if "transcript.text.done" not in events:
                 raise AssertionError("missing transcript done event")
             readiness.record_self_test_check("audio_transcriptions_stream", "ok", duration_ms=duration_ms)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - backend-specific stream errors become readiness evidence
             failed = True
             readiness.record_self_test_check("audio_transcriptions_stream", "error", detail=str(exc))
 

@@ -7,6 +7,7 @@ export type EnvBindings = {
   ADMIN_EMAILS?: string;
   ADMIN_GROUPS?: string;
   CF_ACCESS_AUD?: string;
+  CF_ACCESS_ISSUER?: string;
   BYPASS_ADMIN_AUTH?: string;
   DEV_ADMIN_TOKEN?: string;
   ENV?: string;
@@ -35,6 +36,7 @@ export type RuntimeEnv = {
   adminEmails: string[];
   adminGroups: string[];
   cfAccessAud: string;
+  cfAccessIssuer: string;
   bypassAdminAuth: boolean;
   devAdminToken: string;
   environment: string;
@@ -59,7 +61,7 @@ export type RuntimeEnv = {
 const ttsFormats = ["mp3", "opus", "aac", "flac", "wav", "pcm"] as const;
 const normalizeTtsFormat = (
   value: string | undefined,
-  fallback: RuntimeEnv["localTtsFormat"]
+  fallback: RuntimeEnv["localTtsFormat"],
 ): RuntimeEnv["localTtsFormat"] =>
   ttsFormats.includes(value as RuntimeEnv["localTtsFormat"])
     ? (value as RuntimeEnv["localTtsFormat"])
@@ -85,12 +87,14 @@ export const resolveEnv = (bindings: EnvBindings): RuntimeEnv => ({
   adminEmails: parseCsv(bindings.ADMIN_EMAILS),
   adminGroups: parseCsv(bindings.ADMIN_GROUPS),
   cfAccessAud: bindings.CF_ACCESS_AUD ?? "",
+  cfAccessIssuer: bindings.CF_ACCESS_ISSUER ?? "",
   bypassAdminAuth: bindings.BYPASS_ADMIN_AUTH === "true",
   devAdminToken: bindings.DEV_ADMIN_TOKEN ?? "",
   environment: bindings.ENV ?? "production",
   localSttUrl: bindings.LOCAL_STT_URL ?? "http://localhost:7001",
   localLlmUrl: bindings.LOCAL_LLM_URL ?? "http://localhost:7002",
-  localLlmModel: bindings.LOCAL_LLM_MODEL ?? "mlx-community/Mistral-7B-Instruct-v0.2",
+  localLlmModel:
+    bindings.LOCAL_LLM_MODEL ?? "mlx-community/Mistral-7B-Instruct-v0.2",
   localTtsUrl: bindings.LOCAL_TTS_URL ?? "http://localhost:7003",
   localTtsModel: bindings.LOCAL_TTS_MODEL ?? "mlx-community/Kokoro-82M-bf16",
   localTtsVoice: bindings.LOCAL_TTS_VOICE ?? "af_bella",
@@ -104,5 +108,5 @@ export const resolveEnv = (bindings: EnvBindings): RuntimeEnv => ({
   supabaseAnonKey: bindings.SUPABASE_ANON_KEY ?? "",
   supabaseJwtSecret: bindings.SUPABASE_JWT_SECRET ?? "",
   r2Bucket: bindings.R2_BUCKET ?? "",
-  r2PublicBaseUrl: bindings.R2_PUBLIC_BASE_URL ?? ""
+  r2PublicBaseUrl: bindings.R2_PUBLIC_BASE_URL ?? "",
 });

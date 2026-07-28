@@ -5,7 +5,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import type { RuntimeEnv } from "../src/env";
-import { taskExamples, userSettings, users } from "../src/db/schema";
+import { taskExamples, tasks, userSettings, users } from "../src/db/schema";
 
 const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
   aiMode: "openai_only",
@@ -14,6 +14,7 @@ const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
   adminEmails: [],
   adminGroups: [],
   cfAccessAud: "",
+  cfAccessIssuer: "",
   bypassAdminAuth: false,
   devAdminToken: "",
   environment: "test",
@@ -33,7 +34,7 @@ const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
   supabaseJwtSecret: "test-secret",
   r2Bucket: "tts-bucket",
   r2PublicBaseUrl: "",
-  ...overrides
+  ...overrides,
 });
 
 const setupDb = () => {
@@ -59,6 +60,22 @@ const setupDb = () => {
       openai_key_kid TEXT,
       updated_at INTEGER NOT NULL,
       created_at INTEGER NOT NULL
+    );
+    CREATE TABLE tasks (
+      id TEXT PRIMARY KEY,
+      slug TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      skill_domain TEXT NOT NULL,
+      base_difficulty INTEGER NOT NULL,
+      general_objective TEXT,
+      tags TEXT NOT NULL,
+      authors TEXT NOT NULL DEFAULT '[]',
+      language TEXT NOT NULL DEFAULT 'en',
+      is_published INTEGER NOT NULL,
+      parent_task_id TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
     );
     CREATE TABLE task_examples (
       id TEXT PRIMARY KEY,
@@ -113,8 +130,8 @@ test("prefetch batch returns ready items for patient audio", async () => {
       body: new Uint8Array([1, 2, 3]),
       contentType: "audio/mpeg",
       etag: "etag",
-      contentLength: 3
-    })
+      contentLength: 3,
+    }),
   };
   const app = createApiApp({ env, db, tts: { storage } });
   const userId = "user-1";
@@ -123,8 +140,9 @@ test("prefetch batch returns ready items for patient audio", async () => {
     id: userId,
     email: "user@example.com",
     display_name: "Player One",
+    bio: null,
     is_profile_public: 1,
-    created_at: Date.now()
+    created_at: Date.now(),
   });
   await db.insert(userSettings).values({
     user_id: userId,
@@ -136,7 +154,22 @@ test("prefetch batch returns ready items for patient audio", async () => {
     openai_key_iv: null,
     openai_key_kid: null,
     updated_at: Date.now(),
-    created_at: Date.now()
+    created_at: Date.now(),
+  });
+  await db.insert(tasks).values({
+    id: "task-1",
+    slug: "task-1",
+    title: "Published task",
+    description: "A published patient audio task.",
+    skill_domain: "test",
+    base_difficulty: 1,
+    general_objective: null,
+    tags: [],
+    language: "en",
+    is_published: true,
+    parent_task_id: null,
+    created_at: Date.now(),
+    updated_at: Date.now(),
   });
   await db.insert(taskExamples).values([
     {
@@ -148,7 +181,7 @@ test("prefetch batch returns ready items for patient audio", async () => {
       language: "en",
       meta: null,
       created_at: Date.now(),
-      updated_at: Date.now()
+      updated_at: Date.now(),
     },
     {
       id: "statement-2",
@@ -159,22 +192,25 @@ test("prefetch batch returns ready items for patient audio", async () => {
       language: "en",
       meta: null,
       created_at: Date.now(),
-      updated_at: Date.now()
-    }
+      updated_at: Date.now(),
+    },
   ]);
 
-  const response = await app.request("/api/v1/practice/patient-audio/prefetch-batch", {
-    method: "POST",
-    headers: {
-      ...(await createAuthHeader(env, userId)),
-      "Content-Type": "application/json"
+  const response = await app.request(
+    "/api/v1/practice/patient-audio/prefetch-batch",
+    {
+      method: "POST",
+      headers: {
+        ...(await createAuthHeader(env, userId)),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        exercise_id: "task-1",
+        practice_mode: "real_time",
+        statement_ids: ["statement-1", "statement-2"],
+      }),
     },
-    body: JSON.stringify({
-      exercise_id: "task-1",
-      practice_mode: "real_time",
-      statement_ids: ["statement-1", "statement-2"]
-    })
-  });
+  );
 
   assert.equal(response.status, 200);
   const payload = await response.json();
@@ -186,7 +222,7 @@ test("prefetch batch returns ready items for patient audio", async () => {
   assert.ok(payload.items[0].audio_url);
 });
 
-test("prefetch batch relies on server OpenAI key", async () => {
+test("prefetch batch reports unavailable when no OpenAI key is configured", async () => {
   const { db } = setupDb();
   const env = createEnv({ openaiApiKey: "" });
   const storage = {
@@ -196,8 +232,8 @@ test("prefetch batch relies on server OpenAI key", async () => {
       body: new Uint8Array([1, 2, 3]),
       contentType: "audio/mpeg",
       etag: "etag",
-      contentLength: 3
-    })
+      contentLength: 3,
+    }),
   };
   const app = createApiApp({ env, db, tts: { storage } });
   const userId = "user-1";
@@ -206,8 +242,9 @@ test("prefetch batch relies on server OpenAI key", async () => {
     id: userId,
     email: "user@example.com",
     display_name: "Player One",
+    bio: null,
     is_profile_public: 1,
-    created_at: Date.now()
+    created_at: Date.now(),
   });
   await db.insert(userSettings).values({
     user_id: userId,
@@ -215,11 +252,26 @@ test("prefetch batch relies on server OpenAI key", async () => {
     local_stt_url: null,
     local_llm_url: null,
     store_audio: 0,
-    openai_key_ciphertext: "cipher",
-    openai_key_iv: "iv",
+    openai_key_ciphertext: null,
+    openai_key_iv: null,
     openai_key_kid: null,
     updated_at: Date.now(),
-    created_at: Date.now()
+    created_at: Date.now(),
+  });
+  await db.insert(tasks).values({
+    id: "task-1",
+    slug: "task-1",
+    title: "Published task",
+    description: "A published patient audio task.",
+    skill_domain: "test",
+    base_difficulty: 1,
+    general_objective: null,
+    tags: [],
+    language: "en",
+    is_published: true,
+    parent_task_id: null,
+    created_at: Date.now(),
+    updated_at: Date.now(),
   });
   await db.insert(taskExamples).values({
     id: "statement-1",
@@ -230,21 +282,24 @@ test("prefetch batch relies on server OpenAI key", async () => {
     language: "en",
     meta: null,
     created_at: Date.now(),
-    updated_at: Date.now()
+    updated_at: Date.now(),
   });
 
-  const response = await app.request("/api/v1/practice/patient-audio/prefetch-batch", {
-    method: "POST",
-    headers: {
-      ...(await createAuthHeader(env, userId)),
-      "Content-Type": "application/json"
+  const response = await app.request(
+    "/api/v1/practice/patient-audio/prefetch-batch",
+    {
+      method: "POST",
+      headers: {
+        ...(await createAuthHeader(env, userId)),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        exercise_id: "task-1",
+        practice_mode: "real_time",
+        statement_ids: ["statement-1"],
+      }),
     },
-    body: JSON.stringify({
-      exercise_id: "task-1",
-      practice_mode: "real_time",
-      statement_ids: ["statement-1"]
-    })
-  });
+  );
 
   assert.equal(response.status, 502);
 });

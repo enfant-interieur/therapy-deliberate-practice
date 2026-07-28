@@ -1,19 +1,26 @@
 import { execFileSync } from "node:child_process";
 import crypto from "node:crypto";
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import ffmpegBinary from "ffmpeg-static";
 
 const desktopDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pythonRoot = path.resolve(desktopDir, "..", "python");
 const tauriDir = path.resolve(desktopDir, "src-tauri");
 const binariesDir = path.resolve(tauriDir, "binaries");
-const runtimeOutDir = path.resolve(tauriDir, "local-runtime-python");
-
-const venvDir = path.resolve(pythonRoot, ".venv-tauri");
-const stampPath = path.resolve(venvDir, ".deps.stamp.json");
+const runtimeOutDir = path.resolve(tauriDir, "resources", "local-runtime-python");
+const assetManifest = path.resolve(pythonRoot, "python-runtime-assets.json");
+const sidecarName = "local-runtime-gateway";
+const force = process.argv.includes("--force");
 
 const targetByPlatform = {
   darwin: { arm64: "aarch64-apple-darwin", x64: "x86_64-apple-darwin" },
@@ -21,227 +28,199 @@ const targetByPlatform = {
   win32: { arm64: "aarch64-pc-windows-msvc", x64: "x86_64-pc-windows-msvc" },
 };
 
-const exeSuffix = process.platform === "win32" ? ".exe" : "";
-const stepTotal = 6;
-const sidecarName = "local-runtime-gateway";
-
-const explicitTarget =
-  process.env.LOCAL_RUNTIME_SIDECAR_TARGET ?? process.env.TAURI_TARGET ?? process.env.CARGO_BUILD_TARGET;
-
-const venvPython =
-  process.platform === "win32"
-    ? path.resolve(venvDir, "Scripts", "python.exe")
-    : path.resolve(venvDir, "bin", "python");
-
 function banner(step, total, message) {
   console.log(`(${step}/${total}) ${message}`);
 }
 
-function runCommand(label, executable, args, options) {
-  const cwd = options?.cwd ?? process.cwd();
+function runCommand(label, executable, args, options = {}) {
+  const cwd = options.cwd ?? process.cwd();
   try {
     execFileSync(executable, args, { stdio: "inherit", ...options });
   } catch (error) {
     const commandLine = [executable, ...args].join(" ");
     const details = [
       `${label} failed.`,
-      `Interpreter: ${executable}`,
+      `Executable: ${executable}`,
       `Working directory: ${cwd}`,
       `Command: ${commandLine}`,
-      `Retry: (cd ${cwd} && ${commandLine})`,
     ];
     if (error instanceof Error && error.message) details.push(`Error: ${error.message}`);
     throw new Error(details.join("\n"));
   }
 }
 
-function resolveHostTarget() {
-  const platformTargets = targetByPlatform[process.platform];
-  if (!platformTargets) throw new Error(`Unsupported platform: ${process.platform}`);
-  const target = platformTargets[process.arch];
-  if (!target) throw new Error(`Unsupported architecture: ${process.arch}`);
+function hostTarget() {
+  const target = targetByPlatform[process.platform]?.[process.arch];
+  if (!target) throw new Error(`Unsupported build host: ${process.platform} ${process.arch}`);
   return target;
 }
 
 function resolveTarget() {
-  return explicitTarget ?? resolveHostTarget();
+  const requested =
+    process.env.LOCAL_RUNTIME_SIDECAR_TARGET ??
+    process.env.TAURI_TARGET ??
+    process.env.CARGO_BUILD_TARGET ??
+    hostTarget();
+  if (requested !== hostTarget()) {
+    throw new Error(
+      `Sidecars must be built natively: host is ${hostTarget()}, requested ${requested}.`,
+    );
+  }
+  return requested;
 }
 
 function readPythonVersion(executable) {
-  const version = execFileSync(
+  return execFileSync(
     executable,
-    ["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"],
+    ["-c", "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
     { encoding: "utf8" },
   ).trim();
-  const [major, minor] = version.split(".").map((v) => Number(v));
-  if (!Number.isFinite(major) || !Number.isFinite(minor) || major < 3 || (major === 3 && minor < 10)) {
-    throw new Error(`Python ${version} is too old.`);
-  }
-  return version;
 }
 
-function resolveSystemPython() {
-  const candidates = [];
-  if (process.env.PYTHON) candidates.push(process.env.PYTHON);
-  else if (process.platform === "win32") candidates.push("python");
-  else candidates.push("python3.12", "python3.11", "python3.10", "python3");
-
-  for (const c of candidates) {
+function resolvePython() {
+  const candidates = process.env.PYTHON
+    ? [process.env.PYTHON]
+    : process.platform === "win32"
+      ? ["python"]
+      : ["python3.12", "python3"];
+  for (const candidate of candidates) {
     try {
-      const version = readPythonVersion(c);
-      return { path: c, version };
-    } catch {}
-  }
-  throw new Error("Python 3.10+ is required (prefer 3.11–3.12). Set PYTHON if needed.");
-}
-
-function computeStamp(pyprojectHash, pythonVersion) {
-  return JSON.stringify({ pyprojectHash, pythonVersion }, null, 2);
-}
-
-function loadStamp() {
-  if (!existsSync(stampPath)) return null;
-  try {
-    return JSON.parse(readFileSync(stampPath, "utf8"));
-  } catch {
-    return null;
-  }
-}
-
-function hashPyproject() {
-  const pyprojectPath = path.resolve(pythonRoot, "pyproject.toml");
-  const contents = readFileSync(pyprojectPath);
-  return crypto.createHash("sha256").update(contents).digest("hex");
-}
-
-function ensureVenv() {
-  if (!existsSync(venvDir)) {
-    const systemPython = resolveSystemPython();
-    runCommand("Virtual environment creation", systemPython.path, ["-m", "venv", venvDir], { cwd: pythonRoot });
-  }
-  if (!existsSync(venvPython)) throw new Error(`Expected venv python at ${venvPython}, but it was not found.`);
-}
-
-function syncBuildVenv() {
-  banner(2, stepTotal, "Preparing build venv...");
-  const pyprojectHash = hashPyproject();
-  const pythonVersion = readPythonVersion(venvPython);
-  const stamp = loadStamp();
-  if (stamp?.pyprojectHash === pyprojectHash && stamp?.pythonVersion === pythonVersion) {
-    console.log("Build venv unchanged; skipping.");
-    return;
-  }
-  runCommand("Pip upgrade", venvPython, ["-m", "pip", "install", "--upgrade", "pip"], {
-    cwd: pythonRoot,
-    env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" },
-  });
-  runCommand("Certifi install", venvPython, ["-m", "pip", "install", "--upgrade", "certifi"], {
-    cwd: pythonRoot,
-    env: { ...process.env, PIP_DISABLE_PIP_VERSION_CHECK: "1" },
-  });
-  writeFileSync(stampPath, computeStamp(pyprojectHash, pythonVersion));
-}
-
-function buildPortableRuntime(target) {
-  banner(3, stepTotal, "Building embedded Python runtime (installing from pyproject.toml)...");
-  mkdirSync(runtimeOutDir, { recursive: true });
-  rmSync(runtimeOutDir, { recursive: true, force: true });
-
-  runCommand(
-    "Build portable runtime",
-    venvPython,
-    ["-m", "tools.build_portable_sidecar", "--project-root", pythonRoot, "--runtime-root", runtimeOutDir, "--force"],
-    {
-      cwd: pythonRoot,
-      env: {
-        ...process.env,
-        LOCAL_RUNTIME_SIDECAR_TARGET: target,
-        PYTHONNOUSERSITE: "1",
-        PYTHONPATH: pythonRoot,
-      },
-    },
-  );
-}
-
-function embedFfmpegBinary() {
-  banner(4, stepTotal, "Bundling FFmpeg for offline audio decoding...");
-  if (!ffmpegBinary) {
-    throw new Error(
-      "ffmpeg-static did not provide a binary for this platform. Re-run npm install or ensure the platform is supported.",
-    );
-  }
-
-  const resolved = path.resolve(ffmpegBinary);
-  if (!existsSync(resolved)) {
-    throw new Error(`ffmpeg-static binary missing at ${resolved}. Run npm install and try again.`);
-  }
-
-  const binDir = path.resolve(runtimeOutDir, "bin");
-  mkdirSync(binDir, { recursive: true });
-  const targetName = process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg";
-  const destPath = path.join(binDir, targetName);
-  rmSync(destPath, { force: true });
-  cpSync(resolved, destPath);
-  if (process.platform !== "win32") {
-    chmodSync(destPath, 0o755);
-  }
-
-  const licenseDir = path.resolve(runtimeOutDir, "licenses");
-  mkdirSync(licenseDir, { recursive: true });
-  const moduleDir = path.dirname(resolved);
-  for (const [sourceName, targetFile] of [
-    ["ffmpeg.LICENSE", "ffmpeg.LICENSE"],
-    ["ffmpeg.README", "ffmpeg.README"],
-  ]) {
-    const source = path.join(moduleDir, sourceName);
-    if (existsSync(source)) {
-      cpSync(source, path.join(licenseDir, targetFile));
+      if (readPythonVersion(candidate) === "3.12") return candidate;
+    } catch {
+      // Try the next explicit candidate.
     }
   }
-
   try {
-    const versionLine = execFileSync(destPath, ["-version"], { encoding: "utf8" }).split("\n")[0];
-    writeFileSync(path.join(licenseDir, "ffmpeg.VERSION.txt"), `${versionLine}\n`, "utf8");
-  } catch (error) {
-    console.warn("Unable to capture FFmpeg version:", error instanceof Error ? error.message : String(error));
+    const uvPython = execFileSync(process.env.UV ?? "uv", ["python", "find", "3.12"], {
+      encoding: "utf8",
+    }).trim();
+    if (uvPython && readPythonVersion(uvPython) === "3.12") return uvPython;
+  } catch {
+    // Fall through to the actionable requirement below.
   }
+  throw new Error("Python 3.12 is required to build the pinned portable runtime. Set PYTHON.");
+}
+
+function assertUvAvailable() {
+  try {
+    execFileSync(process.env.UV ?? "uv", ["--version"], { stdio: "pipe" });
+  } catch {
+    throw new Error("uv is required to export services/local-runtime-suite/python/uv.lock.");
+  }
+}
+
+function sha256(pathname) {
+  return crypto.createHash("sha256").update(readFileSync(pathname)).digest("hex");
+}
+
+function appVersion() {
+  const packageVersion = JSON.parse(
+    readFileSync(path.resolve(desktopDir, "package.json"), "utf8"),
+  ).version;
+  const tauriVersion = JSON.parse(
+    readFileSync(path.resolve(tauriDir, "tauri.conf.json"), "utf8"),
+  ).version;
+  if (packageVersion !== tauriVersion) {
+    throw new Error(`Desktop version mismatch: package=${packageVersion}, Tauri=${tauriVersion}.`);
+  }
+  return packageVersion;
+}
+
+function buildPortableRuntime(target, python) {
+  banner(2, 4, "Building the verified, dependency-locked Python runtime...");
+  const args = [
+    "-m",
+    "tools.build_portable_sidecar",
+    "--project-root",
+    pythonRoot,
+    "--runtime-root",
+    runtimeOutDir,
+    "--asset-manifest",
+    assetManifest,
+    "--target",
+    target,
+  ];
+  if (force) args.push("--force");
+  runCommand("Portable runtime build", python, args, {
+    cwd: pythonRoot,
+    env: {
+      ...process.env,
+      LOCAL_RUNTIME_SIDECAR_TARGET: target,
+      PYTHONNOUSERSITE: "1",
+      PYTHONPATH: pythonRoot,
+    },
+  });
 }
 
 function buildRustLauncher(target) {
-  banner(5, stepTotal, "Building Rust sidecar launcher...");
+  banner(3, 4, "Building the release-mode Rust sidecar launcher...");
   runCommand(
-    "Cargo build launcher",
+    "Rust sidecar launcher build",
     "cargo",
-    ["build", "--manifest-path", path.resolve(tauriDir, "Cargo.toml"), "--bin", sidecarName, "--target", target],
+    [
+      "build",
+      "--locked",
+      "--release",
+      "--manifest-path",
+      path.resolve(tauriDir, "Cargo.toml"),
+      "--bin",
+      sidecarName,
+      "--features",
+      "sidecar-launcher",
+      "--target",
+      target,
+    ],
     { cwd: tauriDir, env: { ...process.env } },
   );
 
-  const builtPath = path.resolve(tauriDir, "target", target, "debug", `${sidecarName}${exeSuffix}`);
-  if (!existsSync(builtPath)) throw new Error(`Expected launcher at ${builtPath} but it was not produced.`);
-
-  mkdirSync(binariesDir, { recursive: true });
-  const devOutPath = path.resolve(binariesDir, `${sidecarName}${exeSuffix}`);
-  const targetOutPath = path.resolve(binariesDir, `${sidecarName}-${target}${exeSuffix}`);
-  for (const outPath of [devOutPath, targetOutPath]) {
-    rmSync(outPath, { force: true });
-    cpSync(builtPath, outPath);
-    if (process.platform !== "win32") chmodSync(outPath, 0o755);
+  const executableSuffix = process.platform === "win32" ? ".exe" : "";
+  const builtPath = path.resolve(
+    tauriDir,
+    "target",
+    target,
+    "release",
+    `${sidecarName}${executableSuffix}`,
+  );
+  if (!existsSync(builtPath)) {
+    throw new Error(`Rust launcher was not produced at ${builtPath}.`);
   }
-  return devOutPath;
+  mkdirSync(binariesDir, { recursive: true });
+  const outputs = [
+    path.resolve(binariesDir, `${sidecarName}${executableSuffix}`),
+    path.resolve(binariesDir, `${sidecarName}-${target}${executableSuffix}`),
+  ];
+  for (const output of outputs) {
+    rmSync(output, { force: true });
+    cpSync(builtPath, output);
+    if (process.platform !== "win32") chmodSync(output, 0o755);
+  }
+  return outputs[1];
 }
 
-async function main() {
+function sealProvenance(target, launcherPath) {
+  const provenancePath = path.resolve(runtimeOutDir, "build-provenance.json");
+  if (!existsSync(provenancePath)) {
+    throw new Error(`Portable runtime provenance is missing: ${provenancePath}`);
+  }
+  const provenance = JSON.parse(readFileSync(provenancePath, "utf8"));
+  const sealed = {
+    ...provenance,
+    app_version: appVersion(),
+    launcher_target: target,
+    launcher_sha256: sha256(launcherPath),
+  };
+  writeFileSync(provenancePath, `${JSON.stringify(sealed, null, 2)}\n`);
+}
+
+function main() {
   const target = resolveTarget();
-  banner(1, stepTotal, `Preparing sidecar for ${target} (NO PyInstaller)...`);
-  ensureVenv();
-  syncBuildVenv();
-  buildPortableRuntime(target);
-  embedFfmpegBinary();
-  const out = buildRustLauncher(target);
-  banner(stepTotal, stepTotal, `Sidecar ready: ${out}`);
+  const python = resolvePython();
+  banner(1, 4, `Preparing a native sidecar for ${target} with Python ${readPythonVersion(python)}.`);
+  assertUvAvailable();
+  buildPortableRuntime(target, python);
+  const launcherPath = buildRustLauncher(target);
+  sealProvenance(target, launcherPath);
+  banner(4, 4, `Verified sidecar ready: ${launcherPath}`);
 }
 
-main().catch((e) => {
-  console.error(e instanceof Error ? e.message : String(e));
-  process.exit(1);
-});
+main();

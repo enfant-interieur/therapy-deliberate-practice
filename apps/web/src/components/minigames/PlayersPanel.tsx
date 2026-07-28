@@ -1,6 +1,12 @@
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { PlayerCard } from "./PlayerCard";
-import type { MinigamePlayer, MinigameRound, MinigameRoundResult, MinigameTeam } from "../../store/api";
+import type {
+  MinigamePlayer,
+  MinigameRound,
+  MinigameRoundResult,
+  MinigameTeam,
+} from "../../store/api";
 
 type PlayersPanelProps = {
   mode: "ffa" | "tdm" | null;
@@ -27,8 +33,9 @@ export const PlayersPanel = ({
   canSwitchPlayer,
   onRequestSwitchPlayer,
   onNextTurn,
-  nextTurnDisabled
+  nextTurnDisabled,
 }: PlayersPanelProps) => {
+  const { t } = useTranslation();
   const scoresByPlayer = useMemo(() => {
     return players.reduce<Record<string, number>>((acc, player) => {
       acc[player.id] = results
@@ -64,14 +71,16 @@ export const PlayersPanel = ({
             disabled={nextTurnDisabled}
             className="rounded-full border border-teal-300/60 bg-teal-500/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-teal-100 hover:border-teal-200 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/5 disabled:text-white/50"
           >
-            Next turn
+            {t("minigameUi.nextTurn")}
           </button>
         </div>
       )}
 
       <div className="space-y-2">
         {players.map((player) => {
-          const team = player.team_id ? teams.find((entry) => entry.id === player.team_id) : null;
+          const team = player.team_id
+            ? teams.find((entry) => entry.id === player.team_id)
+            : null;
           const isActive = player.id === activePlayerId;
           const isUpNext = !isActive && player.id === upNextPlayerId;
           return (
@@ -96,7 +105,7 @@ export const PlayersPanel = ({
 
       {mode === "ffa" && !canSwitchPlayer && (
         <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
-          Finish the current action to switch players.
+          {t("minigameUi.switchBlocked")}
         </p>
       )}
     </div>

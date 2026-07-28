@@ -33,7 +33,9 @@ class ReadinessTracker:
         self.loaded_models: list[str] = []
         self.last_error: str | None = None
 
-    def mark_phase(self, name: str, status: str, detail: str | None = None, duration_ms: float | None = None) -> None:
+    def mark_phase(
+        self, name: str, status: str, detail: str | None = None, duration_ms: float | None = None
+    ) -> None:
         check = CheckResult(name=name, status=status, detail=detail, duration_ms=duration_ms)
         self.startup_checks.append(check)
         if status == "error":
@@ -61,8 +63,12 @@ class ReadinessTracker:
         self.self_test.started_at = time.time()
         self.self_test.checks.clear()
 
-    def record_self_test_check(self, name: str, status: str, detail: str | None = None, duration_ms: float | None = None) -> None:
-        self.self_test.checks.append(CheckResult(name=name, status=status, detail=detail, duration_ms=duration_ms))
+    def record_self_test_check(
+        self, name: str, status: str, detail: str | None = None, duration_ms: float | None = None
+    ) -> None:
+        self.self_test.checks.append(
+            CheckResult(name=name, status=status, detail=detail, duration_ms=duration_ms)
+        )
 
     def finish_self_test(self, status: str) -> None:
         self.self_test.status = status

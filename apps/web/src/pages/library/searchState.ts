@@ -22,7 +22,7 @@ const sortOptions: LibrarySortOption[] = [
   "difficulty_asc",
   "difficulty_desc",
   "title_asc",
-  "title_desc"
+  "title_desc",
 ];
 
 export const defaultLibrarySearchState: LibrarySearchState = {
@@ -32,7 +32,7 @@ export const defaultLibrarySearchState: LibrarySearchState = {
   tags: [],
   difficulty_min: null,
   difficulty_max: null,
-  sort: "newest"
+  sort: "newest",
 };
 
 const normalizeParam = (value: string | null) => {
@@ -43,8 +43,8 @@ const normalizeParam = (value: string | null) => {
 };
 
 const normalizeTags = (tags: string[]) =>
-  Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))).sort((a, b) =>
-    a.localeCompare(b)
+  Array.from(new Set(tags.map((tag) => tag.trim()).filter(Boolean))).sort(
+    (a, b) => a.localeCompare(b),
   );
 
 const normalizeDifficulty = (value: string | null) => {
@@ -56,10 +56,12 @@ const normalizeDifficulty = (value: string | null) => {
   return normalized;
 };
 
-export const parseLibrarySearchParams = (searchParams: URLSearchParams): LibrarySearchState => {
+export const parseLibrarySearchParams = (
+  searchParams: URLSearchParams,
+): LibrarySearchState => {
   const tags = normalizeTags([
     ...searchParams.getAll("tag"),
-    ...(searchParams.get("tags")?.split(",") ?? [])
+    ...(searchParams.get("tags")?.split(",") ?? []),
   ]);
   const sortValue = normalizeParam(searchParams.get("sort"));
   const sort =
@@ -74,7 +76,7 @@ export const parseLibrarySearchParams = (searchParams: URLSearchParams): Library
     tags,
     difficulty_min: normalizeDifficulty(searchParams.get("difficulty_min")),
     difficulty_max: normalizeDifficulty(searchParams.get("difficulty_max")),
-    sort
+    sort,
   };
 };
 
@@ -87,13 +89,18 @@ export const buildLibrarySearchParams = (state: LibrarySearchState) => {
     const tags = [...state.tags].sort((a, b) => a.localeCompare(b));
     params.set("tags", tags.join(","));
   }
-  if (state.difficulty_min) params.set("difficulty_min", String(state.difficulty_min));
-  if (state.difficulty_max) params.set("difficulty_max", String(state.difficulty_max));
+  if (state.difficulty_min)
+    params.set("difficulty_min", String(state.difficulty_min));
+  if (state.difficulty_max)
+    params.set("difficulty_max", String(state.difficulty_max));
   if (state.sort !== "newest") params.set("sort", state.sort);
   return params;
 };
 
-export const clampDifficultyRange = (min: number | null, max: number | null) => {
+export const clampDifficultyRange = (
+  min: number | null,
+  max: number | null,
+) => {
   if (min && max && min > max) {
     return { min: max, max: min };
   }

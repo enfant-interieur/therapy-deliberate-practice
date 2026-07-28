@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { DeliberatePracticeTaskV2 } from "@deliberate/shared";
 import { deliberatePracticeTaskV2Schema } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
 import { Button, Label, Textarea } from "./AdminUi";
+import { useAccessibleDialog } from "../../hooks/useAccessibleDialog";
 
 type ImportTaskDialogProps = {
   open: boolean;
@@ -11,49 +12,23 @@ type ImportTaskDialogProps = {
   onImport: (payload: DeliberatePracticeTaskV2[]) => Promise<void>;
 };
 
-export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: ImportTaskDialogProps) => {
+export const ImportTaskDialog = ({
+  open,
+  isImporting,
+  onClose,
+  onImport,
+}: ImportTaskDialogProps) => {
   const { t } = useTranslation();
   const [jsonValue, setJsonValue] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setJsonValue("");
     setError(null);
     onClose();
-  };
+  }, [onClose]);
 
-  useEffect(() => {
-    if (!open) return;
-    const firstInput = containerRef.current?.querySelector<HTMLElement>(
-      "textarea, button"
-    );
-    firstInput?.focus();
-    const handleKeydown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        handleClose();
-      }
-      if (event.key === "Tab") {
-        const focusable = Array.from(
-          containerRef.current?.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])'
-          ) ?? []
-        );
-        if (!focusable.length) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-        if (event.shiftKey && document.activeElement === first) {
-          last.focus();
-          event.preventDefault();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          first.focus();
-          event.preventDefault();
-        }
-      }
-    };
-    window.addEventListener("keydown", handleKeydown);
-    return () => window.removeEventListener("keydown", handleKeydown);
-  }, [open]);
+  const { dialogRef, titleId } = useAccessibleDialog(open, handleClose);
 
   if (!open) return null;
 
@@ -61,7 +36,9 @@ export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: Impor
     try {
       const parsed = JSON.parse(jsonValue);
       const payloads = Array.isArray(parsed) ? parsed : [parsed];
-      const validated = payloads.map((payload) => deliberatePracticeTaskV2Schema.parse(payload));
+      const validated = payloads.map((payload) =>
+        deliberatePracticeTaskV2Schema.parse(payload),
+      );
       await onImport(validated);
       handleClose();
     } catch (err) {
@@ -70,23 +47,35 @@ export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: Impor
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/70 p-4 backdrop-blur-sm">
       <div
-        ref={containerRef}
-        className="w-full max-w-3xl rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/90 p-6 shadow-2xl"
       >
         <div className="flex items-start justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-white">{t("admin.import.title")}</h3>
-            <p className="text-sm text-slate-400">{t("admin.import.subtitle")}</p>
+            <h3 id={titleId} className="text-lg font-semibold text-white">
+              {t("admin.import.title")}
+            </h3>
+            <p className="text-sm text-slate-400">
+              {t("admin.import.subtitle")}
+            </p>
           </div>
           <Button variant="ghost" onClick={handleClose}>
             {t("admin.actions.close")}
           </Button>
         </div>
         <div className="mt-6 space-y-2">
-          <Label>{t("admin.import.jsonLabel")}</Label>
+          <Label htmlFor="import-task-json">
+            {t("admin.import.jsonLabel")}
+          </Label>
           <Textarea
+            id="import-task-json"
+            data-dialog-autofocus
             className="min-h-[240px] font-mono text-xs"
             value={jsonValue}
             onChange={(event) => setJsonValue(event.target.value)}
@@ -97,7 +86,11 @@ export const ImportTaskDialog = ({ open, isImporting, onClose, onImport }: Impor
           <Button variant="secondary" onClick={handleClose}>
             {t("admin.actions.cancel")}
           </Button>
-          <Button variant="primary" onClick={handleImport} disabled={isImporting}>
+          <Button
+            variant="primary"
+            onClick={handleImport}
+            disabled={isImporting}
+          >
             {isImporting ? t("admin.task.importing") : t("admin.task.import")}
           </Button>
         </div>

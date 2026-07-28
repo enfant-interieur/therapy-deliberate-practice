@@ -1,0 +1,440 @@
+name: desktop-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch, commit, or tag to build without signing"
+        required: true
+        default: "main"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-build-${{ inputs.source_ref }}
+  cancel-in-progress: false
+
+jobs:
+  resolve_source:
+    name: resolve exact source commit
+    runs-on: ubuntu-24.04
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          ref: ${{ inputs.source_ref }}
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Seal immutable source commit
+        id: source
+        shell: bash
+        run: |
+          source_sha="$(git rev-parse --verify 'HEAD^{commit}')"
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Resolved source is not an exact 40-character commit SHA." >&2
+            exit 1
+          fi
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ${{ matrix.artifact }}
+    needs: resolve_source
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            host_python: "3.12.10"
+            bundles: app
+            artifact: desktop-macos-arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            host_python: "3.12.10"
+            bundles: app
+            artifact: desktop-macos-intel
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            host_python: "3.12.10"
+            bundles: nsis,msi
+            artifact: desktop-windows-x64
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host_python: "3.12.10"
+            bundles: appimage,deb,rpm
+            artifact: desktop-linux-x64
+    runs-on: ${{ matrix.runner }}
+    env:
+      LOCAL_RUNTIME_SIDECAR_TARGET: ${{ matrix.target }}
+      TAURI_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          ref: ${{ needs.resolve_source.outputs.source_sha }}
+          persist-credentials: false
+      - name: Record checked-out source commit
+        shell: bash
+        env:
+          RESOLVED_SOURCE_SHA: ${{ needs.resolve_source.outputs.source_sha }}
+        run: |
+          checked_out_sha="$(git rev-parse --verify 'HEAD^{commit}')"
+          if [[ "$checked_out_sha" != "$RESOLVED_SOURCE_SHA" ]]; then
+            echo "Matrix checkout does not match the sealed source commit." >&2
+            exit 1
+          fi
+          echo "BUILD_SOURCE_SHA=$checked_out_sha" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.12.0"
+          cache: npm
+      # This interpreter runs workflow scripts only. The packaged runtime stays
+      # pinned independently at Python 3.12.13 in python-runtime-assets.json.
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+        with:
+          python-version: ${{ matrix.host_python }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.13"
+          enable-cache: true
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            rpm \
+            xvfb
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Verify release configuration
+        run: node services/local-runtime-suite/desktop/scripts/verify-release-config.mjs
+      - name: Verify generated model catalog
+        shell: bash
+        run: |
+          uv run --python 3.12 --no-project \
+            --with-requirements services/local-runtime-suite/python/requirements-test.txt \
+            python services/local-runtime-suite/tools/gen_models_json.py
+          git diff --exit-code apps/web/public/local-suite/models.json
+      - name: Build verified sidecar
+        run: npm run sidecar:build -w services/local-runtime-suite/desktop
+      - name: Prepare short Windows packaging root
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $drive = "T:"
+          if (Test-Path "$drive\") {
+            throw "$drive is already in use on this runner."
+          }
+          $projectRoot = Join-Path $env:GITHUB_WORKSPACE "services\local-runtime-suite\desktop"
+          $workspaceNodeModules = Join-Path $env:GITHUB_WORKSPACE "node_modules"
+          $projectNodeModules = Join-Path $projectRoot "node_modules"
+          if (-not (Test-Path $workspaceNodeModules)) {
+            throw "The workspace node_modules directory is missing."
+          }
+          if (Test-Path $projectNodeModules) {
+            throw "The desktop project node_modules path must be absent before the packaging bridge is created."
+          }
+          New-Item -ItemType Junction -Path $projectNodeModules -Target $workspaceNodeModules |
+            Out-Null
+          subst $drive $projectRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $shortRoot = "$drive\"
+          $resourceRoot = "$drive\src-tauri\resources"
+          $longest = Get-ChildItem $resourceRoot -Recurse -Force -File |
+            ForEach-Object {
+              "$shortRoot$([IO.Path]::GetRelativePath($shortRoot, $_.FullName))"
+            } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          if (-not $longest) {
+            throw "The Tauri resource tree is empty."
+          }
+          if ($longest.Length -gt 240) {
+            throw "A Tauri resource path remains too long for safe NSIS input ($($longest.Length)): $longest"
+          }
+          "WINDOWS_TAURI_PROJECT=$drive\" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Build unsigned macOS packages
+        if: runner.os == 'macOS'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --bundles ${{ matrix.bundles }}
+            --verbose
+      - name: Build unsigned Windows packages
+        if: runner.os == 'Windows'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        with:
+          projectPath: ${{ env.WINDOWS_TAURI_PROJECT }}
+          tauriScript: npm run tauri
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --bundles ${{ matrix.bundles }}
+            --verbose
+      # Tauri's decorative DMG helper can wait indefinitely for Finder
+      # automation on standard runners. Build the app with Tauri, then create a
+      # simple read-only installer without AppleEvents.
+      - name: Create noninteractive unsigned macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          bundle_root="services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+          shopt -s nullglob
+          apps=("$bundle_root/macos/"*.app)
+          if [[ ${#apps[@]} -ne 1 ]]; then
+            echo "Expected exactly one macOS application bundle; found ${#apps[@]}." >&2
+            exit 1
+          fi
+          version="$(node -p "require('./services/local-runtime-suite/desktop/package.json').version")"
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin) architecture="aarch64" ;;
+            x86_64-apple-darwin) architecture="x64" ;;
+            *) echo "Unsupported macOS target: ${{ matrix.target }}" >&2; exit 1 ;;
+          esac
+          mkdir -p "$bundle_root/dmg"
+          services/local-runtime-suite/desktop/scripts/build-macos-dmg.sh \
+            "${apps[0]}" \
+            "$bundle_root/dmg/Local_Runtime_Suite_${version}_${architecture}.dmg"
+      # linuxdeploy recursively rewrites ELF files under usr/lib. Keep the
+      # packaged Python/model runtime in usr/share for AppImage only.
+      - name: Build unsigned Linux AppImage
+        if: runner.os == 'Linux'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --config src-tauri/tauri.linux-appimage.conf.json
+            --bundles appimage
+            --verbose
+      - name: Verify Linux AppImage launcher transformation
+        id: linux_launcher_transform
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          appimage="$(find "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage" -name '*.AppImage' -print -quit)"
+          chmod +x "$appimage"
+          extract_dir="$RUNNER_TEMP/local-runtime-transform"
+          mkdir -p "$extract_dir"
+          (
+            cd "$extract_dir"
+            "$GITHUB_WORKSPACE/$appimage" --appimage-extract
+          )
+          launcher="$(find "$extract_dir/squashfs-root" -type f -name 'local-runtime-gateway*' -print -quit)"
+          pre_bundle_launcher="services/local-runtime-suite/desktop/src-tauri/binaries/local-runtime-gateway-${{ matrix.target }}"
+          diagnostic_dir="release-evidence/${{ matrix.target }}/launcher-diagnostic"
+          mkdir -p "$diagnostic_dir"
+          cp "$pre_bundle_launcher" "$diagnostic_dir/pre-bundle-launcher"
+          cp "$launcher" "$diagnostic_dir/packaged-launcher"
+          (
+            cd "$diagnostic_dir"
+            sha256sum pre-bundle-launcher packaged-launcher > SHA256SUMS
+            sha256sum -c SHA256SUMS
+          )
+          python services/local-runtime-suite/desktop/scripts/verify_linux_launcher_transform.py \
+            --pre-bundle "$pre_bundle_launcher" \
+            --packaged "$launcher" \
+            --output "release-evidence/${{ matrix.target }}/launcher-transformation.json"
+      - name: Upload rejected Linux launcher transformation evidence
+        if: >-
+          always() &&
+          runner.os == 'Linux' &&
+          steps.linux_launcher_transform.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: linux-launcher-diagnostic-${{ env.BUILD_SOURCE_SHA }}
+          path: release-evidence/${{ matrix.target }}/launcher-diagnostic
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 7
+      - name: Build unsigned Linux deb and rpm packages
+        if: runner.os == 'Linux'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --bundles deb,rpm
+            --verbose
+      - name: Record unsigned build status
+        shell: bash
+        run: |
+          mkdir -p "release-evidence/${{ matrix.target }}"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          target = os.environ["LOCAL_RUNTIME_SIDECAR_TARGET"]
+          receipt = {
+              "schema_version": 1,
+              "target": target,
+              "status": "unsigned",
+              "checks": {"not_applicable": True},
+          }
+          path = Path("release-evidence") / target / "signature-receipt.json"
+          path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+          PY
+      - name: Mount macOS DMG for packaged-sidecar smoke
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg_path="$(find "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -name '*.dmg' -print -quit)"
+          mount_point="$RUNNER_TEMP/local-runtime-dmg"
+          mkdir -p "$mount_point"
+          hdiutil attach "$dmg_path" -readonly -nobrowse -mountpoint "$mount_point"
+          cleanup() {
+            hdiutil detach "$mount_point"
+          }
+          trap cleanup EXIT
+          packaged_app="$(find "$mount_point" -maxdepth 1 -name '*.app' -print -quit)"
+          installed_app="$RUNNER_TEMP/Local Runtime Suite.app"
+          ditto "$packaged_app" "$installed_app"
+          cleanup
+          trap - EXIT
+          launcher="$(find "$installed_app/Contents/MacOS" -type f -name 'local-runtime-gateway*' -print -quit)"
+          runtime="$(find "$installed_app/Contents/Resources" -type d -name 'local-runtime-python' -print -quit)"
+          python services/local-runtime-suite/desktop/scripts/smoke-packaged-sidecar.py \
+            --launcher "$launcher" \
+            --runtime-root "$runtime" \
+            --output "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+          desktop_executable="$(find "$installed_app/Contents/MacOS" -maxdepth 1 -type f -name 'local-runtime-desktop' -print -quit)"
+          python services/local-runtime-suite/desktop/scripts/smoke-desktop-shell.py \
+            --executable "$desktop_executable" \
+            --target "${{ matrix.target }}" \
+            --output "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+          echo "PACKAGED_RUNTIME_ROOT=$runtime" >> "$GITHUB_ENV"
+      - name: Extract Linux AppImage for packaged-sidecar smoke
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          appimage="$(find "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage" -name '*.AppImage' -print -quit)"
+          chmod +x "$appimage"
+          extract_dir="$RUNNER_TEMP/local-runtime-appimage"
+          mkdir -p "$extract_dir"
+          (
+            cd "$extract_dir"
+            "$GITHUB_WORKSPACE/$appimage" --appimage-extract
+          )
+          launcher="$(find "$extract_dir/squashfs-root" -type f -name 'local-runtime-gateway*' -print -quit)"
+          runtime="$(find "$extract_dir/squashfs-root" -type d -name 'local-runtime-python' -print -quit)"
+          python services/local-runtime-suite/desktop/scripts/smoke-packaged-sidecar.py \
+            --launcher "$launcher" \
+            --runtime-root "$runtime" \
+            --output "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+          desktop_executable="$(find "$extract_dir/squashfs-root/usr/bin" -maxdepth 1 -type f -name 'local-runtime-desktop' -print -quit)"
+          python services/local-runtime-suite/desktop/scripts/smoke-desktop-shell.py \
+            --executable "$desktop_executable" \
+            --target "${{ matrix.target }}" \
+            --output "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+          echo "PACKAGED_RUNTIME_ROOT=$runtime" >> "$GITHUB_ENV"
+      - name: Install Windows NSIS package for packaged-sidecar smoke
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem `
+            "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis" `
+            -Filter *.exe | Select-Object -First 1
+          $installDirectory = Join-Path $env:RUNNER_TEMP "local-runtime-installed"
+          $process = Start-Process -FilePath $installer.FullName `
+            -ArgumentList "/S", "/D=$installDirectory" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+          $launcher = Get-ChildItem $installDirectory -Recurse `
+            -Filter local-runtime-gateway.exe | Select-Object -First 1
+          $runtime = Get-ChildItem $installDirectory -Recurse -Directory `
+            -Filter local-runtime-python | Select-Object -First 1
+          python services/local-runtime-suite/desktop/scripts/smoke-packaged-sidecar.py `
+            --launcher $launcher.FullName `
+            --runtime-root $runtime.FullName `
+            --output "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+          $desktopExecutables = @(
+            Get-ChildItem $installDirectory -Recurse -File -Filter local-runtime-desktop.exe
+          )
+          if ($desktopExecutables.Count -ne 1) {
+            throw "Expected exactly one installed local-runtime-desktop.exe; found $($desktopExecutables.Count)."
+          }
+          $desktopExecutable = $desktopExecutables[0]
+          python services/local-runtime-suite/desktop/scripts/smoke-desktop-shell.py `
+            --executable $desktopExecutable.FullName `
+            --target "${{ matrix.target }}" `
+            --output "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+          "PACKAGED_RUNTIME_ROOT=$($runtime.FullName)" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Run native backends from packaged Unix payload
+        if: >-
+          runner.os == 'Linux' || endsWith(matrix.target, '-apple-darwin')
+        shell: bash
+        env:
+          RUNNER_TARGET: ${{ matrix.target }}
+          LOCAL_RUNTIME_PACKAGED_ROOT: ${{ env.PACKAGED_RUNTIME_ROOT }}
+          LOCAL_RUNTIME_NATIVE_SMOKE_CACHE: ${{ runner.temp }}/native-smoke-${{ matrix.target }}
+        run: |
+          "$PACKAGED_RUNTIME_ROOT/python/bin/python3" \
+            services/local-runtime-suite/python/tools/smoke_native_backends.py \
+            --output "release-evidence/${{ matrix.target }}/native-backends.json"
+      - name: Run native backends from packaged Windows payload
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RUNNER_TARGET: ${{ matrix.target }}
+          LOCAL_RUNTIME_PACKAGED_ROOT: ${{ env.PACKAGED_RUNTIME_ROOT }}
+          LOCAL_RUNTIME_NATIVE_SMOKE_CACHE: ${{ runner.temp }}/native-smoke-${{ matrix.target }}
+        run: |
+          $python = Get-ChildItem "$env:PACKAGED_RUNTIME_ROOT/python" -Recurse -File `
+            -Filter python.exe | Select-Object -First 1
+          if (-not $python) { throw "Packaged Python executable was not found." }
+          & $python.FullName `
+            services/local-runtime-suite/python/tools/smoke_native_backends.py `
+            --output "release-evidence/${{ matrix.target }}/native-backends.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Stage publishable packages and write manifest
+        shell: bash
+        run: |
+          args=(
+            --target "${{ matrix.target }}"
+            --bundle-dir "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+            --packages-dir "release-evidence/${{ matrix.target }}/packages"
+            --provenance "services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python/build-provenance.json"
+            --smoke-receipt "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+            --desktop-shell-receipt "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+            --native-backend-receipt "release-evidence/${{ matrix.target }}/native-backends.json"
+            --signature-receipt "release-evidence/${{ matrix.target }}/signature-receipt.json"
+            --output "release-evidence/${{ matrix.target }}/artifact-manifest.json"
+          )
+          launcher_transform="release-evidence/${{ matrix.target }}/launcher-transformation.json"
+          if [[ -f "$launcher_transform" ]]; then
+            args+=(--launcher-transform-receipt "$launcher_transform")
+          fi
+          python services/local-runtime-suite/desktop/scripts/write-artifact-manifest.py "${args[@]}"
+      - name: Upload packages and evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: ${{ matrix.artifact }}-${{ env.BUILD_SOURCE_SHA }}
+          path: release-evidence/${{ matrix.target }}
+          if-no-files-found: error
+          compression-level: 0

@@ -5,14 +5,13 @@ import type { RuntimeEnv } from "../env";
 import { users, userSettings } from "../db/schema";
 import { logServerError } from "../utils/logger";
 import { DEFAULT_LOCAL_BASE_URL } from "../providers/config";
+import type { ApiHonoEnv, UserIdentity } from "../httpTypes";
 
-export type UserIdentity = {
-  id: string;
-  email: string | null;
-};
+export type { UserIdentity } from "../httpTypes";
 
 const buildAnonymousDisplayName = (userId: string) => {
-  const fallback = userId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() || "PLAYER";
+  const fallback =
+    userId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase() || "PLAYER";
   const suffix = fallback.slice(0, 6).padEnd(6, "X");
   return `Player ${suffix}`;
 };
@@ -28,11 +27,11 @@ const ensureUserRecords = async (db: ApiDatabase, identity: UserIdentity) => {
         email: identity.email,
         display_name: defaultDisplayName,
         is_profile_public: true,
-        created_at: now
+        created_at: now,
       })
       .onConflictDoUpdate({
         target: users.id,
-        set: { email: identity.email }
+        set: { email: identity.email },
       });
   } else {
     await db
@@ -42,7 +41,7 @@ const ensureUserRecords = async (db: ApiDatabase, identity: UserIdentity) => {
         email: `user-${identity.id}@example.invalid`,
         display_name: defaultDisplayName,
         is_profile_public: true,
-        created_at: now
+        created_at: now,
       })
       .onConflictDoNothing();
   }
@@ -60,12 +59,15 @@ const ensureUserRecords = async (db: ApiDatabase, identity: UserIdentity) => {
       openai_key_iv: null,
       openai_key_kid: null,
       created_at: now,
-      updated_at: now
+      updated_at: now,
     })
     .onConflictDoNothing();
 };
 
-export const createUserAuth = (env: RuntimeEnv, db: ApiDatabase): MiddlewareHandler => {
+export const createUserAuth = (
+  env: RuntimeEnv,
+  db: ApiDatabase,
+): MiddlewareHandler<ApiHonoEnv> => {
   return async (c, next) => {
     const authHeader = c.req.header("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
@@ -76,7 +78,7 @@ export const createUserAuth = (env: RuntimeEnv, db: ApiDatabase): MiddlewareHand
       logServerError(
         "auth.supabase_jwt_secret.missing",
         new Error("SUPABASE_JWT_SECRET is not configured"),
-        { requestId: c.get("requestId") }
+        { requestId: c.get("requestId") },
       );
       return c.json({ error: "SUPABASE_JWT_SECRET is not configured" }, 500);
     }
@@ -84,9 +86,13 @@ export const createUserAuth = (env: RuntimeEnv, db: ApiDatabase): MiddlewareHand
     const token = authHeader.replace("Bearer ", "").trim();
 
     try {
-      const { payload } = await jwtVerify(token, new TextEncoder().encode(env.supabaseJwtSecret), {
-        algorithms: ["HS256"]
-      });
+      const { payload } = await jwtVerify(
+        token,
+        new TextEncoder().encode(env.supabaseJwtSecret),
+        {
+          algorithms: ["HS256"],
+        },
+      );
       const sub = typeof payload.sub === "string" ? payload.sub : null;
       const email = typeof payload.email === "string" ? payload.email : null;
 

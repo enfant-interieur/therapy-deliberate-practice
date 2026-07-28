@@ -21,7 +21,7 @@ const initialState: AuthState = {
   isAdmin: false,
   adminEmail: null,
   adminAuthenticated: false,
-  adminChecked: false
+  adminChecked: false,
 };
 
 const authSlice = createSlice({
@@ -36,7 +36,7 @@ const authSlice = createSlice({
         accessToken: string | null;
         isAuthenticated: boolean;
         authChecked: boolean;
-      }>
+      }>,
     ) {
       state.userId = action.payload.userId;
       state.email = action.payload.email;
@@ -50,14 +50,14 @@ const authSlice = createSlice({
         isAdmin: boolean;
         email: string | null;
         isAuthenticated: boolean;
-      }>
+      }>,
     ) {
       state.isAdmin = action.payload.isAdmin;
       state.adminEmail = action.payload.email;
       state.adminAuthenticated = action.payload.isAuthenticated;
       state.adminChecked = true;
-    }
-  }
+    },
+  },
 });
 
 export const { setUser, setAdminStatus } = authSlice.actions;

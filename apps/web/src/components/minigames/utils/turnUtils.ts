@@ -6,7 +6,7 @@ export const roundExampleKey = (round: MinigameRound) =>
 export const deriveActivePlayerId = ({
   mode,
   currentRound,
-  tdmActivePlayerId
+  tdmActivePlayerId,
 }: {
   mode: "ffa" | "tdm" | null;
   currentRound?: MinigameRound;
@@ -29,7 +29,7 @@ export const getNextRoundForPlayer = ({
   playerId,
   playedExampleIds,
   completedRoundIds,
-  discardedRoundIds
+  discardedRoundIds,
 }: {
   rounds: MinigameRound[];
   playerId: string;
@@ -38,7 +38,9 @@ export const getNextRoundForPlayer = ({
   discardedRoundIds?: Set<string>;
 }) => {
   const upcoming = rounds
-    .filter((round) => round.status !== "completed" && round.player_a_id === playerId)
+    .filter(
+      (round) => round.status !== "completed" && round.player_a_id === playerId,
+    )
     .sort((a, b) => a.position - b.position);
 
   for (const round of upcoming) {

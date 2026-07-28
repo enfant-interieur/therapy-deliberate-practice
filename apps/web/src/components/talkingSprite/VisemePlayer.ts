@@ -19,7 +19,11 @@ export class VisemePlayer {
   private playing = false;
   private resolve?: (finished: boolean) => void;
 
-  constructor(mouthSprite: Sprite, mouthTextures: Record<VisemeKey, Texture>, ticker: Ticker) {
+  constructor(
+    mouthSprite: Sprite,
+    mouthTextures: Record<VisemeKey, Texture>,
+    ticker: Ticker,
+  ) {
     this.mouthSprite = mouthSprite;
     this.mouthTextures = mouthTextures;
     this.ticker = ticker;

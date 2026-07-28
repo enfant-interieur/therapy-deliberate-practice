@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
-import type { Task, TaskCriterion, TaskExample, TaskInteractionExample } from "@deliberate/shared";
+import type {
+  Task,
+  TaskCriterion,
+  TaskExample,
+  TaskInteractionExample,
+} from "@deliberate/shared";
 import { taskSchema } from "@deliberate/shared";
 import { Button, Card, SectionHeader } from "../components/admin/AdminUi";
 import { ConfirmDialog } from "../components/admin/ConfirmDialog";
 import { RightInspectorPanel } from "../components/admin/RightInspectorPanel";
-import { TaskEditorPanel, type EditableTask } from "../components/admin/TaskEditorPanel";
+import {
+  TaskEditorPanel,
+  type EditableTask,
+} from "../components/admin/TaskEditorPanel";
 import { TaskJsonExportModal } from "../components/admin/TaskJsonExportModal";
 import { TranslateTaskDialog } from "../components/admin/TranslateTaskDialog";
 import { ToastProvider, useToast } from "../components/admin/ToastProvider";
@@ -15,48 +23,76 @@ import {
   useDuplicateTaskMutation,
   useGetAdminTaskQuery,
   useTranslateTaskMutation,
-  useUpdateTaskMutation
+  useUpdateTaskMutation,
 } from "../store/api";
 
 type ValidationErrors = {
   task?: Record<string, string>;
-  criteria: Record<number, { id?: string; label?: string; description?: string }>;
-  examples: Record<number, { id?: string; difficulty?: string; patient_text?: string }>;
+  criteria: Record<
+    number,
+    { id?: string; label?: string; description?: string }
+  >;
+  examples: Record<
+    number,
+    { id?: string; difficulty?: string; patient_text?: string }
+  >;
   interaction_examples: Record<
     number,
-    { id?: string; difficulty?: string; patient_text?: string; therapist_text?: string }
+    {
+      id?: string;
+      difficulty?: string;
+      patient_text?: string;
+      therapist_text?: string;
+    }
   >;
 };
 
 const toEditableTask = (
-  task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[]; interaction_examples?: TaskInteractionExample[] }
+  task: Task & {
+    criteria?: TaskCriterion[];
+    examples?: TaskExample[];
+    interaction_examples?: TaskInteractionExample[];
+  },
 ): EditableTask => ({
   ...task,
   general_objective: task.general_objective ?? "",
   criteria: task.criteria ?? [],
   examples: task.examples ?? [],
-  interaction_examples: task.interaction_examples ?? []
+  interaction_examples: task.interaction_examples ?? [],
 });
 
-const serializeTask = (task: EditableTask | null) => (task ? JSON.stringify(task) : "");
+const serializeTask = (task: EditableTask | null) =>
+  task ? JSON.stringify(task) : "";
 
-const validateTask = (task: EditableTask | null, t: (key: string, options?: Record<string, unknown>) => string): ValidationErrors => {
-  const errors: ValidationErrors = { criteria: {}, examples: {}, interaction_examples: {} };
+const validateTask = (
+  task: EditableTask | null,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): ValidationErrors => {
+  const errors: ValidationErrors = {
+    criteria: {},
+    examples: {},
+    interaction_examples: {},
+  };
   if (!task) return errors;
 
   const taskErrors: Record<string, string> = {};
   if (!task.title.trim()) taskErrors.title = t("admin.validation.required");
-  if (!task.skill_domain.trim()) taskErrors.skill_domain = t("admin.validation.required");
-  if (!task.description.trim()) taskErrors.description = t("admin.validation.required");
-  if (!task.base_difficulty) taskErrors.base_difficulty = t("admin.validation.required");
+  if (!task.skill_domain.trim())
+    taskErrors.skill_domain = t("admin.validation.required");
+  if (!task.description.trim())
+    taskErrors.description = t("admin.validation.required");
+  if (!task.base_difficulty)
+    taskErrors.base_difficulty = t("admin.validation.required");
   if (Object.keys(taskErrors).length) errors.task = taskErrors;
 
   const criteriaIds = new Set<string>();
   task.criteria.forEach((criterion, index) => {
     const rowErrors: ValidationErrors["criteria"][number] = {};
     if (!criterion.id.trim()) rowErrors.id = t("admin.validation.required");
-    if (!criterion.label.trim()) rowErrors.label = t("admin.validation.required");
-    if (!criterion.description.trim()) rowErrors.description = t("admin.validation.required");
+    if (!criterion.label.trim())
+      rowErrors.label = t("admin.validation.required");
+    if (!criterion.description.trim())
+      rowErrors.description = t("admin.validation.required");
     if (criterion.id.trim()) {
       if (criteriaIds.has(criterion.id)) {
         rowErrors.id = t("admin.validation.duplicate");
@@ -73,7 +109,8 @@ const validateTask = (task: EditableTask | null, t: (key: string, options?: Reco
     if (example.difficulty < 1 || example.difficulty > 5) {
       rowErrors.difficulty = t("admin.validation.range", { min: 1, max: 5 });
     }
-    if (!example.patient_text.trim()) rowErrors.patient_text = t("admin.validation.required");
+    if (!example.patient_text.trim())
+      rowErrors.patient_text = t("admin.validation.required");
     if (example.id.trim()) {
       if (exampleIds.has(example.id)) {
         rowErrors.id = t("admin.validation.duplicate");
@@ -90,15 +127,18 @@ const validateTask = (task: EditableTask | null, t: (key: string, options?: Reco
     if (example.difficulty < 1 || example.difficulty > 5) {
       rowErrors.difficulty = t("admin.validation.range", { min: 1, max: 5 });
     }
-    if (!example.patient_text.trim()) rowErrors.patient_text = t("admin.validation.required");
-    if (!example.therapist_text.trim()) rowErrors.therapist_text = t("admin.validation.required");
+    if (!example.patient_text.trim())
+      rowErrors.patient_text = t("admin.validation.required");
+    if (!example.therapist_text.trim())
+      rowErrors.therapist_text = t("admin.validation.required");
     if (example.id.trim()) {
       if (interactionIds.has(example.id)) {
         rowErrors.id = t("admin.validation.duplicate");
       }
       interactionIds.add(example.id);
     }
-    if (Object.keys(rowErrors).length) errors.interaction_examples[index] = rowErrors;
+    if (Object.keys(rowErrors).length)
+      errors.interaction_examples[index] = rowErrors;
   });
 
   return errors;
@@ -115,14 +155,18 @@ const AdminTaskEditPageContent = () => {
   const [jsonValue, setJsonValue] = useState("");
   const [jsonEditable, setJsonEditable] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"preview" | "json" | "meta">("preview");
+  const [activeTab, setActiveTab] = useState<"preview" | "json" | "meta">(
+    "preview",
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [translateOpen, setTranslateOpen] = useState(false);
   const [translateLanguage, setTranslateLanguage] = useState("fr");
 
-  const { data: task, isFetching } = useGetAdminTaskQuery(id ?? "", { skip: !id });
+  const { data: task, isFetching } = useGetAdminTaskQuery(id ?? "", {
+    skip: !id,
+  });
   const [updateTask, updateState] = useUpdateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
   const [duplicateTask] = useDuplicateTaskMutation();
@@ -143,20 +187,35 @@ const AdminTaskEditPageContent = () => {
     setJsonValue(JSON.stringify(draftTask, null, 2));
   }, [draftTask, jsonEditable]);
 
-  const validationErrors = useMemo(() => validateTask(draftTask, t), [draftTask, t]);
+  const validationErrors = useMemo(
+    () => validateTask(draftTask, t),
+    [draftTask, t],
+  );
   const hasValidationErrors =
-    Boolean(validationErrors.task && Object.keys(validationErrors.task).length) ||
+    Boolean(
+      validationErrors.task && Object.keys(validationErrors.task).length,
+    ) ||
     Object.keys(validationErrors.criteria).length > 0 ||
     Object.keys(validationErrors.examples).length > 0 ||
     Object.keys(validationErrors.interaction_examples).length > 0;
 
-  const isDirty = useMemo(() => serializeTask(baseTask) !== serializeTask(draftTask), [baseTask, draftTask]);
-  const exportJsonValue = useMemo(() => (draftTask ? JSON.stringify(draftTask, null, 2) : ""), [draftTask]);
+  const isDirty = useMemo(
+    () => serializeTask(baseTask) !== serializeTask(draftTask),
+    [baseTask, draftTask],
+  );
+  const exportJsonValue = useMemo(
+    () => (draftTask ? JSON.stringify(draftTask, null, 2) : ""),
+    [draftTask],
+  );
 
   const handleSave = async () => {
     if (!draftTask) return;
     if (hasValidationErrors) {
-      pushToast({ title: t("admin.toast.error"), message: t("admin.save.validationError"), tone: "error" });
+      pushToast({
+        title: t("admin.toast.error"),
+        message: t("admin.save.validationError"),
+        tone: "error",
+      });
       return;
     }
     try {
@@ -164,7 +223,11 @@ const AdminTaskEditPageContent = () => {
       setBaseTask(draftTask);
       pushToast({ title: t("admin.toast.saved"), tone: "success" });
     } catch (error) {
-      pushToast({ title: t("admin.toast.error"), message: (error as Error).message, tone: "error" });
+      pushToast({
+        title: t("admin.toast.error"),
+        message: (error as Error).message,
+        tone: "error",
+      });
     }
   };
 
@@ -175,7 +238,11 @@ const AdminTaskEditPageContent = () => {
       pushToast({ title: t("admin.toast.deleted"), tone: "success" });
       navigate("/admin/library");
     } catch (error) {
-      pushToast({ title: t("admin.toast.error"), message: (error as Error).message, tone: "error" });
+      pushToast({
+        title: t("admin.toast.error"),
+        message: (error as Error).message,
+        tone: "error",
+      });
     }
   };
 
@@ -186,7 +253,11 @@ const AdminTaskEditPageContent = () => {
       pushToast({ title: t("admin.toast.duplicated"), tone: "success" });
       navigate(`/admin/tasks/${result.id}`);
     } catch (error) {
-      pushToast({ title: t("admin.toast.error"), message: (error as Error).message, tone: "error" });
+      pushToast({
+        title: t("admin.toast.error"),
+        message: (error as Error).message,
+        tone: "error",
+      });
     }
   };
 
@@ -199,12 +270,19 @@ const AdminTaskEditPageContent = () => {
   const handleTranslate = async () => {
     if (!draftTask) return;
     try {
-      const result = await translateTask({ id: draftTask.id, targetLanguage: translateLanguage }).unwrap();
+      const result = await translateTask({
+        id: draftTask.id,
+        targetLanguage: translateLanguage,
+      }).unwrap();
       pushToast({ title: t("admin.toast.translated"), tone: "success" });
       setTranslateOpen(false);
       navigate(`/admin/tasks/${result.id}`);
     } catch (error) {
-      pushToast({ title: t("admin.toast.error"), message: (error as Error).message, tone: "error" });
+      pushToast({
+        title: t("admin.toast.error"),
+        message: (error as Error).message,
+        tone: "error",
+      });
     }
   };
 
@@ -252,24 +330,43 @@ const AdminTaskEditPageContent = () => {
             subtitle={t("admin.edit.pageSubtitle")}
           />
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" onClick={() => setInspectorOpen(true)} disabled={!draftTask}>
+            <Button
+              variant="secondary"
+              onClick={() => setInspectorOpen(true)}
+              disabled={!draftTask}
+            >
               {t("admin.inspector.kicker")}
             </Button>
-            <Button variant="secondary" onClick={() => setExportModalOpen(true)} disabled={!draftTask}>
+            <Button
+              variant="secondary"
+              onClick={() => setExportModalOpen(true)}
+              disabled={!draftTask}
+            >
               {t("admin.actions.exportJson")}
             </Button>
-            <Button variant="secondary" onClick={() => navigate("/admin/library")}>
+            <Button
+              variant="secondary"
+              onClick={() => navigate("/admin/library")}
+            >
               {t("admin.actions.backToLibrary")}
             </Button>
-            <Button variant="secondary" onClick={() => setDraftTask(baseTask)} disabled={!isDirty}>
+            <Button
+              variant="secondary"
+              onClick={() => setDraftTask(baseTask)}
+              disabled={!isDirty}
+            >
               {t("admin.actions.discard")}
             </Button>
             <Button
               variant="primary"
               onClick={handleSave}
-              disabled={updateState.isLoading || hasValidationErrors || !isDirty}
+              disabled={
+                updateState.isLoading || hasValidationErrors || !isDirty
+              }
             >
-              {updateState.isLoading ? t("admin.edit.saving") : t("admin.edit.save")}
+              {updateState.isLoading
+                ? t("admin.edit.saving")
+                : t("admin.edit.save")}
             </Button>
           </div>
         </div>
@@ -299,7 +396,9 @@ const AdminTaskEditPageContent = () => {
         <div className="fixed inset-0 z-40 flex justify-end bg-slate-950/70 backdrop-blur">
           <div className="flex h-full w-full max-w-md flex-col bg-slate-950 shadow-2xl">
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
-              <p className="text-sm font-semibold text-white">{t("admin.inspector.kicker")}</p>
+              <p className="text-sm font-semibold text-white">
+                {t("admin.inspector.kicker")}
+              </p>
               <Button variant="ghost" onClick={() => setInspectorOpen(false)}>
                 {t("admin.actions.close")}
               </Button>
@@ -326,7 +425,9 @@ const AdminTaskEditPageContent = () => {
       <ConfirmDialog
         open={confirmDelete}
         title={t("admin.confirm.deleteTitle")}
-        description={t("admin.confirm.deleteDescription", { title: draftTask?.title ?? "" })}
+        description={t("admin.confirm.deleteDescription", {
+          title: draftTask?.title ?? "",
+        })}
         confirmLabel={t("admin.actions.delete")}
         cancelLabel={t("admin.actions.cancel")}
         onConfirm={() => {
@@ -351,7 +452,9 @@ const AdminTaskEditPageContent = () => {
         open={exportModalOpen}
         json={exportJsonValue}
         onClose={() => setExportModalOpen(false)}
-        onCopy={() => pushToast({ title: t("admin.toast.jsonCopied"), tone: "success" })}
+        onCopy={() =>
+          pushToast({ title: t("admin.toast.jsonCopied"), tone: "success" })
+        }
       />
     </div>
   );

@@ -1,4 +1,8 @@
-import type { MinigamePlayer, MinigameRound, MinigameTeam } from "../../store/api";
+import type {
+  MinigamePlayer,
+  MinigameRound,
+  MinigameTeam,
+} from "../../store/api";
 
 type RoundHUDProps = {
   round?: MinigameRound;
@@ -8,7 +12,13 @@ type RoundHUDProps = {
   nextTurnDisabled?: boolean;
 };
 
-export const RoundHUD = ({ round, player, teams, onNextTurn, nextTurnDisabled }: RoundHUDProps) => {
+export const RoundHUD = ({
+  round,
+  player,
+  teams,
+  onNextTurn,
+  nextTurnDisabled,
+}: RoundHUDProps) => {
   const team = teams.find((entry) => entry.id === player?.team_id);
 
   return (
@@ -16,7 +26,9 @@ export const RoundHUD = ({ round, player, teams, onNextTurn, nextTurnDisabled }:
       <div className="flex items-center gap-4">
         <div className="h-10 w-10 rounded-full border border-white/20 bg-white/5" />
         <div>
-          <p className="text-sm font-semibold text-white">{player?.name ?? "Choose player"}</p>
+          <p className="text-sm font-semibold text-white">
+            {player?.name ?? "Choose player"}
+          </p>
           <p className="text-xs text-slate-300">
             {team ? `${team.name} · ${team.color}` : "Solo"}
           </p>

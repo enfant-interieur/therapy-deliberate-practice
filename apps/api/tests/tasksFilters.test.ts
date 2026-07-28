@@ -24,7 +24,10 @@ const createApp = async () => {
   const storage = {
     headObject: async () => ({ exists: false }),
     putObject: async () => ({}),
-    getObject: async () => ({ body: new Uint8Array(), contentType: "audio/mpeg" })
+    getObject: async () => ({
+      body: new Uint8Array(),
+      contentType: "audio/mpeg",
+    }),
   };
   const app = createApiApp({ env, db, tts: { storage } });
   return { app, db, tempDir };
@@ -46,7 +49,7 @@ test("GET /api/v1/tasks/languages returns distinct sorted languages", async () =
       is_published: true,
       parent_task_id: null,
       created_at: 10,
-      updated_at: 10
+      updated_at: 10,
     },
     {
       id: "task-2",
@@ -61,7 +64,7 @@ test("GET /api/v1/tasks/languages returns distinct sorted languages", async () =
       is_published: true,
       parent_task_id: null,
       created_at: 20,
-      updated_at: 20
+      updated_at: 20,
     },
     {
       id: "task-3",
@@ -76,8 +79,8 @@ test("GET /api/v1/tasks/languages returns distinct sorted languages", async () =
       is_published: false,
       parent_task_id: null,
       created_at: 30,
-      updated_at: 30
-    }
+      updated_at: 30,
+    },
   ]);
 
   const response = await app.request("/api/v1/tasks/languages");
@@ -104,7 +107,7 @@ test("GET /api/v1/tasks filters by published, language, skill_domain, tags, and 
       is_published: true,
       parent_task_id: null,
       created_at: 100,
-      updated_at: 100
+      updated_at: 100,
     },
     {
       id: "task-b",
@@ -119,7 +122,7 @@ test("GET /api/v1/tasks filters by published, language, skill_domain, tags, and 
       is_published: true,
       parent_task_id: null,
       created_at: 200,
-      updated_at: 200
+      updated_at: 200,
     },
     {
       id: "task-c",
@@ -134,12 +137,12 @@ test("GET /api/v1/tasks filters by published, language, skill_domain, tags, and 
       is_published: false,
       parent_task_id: null,
       created_at: 300,
-      updated_at: 300
-    }
+      updated_at: 300,
+    },
   ]);
 
   const response = await app.request(
-    "/api/v1/tasks?published=1&language=en&skill_domain=CBT&tags=anxiety,stress&sort=title_desc"
+    "/api/v1/tasks?published=1&language=en&skill_domain=CBT&tags=anxiety,stress&sort=title_desc",
   );
   assert.equal(response.status, 200);
   const body = await response.json();

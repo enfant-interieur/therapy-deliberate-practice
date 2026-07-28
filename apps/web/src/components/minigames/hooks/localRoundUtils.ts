@@ -3,13 +3,15 @@ import type { MinigameRound } from "../../../store/api";
 
 export const buildExampleForRound = (
   round: MinigameRound,
-  task?: Task | null
+  task?: Task | null,
 ): TaskExample => {
-  const matched = task?.examples?.find((example) => example.id === round.example_id);
+  const matched = task?.examples?.find(
+    (example) => example.id === round.example_id,
+  );
   if (matched) {
     return {
       ...matched,
-      task_id: matched.task_id ?? round.task_id
+      task_id: matched.task_id ?? round.task_id,
     };
   }
   return {
@@ -18,6 +20,6 @@ export const buildExampleForRound = (
     difficulty: task?.base_difficulty ?? 1,
     severity_label: null,
     patient_text: round.patient_text ?? "Patient statement unavailable.",
-    meta: null
+    meta: null,
   };
 };

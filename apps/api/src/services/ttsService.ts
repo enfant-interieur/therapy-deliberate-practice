@@ -10,17 +10,25 @@ import { buildTtsCacheKey, buildTtsR2Key } from "../utils/ttsCache";
 export type TtsAssetStatus = "ready" | "generating" | "failed";
 
 export type TtsStorage = {
-  headObject: (bucket: string, key: string) => Promise<{ exists: boolean; etag?: string; size?: number }>;
+  headObject: (
+    bucket: string,
+    key: string,
+  ) => Promise<{ exists: boolean; etag?: string; size?: number }>;
   putObject: (
     bucket: string,
     key: string,
     bytes: Uint8Array,
-    contentType: string
+    contentType: string,
   ) => Promise<{ etag?: string }>;
   getObject: (
     bucket: string,
-    key: string
-  ) => Promise<{ body: Uint8Array; contentType: string; etag?: string; contentLength?: number }>;
+    key: string,
+  ) => Promise<{
+    body: Uint8Array;
+    contentType: string;
+    etag?: string;
+    contentLength?: number;
+  }>;
 };
 
 export type TtsServiceInput = {
@@ -47,8 +55,13 @@ export type TtsServiceOptions = {
 
 const isUniqueConstraintError = (error: unknown) => {
   if (!error || typeof error !== "object") return false;
-  const message = "message" in error ? String((error as { message?: string }).message) : "";
-  return message.includes("UNIQUE") || message.includes("unique") || message.includes("constraint");
+  const message =
+    "message" in error ? String((error as { message?: string }).message) : "";
+  return (
+    message.includes("UNIQUE") ||
+    message.includes("unique") ||
+    message.includes("constraint")
+  );
 };
 
 const toAudioUrl = (cacheKey: string) => `/api/v1/tts/${cacheKey}`;
@@ -59,7 +72,7 @@ const formatContentType: Record<TtsServiceInput["format"], string> = {
   aac: "audio/aac",
   flac: "audio/flac",
   wav: "audio/wav",
-  pcm: "audio/pcm"
+  pcm: "audio/pcm",
 };
 
 export const getOrCreateTtsAsset = async (
@@ -68,32 +81,37 @@ export const getOrCreateTtsAsset = async (
   storage: TtsStorage,
   provider: TtsProvider,
   input: TtsServiceInput,
-  logger?: (level: "info" | "warn" | "error", event: string, fields?: Record<string, unknown>) => void,
-  options: TtsServiceOptions = {}
+  logger?: (
+    level: "info" | "warn" | "error",
+    event: string,
+    fields?: Record<string, unknown>,
+  ) => void,
+  options: TtsServiceOptions = {},
 ): Promise<TtsServiceResult> => {
   const { cacheKey, normalizedText } = await buildTtsCacheKey({
     text: input.text,
     model: input.model,
     voice: input.voice,
-    format: input.format
+    format: input.format,
   });
   const r2Key = buildTtsR2Key({
     cacheKey,
     model: input.model,
     voice: input.voice,
-    format: input.format
+    format: input.format,
   });
   const audioUrl = toAudioUrl(cacheKey);
   const now = Date.now();
 
   const ensureReadyFromHead = async (
     head: { exists: boolean; etag?: string; size?: number },
-    existing?: typeof ttsAssets.$inferSelect
+    existing?: typeof ttsAssets.$inferSelect,
   ) => {
     if (!head.exists) {
       return null;
     }
-    const contentType = existing?.content_type ?? formatContentType[input.format];
+    const contentType =
+      existing?.content_type ?? formatContentType[input.format];
     if (existing) {
       await db
         .update(ttsAssets)
@@ -103,7 +121,7 @@ export const getOrCreateTtsAsset = async (
           content_type: contentType,
           etag: head.etag ?? existing.etag ?? null,
           error: null,
-          updated_at: Date.now()
+          updated_at: Date.now(),
         })
         .where(eq(ttsAssets.cache_key, cacheKey));
     } else {
@@ -121,7 +139,7 @@ export const getOrCreateTtsAsset = async (
         status: "ready",
         error: null,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       });
     }
     const [asset] = await db
@@ -153,20 +171,30 @@ export const getOrCreateTtsAsset = async (
       const head = await storage.headObject(env.r2Bucket, r2Key);
       if (head.exists) {
         const updated = await ensureReadyFromHead(head, existing);
-        return { status: "ready", asset: updated ?? existing, cacheKey, audioUrl };
+        return {
+          status: "ready",
+          asset: updated ?? existing,
+          cacheKey,
+          audioUrl,
+        };
       }
       await markGenerating();
     } else if (existing.status === "generating") {
       const head = await storage.headObject(env.r2Bucket, r2Key);
       if (head.exists) {
         const updated = await ensureReadyFromHead(head, existing);
-        return { status: "ready", asset: updated ?? existing, cacheKey, audioUrl };
+        return {
+          status: "ready",
+          asset: updated ?? existing,
+          cacheKey,
+          audioUrl,
+        };
       }
       if (!options.forceGenerate) {
         return {
           status: "generating",
           cacheKey,
-          retryAfterMs: options.retryAfterMs ?? 500
+          retryAfterMs: options.retryAfterMs ?? 500,
         };
       }
       await markGenerating();
@@ -174,7 +202,12 @@ export const getOrCreateTtsAsset = async (
       const head = await storage.headObject(env.r2Bucket, r2Key);
       if (head.exists) {
         const updated = await ensureReadyFromHead(head, existing);
-        return { status: "ready", asset: updated ?? existing, cacheKey, audioUrl };
+        return {
+          status: "ready",
+          asset: updated ?? existing,
+          cacheKey,
+          audioUrl,
+        };
       }
       await markGenerating();
     }
@@ -182,6 +215,11 @@ export const getOrCreateTtsAsset = async (
     const head = await storage.headObject(env.r2Bucket, r2Key);
     if (head.exists) {
       const inserted = await ensureReadyFromHead(head);
+      if (!inserted) {
+        throw new Error(
+          "TTS asset head reported ready but no database asset was created.",
+        );
+      }
       return { status: "ready", asset: inserted, cacheKey, audioUrl };
     }
     try {
@@ -199,7 +237,7 @@ export const getOrCreateTtsAsset = async (
         status: "generating",
         error: null,
         created_at: now,
-        updated_at: now
+        updated_at: now,
       });
     } catch (error) {
       if (!isUniqueConstraintError(error)) {
@@ -215,20 +253,30 @@ export const getOrCreateTtsAsset = async (
           const head = await storage.headObject(env.r2Bucket, r2Key);
           if (head.exists) {
             const updated = await ensureReadyFromHead(head, conflict);
-            return { status: "ready", asset: updated ?? conflict, cacheKey, audioUrl };
+            return {
+              status: "ready",
+              asset: updated ?? conflict,
+              cacheKey,
+              audioUrl,
+            };
           }
           await markGenerating();
         } else if (conflict.status === "generating") {
           const head = await storage.headObject(env.r2Bucket, r2Key);
           if (head.exists) {
             const updated = await ensureReadyFromHead(head, conflict);
-            return { status: "ready", asset: updated ?? conflict, cacheKey, audioUrl };
+            return {
+              status: "ready",
+              asset: updated ?? conflict,
+              cacheKey,
+              audioUrl,
+            };
           }
           if (!options.forceGenerate) {
             return {
               status: "generating",
               cacheKey,
-              retryAfterMs: options.retryAfterMs ?? 500
+              retryAfterMs: options.retryAfterMs ?? 500,
             };
           }
           await markGenerating();
@@ -236,7 +284,12 @@ export const getOrCreateTtsAsset = async (
           const head = await storage.headObject(env.r2Bucket, r2Key);
           if (head.exists) {
             const updated = await ensureReadyFromHead(head, conflict);
-            return { status: "ready", asset: updated ?? conflict, cacheKey, audioUrl };
+            return {
+              status: "ready",
+              asset: updated ?? conflict,
+              cacheKey,
+              audioUrl,
+            };
           }
           await markGenerating();
         }
@@ -248,7 +301,7 @@ export const getOrCreateTtsAsset = async (
     return {
       status: "generating",
       cacheKey,
-      retryAfterMs: options.retryAfterMs ?? 500
+      retryAfterMs: options.retryAfterMs ?? 500,
     };
   }
 
@@ -261,7 +314,11 @@ export const getOrCreateTtsAsset = async (
   logger?.("info", "tts.generate.start", {
     cache_key: cacheKey,
     text_length: normalizedText.length,
-    provider: { kind: provider.kind, model: provider.model, voice: provider.voice }
+    provider: {
+      kind: provider.kind,
+      model: provider.model,
+      voice: provider.voice,
+    },
   });
 
   try {
@@ -274,7 +331,12 @@ export const getOrCreateTtsAsset = async (
       return { status: "ready", asset: updated, cacheKey, audioUrl };
     }
     const synthesized = await provider.synthesize({ text: normalizedText });
-    const putResult = await storage.putObject(env.r2Bucket, r2Key, synthesized.bytes, synthesized.contentType);
+    const putResult = await storage.putObject(
+      env.r2Bucket,
+      r2Key,
+      synthesized.bytes,
+      synthesized.contentType,
+    );
     await db
       .update(ttsAssets)
       .set({
@@ -282,7 +344,7 @@ export const getOrCreateTtsAsset = async (
         bytes: synthesized.bytes.length,
         content_type: synthesized.contentType,
         etag: putResult.etag ?? null,
-        updated_at: Date.now()
+        updated_at: Date.now(),
       })
       .where(eq(ttsAssets.cache_key, cacheKey));
 
@@ -296,18 +358,21 @@ export const getOrCreateTtsAsset = async (
     }
     logger?.("info", "tts.generate.ok", {
       cache_key: cacheKey,
-      bytes: synthesized.bytes.length
+      bytes: synthesized.bytes.length,
     });
     return { status: "ready", asset: ready, cacheKey, audioUrl };
   } catch (error) {
-    const message = safeTruncate((error as Error)?.message ?? "TTS generation failed", 240);
+    const message = safeTruncate(
+      (error as Error)?.message ?? "TTS generation failed",
+      240,
+    );
     await db
       .update(ttsAssets)
       .set({ status: "failed", error: message, updated_at: Date.now() })
       .where(eq(ttsAssets.cache_key, cacheKey));
     logger?.("error", "tts.generate.error", {
       cache_key: cacheKey,
-      error: message
+      error: message,
     });
     throw error;
   }

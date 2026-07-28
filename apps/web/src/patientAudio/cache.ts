@@ -4,7 +4,10 @@ const blobUrlByAudioUrl = new Map<string, string>();
 
 const hasCacheStorage = () => typeof caches !== "undefined";
 
-export const getCachedResponse = async (audioUrl: string, signal?: AbortSignal) => {
+export const getCachedResponse = async (
+  audioUrl: string,
+  signal?: AbortSignal,
+) => {
   if (signal?.aborted) return null;
   if (!hasCacheStorage()) return null;
   const cache = await caches.open(CACHE_NAME);
@@ -19,7 +22,8 @@ export const putIfMissing = async (audioUrl: string, response: Response) => {
   await cache.put(audioUrl, response.clone());
 };
 
-export const getBlobUrlForAudio = (audioUrl: string) => blobUrlByAudioUrl.get(audioUrl);
+export const getBlobUrlForAudio = (audioUrl: string) =>
+  blobUrlByAudioUrl.get(audioUrl);
 
 export const toBlobUrl = async (audioUrl: string, response: Response) => {
   const existing = blobUrlByAudioUrl.get(audioUrl);

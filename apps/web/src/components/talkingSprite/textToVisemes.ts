@@ -24,7 +24,10 @@ const pushEntry = (timeline: TimelineEntry[], key: VisemeKey, ms: number) => {
   timeline.push({ key, ms });
 };
 
-export const textToVisemeTimeline = (text: string, opts: Options = {}): TimelineEntry[] => {
+export const textToVisemeTimeline = (
+  text: string,
+  opts: Options = {},
+): TimelineEntry[] => {
   const wpm = opts.wpm ?? 140;
   const msPerChar = 60000 / (wpm * 5);
   const frameMs = opts.baseFrameMs ?? Math.max(60, Math.round(msPerChar));
@@ -53,7 +56,7 @@ export const textToVisemeTimeline = (text: string, opts: Options = {}): Timeline
       continue;
     }
 
-    let key: VisemeKey | null = null;
+    let key: VisemeKey;
 
     if (pair === "th") {
       key = "TH";

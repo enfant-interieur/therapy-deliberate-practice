@@ -1,4 +1,7 @@
-export type PatientAudioLogger = (event: string, payload?: Record<string, unknown>) => void;
+export type PatientAudioLogger = (
+  event: string,
+  payload?: Record<string, unknown>,
+) => void;
 
 export const createPatientAudioLogger = (scope: string): PatientAudioLogger => {
   return (event, payload) => {

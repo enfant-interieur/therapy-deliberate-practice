@@ -20,11 +20,13 @@ hiddenimports += [
     "mlx_lm.models",
     "mlx_lm.utils",
     "parakeet_mlx",
+    "imageio_ffmpeg",
 ]
 
 datas = []
 datas += collect_data_files("mlx_lm", include_py_files=False)
 datas += collect_data_files("parakeet_mlx", include_py_files=False)
+datas += collect_data_files("imageio_ffmpeg", include_py_files=False)
 
 a = Analysis(
     ["local_runtime/main.py"],

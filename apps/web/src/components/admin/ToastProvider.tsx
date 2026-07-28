@@ -1,4 +1,11 @@
-import { createContext, useCallback, useContext, useMemo, useState, type PropsWithChildren } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+  type PropsWithChildren,
+} from "react";
 
 export type ToastTone = "success" | "error" | "info" | "warning";
 
@@ -50,7 +57,9 @@ export const ToastProvider = ({ children }: PropsWithChildren) => {
             }`}
           >
             <p className="font-semibold">{toast.title}</p>
-            {toast.message && <p className="mt-1 text-xs text-slate-300">{toast.message}</p>}
+            {toast.message && (
+              <p className="mt-1 text-xs text-slate-300">{toast.message}</p>
+            )}
           </div>
         ))}
       </div>

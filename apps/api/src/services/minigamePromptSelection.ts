@@ -1,4 +1,5 @@
-export const NO_UNIQUE_PATIENT_STATEMENTS_LEFT = "NO_UNIQUE_PATIENT_STATEMENTS_LEFT";
+export const NO_UNIQUE_PATIENT_STATEMENTS_LEFT =
+  "NO_UNIQUE_PATIENT_STATEMENTS_LEFT";
 
 export type PromptExhaustionMetadata = {
   remaining: number;
@@ -46,19 +47,21 @@ const pickFromAvailable = (available: CandidateExample[], seedKey: string) => {
 export const pickUnusedExampleForPlayer = ({
   examples,
   usedExampleIds,
-  seedKey
+  seedKey,
 }: {
   examples: CandidateExample[];
   usedExampleIds: Set<string>;
   seedKey: string;
 }) => {
-  const available = examples.filter((example) => !usedExampleIds.has(example.id));
+  const available = examples.filter(
+    (example) => !usedExampleIds.has(example.id),
+  );
   if (!available.length) {
     throw new NoUniquePatientStatementsLeftError({
       remaining: 0,
       required: 1,
       poolSize: examples.length,
-      usedCount: usedExampleIds.size
+      usedCount: usedExampleIds.size,
     });
   }
   return pickFromAvailable(available, seedKey);
@@ -68,7 +71,7 @@ export const pickUnusedExampleForPair = ({
   examples,
   usedByPlayerA,
   usedByPlayerB,
-  seedKey
+  seedKey,
 }: {
   examples: CandidateExample[];
   usedByPlayerA: Set<string>;
@@ -82,7 +85,7 @@ export const pickUnusedExampleForPair = ({
       remaining: 0,
       required: 1,
       poolSize: examples.length,
-      usedCount: used.size
+      usedCount: used.size,
     });
   }
   return pickFromAvailable(available, seedKey);

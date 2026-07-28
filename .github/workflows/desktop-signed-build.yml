@@ -1,0 +1,536 @@
+name: desktop-signed-build
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type SIGN to build the selected exact version tag with signing credentials"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+  artifact-metadata: write
+
+concurrency:
+  group: desktop-signed-build-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.artifact }}
+    if: inputs.confirmation == 'SIGN' && startsWith(github.ref, 'refs/tags/v')
+    environment: desktop-signing
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            host_python: "3.12.10"
+            bundles: app
+            artifact: desktop-macos-arm64
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            host_python: "3.12.10"
+            bundles: app
+            artifact: desktop-macos-intel
+          - runner: windows-2025
+            target: x86_64-pc-windows-msvc
+            host_python: "3.12.10"
+            bundles: nsis,msi
+            artifact: desktop-windows-x64
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            host_python: "3.12.10"
+            bundles: appimage,deb,rpm
+            artifact: desktop-linux-x64
+    runs-on: ${{ matrix.runner }}
+    env:
+      LOCAL_RUNTIME_SIDECAR_TARGET: ${{ matrix.target }}
+      TAURI_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify exact tag build source
+        shell: bash
+        run: |
+          checked_out_sha="$(git rev-parse HEAD)"
+          tag_sha="$(git rev-list -n 1 "$GITHUB_REF")"
+          if [[ "$checked_out_sha" != "$GITHUB_SHA" || "$tag_sha" != "$GITHUB_SHA" ]]; then
+            echo "Signed builds must execute the exact commit selected by the version tag." >&2
+            exit 1
+          fi
+          echo "BUILD_SOURCE_SHA=$checked_out_sha" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.12.0"
+          cache: npm
+      # This interpreter runs workflow scripts only. The packaged runtime stays
+      # pinned independently at Python 3.12.13 in python-runtime-assets.json.
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+        with:
+          python-version: ${{ matrix.host_python }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.13"
+          enable-cache: true
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            rpm \
+            xvfb
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: Verify release configuration
+        shell: bash
+        run: node services/local-runtime-suite/desktop/scripts/verify-release-config.mjs "$GITHUB_REF_NAME"
+      - name: Verify generated model catalog
+        shell: bash
+        run: |
+          uv run --python 3.12 --no-project \
+            --with-requirements services/local-runtime-suite/python/requirements-test.txt \
+            python services/local-runtime-suite/tools/gen_models_json.py
+          git diff --exit-code apps/web/public/local-suite/models.json
+      - name: Build verified sidecar
+        run: npm run sidecar:build -w services/local-runtime-suite/desktop
+      - name: Import macOS signing certificate
+        if: runner.os == 'macOS'
+        uses: apple-actions/import-codesign-certs@63fff01cd422d4b7b855d40ca1e9d34d2de9427d # v3.0.0
+        with:
+          p12-file-base64: ${{ secrets.MACOS_CERTIFICATE }}
+          p12-password: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+      - name: Import Windows certificate and sign external sidecars
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE -or -not $env:WINDOWS_CERTIFICATE_PASSWORD) {
+            throw "The protected Windows signing certificate is not configured."
+          }
+          $certificatePath = Join-Path $env:RUNNER_TEMP "codesign.pfx"
+          [IO.File]::WriteAllBytes(
+            $certificatePath,
+            [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+          )
+          $password = ConvertTo-SecureString `
+            $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
+          $certificate = Import-PfxCertificate `
+            -FilePath $certificatePath `
+            -CertStoreLocation Cert:\CurrentUser\My `
+            -Password $password
+          if (-not $certificate.Thumbprint) {
+            throw "The Windows signing certificate could not be imported."
+          }
+          $sidecars = Get-ChildItem `
+            "services/local-runtime-suite/desktop/src-tauri/binaries" `
+            -Filter "local-runtime-gateway*.exe"
+          if ($sidecars.Count -lt 2) {
+            throw "Both generic and target-specific Windows sidecars are required."
+          }
+          foreach ($sidecar in $sidecars) {
+            & signtool sign /fd SHA256 /sha1 $certificate.Thumbprint `
+              /tr http://timestamp.digicert.com /td SHA256 $sidecar.FullName
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            if ((Get-AuthenticodeSignature $sidecar.FullName).Status -ne "Valid") {
+              throw "Invalid Authenticode signature for $($sidecar.FullName)."
+            }
+          }
+          $targetSidecar = $sidecars |
+            Where-Object Name -eq "local-runtime-gateway-${{ matrix.target }}.exe" |
+            Select-Object -First 1
+          $provenancePath = `
+            "services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python/build-provenance.json"
+          $provenance = Get-Content $provenancePath -Raw | ConvertFrom-Json
+          $provenance.launcher_sha256 = `
+            (Get-FileHash $targetSidecar.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          $provenance | ConvertTo-Json -Depth 10 |
+            Set-Content $provenancePath -Encoding utf8NoBOM
+          $config = @{
+            bundle = @{
+              windows = @{
+                certificateThumbprint = $certificate.Thumbprint
+                digestAlgorithm = "sha256"
+                timestampUrl = "http://timestamp.digicert.com"
+              }
+            }
+          }
+          $config | ConvertTo-Json -Depth 5 |
+            Set-Content (Join-Path $env:RUNNER_TEMP "windows-signing.json") -Encoding utf8NoBOM
+      - name: Prepare short Windows packaging root
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $drive = "T:"
+          if (Test-Path "$drive\") {
+            throw "$drive is already in use on this runner."
+          }
+          $projectRoot = Join-Path $env:GITHUB_WORKSPACE "services\local-runtime-suite\desktop"
+          $workspaceNodeModules = Join-Path $env:GITHUB_WORKSPACE "node_modules"
+          $projectNodeModules = Join-Path $projectRoot "node_modules"
+          if (-not (Test-Path $workspaceNodeModules)) {
+            throw "The workspace node_modules directory is missing."
+          }
+          if (Test-Path $projectNodeModules) {
+            throw "The desktop project node_modules path must be absent before the packaging bridge is created."
+          }
+          New-Item -ItemType Junction -Path $projectNodeModules -Target $workspaceNodeModules |
+            Out-Null
+          subst $drive $projectRoot
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $shortRoot = "$drive\"
+          $resourceRoot = "$drive\src-tauri\resources"
+          $longest = Get-ChildItem $resourceRoot -Recurse -Force -File |
+            ForEach-Object {
+              "$shortRoot$([IO.Path]::GetRelativePath($shortRoot, $_.FullName))"
+            } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          if (-not $longest) {
+            throw "The Tauri resource tree is empty."
+          }
+          if ($longest.Length -gt 240) {
+            throw "A Tauri resource path remains too long for safe NSIS input ($($longest.Length)): $longest"
+          }
+          "WINDOWS_TAURI_PROJECT=$drive\" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Build signed and notarized macOS packages
+        if: runner.os == 'macOS'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --bundles ${{ matrix.bundles }}
+            --verbose
+      - name: Create, sign, and notarize macOS DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          for variable in APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [[ -z "${!variable:-}" ]]; then
+              echo "The protected macOS signing variable $variable is not configured." >&2
+              exit 1
+            fi
+          done
+          bundle_root="services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+          shopt -s nullglob
+          apps=("$bundle_root/macos/"*.app)
+          if [[ ${#apps[@]} -ne 1 ]]; then
+            echo "Expected exactly one signed macOS application bundle; found ${#apps[@]}." >&2
+            exit 1
+          fi
+          version="$(node -p "require('./services/local-runtime-suite/desktop/package.json').version")"
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin) architecture="aarch64" ;;
+            x86_64-apple-darwin) architecture="x64" ;;
+            *) echo "Unsupported macOS target: ${{ matrix.target }}" >&2; exit 1 ;;
+          esac
+          mkdir -p "$bundle_root/dmg"
+          dmg_path="$bundle_root/dmg/Local_Runtime_Suite_${version}_${architecture}.dmg"
+          services/local-runtime-suite/desktop/scripts/build-macos-dmg.sh \
+            "${apps[0]}" \
+            "$dmg_path"
+          codesign --force --timestamp --sign "$APPLE_SIGNING_IDENTITY" "$dmg_path"
+          xcrun notarytool submit "$dmg_path" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait
+          xcrun stapler staple "$dmg_path"
+      - name: Build signed Windows packages
+        if: runner.os == 'Windows'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        with:
+          projectPath: ${{ env.WINDOWS_TAURI_PROJECT }}
+          tauriScript: npm run tauri
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --config ${{ runner.temp }}/windows-signing.json
+            --bundles ${{ matrix.bundles }}
+            --verbose
+      - name: Build unsigned Linux deb and rpm packages
+        if: runner.os == 'Linux'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --bundles deb,rpm
+            --verbose
+      # linuxdeploy recursively rewrites ELF files under usr/lib. Keep the
+      # packaged Python/model runtime in usr/share for AppImage only.
+      - name: Build unsigned Linux AppImage
+        if: runner.os == 'Linux'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        with:
+          projectPath: services/local-runtime-suite/desktop
+          args: >-
+            --target ${{ matrix.target }}
+            --config src-tauri/tauri.conf.json
+            --config src-tauri/tauri.sidecar.conf.json
+            --config src-tauri/tauri.linux-appimage.conf.json
+            --bundles appimage
+            --verbose
+      - name: Verify macOS signatures and notarization
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          bundle_root="services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+          app_path="$(find "$bundle_root/macos" -maxdepth 1 -name '*.app' -print -quit)"
+          dmg_path="$(find "$bundle_root/dmg" -maxdepth 1 -name '*.dmg' -print -quit)"
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+          spctl --assess --type execute --verbose=2 "$app_path"
+          xcrun stapler validate "$dmg_path"
+          mkdir -p "release-evidence/${{ matrix.target }}"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          target = os.environ["LOCAL_RUNTIME_SIDECAR_TARGET"]
+          receipt = {
+              "schema_version": 1,
+              "target": target,
+              "status": "signed-notarized",
+              "checks": {
+                  "app_codesign": True,
+                  "app_gatekeeper": True,
+                  "dmg_stapled": True,
+              },
+          }
+          path = Path("release-evidence") / target / "signature-receipt.json"
+          path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+          PY
+      - name: Mount macOS DMG for packaged-sidecar smoke
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg_path="$(find "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg" -maxdepth 1 -name '*.dmg' -print -quit)"
+          mount_point="$RUNNER_TEMP/local-runtime-dmg"
+          mkdir -p "$mount_point"
+          hdiutil attach "$dmg_path" -readonly -nobrowse -mountpoint "$mount_point"
+          cleanup() {
+            hdiutil detach "$mount_point"
+          }
+          trap cleanup EXIT
+          packaged_app="$(find "$mount_point" -maxdepth 1 -name '*.app' -print -quit)"
+          installed_app="$RUNNER_TEMP/Local Runtime Suite.app"
+          ditto "$packaged_app" "$installed_app"
+          cleanup
+          trap - EXIT
+          launcher="$(find "$installed_app/Contents/MacOS" -type f -name 'local-runtime-gateway*' -print -quit)"
+          runtime="$(find "$installed_app/Contents/Resources" -type d -name 'local-runtime-python' -print -quit)"
+          python services/local-runtime-suite/desktop/scripts/smoke-packaged-sidecar.py \
+            --launcher "$launcher" \
+            --runtime-root "$runtime" \
+            --output "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+          desktop_executable="$(find "$installed_app/Contents/MacOS" -maxdepth 1 -type f -name 'local-runtime-desktop' -print -quit)"
+          python services/local-runtime-suite/desktop/scripts/smoke-desktop-shell.py \
+            --executable "$desktop_executable" \
+            --target "${{ matrix.target }}" \
+            --output "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+          echo "PACKAGED_RUNTIME_ROOT=$runtime" >> "$GITHUB_ENV"
+      - name: Extract Linux AppImage for packaged-sidecar smoke
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p "release-evidence/${{ matrix.target }}"
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          target = os.environ["LOCAL_RUNTIME_SIDECAR_TARGET"]
+          receipt = {
+              "schema_version": 1,
+              "target": target,
+              "status": "unsigned",
+              "checks": {"not_applicable": True},
+          }
+          path = Path("release-evidence") / target / "signature-receipt.json"
+          path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+          PY
+          appimage="$(find "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/appimage" -name '*.AppImage' -print -quit)"
+          chmod +x "$appimage"
+          extract_dir="$RUNNER_TEMP/local-runtime-appimage"
+          mkdir -p "$extract_dir"
+          (
+            cd "$extract_dir"
+            "$GITHUB_WORKSPACE/$appimage" --appimage-extract
+          )
+          launcher="$(find "$extract_dir/squashfs-root" -type f -name 'local-runtime-gateway*' -print -quit)"
+          runtime="$(find "$extract_dir/squashfs-root" -type d -name 'local-runtime-python' -print -quit)"
+          pre_bundle_launcher="services/local-runtime-suite/desktop/src-tauri/binaries/local-runtime-gateway-${{ matrix.target }}"
+          python services/local-runtime-suite/desktop/scripts/verify_linux_launcher_transform.py \
+            --pre-bundle "$pre_bundle_launcher" \
+            --packaged "$launcher" \
+            --output "release-evidence/${{ matrix.target }}/launcher-transformation.json"
+          python services/local-runtime-suite/desktop/scripts/smoke-packaged-sidecar.py \
+            --launcher "$launcher" \
+            --runtime-root "$runtime" \
+            --output "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+          desktop_executable="$(find "$extract_dir/squashfs-root/usr/bin" -maxdepth 1 -type f -name 'local-runtime-desktop' -print -quit)"
+          python services/local-runtime-suite/desktop/scripts/smoke-desktop-shell.py \
+            --executable "$desktop_executable" \
+            --target "${{ matrix.target }}" \
+            --output "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+          echo "PACKAGED_RUNTIME_ROOT=$runtime" >> "$GITHUB_ENV"
+      - name: Install Windows package and verify Authenticode
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $bundleRoot = `
+            "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+          $installers = Get-ChildItem $bundleRoot -Recurse -File |
+            Where-Object { $_.Extension -eq ".msi" -or $_.Name -like "*-setup.exe" }
+          if ($installers.Count -ne 2) {
+            throw "Expected one signed NSIS installer and one signed MSI package."
+          }
+          foreach ($installer in $installers) {
+            if ((Get-AuthenticodeSignature $installer.FullName).Status -ne "Valid") {
+              throw "Invalid Authenticode signature for $($installer.FullName)."
+            }
+          }
+          $nsis = $installers | Where-Object Name -like "*-setup.exe" | Select-Object -First 1
+          $installDirectory = Join-Path $env:RUNNER_TEMP "local-runtime-installed"
+          $process = Start-Process -FilePath $nsis.FullName `
+            -ArgumentList "/S", "/D=$installDirectory" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { exit $process.ExitCode }
+          $launcher = Get-ChildItem $installDirectory -Recurse `
+            -Filter local-runtime-gateway.exe | Select-Object -First 1
+          $desktopExecutables = @(
+            Get-ChildItem $installDirectory -Recurse -File -Filter local-runtime-desktop.exe
+          )
+          if ($desktopExecutables.Count -ne 1) {
+            throw "Expected exactly one installed local-runtime-desktop.exe; found $($desktopExecutables.Count)."
+          }
+          $desktopExecutable = $desktopExecutables[0]
+          foreach ($executable in @($launcher, $desktopExecutable)) {
+            if (-not $executable -or `
+                (Get-AuthenticodeSignature $executable.FullName).Status -ne "Valid") {
+              throw "An installed first-party executable has an invalid Authenticode signature."
+            }
+          }
+          $runtime = Get-ChildItem $installDirectory -Recurse -Directory `
+            -Filter local-runtime-python | Select-Object -First 1
+          python services/local-runtime-suite/desktop/scripts/smoke-packaged-sidecar.py `
+            --launcher $launcher.FullName `
+            --runtime-root $runtime.FullName `
+            --output "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+          python services/local-runtime-suite/desktop/scripts/smoke-desktop-shell.py `
+            --executable $desktopExecutable.FullName `
+            --target "${{ matrix.target }}" `
+            --output "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+          $receipt = @{
+            schema_version = 1
+            target = "${{ matrix.target }}"
+            status = "signed"
+            checks = @{
+              installer_authenticode = $true
+              desktop_authenticode = $true
+              sidecar_authenticode = $true
+            }
+          }
+          New-Item -ItemType Directory `
+            "release-evidence/${{ matrix.target }}" -Force | Out-Null
+          $receipt | ConvertTo-Json -Depth 5 |
+            Set-Content `
+              "release-evidence/${{ matrix.target }}/signature-receipt.json" `
+              -Encoding utf8NoBOM
+          "PACKAGED_RUNTIME_ROOT=$($runtime.FullName)" |
+            Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Run native backends from packaged Unix payload
+        if: runner.os == 'Linux' || endsWith(matrix.target, '-apple-darwin')
+        shell: bash
+        env:
+          RUNNER_TARGET: ${{ matrix.target }}
+          LOCAL_RUNTIME_PACKAGED_ROOT: ${{ env.PACKAGED_RUNTIME_ROOT }}
+          LOCAL_RUNTIME_NATIVE_SMOKE_CACHE: ${{ runner.temp }}/native-smoke-${{ matrix.target }}
+        run: |
+          "$PACKAGED_RUNTIME_ROOT/python/bin/python3" \
+            services/local-runtime-suite/python/tools/smoke_native_backends.py \
+            --output "release-evidence/${{ matrix.target }}/native-backends.json"
+      - name: Run native backends from packaged Windows payload
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RUNNER_TARGET: ${{ matrix.target }}
+          LOCAL_RUNTIME_PACKAGED_ROOT: ${{ env.PACKAGED_RUNTIME_ROOT }}
+          LOCAL_RUNTIME_NATIVE_SMOKE_CACHE: ${{ runner.temp }}/native-smoke-${{ matrix.target }}
+        run: |
+          $python = Get-ChildItem "$env:PACKAGED_RUNTIME_ROOT/python" -Recurse -File `
+            -Filter python.exe | Select-Object -First 1
+          if (-not $python) { throw "Packaged Python executable was not found." }
+          & $python.FullName `
+            services/local-runtime-suite/python/tools/smoke_native_backends.py `
+            --output "release-evidence/${{ matrix.target }}/native-backends.json"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Stage publishable packages and write manifest
+        shell: bash
+        run: |
+          args=(
+            --target "${{ matrix.target }}"
+            --bundle-dir "services/local-runtime-suite/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
+            --packages-dir "release-evidence/${{ matrix.target }}/packages"
+            --provenance "services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python/build-provenance.json"
+            --smoke-receipt "release-evidence/${{ matrix.target }}/packaged-sidecar-smoke.json"
+            --desktop-shell-receipt "release-evidence/${{ matrix.target }}/desktop-shell-smoke.json"
+            --native-backend-receipt "release-evidence/${{ matrix.target }}/native-backends.json"
+            --signature-receipt "release-evidence/${{ matrix.target }}/signature-receipt.json"
+            --output "release-evidence/${{ matrix.target }}/artifact-manifest.json"
+          )
+          launcher_transform="release-evidence/${{ matrix.target }}/launcher-transformation.json"
+          if [[ -f "$launcher_transform" ]]; then
+            args+=(--launcher-transform-receipt "$launcher_transform")
+          fi
+          python services/local-runtime-suite/desktop/scripts/write-artifact-manifest.py "${args[@]}"
+      - name: Attest publishable packages
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.0.0
+        with:
+          subject-path: release-evidence/${{ matrix.target }}/packages/*
+      - name: Upload packages and evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.0
+        with:
+          name: ${{ matrix.artifact }}-${{ env.BUILD_SOURCE_SHA }}
+          path: release-evidence/${{ matrix.target }}
+          if-no-files-found: error
+          compression-level: 0

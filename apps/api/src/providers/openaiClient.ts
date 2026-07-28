@@ -19,7 +19,7 @@ export const getOpenAIClient = ({ apiKey, baseURL }: OpenAIClientOptions) => {
     apiKey,
     baseURL,
     maxRetries: 5,
-    timeout: 120_000
+    timeout: 120_000,
   });
   clients.set(cacheKey, client);
   return client;

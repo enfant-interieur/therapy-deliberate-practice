@@ -32,7 +32,7 @@ export const LeaderboardFiltersPanel = ({
   onSkillDomainChange,
   onLanguageChange,
   onLimitChange,
-  onClearAll
+  onClearAll,
 }: LeaderboardFiltersPanelProps) => {
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -41,7 +41,9 @@ export const LeaderboardFiltersPanel = ({
 
   const filteredTags = useMemo(() => {
     const query = tagQuery.trim().toLowerCase();
-    const visibleTags = availableTags.filter((tag) => !selectedTags.includes(tag));
+    const visibleTags = availableTags.filter(
+      (tag) => !selectedTags.includes(tag),
+    );
     if (!query) return visibleTags;
     return visibleTags.filter((tag) => tag.toLowerCase().includes(query));
   }, [availableTags, selectedTags, tagQuery]);
@@ -66,8 +68,12 @@ export const LeaderboardFiltersPanel = ({
     <section className="rounded-3xl border border-white/10 bg-slate-950/60 p-6 shadow-[0_20px_60px_-35px_rgba(15,23,42,0.9)] backdrop-blur">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-teal-400">{t("leaderboard.filters.title")}</p>
-          <h2 className="mt-2 text-lg font-semibold text-white">{t("leaderboard.filters.subtitle")}</h2>
+          <p className="text-xs uppercase tracking-[0.3em] text-teal-400">
+            {t("leaderboard.filters.title")}
+          </p>
+          <h2 className="mt-2 text-lg font-semibold text-white">
+            {t("leaderboard.filters.subtitle")}
+          </h2>
           <p className="mt-1 text-xs text-slate-400">
             {t("leaderboard.filters.tags")}: {selectedTagsLabel}
           </p>
@@ -96,7 +102,9 @@ export const LeaderboardFiltersPanel = ({
         <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.7fr]">
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-semibold text-slate-200">{t("leaderboard.filters.tags")}</label>
+              <label className="text-sm font-semibold text-slate-200">
+                {t("leaderboard.filters.tags")}
+              </label>
               {selectedTags.length > 0 && (
                 <button
                   type="button"
@@ -164,13 +172,18 @@ export const LeaderboardFiltersPanel = ({
           </div>
 
           <div className="space-y-3">
-            <label className="text-sm font-semibold text-slate-200" htmlFor="skill-domain-select">
+            <label
+              className="text-sm font-semibold text-slate-200"
+              htmlFor="skill-domain-select"
+            >
               {t("leaderboard.filters.skillDomain")}
             </label>
             <select
               id="skill-domain-select"
               value={selectedSkillDomain ?? ""}
-              onChange={(event) => onSkillDomainChange(event.target.value || null)}
+              onChange={(event) =>
+                onSkillDomainChange(event.target.value || null)
+              }
               className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70"
             >
               <option value="">{t("leaderboard.filters.all")}</option>
@@ -183,7 +196,10 @@ export const LeaderboardFiltersPanel = ({
           </div>
 
           <div className="space-y-3">
-            <label className="text-sm font-semibold text-slate-200" htmlFor="language-select">
+            <label
+              className="text-sm font-semibold text-slate-200"
+              htmlFor="language-select"
+            >
               {t("leaderboard.filters.language")}
             </label>
             <select
@@ -202,7 +218,10 @@ export const LeaderboardFiltersPanel = ({
           </div>
 
           <div className="space-y-3">
-            <label className="text-sm font-semibold text-slate-200" htmlFor="limit-select">
+            <label
+              className="text-sm font-semibold text-slate-200"
+              htmlFor="limit-select"
+            >
               {t("leaderboard.filters.limit")}
             </label>
             <select
@@ -218,7 +237,9 @@ export const LeaderboardFiltersPanel = ({
               ))}
             </select>
             {limit !== defaultLimit && (
-              <p className="text-xs text-slate-500">{t("leaderboard.filters.limitHint")}</p>
+              <p className="text-xs text-slate-500">
+                {t("leaderboard.filters.limitHint")}
+              </p>
             )}
           </div>
         </div>

@@ -12,7 +12,7 @@ type TaskState = {
 };
 
 const initialState: TaskState = {
-  filters: {}
+  filters: {},
 };
 
 const taskSlice = createSlice({
@@ -24,8 +24,8 @@ const taskSlice = createSlice({
     },
     setFilters(state, action: PayloadAction<TaskFilters>) {
       state.filters = action.payload;
-    }
-  }
+    },
+  },
 });
 
 export const { setSelectedTask, setFilters } = taskSlice.actions;

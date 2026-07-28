@@ -3,23 +3,24 @@ from __future__ import annotations
 import copy
 import json
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 from local_runtime.core.loader import LoadedModel
 from local_runtime.helpers.responses_helpers import stream_events
 from local_runtime.helpers.structured_output import (
+    build_diagnostics_defaults_fixer,
     build_retry_feedback,
     build_schema_array_trimmer,
     build_structured_output_guard,
-    build_diagnostics_defaults_fixer,
     extract_output_text,
     make_openai_strict_schema,
     parse_and_validate_structured_output,
 )
 from local_runtime.runtime_types import RunContext, RunRequest
 
-MAX_SCHEMA_BYTES = int(os.getenv("LOCAL_RUNTIME_STRUCTURED_SCHEMA_MAX_BYTES", 256 * 1024))
+MAX_SCHEMA_BYTES = int(os.getenv("LOCAL_RUNTIME_STRUCTURED_SCHEMA_MAX_BYTES", str(256 * 1024)))
 DEFAULT_MAX_ATTEMPTS = int(os.getenv("LOCAL_RUNTIME_STRUCTURED_MAX_ATTEMPTS", "4") or "4")
 
 
@@ -65,14 +66,16 @@ def detect_structured_mode(payload: dict | None) -> StructuredFormatConfig | Non
         return None
     schema = fmt.get("schema")
     if not isinstance(schema, dict):
-        raise ValueError("text.format.schema must be an object")
+        raise TypeError("text.format.schema must be an object")
     schema_bytes = len(json.dumps(schema, ensure_ascii=False).encode("utf-8"))
     if schema_bytes > MAX_SCHEMA_BYTES:
         raise ValueError(f"text.format.schema exceeds limit of {MAX_SCHEMA_BYTES} bytes")
     strict = _coerce_bool(fmt.get("strict"), True)
     schema_name = fmt.get("name") or "StructuredOutput"
     effective_schema = make_openai_strict_schema(schema) if strict else copy.deepcopy(schema)
-    return StructuredFormatConfig(schema_name=schema_name, schema=schema, effective_schema=effective_schema, strict=strict)
+    return StructuredFormatConfig(
+        schema_name=schema_name, schema=schema, effective_schema=effective_schema, strict=strict
+    )
 
 
 def normalize_messages(payload: dict) -> list[dict[str, Any]]:
@@ -94,7 +97,12 @@ def normalize_messages(payload: dict) -> list[dict[str, Any]]:
                 normalized.append({"role": role, "content": "\n".join(fragments)})
             else:
                 normalized.append(
-                    {"role": role, "content": json.dumps(content, ensure_ascii=False, separators=(",", ":"), sort_keys=True)}
+                    {
+                        "role": role,
+                        "content": json.dumps(
+                            content, ensure_ascii=False, separators=(",", ":"), sort_keys=True
+                        ),
+                    }
                 )
         return normalized
     normalized: list[dict[str, Any]] = []
@@ -114,7 +122,9 @@ def normalize_messages(payload: dict) -> list[dict[str, Any]]:
                 if entry.get("type") == "text" and "text" in entry:
                     fragments.append(str(entry["text"]))
                 elif entry.get("content"):
-                    fragments.extend(str(chunk.get("text", "")) for chunk in entry["content"] if isinstance(chunk, dict))
+                    fragments.extend(
+                        str(chunk.get("text", "")) for chunk in entry["content"] if isinstance(chunk, dict)
+                    )
         user_content = "\n".join(fragment for fragment in fragments if fragment)
     elif user_input is not None:
         user_content = json.dumps(user_input, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
@@ -148,8 +158,20 @@ def _apply_retry_sampling(payload: dict) -> None:
     payload["top_p"] = min(top_p, 0.5)
 
 
+def _safe_failure_category(error: str) -> str:
+    if error == "missing_output_text":
+        return error
+    if error.startswith("invalid_json"):
+        return "invalid_json"
+    if error.startswith("schema_validation_failed"):
+        return "schema_validation_failed"
+    return "structured_output_failed"
+
+
 class StructuredOutputEnforcer:
-    def __init__(self, *, selected: LoadedModel, ctx: RunContext, config: StructuredFormatConfig, request_id: str):
+    def __init__(
+        self, *, selected: LoadedModel, ctx: RunContext, config: StructuredFormatConfig, request_id: str
+    ):
         self.selected = selected
         self.ctx = ctx
         self.config = config
@@ -160,24 +182,31 @@ class StructuredOutputEnforcer:
 
     def _build_auto_fixers(self) -> list[Callable[[Any], bool]]:
         provider_defaults = {
-            "stt": {"kind": "local", "model": os.getenv("LOCAL_RUNTIME_STT_MODEL", "local//stt")},
+            "stt": {
+                "kind": "local",
+                "model": os.getenv("LOCAL_RUNTIME_STT_MODEL", "local//stt"),
+            },
             "llm": {"kind": "local", "model": self.selected.spec.id},
         }
         timing_defaults = {"stt": 0, "llm": 0, "total": 0}
         fixers: list[Callable[[Any], bool]] = [build_schema_array_trimmer(self.config.schema)]
-        schema_props = {}
-        if isinstance(self.config.schema, dict):
-            schema_props = self.config.schema.get("properties") or {}
-        if isinstance(schema_props, dict) and "diagnostics" in schema_props:
+        schema_properties = self.config.schema.get("properties", {})
+        if isinstance(schema_properties, dict) and "diagnostics" in schema_properties:
             fixers.append(
-                build_diagnostics_defaults_fixer(provider_defaults=provider_defaults, timing_defaults=timing_defaults)
+                build_diagnostics_defaults_fixer(
+                    provider_defaults=provider_defaults,
+                    timing_defaults=timing_defaults,
+                )
             )
         return fixers
 
     async def run(self, payload: dict) -> StructuredEnforcementResult:
         base_payload = copy.deepcopy(payload)
         normalized_messages = normalize_messages(base_payload)
-        guard_message = {"role": "system", "content": build_structured_output_guard(self.config.schema_name, self.config.effective_schema)}
+        guard_message = {
+            "role": "system",
+            "content": build_structured_output_guard(self.config.schema_name, self.config.effective_schema),
+        }
         base_messages = normalized_messages + [guard_message]
         retry_messages: list[dict[str, str]] = []
         last_error = "structured_output_failed"
@@ -188,7 +217,9 @@ class StructuredOutputEnforcer:
             attempt_payload["stream"] = False
             if attempt >= 2:
                 _apply_retry_sampling(attempt_payload)
-            run_request = RunRequest(endpoint="responses", model=self.selected.spec.id, json=attempt_payload, stream=False)
+            run_request = RunRequest(
+                endpoint="responses", model=self.selected.spec.id, json=attempt_payload, stream=False
+            )
             self.logger.info(
                 "structured_output.attempt",
                 extra={"request_id": self.request_id, "model_id": self.selected.spec.id, "attempt": attempt},
@@ -200,7 +231,9 @@ class StructuredOutputEnforcer:
             else:
                 try:
                     canonical, parsed = parse_and_validate_structured_output(
-                        output_text, self.config.effective_schema, auto_fixers=self.auto_fixers
+                        output_text,
+                        self.config.effective_schema,
+                        auto_fixers=self.auto_fixers,
                     )
                     self.logger.info(
                         "structured_output.valid",
@@ -208,10 +241,11 @@ class StructuredOutputEnforcer:
                             "request_id": self.request_id,
                             "model_id": self.selected.spec.id,
                             "attempt": attempt,
-                            "output_preview": canonical[:120],
                         },
                     )
-                    return StructuredEnforcementResult(canonical_text=canonical, parsed=parsed, attempts=attempt)
+                    return StructuredEnforcementResult(
+                        canonical_text=canonical, parsed=parsed, attempts=attempt
+                    )
                 except ValueError as exc:
                     last_error = str(exc)
             if attempt >= self.max_attempts:
@@ -225,8 +259,7 @@ class StructuredOutputEnforcer:
                     "request_id": self.request_id,
                     "model_id": self.selected.spec.id,
                     "attempt": attempt,
-                    "reason": last_error,
-                    "snippet": snippet,
+                    "reason": _safe_failure_category(last_error),
                 },
             )
         raise StructuredOutputFailure(last_error)

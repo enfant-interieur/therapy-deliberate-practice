@@ -8,7 +8,7 @@ import { createApiApp } from "../src/app";
 import { resolveEnv } from "../src/env";
 import { ensureSchema } from "../src/db/init";
 import { createSqliteDb } from "../src/db/sqlite";
-import { taskInteractionExamples } from "../src/db/schema";
+import { taskInteractionExamples, tasks } from "../src/db/schema";
 
 const createTempDb = async () => {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +25,10 @@ test("GET /api/v1/tasks/:id includes interaction examples when requested", async
   const storage = {
     headObject: async () => ({ exists: false }),
     putObject: async () => ({}),
-    getObject: async () => ({ body: new Uint8Array(), contentType: "audio/mpeg" })
+    getObject: async () => ({
+      body: new Uint8Array(),
+      contentType: "audio/mpeg",
+    }),
   };
   const app = createApiApp({ env, db, tts: { storage } });
 
@@ -39,7 +42,7 @@ test("GET /api/v1/tasks/:id includes interaction examples when requested", async
         base_difficulty: 3,
         general_objective: null,
         tags: ["demo"],
-        language: "en"
+        language: "en",
       },
       criteria: [
         {
@@ -52,10 +55,10 @@ test("GET /api/v1/tasks/:id includes interaction examples when requested", async
             anchors: [
               { score: 0, meaning: "Misses emotion." },
               { score: 2, meaning: "Partially validates." },
-              { score: 4, meaning: "Clearly validates." }
-            ]
-          }
-        }
+              { score: 4, meaning: "Clearly validates." },
+            ],
+          },
+        },
       ],
       examples: [
         {
@@ -64,8 +67,8 @@ test("GET /api/v1/tasks/:id includes interaction examples when requested", async
           severity_label: null,
           patient_text: "I need to hear I'm okay.",
           language: "en",
-          meta: null
-        }
+          meta: null,
+        },
       ],
       interaction_examples: [
         {
@@ -73,20 +76,40 @@ test("GET /api/v1/tasks/:id includes interaction examples when requested", async
           difficulty: 3,
           title: "Warmth with boundaries",
           patient_text: "Can you tell me I'm not too much?",
-          therapist_text: "I hear how tender that feels, and I care about you. I can offer support here, and we can also build your own steadying tools so you feel held between sessions. Let's name the need and pick one small self-soothing step you can take today."
-        }
-      ]
-    }
+          therapist_text:
+            "I hear how tender that feels, and I care about you. I can offer support here, and we can also build your own steadying tools so you feel held between sessions. Let's name the need and pick one small self-soothing step you can take today.",
+        },
+      ],
+    },
+    task_overrides: {
+      is_published: true,
+    },
   };
 
   const importResponse = await app.request("/api/v1/admin/import-task", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
   });
   assert.equal(importResponse.status, 200);
   const importBody = await importResponse.json();
   assert.ok(importBody.id);
+
+  await db
+    .update(tasks)
+    .set({ authors: ["Existing Author"] })
+    .where(eq(tasks.id, importBody.id));
+  const reimportResponse = await app.request("/api/v1/admin/import-task", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  assert.equal(reimportResponse.status, 200);
+  const [reimportedTask] = await db
+    .select({ authors: tasks.authors })
+    .from(tasks)
+    .where(eq(tasks.id, importBody.id));
+  assert.deepEqual(reimportedTask?.authors, ["Existing Author"]);
 
   const persisted = await db
     .select()
@@ -94,7 +117,9 @@ test("GET /api/v1/tasks/:id includes interaction examples when requested", async
     .where(eq(taskInteractionExamples.task_id, importBody.id));
   assert.equal(persisted.length, 1);
 
-  const response = await app.request(`/api/v1/tasks/${importBody.id}?include_interactions=1`);
+  const response = await app.request(
+    `/api/v1/tasks/${importBody.id}?include_interactions=1`,
+  );
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.interaction_examples.length, 1);

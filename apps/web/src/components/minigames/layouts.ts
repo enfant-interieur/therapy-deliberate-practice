@@ -5,7 +5,7 @@ import type {
   MinigameRound,
   MinigameRoundResult,
   MinigameSession,
-  MinigameTeam
+  MinigameTeam,
 } from "../../store/api";
 
 export type MinigameController = {

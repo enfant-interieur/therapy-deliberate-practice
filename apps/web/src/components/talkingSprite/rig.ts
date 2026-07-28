@@ -26,14 +26,14 @@ const GRID = {
   x: 0.52,
   y: 0.08,
   w: 0.44,
-  h: 0.84
+  h: 0.84,
 };
 
 const cellRect = (
   col: number,
   row: number,
   insetX = 0.28,
-  insetY = 0.36
+  insetY = 0.36,
 ): NormalizedRect => {
   const cellW = GRID.w / 3;
   const cellH = GRID.h / 4;
@@ -45,7 +45,7 @@ const cellRect = (
     x: centerX - w / 2,
     y: centerY - h / 2,
     w,
-    h
+    h,
   };
 };
 
@@ -55,7 +55,7 @@ export const patientRig: RigConfig = {
     x: 0.02,
     y: 0.04,
     w: 0.46,
-    h: 0.92
+    h: 0.92,
   },
   mouthRects: {
     AI: cellRect(0, 0),
@@ -70,11 +70,11 @@ export const patientRig: RigConfig = {
     R: cellRect(0, 3),
     TH: cellRect(1, 3),
     QW: cellRect(2, 3),
-    REST: cellRect(2, 1)
+    REST: cellRect(2, 1),
   },
   mouthPlacement: {
     x: 0.45,
     y: 0.57,
-    scale: 1
-  }
+    scale: 1,
+  },
 };

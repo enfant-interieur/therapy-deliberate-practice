@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "../supabase/client";
 import { useAppSelector } from "../store/hooks";
+import { safeInternalReturnTo } from "../utils/safeReturnTo";
 
 type Mode = "signin" | "signup";
 
@@ -10,7 +11,9 @@ export const LoginPage = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated, authChecked } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, authChecked } = useAppSelector(
+    (state) => state.auth,
+  );
 
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
@@ -20,14 +23,18 @@ export const LoginPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  const [loadingProvider, setLoadingProvider] = useState<"google" | "github" | null>(null);
+  const [loadingProvider, setLoadingProvider] = useState<
+    "google" | "github" | null
+  >(null);
   const [loadingEmail, setLoadingEmail] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<"reset" | "resend" | null>(null);
+  const [loadingAction, setLoadingAction] = useState<"reset" | "resend" | null>(
+    null,
+  );
 
   const returnTo = useMemo(() => {
     const params = new URLSearchParams(location.search);
     const value = params.get("returnTo");
-    return value && value.startsWith("/") ? value : "/";
+    return safeInternalReturnTo(value) ?? "/";
   }, [location.search]);
 
   useEffect(() => {
@@ -59,7 +66,7 @@ export const LoginPage = () => {
 
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo }
+      options: { redirectTo },
     });
 
     if (authError) {
@@ -96,7 +103,7 @@ export const LoginPage = () => {
       if (mode === "signin") {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
-          password
+          password,
         });
         if (signInError) {
           setError(signInError.message);
@@ -110,7 +117,7 @@ export const LoginPage = () => {
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
-        options: { emailRedirectTo }
+        options: { emailRedirectTo },
       });
 
       if (signUpError) {
@@ -141,7 +148,10 @@ export const LoginPage = () => {
     setLoadingAction("reset");
     try {
       const redirectTo = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(cleanEmail, { redirectTo });
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
+        cleanEmail,
+        { redirectTo },
+      );
 
       if (resetError) {
         setError(resetError.message);
@@ -170,7 +180,7 @@ export const LoginPage = () => {
       const { error: resendError } = await supabase.auth.resend({
         type: "signup",
         email: cleanEmail,
-        options: { emailRedirectTo }
+        options: { emailRedirectTo },
       });
 
       if (resendError) {
@@ -187,7 +197,9 @@ export const LoginPage = () => {
   return (
     <div className="mx-auto max-w-2xl space-y-8">
       <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("login.welcome")}</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
+          {t("login.welcome")}
+        </p>
         <h2 className="mt-3 text-3xl font-semibold">
           {mode === "signin" ? t("login.signInTitle") : t("login.signUpTitle")}
         </h2>
@@ -201,7 +213,9 @@ export const LoginPage = () => {
           <button
             type="button"
             className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              mode === "signin" ? "bg-white text-slate-950" : "border border-white/10 text-white"
+              mode === "signin"
+                ? "bg-white text-slate-950"
+                : "border border-white/10 text-white"
             }`}
             onClick={() => {
               setMode("signin");
@@ -215,7 +229,9 @@ export const LoginPage = () => {
           <button
             type="button"
             className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              mode === "signup" ? "bg-white text-slate-950" : "border border-white/10 text-white"
+              mode === "signup"
+                ? "bg-white text-slate-950"
+                : "border border-white/10 text-white"
             }`}
             onClick={() => {
               setMode("signup");
@@ -236,16 +252,22 @@ export const LoginPage = () => {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+            disabled={
+              loadingEmail || loadingProvider !== null || loadingAction !== null
+            }
           />
           <input
             className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
             placeholder={t("login.placeholders.password")}
             type="password"
-            autoComplete={mode === "signin" ? "current-password" : "new-password"}
+            autoComplete={
+              mode === "signin" ? "current-password" : "new-password"
+            }
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+            disabled={
+              loadingEmail || loadingProvider !== null || loadingAction !== null
+            }
           />
           {mode === "signup" && (
             <input
@@ -255,14 +277,20 @@ export const LoginPage = () => {
               autoComplete="new-password"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
-              disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+              disabled={
+                loadingEmail ||
+                loadingProvider !== null ||
+                loadingAction !== null
+              }
             />
           )}
 
           <button
             className="mt-2 w-full rounded-full bg-teal-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-300"
             onClick={handleEmailSubmit}
-            disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+            disabled={
+              loadingEmail || loadingProvider !== null || loadingAction !== null
+            }
           >
             {loadingEmail
               ? mode === "signin"
@@ -278,15 +306,25 @@ export const LoginPage = () => {
               type="button"
               className="underline decoration-white/40 underline-offset-4 transition hover:text-white"
               onClick={handlePasswordReset}
-              disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+              disabled={
+                loadingEmail ||
+                loadingProvider !== null ||
+                loadingAction !== null
+              }
             >
-              {loadingAction === "reset" ? t("login.actions.resettingPassword") : t("login.actions.resetPassword")}
+              {loadingAction === "reset"
+                ? t("login.actions.resettingPassword")
+                : t("login.actions.resetPassword")}
             </button>
             <button
               type="button"
               className="underline decoration-white/40 underline-offset-4 transition hover:text-white"
               onClick={handleResendConfirmation}
-              disabled={loadingEmail || loadingProvider !== null || loadingAction !== null}
+              disabled={
+                loadingEmail ||
+                loadingProvider !== null ||
+                loadingAction !== null
+              }
             >
               {loadingAction === "resend"
                 ? t("login.actions.resendingConfirmation")
@@ -300,7 +338,9 @@ export const LoginPage = () => {
 
         <div className="my-8 flex items-center gap-4">
           <div className="h-px flex-1 bg-white/10" />
-          <span className="text-xs text-slate-400">{t("login.actions.or")}</span>
+          <span className="text-xs text-slate-400">
+            {t("login.actions.or")}
+          </span>
           <div className="h-px flex-1 bg-white/10" />
         </div>
 
@@ -310,14 +350,18 @@ export const LoginPage = () => {
             onClick={() => handleOAuth("google")}
             disabled={loadingEmail || loadingProvider !== null}
           >
-            {loadingProvider === "google" ? t("login.oauth.googleLoading") : t("login.oauth.google")}
+            {loadingProvider === "google"
+              ? t("login.oauth.googleLoading")
+              : t("login.oauth.google")}
           </button>
           <button
             className="flex w-full items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/20"
             onClick={() => handleOAuth("github")}
             disabled={loadingEmail || loadingProvider !== null}
           >
-            {loadingProvider === "github" ? t("login.oauth.githubLoading") : t("login.oauth.github")}
+            {loadingProvider === "github"
+              ? t("login.oauth.githubLoading")
+              : t("login.oauth.github")}
           </button>
         </div>
       </section>

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { BigMicButton } from "./BigMicButton";
 import { DockPanel } from "./DockPanel";
 import { LeaderboardPanel } from "./LeaderboardPanel";
@@ -6,11 +7,6 @@ import { PlayersPanel } from "./PlayersPanel";
 import { RoundTaskCard } from "./RoundTaskCard";
 import { TranscriptOverlay } from "./TranscriptOverlay";
 import type { MinigameLayoutProps } from "./layouts";
-
-const playLabel = (isPlaying: boolean, hasEnded: boolean) => {
-  if (isPlaying) return "Stop audio";
-  return hasEnded ? "Replay patient audio" : "Play patient audio";
-};
 
 export const MobileMinigameLayout = ({
   mode,
@@ -44,18 +40,25 @@ export const MobileMinigameLayout = ({
   onRedraw,
   canRedraw,
   promptExhaustedMessage,
-  fullscreen
+  fullscreen,
 }: MinigameLayoutProps) => {
+  const { t } = useTranslation();
   const isPlaying = controller.audioStatus === "playing";
-  const playButtonLabel = playLabel(isPlaying, Boolean(controller.patientEndedAt));
+  const playButtonLabel = isPlaying
+    ? t("minigameUi.stopAudio")
+    : controller.patientEndedAt
+      ? t("minigameUi.replayPatientAudio")
+      : t("minigameUi.playPatientAudio");
 
   return (
     <div className="relative z-10 flex h-full flex-col gap-4 overflow-y-auto px-4 pb-6 pt-6">
       <div className="flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-white/10 bg-slate-900/70 px-4 py-4 shadow-[0_0_25px_rgba(15,23,42,0.45)] backdrop-blur">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-teal-200/70">Minigames</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-teal-200/70">
+            {t("appShell.nav.minigames")}
+          </p>
           <h1 className="mt-2 text-lg font-semibold text-white">
-            {mode ? modeCopy[mode] : "Launch a minigame"}
+            {mode ? modeCopy[mode] : t("minigameUi.launchMinigame")}
           </h1>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -64,21 +67,21 @@ export const MobileMinigameLayout = ({
               onClick={onEndGame}
               className="rounded-full border border-rose-300/60 bg-rose-500/20 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-rose-100"
             >
-              End game
+              {t("minigameUi.endGame")}
             </button>
           )}
           <button
             onClick={onNewGame}
             className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.25em] text-white/70"
           >
-            New game
+            {t("minigameUi.newGame")}
           </button>
           {mode === "ffa" && session && (
             <button
               onClick={onNewPlayer}
               className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70"
             >
-              New player
+              {t("minigameUi.newPlayer")}
             </button>
           )}
           {mode === "tdm" && session && (
@@ -87,7 +90,7 @@ export const MobileMinigameLayout = ({
               disabled={!canRedraw}
               className="rounded-full border border-violet-300/60 bg-violet-500/20 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-100 disabled:opacity-50"
             >
-              Redraw
+              {t("minigameUi.redraw")}
             </button>
           )}
           <button
@@ -95,24 +98,34 @@ export const MobileMinigameLayout = ({
             disabled={!fullscreen.isSupported}
             className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70 disabled:opacity-50"
           >
-            {fullscreen.isFullscreen ? "Exit" : "Fullscreen"}
+            {fullscreen.isFullscreen
+              ? t("minigameUi.exitFullscreen")
+              : t("minigameUi.fullscreen")}
           </button>
         </div>
       </div>
       {promptExhaustedMessage && (
         <div className="rounded-3xl border border-amber-300/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
           <p className="text-[10px] uppercase tracking-[0.3em] text-amber-200/80">
-            All prompts used
+            {t("minigameUi.allPromptsUsed")}
           </p>
-          <p className="mt-1 text-sm text-amber-100/90">{promptExhaustedMessage}</p>
+          <p className="mt-1 text-sm text-amber-100/90">
+            {promptExhaustedMessage}
+          </p>
         </div>
       )}
 
       <DockPanel
         side="left"
-        title="Players"
+        title={t("minigameUi.players")}
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          >
             <path d="M16 11a4 4 0 1 0-8 0" />
             <path d="M3 21a9 9 0 0 1 18 0" />
           </svg>
@@ -137,9 +150,15 @@ export const MobileMinigameLayout = ({
 
       <DockPanel
         side="left"
-        title="Task"
+        title={t("minigameUi.task")}
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          >
             <path d="M4 6h16M4 12h10M4 18h16" />
           </svg>
         }
@@ -153,7 +172,9 @@ export const MobileMinigameLayout = ({
             visibilityMode={session.visibility_mode}
           />
         ) : (
-          <div className="text-sm text-slate-300">Select a game to preview tasks.</div>
+          <div className="text-sm text-slate-300">
+            {t("minigameUi.selectGameToPreview")}
+          </div>
         )}
       </DockPanel>
 
@@ -169,8 +190,13 @@ export const MobileMinigameLayout = ({
           audioError={controller.audioError}
         />
         <button
-          onClick={() => (isPlaying ? controller.stopPatient() : controller.playPatient())}
-          disabled={controller.audioStatus === "generating" || controller.audioStatus === "downloading"}
+          onClick={() =>
+            isPlaying ? controller.stopPatient() : controller.playPatient()
+          }
+          disabled={
+            controller.audioStatus === "generating" ||
+            controller.audioStatus === "downloading"
+          }
           className={`flex items-center gap-3 rounded-full border px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] transition ${
             isPlaying
               ? "border-rose-300/60 bg-rose-500/20 text-rose-100 shadow-[0_0_25px_rgba(244,63,94,0.35)]"
@@ -202,29 +228,39 @@ export const MobileMinigameLayout = ({
         <BigMicButton
           mode={controller.micMode}
           subLabel={micLabel}
-          progress={controller.state === "recording" ? controller.maxDurationProgress : 0}
+          progress={
+            controller.state === "recording"
+              ? controller.maxDurationProgress
+              : 0
+          }
           accent={controller.micAccent}
           attention={controller.micAttention}
           onRecord={controller.startRecording}
           onStop={controller.stopAndSubmit}
         />
-        {controller.submitError && <p className="text-xs text-rose-200">{controller.submitError}</p>}
+        {controller.submitError && (
+          <p className="text-xs text-rose-200">{controller.submitError}</p>
+        )}
         {roundResultScore != null && controller.state === "complete" && (
           <div className="rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-center">
-            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">Round complete</p>
+            <p className="text-[10px] uppercase tracking-[0.3em] text-slate-400">
+              {t("minigameUi.roundComplete")}
+            </p>
             <p className="mt-2 text-2xl font-semibold text-teal-200">
               {roundResultScore.toFixed(2)}
             </p>
             {roundResultPenalty != null && roundResultPenalty > 0 && (
               <p className="mt-1 text-[10px] uppercase tracking-[0.3em] text-rose-200">
-                Timing penalty -{roundResultPenalty.toFixed(2)}
+                {t("minigameUi.timingPenalty", {
+                  score: roundResultPenalty.toFixed(2),
+                })}
               </p>
             )}
             <button
               onClick={onOpenEvaluation}
               className="mt-2 rounded-full border border-white/10 bg-white/5 px-4 py-1 text-[10px] uppercase tracking-[0.3em] text-white/70"
             >
-              View details
+              {t("minigameUi.viewDetails")}
             </button>
           </div>
         )}
@@ -232,23 +268,41 @@ export const MobileMinigameLayout = ({
 
       <DockPanel
         side="right"
-        title="Leaderboard"
+        title={t("minigameUi.leaderboard")}
         icon={
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.6"
+          >
             <path d="M5 12h4v7H5zM10 8h4v11h-4zM15 5h4v14h-4z" />
           </svg>
         }
         behavior="stack"
       >
-        <LeaderboardPanel mode={mode ?? "ffa"} players={players} teams={teams} results={results} variant="embedded" />
+        <LeaderboardPanel
+          mode={mode ?? "ffa"}
+          players={players}
+          teams={teams}
+          results={results}
+          variant="embedded"
+        />
       </DockPanel>
 
       {transcriptEligible && (
         <DockPanel
           side="right"
-          title="Transcript"
+          title={t("minigameUi.transcript")}
           icon={
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+            >
               <path d="M4 6h16M4 12h16M4 18h10" />
             </svg>
           }

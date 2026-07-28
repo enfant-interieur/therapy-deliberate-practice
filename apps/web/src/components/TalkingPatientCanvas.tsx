@@ -14,7 +14,7 @@ const emotionColors: Record<
   anxious: 0xfbbf24,
   angry: 0xf87171,
   relieved: 0x34d399,
-  engaged: 0xa78bfa
+  engaged: 0xa78bfa,
 };
 
 type TalkingPatientCanvasProps = {
@@ -30,14 +30,19 @@ export const TalkingPatientCanvas = ({
   play = false,
   autoPlayOnTextChange = false,
   reaction,
-  onDone
+  onDone,
 }: TalkingPatientCanvasProps) => {
-  const { ref, play: playText, stop, isReady } = useTalkingSprite({
+  const {
+    ref,
+    play: playText,
+    stop,
+    isReady,
+  } = useTalkingSprite({
     spriteUrl: patientSpriteUrl,
     rig: patientRig,
     width: 520,
     height: 360,
-    onDone
+    onDone,
   });
   const textRef = useRef(text);
 
@@ -66,7 +71,9 @@ export const TalkingPatientCanvas = ({
     const canvas = ref.current.querySelector("canvas");
     if (!canvas) return;
 
-    const color = reaction ? emotionColors[reaction.emotion] : emotionColors.neutral;
+    const color = reaction
+      ? emotionColors[reaction.emotion]
+      : emotionColors.neutral;
     canvas.style.backgroundColor = "transparent";
     canvas.style.border = "0";
     canvas.style.display = "block";
@@ -79,9 +86,6 @@ export const TalkingPatientCanvas = ({
   }, [reaction, ref, isReady]);
 
   return (
-    <div
-      ref={ref}
-      className="rounded-3xl bg-transparent overflow-hidden"
-    />
+    <div ref={ref} className="rounded-3xl bg-transparent overflow-hidden" />
   );
 };

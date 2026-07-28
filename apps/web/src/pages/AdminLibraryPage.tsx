@@ -2,12 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { DeliberatePracticeTaskV2, Task } from "@deliberate/shared";
-import { Badge, Button, Card, Input, Label, SectionHeader, Select } from "../components/admin/AdminUi";
+import {
+  Badge,
+  Button,
+  Card,
+  Input,
+  Label,
+  SectionHeader,
+  Select,
+} from "../components/admin/AdminUi";
 import { ConfirmDialog } from "../components/admin/ConfirmDialog";
 import { TaskListPanel } from "../components/admin/TaskListPanel";
 import { TaskJsonExportModal } from "../components/admin/TaskJsonExportModal";
 import { ToastProvider, useToast } from "../components/admin/ToastProvider";
-import { useDeleteTaskMutation, useGetAdminTasksQuery, useUpdateTaskMutation } from "../store/api";
+import {
+  useDeleteTaskMutation,
+  useGetAdminTasksQuery,
+  useUpdateTaskMutation,
+} from "../store/api";
 
 type TaskFilters = {
   search: string;
@@ -22,18 +34,22 @@ const defaultFilters: TaskFilters = {
   published: "all",
   skillDomain: "",
   sort: "updated",
-  tag: ""
+  tag: "",
 };
 
 const filterTasks = (tasks: Task[], filters: TaskFilters) => {
   return tasks
-    .filter((task) => task.title.toLowerCase().includes(filters.search.toLowerCase()))
+    .filter((task) =>
+      task.title.toLowerCase().includes(filters.search.toLowerCase()),
+    )
     .filter((task) => {
       if (filters.published === "published") return task.is_published;
       if (filters.published === "draft") return !task.is_published;
       return true;
     })
-    .filter((task) => (filters.skillDomain ? task.skill_domain === filters.skillDomain : true))
+    .filter((task) =>
+      filters.skillDomain ? task.skill_domain === filters.skillDomain : true,
+    )
     .filter((task) => (filters.tag ? task.tags.includes(filters.tag) : true))
     .sort((a, b) => {
       if (filters.sort === "alpha") return a.title.localeCompare(b.title);
@@ -50,11 +66,13 @@ const toImportPayload = (task: Task): DeliberatePracticeTaskV2 => ({
     base_difficulty: task.base_difficulty,
     general_objective: task.general_objective ?? undefined,
     tags: task.tags ?? [],
-    language: task.language ?? "en"
+    language: task.language ?? "en",
   },
   criteria: task.criteria ?? [],
   examples: task.examples ?? [],
-  interaction_examples: task.interaction_examples?.length ? task.interaction_examples : undefined
+  interaction_examples: task.interaction_examples?.length
+    ? task.interaction_examples
+    : undefined,
 });
 
 const AdminLibraryPageContent = () => {
@@ -87,12 +105,14 @@ const AdminLibraryPageContent = () => {
   }, [filters.search]);
 
   useEffect(() => {
-    setSelectedTaskIds((prev) => prev.filter((id) => tasks.some((task) => task.id === id)));
+    setSelectedTaskIds((prev) =>
+      prev.filter((id) => tasks.some((task) => task.id === id)),
+    );
   }, [tasks]);
 
   const filteredTasks = useMemo(
     () => filterTasks(tasks, { ...filters, search: debouncedSearch }),
-    [tasks, filters, debouncedSearch]
+    [tasks, filters, debouncedSearch],
   );
 
   const domainOptions = useMemo(() => {
@@ -109,12 +129,12 @@ const AdminLibraryPageContent = () => {
 
   const selectedTasks = useMemo(
     () => tasks.filter((task) => selectedTaskIds.includes(task.id)),
-    [tasks, selectedTaskIds]
+    [tasks, selectedTaskIds],
   );
 
   const selectedExportPayload = useMemo(
     () => JSON.stringify(selectedTasks.map(toImportPayload), null, 2),
-    [selectedTasks]
+    [selectedTasks],
   );
 
   const handleSearchSubmit = (event: React.FormEvent) => {
@@ -136,14 +156,20 @@ const AdminLibraryPageContent = () => {
   };
 
   const handleToggleSelect = (id: string) => {
-    setSelectedTaskIds((prev) => (prev.includes(id) ? prev.filter((taskId) => taskId !== id) : [...prev, id]));
+    setSelectedTaskIds((prev) =>
+      prev.includes(id)
+        ? prev.filter((taskId) => taskId !== id)
+        : [...prev, id],
+    );
   };
 
   const handleSelectAll = () => {
     const allIds = filteredTasks.map((task) => task.id);
     setSelectedTaskIds((prev) => {
       const hasAll = allIds.every((id) => prev.includes(id));
-      return hasAll ? prev.filter((id) => !allIds.includes(id)) : Array.from(new Set([...prev, ...allIds]));
+      return hasAll
+        ? prev.filter((id) => !allIds.includes(id))
+        : Array.from(new Set([...prev, ...allIds]));
     });
   };
 
@@ -158,20 +184,27 @@ const AdminLibraryPageContent = () => {
     try {
       await Promise.all(
         selectedTasks.map((task) => {
-          const nextTags = Array.from(new Set([...(task.tags ?? []), trimmedTag]));
-          return updateTask({ id: task.id, task: { ...task, tags: nextTags } }).unwrap();
-        })
+          const nextTags = Array.from(
+            new Set([...(task.tags ?? []), trimmedTag]),
+          );
+          return updateTask({
+            id: task.id,
+            task: { ...task, tags: nextTags },
+          }).unwrap();
+        }),
       );
       setBulkTag("");
       pushToast({
-        title: t("admin.toast.bulkTagsApplied", { count: selectedTasks.length }),
-        tone: "success"
+        title: t("admin.toast.bulkTagsApplied", {
+          count: selectedTasks.length,
+        }),
+        tone: "success",
       });
     } catch (error) {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     } finally {
       setBulkBusy(false);
@@ -181,17 +214,19 @@ const AdminLibraryPageContent = () => {
   const handleBulkDelete = async () => {
     setBulkBusy(true);
     try {
-      await Promise.all(selectedTasks.map((task) => deleteTask({ id: task.id }).unwrap()));
+      await Promise.all(
+        selectedTasks.map((task) => deleteTask({ id: task.id }).unwrap()),
+      );
       setSelectedTaskIds([]);
       pushToast({
         title: t("admin.toast.bulkDeleted", { count: selectedTasks.length }),
-        tone: "success"
+        tone: "success",
       });
     } catch (error) {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     } finally {
       setBulkBusy(false);
@@ -214,10 +249,15 @@ const AdminLibraryPageContent = () => {
         </div>
 
         <Card className="space-y-4 p-6">
-          <form className="flex flex-col gap-3 lg:flex-row lg:items-center" onSubmit={handleSearchSubmit}>
+          <form
+            className="flex flex-col gap-3 lg:flex-row lg:items-center"
+            onSubmit={handleSearchSubmit}
+          >
             <Input
               value={filters.search}
-              onChange={(event) => setFilters({ ...filters, search: event.target.value })}
+              onChange={(event) =>
+                setFilters({ ...filters, search: event.target.value })
+              }
               placeholder={t("admin.searchPlaceholder")}
               aria-label={t("admin.searchPlaceholder")}
               className="lg:w-[420px]"
@@ -231,23 +271,31 @@ const AdminLibraryPageContent = () => {
                 variant="secondary"
                 onClick={() => setAdvancedOpen((prev) => !prev)}
               >
-                {advancedOpen ? t("admin.library.hideAdvanced") : t("admin.library.showAdvanced")}
+                {advancedOpen
+                  ? t("admin.library.hideAdvanced")
+                  : t("admin.library.showAdvanced")}
               </Button>
             </div>
           </form>
           <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-slate-400">
             <div className="flex flex-wrap items-center gap-3">
               <Badge className="border-teal-400/40 text-teal-100">
-                {isLoading ? t("admin.status.loading") : t("admin.status.ready")}
+                {isLoading
+                  ? t("admin.status.loading")
+                  : t("admin.status.ready")}
               </Badge>
-              <span>{t("admin.library.results", { count: filteredTasks.length })}</span>
+              <span>
+                {t("admin.library.results", { count: filteredTasks.length })}
+              </span>
             </div>
             <Button
               type="button"
               variant={selectionMode ? "primary" : "secondary"}
               onClick={handleToggleSelectionMode}
             >
-              {selectionMode ? t("admin.library.exitSelectAction") : t("admin.library.selectAction")}
+              {selectionMode
+                ? t("admin.library.exitSelectAction")
+                : t("admin.library.selectAction")}
             </Button>
           </div>
           {advancedOpen && (
@@ -255,16 +303,25 @@ const AdminLibraryPageContent = () => {
               <Select
                 value={filters.published}
                 onChange={(event) =>
-                  setFilters({ ...filters, published: event.target.value as TaskFilters["published"] })
+                  setFilters({
+                    ...filters,
+                    published: event.target.value as TaskFilters["published"],
+                  })
                 }
               >
-                <option value="all">{t("admin.list.filters.publishedAll")}</option>
-                <option value="published">{t("admin.list.filters.published")}</option>
+                <option value="all">
+                  {t("admin.list.filters.publishedAll")}
+                </option>
+                <option value="published">
+                  {t("admin.list.filters.published")}
+                </option>
                 <option value="draft">{t("admin.list.filters.draft")}</option>
               </Select>
               <Select
                 value={filters.skillDomain}
-                onChange={(event) => setFilters({ ...filters, skillDomain: event.target.value })}
+                onChange={(event) =>
+                  setFilters({ ...filters, skillDomain: event.target.value })
+                }
               >
                 <option value="">{t("admin.list.filters.domainAll")}</option>
                 {domainOptions.map((domain) => (
@@ -275,7 +332,9 @@ const AdminLibraryPageContent = () => {
               </Select>
               <Select
                 value={filters.tag}
-                onChange={(event) => setFilters({ ...filters, tag: event.target.value })}
+                onChange={(event) =>
+                  setFilters({ ...filters, tag: event.target.value })
+                }
               >
                 <option value="">{t("admin.list.filters.tagAll")}</option>
                 {tagOptions.map((tag) => (
@@ -287,11 +346,18 @@ const AdminLibraryPageContent = () => {
               <Select
                 value={filters.sort}
                 onChange={(event) =>
-                  setFilters({ ...filters, sort: event.target.value as TaskFilters["sort"] })
+                  setFilters({
+                    ...filters,
+                    sort: event.target.value as TaskFilters["sort"],
+                  })
                 }
               >
-                <option value="updated">{t("admin.list.filters.sortUpdated")}</option>
-                <option value="alpha">{t("admin.list.filters.sortAlpha")}</option>
+                <option value="updated">
+                  {t("admin.list.filters.sortUpdated")}
+                </option>
+                <option value="alpha">
+                  {t("admin.list.filters.sortAlpha")}
+                </option>
               </Select>
             </div>
           )}
@@ -304,16 +370,28 @@ const AdminLibraryPageContent = () => {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
                   {t("admin.library.bulk.kicker")}
                 </p>
-                <h3 className="text-lg font-semibold text-white">{t("admin.library.bulk.title")}</h3>
+                <h3 className="text-lg font-semibold text-white">
+                  {t("admin.library.bulk.title")}
+                </h3>
                 <p className="text-sm text-slate-400">
-                  {t("admin.library.bulk.subtitle", { count: selectedTaskIds.length })}
+                  {t("admin.library.bulk.subtitle", {
+                    count: selectedTaskIds.length,
+                  })}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="secondary" onClick={handleSelectAll} disabled={!filteredTasks.length}>
+                <Button
+                  variant="secondary"
+                  onClick={handleSelectAll}
+                  disabled={!filteredTasks.length}
+                >
                   {t("admin.library.bulk.selectAll")}
                 </Button>
-                <Button variant="ghost" onClick={handleClearSelection} disabled={!selectedTaskIds.length}>
+                <Button
+                  variant="ghost"
+                  onClick={handleClearSelection}
+                  disabled={!selectedTaskIds.length}
+                >
                   {t("admin.library.bulk.clear")}
                 </Button>
               </div>
@@ -322,7 +400,9 @@ const AdminLibraryPageContent = () => {
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
               <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
                 <Label>{t("admin.library.bulk.exportLabel")}</Label>
-                <p className="text-sm text-slate-400">{t("admin.library.bulk.exportHint")}</p>
+                <p className="text-sm text-slate-400">
+                  {t("admin.library.bulk.exportHint")}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     variant="primary"
@@ -342,7 +422,9 @@ const AdminLibraryPageContent = () => {
               </div>
               <div className="space-y-3 rounded-2xl border border-white/10 bg-slate-950/40 p-4">
                 <Label>{t("admin.library.bulk.tagLabel")}</Label>
-                <p className="text-sm text-slate-400">{t("admin.library.bulk.tagHint")}</p>
+                <p className="text-sm text-slate-400">
+                  {t("admin.library.bulk.tagHint")}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   <Input
                     value={bulkTag}
@@ -353,7 +435,9 @@ const AdminLibraryPageContent = () => {
                   <Button
                     variant="secondary"
                     onClick={handleApplyTag}
-                    disabled={!bulkTag.trim() || !selectedTaskIds.length || bulkBusy}
+                    disabled={
+                      !bulkTag.trim() || !selectedTaskIds.length || bulkBusy
+                    }
                   >
                     {t("admin.library.bulk.tagAction")}
                   </Button>
@@ -377,13 +461,17 @@ const AdminLibraryPageContent = () => {
         open={exportOpen}
         json={selectedExportPayload}
         onClose={() => setExportOpen(false)}
-        onCopy={() => pushToast({ title: t("admin.toast.jsonCopied"), tone: "success" })}
+        onCopy={() =>
+          pushToast({ title: t("admin.toast.jsonCopied"), tone: "success" })
+        }
       />
 
       <ConfirmDialog
         open={confirmBulkDelete}
         title={t("admin.library.bulk.deleteTitle")}
-        description={t("admin.library.bulk.deleteDescription", { count: selectedTaskIds.length })}
+        description={t("admin.library.bulk.deleteDescription", {
+          count: selectedTaskIds.length,
+        })}
         confirmLabel={t("admin.library.bulk.deleteConfirm")}
         cancelLabel={t("admin.library.bulk.deleteCancel")}
         onConfirm={handleBulkDelete}

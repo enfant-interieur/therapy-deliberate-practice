@@ -21,7 +21,7 @@ export type EffectiveAiConfig = {
 };
 
 export type UserSettingsInput = {
-  ai_mode?: ProviderMode | null;
+  ai_mode?: string | null;
   local_base_url?: string | null;
   local_stt_url?: string | null;
   local_llm_url?: string | null;
@@ -34,7 +34,7 @@ type ResolveConfigInput = {
   settings: UserSettingsInput;
   decryptOpenAiKey?: (
     secret: string,
-    input: { ciphertextB64: string; ivB64: string }
+    input: { ciphertextB64: string; ivB64: string },
   ) => Promise<string>;
 };
 
@@ -53,7 +53,10 @@ const getOrigin = (value?: string | null) => {
   }
 };
 
-const deriveLocalBaseUrl = (localLlmUrl?: string | null, localSttUrl?: string | null) => {
+const deriveLocalBaseUrl = (
+  localLlmUrl?: string | null,
+  localSttUrl?: string | null,
+) => {
   const llmOrigin = getOrigin(localLlmUrl);
   const sttOrigin = getOrigin(localSttUrl);
   if (llmOrigin && sttOrigin && llmOrigin !== sttOrigin) {
@@ -67,14 +70,19 @@ export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:8484";
 export const resolveEffectiveAiConfig = async ({
   env,
   settings,
-  decryptOpenAiKey
+  decryptOpenAiKey,
 }: ResolveConfigInput): Promise<EffectiveAiConfig> => {
-  const mode = (settings.ai_mode ?? env.aiMode) as AiMode;
+  const requestedMode = settings.ai_mode ?? env.aiMode;
+  const mode: AiMode =
+    requestedMode === "local_only" || requestedMode === "openai_only"
+      ? requestedMode
+      : "local_prefer";
   const localBaseSetting = normalizeUrl(settings.local_base_url);
   const localSttUrl = normalizeUrl(settings.local_stt_url);
   const localLlmUrl = normalizeUrl(settings.local_llm_url);
   const derivedBaseUrl = deriveLocalBaseUrl(localLlmUrl, localSttUrl);
-  const localBaseUrl = localBaseSetting ?? derivedBaseUrl ?? DEFAULT_LOCAL_BASE_URL;
+  const localBaseUrl =
+    localBaseSetting ?? derivedBaseUrl ?? DEFAULT_LOCAL_BASE_URL;
 
   let openaiKey: string | null = null;
   let openaiKeySource: EffectiveAiConfig["resolvedFrom"]["openaiKey"] = "none";
@@ -83,19 +91,19 @@ export const resolveEffectiveAiConfig = async ({
       throw new ProviderConfigError(
         "OPENAI_KEY_SECRET_MISSING",
         "OPENAI_KEY_ENCRYPTION_SECRET is not configured.",
-        500
+        500,
       );
     }
     if (!decryptOpenAiKey) {
       throw new ProviderConfigError(
         "OPENAI_KEY_SECRET_MISSING",
         "OpenAI key decryptor is not configured.",
-        500
+        500,
       );
     }
     openaiKey = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
       ciphertextB64: settings.openai_key_ciphertext,
-      ivB64: settings.openai_key_iv
+      ivB64: settings.openai_key_iv,
     });
     openaiKeySource = "user";
   } else if (env.openaiApiKey) {
@@ -110,12 +118,12 @@ export const resolveEffectiveAiConfig = async ({
       baseUrl: localBaseUrl,
       sttUrl: localSttUrl,
       llmUrl: localLlmUrl,
-      apiPrefix: "/v1"
+      apiPrefix: "/v1",
     },
     resolvedFrom: {
       openaiKey: openaiKeySource,
-      localBaseUrl: localBaseSetting ? "user" : "none"
-    }
+      localBaseUrl: localBaseSetting ? "user" : "none",
+    },
   };
 };
 
@@ -124,28 +132,39 @@ export const assertOpenAiKey = (config: EffectiveAiConfig) => {
     throw new ProviderConfigError(
       "OPENAI_KEY_MISSING",
       "OpenAI mode requires an API key. Add one in Settings to continue.",
-      400
+      400,
     );
   }
 };
 
-export const assertLocalBaseUrl = (config: EffectiveAiConfig, overrideUrl?: string | null) => {
+export const assertLocalBaseUrl = (
+  config: EffectiveAiConfig,
+  overrideUrl?: string | null,
+) => {
   const resolved = overrideUrl ?? config.local.baseUrl;
   if (config.mode === "local_only" && !resolved) {
     throw new ProviderConfigError(
       "LOCAL_BASE_URL_MISSING",
       "Local AI mode requires a local base URL. Update your Settings to continue.",
-      400
+      400,
     );
   }
 };
 
-export const buildEnvAiConfig = (env: RuntimeEnv, mode: AiMode = env.aiMode): EffectiveAiConfig => ({
+export const buildEnvAiConfig = (
+  env: RuntimeEnv,
+  mode: AiMode = env.aiMode,
+): EffectiveAiConfig => ({
   mode,
   openai: { apiKey: env.openaiApiKey || null },
-  local: { baseUrl: DEFAULT_LOCAL_BASE_URL, sttUrl: null, llmUrl: null, apiPrefix: "/v1" },
+  local: {
+    baseUrl: DEFAULT_LOCAL_BASE_URL,
+    sttUrl: null,
+    llmUrl: null,
+    apiPrefix: "/v1",
+  },
   resolvedFrom: {
     openaiKey: env.openaiApiKey ? "env" : "none",
-    localBaseUrl: "none"
-  }
+    localBaseUrl: "none",
+  },
 });

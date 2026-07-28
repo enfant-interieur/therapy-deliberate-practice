@@ -1,4 +1,9 @@
-import type { DeliberatePracticeTaskV2, EvaluationResult, EvaluationInput, ParseMode } from "./types";
+import type {
+  DeliberatePracticeTaskV2,
+  EvaluationResult,
+  EvaluationInput,
+  ParseMode,
+} from "./types";
 import type { LlmParseResult } from "./schemas";
 
 export type TranscriptSegment = {
@@ -16,10 +21,14 @@ export type Transcript = {
 export type SttTranscribeOptions = {
   language?: string;
   mimeType?: string;
-  model?: "gpt-4o-mini-transcribe" | "gpt-4o-transcribe" | "gpt-4o-transcribe-diarize" | "whisper-1";
+  model?:
+    | "gpt-4o-mini-transcribe"
+    | "gpt-4o-transcribe"
+    | "gpt-4o-transcribe-diarize"
+    | "whisper-1";
   responseFormat?: "json" | "text" | "diarized_json";
   prompt?: string;
-  chunkingStrategy?: "auto" | string;
+  chunkingStrategy?: "auto";
   knownSpeakerNames?: string[];
   knownSpeakerReferences?: string[];
 };
@@ -28,15 +37,23 @@ export type SttProvider = {
   kind: "local" | "openai";
   model?: string;
   healthCheck: () => Promise<boolean>;
-  transcribe: (audio: string, opts?: SttTranscribeOptions) => Promise<Transcript>;
+  transcribe: (
+    audio: string,
+    opts?: SttTranscribeOptions,
+  ) => Promise<Transcript>;
 };
 
 export type LlmProvider = {
   kind: "local" | "openai";
   model?: string;
   healthCheck: () => Promise<boolean>;
-  evaluateDeliberatePractice: (input: EvaluationInput) => Promise<EvaluationResult>;
-  parseExercise: (input: { sourceText: string; parseMode?: ParseMode }) => Promise<LlmParseResult>;
+  evaluateDeliberatePractice: (
+    input: EvaluationInput,
+  ) => Promise<EvaluationResult>;
+  parseExercise: (input: {
+    sourceText: string;
+    parseMode?: ParseMode;
+  }) => Promise<LlmParseResult>;
   translateTask: (input: {
     source: DeliberatePracticeTaskV2;
     targetLanguage: string;

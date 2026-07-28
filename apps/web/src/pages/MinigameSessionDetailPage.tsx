@@ -3,23 +3,28 @@ import { useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "./help/components/PageHeader";
 import {
   useDeleteMinigameSessionMutation,
-  useGetMinigameSessionDetailQuery
+  useGetMinigameSessionDetailQuery,
 } from "../store/api";
 import { computeWinner } from "../components/minigames/utils/computeWinner";
 import { SessionOverviewPanel } from "../components/minigames/detail/SessionOverviewPanel";
 import { SessionLeaderboardPanel } from "../components/minigames/detail/SessionLeaderboardPanel";
 import { RoundsAccordion } from "../components/minigames/detail/RoundsAccordion";
 import { DeleteSessionConfirmDialog } from "../components/minigames/history/DeleteSessionConfirmDialog";
+import { useTranslation } from "react-i18next";
 
 export const MinigameSessionDetailPage = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const params = useParams();
   const sessionId = params.sessionId ?? "";
-  const [tab, setTab] = useState<"overview" | "leaderboard" | "rounds">("overview");
+  const [tab, setTab] = useState<"overview" | "leaderboard" | "rounds">(
+    "overview",
+  );
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const { data, isLoading, isError, refetch } = useGetMinigameSessionDetailQuery(sessionId, {
-    skip: !sessionId
-  });
+  const { data, isLoading, isError, refetch } =
+    useGetMinigameSessionDetailQuery(sessionId, {
+      skip: !sessionId,
+    });
   const [deleteSession, deleteState] = useDeleteMinigameSessionMutation();
 
   const winnerSummary = useMemo(() => {
@@ -28,14 +33,18 @@ export const MinigameSessionDetailPage = () => {
       mode: data.session.game_type,
       players: data.players,
       teams: data.teams,
-      results: data.results
+      results: data.results,
     });
   }, [data]);
 
   const handleDelete = async () => {
-    await deleteSession({ sessionId });
-    setConfirmDelete(false);
-    navigate("/minigames", { replace: true });
+    try {
+      await deleteSession({ sessionId }).unwrap();
+      setConfirmDelete(false);
+      navigate("/minigames", { replace: true });
+    } catch {
+      // Keep the confirmation open and render the recoverable mutation error.
+    }
   };
 
   if (isLoading) {
@@ -49,23 +58,28 @@ export const MinigameSessionDetailPage = () => {
 
   if (isError || !data) {
     return (
-      <div className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 text-slate-200">
-        <p className="text-lg font-semibold text-white">Session not found</p>
+      <div
+        role="alert"
+        className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 text-slate-200"
+      >
+        <p className="text-lg font-semibold text-white">
+          {t("minigameDetail.notFound")}
+        </p>
         <p className="mt-2 text-sm text-slate-300">
-          We couldn’t load that session. It may have been deleted.
+          {t("minigameDetail.loadError")}
         </p>
         <div className="mt-4 flex gap-3">
           <button
             onClick={() => navigate("/minigames")}
             className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70"
           >
-            Back to hub
+            {t("minigameDetail.back")}
           </button>
           <button
             onClick={() => refetch()}
             className="rounded-full border border-teal-300/40 bg-teal-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-teal-100"
           >
-            Retry
+            {t("minigameDetail.retry")}
           </button>
         </div>
       </div>
@@ -75,22 +89,22 @@ export const MinigameSessionDetailPage = () => {
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-        kicker="Session detail"
-        title="Minigame results"
-        subtitle="Review final outcomes, leaderboard standings, and every round of play."
+        kicker={t("minigameDetail.kicker")}
+        title={t("minigameDetail.title")}
+        subtitle={t("minigameDetail.subtitle")}
         actions={
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => navigate("/minigames")}
               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70"
             >
-              Back to hub
+              {t("minigameDetail.back")}
             </button>
             <button
               onClick={() => setConfirmDelete(true)}
               className="rounded-full border border-rose-300/40 bg-rose-500/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-rose-100"
             >
-              Delete session
+              {t("minigameDetail.delete")}
             </button>
           </div>
         }
@@ -100,18 +114,24 @@ export const MinigameSessionDetailPage = () => {
 
       {winnerSummary && (
         <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/20 via-slate-900/60 to-slate-950/80 p-6">
-          <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/70">Winner</p>
-          <h3 className="mt-2 text-2xl font-semibold text-white">{winnerSummary.label}</h3>
-          <p className="mt-1 text-sm text-emerald-100">Score {winnerSummary.subLabel}</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-emerald-200/70">
+            {t("minigameDetail.winner")}
+          </p>
+          <h3 className="mt-2 text-2xl font-semibold text-white">
+            {winnerSummary.label}
+          </h3>
+          <p className="mt-1 text-sm text-emerald-100">
+            {t("minigameDetail.score", { score: winnerSummary.subLabel })}
+          </p>
         </section>
       )}
 
       <div className="flex flex-wrap gap-2">
         {(
           [
-            { key: "overview", label: "Overview" },
-            { key: "leaderboard", label: "Leaderboard" },
-            { key: "rounds", label: "Rounds" }
+            { key: "overview", label: t("minigameDetail.tabs.overview") },
+            { key: "leaderboard", label: t("minigameDetail.tabs.leaderboard") },
+            { key: "rounds", label: t("minigameDetail.tabs.rounds") },
           ] as const
         ).map((entry) => (
           <button
@@ -130,9 +150,14 @@ export const MinigameSessionDetailPage = () => {
 
       {tab === "overview" && (
         <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 text-sm text-slate-200">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Summary</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-400">
+            {t("minigameDetail.summary")}
+          </p>
           <p className="mt-3 text-sm text-slate-200">
-            {data.rounds.length} rounds completed with {data.players.length} players.
+            {t("minigameDetail.summaryValue", {
+              rounds: data.rounds.length,
+              players: data.players.length,
+            })}
           </p>
         </section>
       )}
@@ -148,20 +173,27 @@ export const MinigameSessionDetailPage = () => {
 
       {tab === "rounds" && (
         <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6">
-          <RoundsAccordion rounds={data.rounds} players={data.players} results={data.results} />
+          <RoundsAccordion
+            rounds={data.rounds}
+            players={data.players}
+            results={data.results}
+          />
         </section>
       )}
 
       <DeleteSessionConfirmDialog
         open={confirmDelete}
-        sessionLabel="this session"
+        sessionLabel={t("minigameUi.thisSession")}
         onCancel={() => setConfirmDelete(false)}
         onConfirm={handleDelete}
       />
 
       {deleteState.isError && (
-        <div className="rounded-2xl border border-rose-300/40 bg-rose-500/10 p-4 text-sm text-rose-100">
-          We couldn’t delete that session. Please try again.
+        <div
+          role="alert"
+          className="rounded-2xl border border-rose-300/40 bg-rose-500/10 p-4 text-sm text-rose-100"
+        >
+          {t("minigameDetail.deleteError")}
         </div>
       )}
     </div>

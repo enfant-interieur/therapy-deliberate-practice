@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import { useAccessibleDialog } from "../../hooks/useAccessibleDialog";
 
 type GameSelectModalProps = {
   open: boolean;
@@ -6,63 +7,27 @@ type GameSelectModalProps = {
   onSelect: (mode: "ffa" | "tdm") => void;
 };
 
-const modes = [
-  {
-    key: "tdm" as const,
-    title: "Team Deathmatch",
-    description: "Squad-based duels with a smart tournament schedule.",
-    accent: "from-teal-400/40 via-slate-900/60 to-indigo-500/40"
-  },
-  {
-    key: "ffa" as const,
-    title: "Free For All",
-    description: "Jump in with any player, anytime. End when you're ready.",
-    accent: "from-fuchsia-400/40 via-slate-900/60 to-amber-500/40"
-  }
-];
-
-export const GameSelectModal = ({ open, onClose, onSelect }: GameSelectModalProps) => {
-  const modalRef = useRef<HTMLDivElement | null>(null);
-  const previousFocusRef = useRef<HTMLElement | null>(null);
-
-  useEffect(() => {
-    if (!open) {
-      previousFocusRef.current?.focus();
-      return;
-    }
-    previousFocusRef.current = document.activeElement as HTMLElement | null;
-    const firstFocusable = modalRef.current?.querySelector<HTMLElement>(
-      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
-    );
-    firstFocusable?.focus();
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-      if (event.key === "Tab") {
-        const focusable = modalRef.current?.querySelectorAll<HTMLElement>(
-          "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
-        );
-        if (!focusable || focusable.length === 0) return;
-        const items = Array.from(focusable);
-        const currentIndex = items.indexOf(document.activeElement as HTMLElement);
-        let nextIndex = currentIndex;
-        if (event.shiftKey) {
-          nextIndex = currentIndex <= 0 ? items.length - 1 : currentIndex - 1;
-        } else {
-          nextIndex = currentIndex === items.length - 1 ? 0 : currentIndex + 1;
-        }
-        items[nextIndex]?.focus();
-        event.preventDefault();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose, open]);
+export const GameSelectModal = ({
+  open,
+  onClose,
+  onSelect,
+}: GameSelectModalProps) => {
+  const { t } = useTranslation();
+  const { dialogRef, titleId } = useAccessibleDialog(open, onClose);
+  const modes = [
+    {
+      key: "tdm" as const,
+      title: t("minigameUi.teamDeathmatch"),
+      description: t("minigameUi.teamDeathmatchDescription"),
+      accent: "from-teal-400/40 via-slate-900/60 to-indigo-500/40",
+    },
+    {
+      key: "ffa" as const,
+      title: t("minigameUi.freeForAll"),
+      description: t("minigameUi.freeForAllDescription"),
+      accent: "from-fuchsia-400/40 via-slate-900/60 to-amber-500/40",
+    },
+  ];
 
   if (!open) return null;
 
@@ -73,24 +38,34 @@ export const GameSelectModal = ({ open, onClose, onSelect }: GameSelectModalProp
     >
       <div className="flex min-h-[100dvh] items-end justify-center md:items-center">
         <div
-          ref={modalRef}
+          ref={dialogRef}
           role="dialog"
           aria-modal="true"
+          aria-labelledby={titleId}
+          tabIndex={-1}
           className="mx-auto w-full max-w-4xl max-h-[90dvh] overflow-y-auto rounded-t-3xl border border-white/10 bg-slate-950/80 p-8 shadow-2xl backdrop-blur md:rounded-3xl"
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-200/70">Minigames</p>
-              <h2 className="mt-2 text-3xl font-semibold text-white">Choose your mode</h2>
+              <p className="text-xs uppercase tracking-[0.3em] text-teal-200/70">
+                {t("appShell.nav.minigames")}
+              </p>
+              <h2
+                id={titleId}
+                className="mt-2 text-3xl font-semibold text-white"
+              >
+                {t("minigameUi.chooseMode")}
+              </h2>
               <p className="mt-2 text-sm text-slate-300">
-                Launch a premium round-based experience powered by the practice pipeline.
+                {t("minigameUi.chooseModeDescription")}
               </p>
             </div>
             <button
+              data-dialog-autofocus
               onClick={onClose}
               className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-white/30 hover:text-white"
             >
-              Close
+              {t("minigameUi.close")}
             </button>
           </div>
           <div className="mt-8 grid gap-6 md:grid-cols-2">
@@ -104,14 +79,18 @@ export const GameSelectModal = ({ open, onClose, onSelect }: GameSelectModalProp
                 </div>
                 <div className="relative z-10 flex h-full flex-col gap-4">
                   <div>
-                    <h3 className="text-xl font-semibold text-white">{mode.title}</h3>
-                    <p className="mt-2 text-sm text-slate-200/80">{mode.description}</p>
+                    <h3 className="text-xl font-semibold text-white">
+                      {mode.title}
+                    </h3>
+                    <p className="mt-2 text-sm text-slate-200/80">
+                      {mode.description}
+                    </p>
                   </div>
                   <button
                     onClick={() => onSelect(mode.key)}
                     className="mt-auto inline-flex items-center justify-center rounded-full border border-teal-300/50 bg-teal-500/20 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-teal-100 transition hover:-translate-y-0.5 hover:border-teal-200 hover:bg-teal-400/30"
                   >
-                    Start setup
+                    {t("minigameUi.startSetup")}
                   </button>
                 </div>
               </div>

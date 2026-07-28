@@ -5,8 +5,10 @@ import {
   minigameRoundResults,
   minigameRounds,
   minigameSessions,
-  minigameTeams
+  minigameTeams,
+  tasks,
 } from "../db/schema";
+import { publishedTasksCondition } from "./taskPublication";
 
 export type MinigameSessionSummary = {
   id: string;
@@ -42,11 +44,15 @@ const hasDbChanges = (result: unknown) => {
     changes?: number;
     meta?: { changes?: number };
   };
-  const changes = value.rowsAffected ?? value.changes ?? value.meta?.changes ?? 0;
+  const changes =
+    value.rowsAffected ?? value.changes ?? value.meta?.changes ?? 0;
   return Number(changes) > 0;
 };
 
-const sortSessions = (sessions: MinigameSessionSummary[], sort?: ListParams["sort"]) => {
+const sortSessions = (
+  sessions: MinigameSessionSummary[],
+  sort?: ListParams["sort"],
+) => {
   if (sort === "oldest") {
     sessions.sort((a, b) => a.created_at - b.created_at);
     return sessions;
@@ -63,8 +69,14 @@ const sortSessions = (sessions: MinigameSessionSummary[], sort?: ListParams["sor
   return sessions;
 };
 
-export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) => {
-  const filters = [eq(minigameSessions.user_id, params.userId), isNull(minigameSessions.deleted_at)];
+export const listMinigameSessions = async (
+  db: ApiDatabase,
+  params: ListParams,
+) => {
+  const filters = [
+    eq(minigameSessions.user_id, params.userId),
+    isNull(minigameSessions.deleted_at),
+  ];
   if (params.status === "active") {
     filters.push(isNull(minigameSessions.ended_at));
   }
@@ -89,7 +101,7 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
       id: minigamePlayers.id,
       session_id: minigamePlayers.session_id,
       name: minigamePlayers.name,
-      team_id: minigamePlayers.team_id
+      team_id: minigamePlayers.team_id,
     })
     .from(minigamePlayers)
     .where(inArray(minigamePlayers.session_id, sessionIds));
@@ -98,17 +110,22 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
     .select({
       id: minigameTeams.id,
       session_id: minigameTeams.session_id,
-      name: minigameTeams.name
+      name: minigameTeams.name,
     })
     .from(minigameTeams)
     .where(inArray(minigameTeams.session_id, sessionIds));
 
   const rounds = await db
     .select({
+      id: minigameRounds.id,
       session_id: minigameRounds.session_id,
-      status: minigameRounds.status
+      status: minigameRounds.status,
     })
     .from(minigameRounds)
+    .innerJoin(
+      tasks,
+      and(eq(minigameRounds.task_id, tasks.id), publishedTasksCondition()),
+    )
     .where(inArray(minigameRounds.session_id, sessionIds));
 
   const results = await db
@@ -116,11 +133,21 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
       session_id: minigameRounds.session_id,
       player_id: minigameRoundResults.player_id,
       score: minigameRoundResults.overall_score,
-      team_id: minigamePlayers.team_id
+      team_id: minigamePlayers.team_id,
     })
     .from(minigameRoundResults)
-    .leftJoin(minigameRounds, eq(minigameRoundResults.round_id, minigameRounds.id))
-    .leftJoin(minigamePlayers, eq(minigameRoundResults.player_id, minigamePlayers.id))
+    .leftJoin(
+      minigameRounds,
+      eq(minigameRoundResults.round_id, minigameRounds.id),
+    )
+    .innerJoin(
+      tasks,
+      and(eq(minigameRounds.task_id, tasks.id), publishedTasksCondition()),
+    )
+    .leftJoin(
+      minigamePlayers,
+      eq(minigameRoundResults.player_id, minigamePlayers.id),
+    )
     .where(inArray(minigameRounds.session_id, sessionIds));
 
   const playerMap = new Map(players.map((player) => [player.id, player]));
@@ -128,17 +155,27 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
 
   const playersBySession = new Map<string, number>();
   for (const player of players) {
-    playersBySession.set(player.session_id, (playersBySession.get(player.session_id) ?? 0) + 1);
+    playersBySession.set(
+      player.session_id,
+      (playersBySession.get(player.session_id) ?? 0) + 1,
+    );
   }
 
   const teamsBySession = new Map<string, number>();
   for (const team of teams) {
-    teamsBySession.set(team.session_id, (teamsBySession.get(team.session_id) ?? 0) + 1);
+    teamsBySession.set(
+      team.session_id,
+      (teamsBySession.get(team.session_id) ?? 0) + 1,
+    );
   }
 
   const roundTotals = new Map<string, { total: number; completed: number }>();
+  const publishedRoundIds = new Set(rounds.map((round) => round.id));
   for (const round of rounds) {
-    const entry = roundTotals.get(round.session_id) ?? { total: 0, completed: 0 };
+    const entry = roundTotals.get(round.session_id) ?? {
+      total: 0,
+      completed: 0,
+    };
     entry.total += 1;
     if (round.status === "completed") {
       entry.completed += 1;
@@ -152,13 +189,21 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
 
   for (const result of results) {
     if (!result.session_id) continue;
-    const playerScores = scoresBySessionPlayer.get(result.session_id) ?? new Map<string, number>();
-    playerScores.set(result.player_id, (playerScores.get(result.player_id) ?? 0) + result.score);
+    const playerScores =
+      scoresBySessionPlayer.get(result.session_id) ?? new Map<string, number>();
+    playerScores.set(
+      result.player_id,
+      (playerScores.get(result.player_id) ?? 0) + result.score,
+    );
     scoresBySessionPlayer.set(result.session_id, playerScores);
 
     if (result.team_id) {
-      const teamScores = scoresBySessionTeam.get(result.session_id) ?? new Map<string, number>();
-      teamScores.set(result.team_id, (teamScores.get(result.team_id) ?? 0) + result.score);
+      const teamScores =
+        scoresBySessionTeam.get(result.session_id) ?? new Map<string, number>();
+      teamScores.set(
+        result.team_id,
+        (teamScores.get(result.team_id) ?? 0) + result.score,
+      );
       scoresBySessionTeam.set(result.session_id, teamScores);
     }
   }
@@ -169,7 +214,8 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
       continue;
     }
     if (session.game_type === "tdm") {
-      const teamScores = scoresBySessionTeam.get(session.id) ?? new Map<string, number>();
+      const teamScores =
+        scoresBySessionTeam.get(session.id) ?? new Map<string, number>();
       let best: { id: string; score: number } | null = null;
       for (const [teamId, score] of teamScores.entries()) {
         if (!best || score > best.score) {
@@ -181,13 +227,14 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
         winners.set(session.id, {
           label: team?.name ?? "Team",
           score: best.score,
-          team_id: best.id
+          team_id: best.id,
         });
       } else {
         winners.set(session.id, null);
       }
     } else {
-      const playerScores = scoresBySessionPlayer.get(session.id) ?? new Map<string, number>();
+      const playerScores =
+        scoresBySessionPlayer.get(session.id) ?? new Map<string, number>();
       let best: { id: string; score: number } | null = null;
       for (const [playerId, score] of playerScores.entries()) {
         if (!best || score > best.score) {
@@ -199,7 +246,7 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
         winners.set(session.id, {
           label: player?.name ?? "Player",
           score: best.score,
-          player_id: best.id
+          player_id: best.id,
         });
       } else {
         winners.set(session.id, null);
@@ -209,18 +256,25 @@ export const listMinigameSessions = async (db: ApiDatabase, params: ListParams) 
 
   const summaries: MinigameSessionSummary[] = sessions.map((session) => {
     const progress = roundTotals.get(session.id) ?? { total: 0, completed: 0 };
+    const currentRoundAvailable =
+      !session.current_round_id ||
+      publishedRoundIds.has(session.current_round_id);
     return {
       id: session.id,
       game_type: session.game_type as "ffa" | "tdm",
       created_at: session.created_at,
       ended_at: session.ended_at ?? null,
       last_active_at: session.last_active_at ?? null,
-      current_round_id: session.current_round_id ?? null,
-      current_player_id: session.current_player_id ?? null,
+      current_round_id: currentRoundAvailable
+        ? (session.current_round_id ?? null)
+        : null,
+      current_player_id: currentRoundAvailable
+        ? (session.current_player_id ?? null)
+        : null,
       progress,
       players_count: playersBySession.get(session.id) ?? 0,
       teams_count: teamsBySession.get(session.id) ?? 0,
-      winner: winners.get(session.id) ?? null
+      winner: winners.get(session.id) ?? null,
     };
   });
 
@@ -235,14 +289,59 @@ export const updateMinigameResume = async (
     currentRoundId?: string | null;
     currentPlayerId?: string | null;
     lastActiveAt?: number | null;
-  }
+  },
 ) => {
+  const hasRoundPointer = params.currentRoundId !== undefined;
+  const hasPlayerPointer = params.currentPlayerId !== undefined;
+  if (hasRoundPointer !== hasPlayerPointer) {
+    return false;
+  }
+  if (
+    hasRoundPointer &&
+    (params.currentRoundId === null) !== (params.currentPlayerId === null)
+  ) {
+    return false;
+  }
+  if (params.currentRoundId && params.currentPlayerId) {
+    const [assignedPair] = await db
+      .select({ id: minigameRounds.id })
+      .from(minigameRounds)
+      .innerJoin(
+        tasks,
+        and(eq(minigameRounds.task_id, tasks.id), publishedTasksCondition()),
+      )
+      .innerJoin(
+        minigamePlayers,
+        and(
+          eq(minigamePlayers.id, params.currentPlayerId),
+          eq(minigamePlayers.session_id, params.sessionId),
+        ),
+      )
+      .where(
+        and(
+          eq(minigameRounds.id, params.currentRoundId),
+          eq(minigameRounds.session_id, params.sessionId),
+          sql`(
+            ${minigameRounds.player_a_id} = ${params.currentPlayerId}
+            OR ${minigameRounds.player_b_id} = ${params.currentPlayerId}
+          )`,
+        ),
+      )
+      .limit(1);
+    if (!assignedPair) return false;
+  }
   const now = params.lastActiveAt ?? Date.now();
-  const update = {
+  const update: {
+    last_active_at: number;
+    current_round_id?: string | null;
+    current_player_id?: string | null;
+  } = {
     last_active_at: now,
-    current_round_id: params.currentRoundId ?? null,
-    current_player_id: params.currentPlayerId ?? null
   };
+  if (hasRoundPointer && hasPlayerPointer) {
+    update.current_round_id = params.currentRoundId ?? null;
+    update.current_player_id = params.currentPlayerId ?? null;
+  }
   const result = await db
     .update(minigameSessions)
     .set(update)
@@ -250,8 +349,9 @@ export const updateMinigameResume = async (
       and(
         eq(minigameSessions.id, params.sessionId),
         eq(minigameSessions.user_id, params.userId),
-        isNull(minigameSessions.deleted_at)
-      )
+        isNull(minigameSessions.deleted_at),
+        isNull(minigameSessions.ended_at),
+      ),
     );
   return hasDbChanges(result);
 };
@@ -261,21 +361,21 @@ export const softDeleteMinigameSession = async (
   params: {
     userId: string;
     sessionId: string;
-  }
+  },
 ) => {
   const now = Date.now();
   const result = await db
     .update(minigameSessions)
     .set({
       deleted_at: now,
-      ended_at: sql`coalesce(${minigameSessions.ended_at}, ${now})`
+      ended_at: sql`coalesce(${minigameSessions.ended_at}, ${now})`,
     })
     .where(
       and(
         eq(minigameSessions.id, params.sessionId),
         eq(minigameSessions.user_id, params.userId),
-        isNull(minigameSessions.deleted_at)
-      )
+        isNull(minigameSessions.deleted_at),
+      ),
     );
   return hasDbChanges(result);
 };

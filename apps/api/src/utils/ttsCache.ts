@@ -4,8 +4,7 @@ const getWebCrypto = async () => {
   if (globalThis.crypto?.subtle) {
     return globalThis.crypto;
   }
-  const { webcrypto } = await import("node:crypto");
-  return webcrypto as Crypto;
+  throw new Error("Web Crypto is unavailable in this runtime.");
 };
 
 const sha256Hex = async (value: string) => {
@@ -16,7 +15,8 @@ const sha256Hex = async (value: string) => {
     .join("");
 };
 
-export const normalizeTtsText = (text: string) => text.trim().replace(/\s+/g, " ");
+export const normalizeTtsText = (text: string) =>
+  text.trim().replace(/\s+/g, " ");
 
 export const buildTtsCacheKey = async (input: {
   text: string;
@@ -26,10 +26,14 @@ export const buildTtsCacheKey = async (input: {
 }) => {
   const normalizedText = normalizeTtsText(input.text);
   const cacheKey = await sha256Hex(
-    `${input.model}\n${input.voice}\n${input.format}\n${normalizedText}`
+    `${input.model}\n${input.voice}\n${input.format}\n${normalizedText}`,
   );
   return { cacheKey, normalizedText };
 };
 
-export const buildTtsR2Key = (input: { cacheKey: string; model: string; voice: string; format: string }) =>
-  `tts/${input.model}/${input.voice}/${input.cacheKey}.${input.format}`;
+export const buildTtsR2Key = (input: {
+  cacheKey: string;
+  model: string;
+  voice: string;
+  format: string;
+}) => `tts/${input.model}/${input.voice}/${input.cacheKey}.${input.format}`;

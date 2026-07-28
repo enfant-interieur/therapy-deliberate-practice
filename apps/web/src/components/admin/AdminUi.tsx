@@ -3,7 +3,8 @@ import {
   type ButtonHTMLAttributes,
   type PropsWithChildren,
   type ReactNode,
-  type HTMLAttributes
+  type HTMLAttributes,
+  type LabelHTMLAttributes,
 } from "react";
 
 const baseInput =
@@ -25,7 +26,7 @@ export const Card = ({
 export const SectionHeader = ({
   kicker,
   title,
-  subtitle
+  subtitle,
 }: {
   kicker?: string;
   title: string;
@@ -42,21 +43,40 @@ export const SectionHeader = ({
   </div>
 );
 
-export const Label = ({ children }: PropsWithChildren) => (
-  <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+export const Label = ({
+  children,
+  className = "",
+  ...props
+}: PropsWithChildren<LabelHTMLAttributes<HTMLLabelElement>>) => (
+  <label
+    className={`text-xs font-semibold uppercase tracking-wide text-slate-400 ${className}`}
+    {...props}
+  >
     {children}
   </label>
 );
 
-export const Input = ({ className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
+export const Input = ({
+  className = "",
+  ...props
+}: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input className={`${baseInput} ${className}`} {...props} />
 );
 
-export const Textarea = ({ className = "", ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-  <textarea className={`${baseInput} min-h-[120px] resize-y ${className}`} {...props} />
+export const Textarea = ({
+  className = "",
+  ...props
+}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+  <textarea
+    className={`${baseInput} min-h-[120px] resize-y ${className}`}
+    {...props}
+  />
 );
 
-export const Select = ({ className = "", ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+export const Select = ({
+  className = "",
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   <select className={`${baseInput} ${className}`} {...props} />
 );
 
@@ -66,15 +86,18 @@ const buttonBase =
 const buttonVariants: Record<string, string> = {
   primary:
     "bg-teal-400/90 text-slate-950 hover:bg-teal-300 shadow-[0_0_20px_rgba(45,212,191,0.35)]",
-  secondary: "border border-white/10 bg-slate-900/60 text-white hover:bg-slate-800/60",
+  secondary:
+    "border border-white/10 bg-slate-900/60 text-white hover:bg-slate-800/60",
   ghost: "text-slate-200 hover:bg-white/5",
   danger:
-    "border border-rose-500/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 hover:text-white"
+    "border border-rose-500/40 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20 hover:text-white",
 };
 
 export const Button = forwardRef<
   HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: keyof typeof buttonVariants }
+  ButtonHTMLAttributes<HTMLButtonElement> & {
+    variant?: keyof typeof buttonVariants;
+  }
 >(({ variant = "secondary", className = "", ...props }, ref) => (
   <button
     ref={ref}
@@ -104,7 +127,10 @@ export const IconButton = ({
   </button>
 );
 
-export const Badge = ({ children, className = "" }: PropsWithChildren<{ className?: string }>) => (
+export const Badge = ({
+  children,
+  className = "",
+}: PropsWithChildren<{ className?: string }>) => (
   <span
     className={`rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-slate-200 ${className}`}
   >

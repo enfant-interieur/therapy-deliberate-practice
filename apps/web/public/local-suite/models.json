@@ -5,7 +5,7 @@
       "kind": "llm",
       "display": {
         "title": "Qwen3 HF",
-        "description": "Qwen3-4B inference via transformers AutoModel on Unsloth's GGUF build.",
+        "description": "Qwen3-4B Instruct inference via Transformers.",
         "tags": [
           "qwen",
           "hf",
@@ -15,13 +15,13 @@
       },
       "compat": {
         "platforms": [
-          "darwin-x64",
+          "darwin-arm64",
           "windows-x64",
           "linux-x64"
         ],
         "acceleration": [
           "cpu",
-          "cuda"
+          "metal"
         ],
         "priority": 90,
         "requires_ram_gb": 8,
@@ -41,8 +41,8 @@
       },
       "backend": {
         "provider": "hf",
-        "model_ref": "unsloth/Qwen3-4B-Instruct-2507-GGUF",
-        "revision": null,
+        "model_ref": "Qwen/Qwen3-4B-Instruct-2507",
+        "revision": "cdbee75f17c01a7cc42f958dc650907174af0554",
         "device_hint": "auto",
         "extra": {}
       },
@@ -73,19 +73,19 @@
           "hf"
         ],
         "pip": [
-          "transformers>=4.52",
-          "torch>=2.3"
+          "transformers>=5.14.1,<6",
+          "torch==2.13.0"
         ],
         "system": [],
-        "notes": "Requires transformers AutoModel support for Qwen3 GGUF."
+        "notes": "Requires Transformers causal-language-model support for Qwen3. The packaged Windows and Linux runtime uses the official PyTorch CPU wheel. PyTorch 2.13 does not publish an Intel macOS wheel."
       }
     },
     {
       "id": "local//llm/qwen3-mlx",
       "kind": "llm",
       "display": {
-        "title": "Qwen3 MLX",
-        "description": "Local Qwen3 inference via MLX on Apple Silicon.",
+        "title": "Qwen3 4B Instruct MLX",
+        "description": "Qwen3 4B Instruct 2507, quantized for fast local MLX inference.",
         "tags": [
           "qwen",
           "mlx",
@@ -103,7 +103,7 @@
         "priority": 120,
         "requires_ram_gb": 8,
         "requires_vram_gb": 0,
-        "disk_gb": 6
+        "disk_gb": 3
       },
       "api": {
         "endpoint": "responses",
@@ -118,8 +118,8 @@
       },
       "backend": {
         "provider": "mlx",
-        "model_ref": "Qwen/Qwen3-4B-MLX-4bit",
-        "revision": null,
+        "model_ref": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+        "revision": "50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
         "device_hint": "metal",
         "extra": {}
       },
@@ -150,7 +150,7 @@
           "mlx"
         ],
         "pip": [
-          "mlx-lm>=0.25.2"
+          "mlx-lm==0.31.3"
         ],
         "system": [],
         "notes": "Requires Apple Silicon with MLX support."
@@ -177,13 +177,11 @@
           "linux-x64"
         ],
         "acceleration": [
-          "cpu",
-          "cuda",
-          "metal"
+          "cpu"
         ],
         "priority": 120,
         "requires_ram_gb": 6,
-        "requires_vram_gb": 4,
+        "requires_vram_gb": 0,
         "disk_gb": 4
       },
       "api": {
@@ -193,25 +191,25 @@
       },
       "limits": {
         "timeout_sec": 300,
-        "concurrency": 2,
+        "concurrency": 1,
         "max_input_mb": 25,
         "max_output_tokens_default": 2048
       },
       "backend": {
         "provider": "faster_whisper",
         "model_ref": "base",
-        "revision": null,
+        "revision": "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66",
         "device_hint": "auto",
         "extra": {}
       },
       "execution": {
-        "mode": "subprocess",
+        "mode": "inprocess",
         "warmup_on_start": false
       },
       "launch": {
         "enabled": false,
         "type": "command",
-        "explain": "Runs via worker subprocess.",
+        "explain": "Runs in-process with serialized access to the local transcription model.",
         "env": {},
         "cmd": [
           "python",
@@ -231,10 +229,11 @@
           "stt"
         ],
         "pip": [
-          "faster-whisper"
+          "faster-whisper==1.2.1",
+          "onnxruntime==1.23.2"
         ],
         "system": [],
-        "notes": "FFmpeg is bundled with the desktop runtime for decoding audio input."
+        "notes": "The packaged desktop runtime uses CPU inference and PyAV for audio decoding. ONNX Runtime 1.23.2 retains Python 3.12 wheels for every packaged desktop target."
       }
     },
     {
@@ -276,7 +275,7 @@
       "backend": {
         "provider": "mlx",
         "model_ref": "mlx-community/parakeet-tdt-0.6b-v3",
-        "revision": null,
+        "revision": "ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15",
         "device_hint": "metal",
         "extra": {}
       },
@@ -308,10 +307,11 @@
           "stt"
         ],
         "pip": [
-          "parakeet-mlx>=0.2.0"
+          "parakeet-mlx==0.5.2",
+          "imageio-ffmpeg==0.6.0"
         ],
         "system": [],
-        "notes": "FFmpeg ships with the desktop runtime; install parakeet-mlx via pip for development."
+        "notes": "Includes a platform-specific FFmpeg binary for reliable audio decoding."
       }
     }
   ]

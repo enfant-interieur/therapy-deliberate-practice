@@ -26,12 +26,15 @@ test("translating a task sends interaction examples to the LLM and persists tran
     ENV: "development",
     BYPASS_ADMIN_AUTH: "true",
     OPENAI_API_KEY: "test-key",
-    AI_MODE: "openai_only"
+    AI_MODE: "openai_only",
   });
   const storage = {
     headObject: async () => ({ exists: false }),
     putObject: async () => ({}),
-    getObject: async () => ({ body: new Uint8Array(), contentType: "audio/mpeg" })
+    getObject: async () => ({
+      body: new Uint8Array(),
+      contentType: "audio/mpeg",
+    }),
   };
 
   const translateCalls: Array<{
@@ -54,15 +57,15 @@ test("translating a task sends interaction examples to the LLM and persists tran
         ...input.source,
         task: {
           ...input.source.task,
-          language: input.targetLanguage
+          language: input.targetLanguage,
         },
         examples: input.source.examples.map((example) => ({
           ...example,
-          language: input.targetLanguage
+          language: input.targetLanguage,
         })),
-        interaction_examples: input.source.interaction_examples
+        interaction_examples: input.source.interaction_examples,
       };
-    }
+    },
   };
 
   const app = createApiApp({
@@ -72,9 +75,9 @@ test("translating a task sends interaction examples to the LLM and persists tran
     providerOverrides: {
       selectLlmProvider: async () => ({
         provider: fakeProvider,
-        health: { local: false, openai: true }
-      })
-    }
+        health: { local: false, openai: true },
+      }),
+    },
   });
 
   try {
@@ -88,7 +91,7 @@ test("translating a task sends interaction examples to the LLM and persists tran
           base_difficulty: 3,
           general_objective: null,
           tags: ["demo"],
-          language: "en"
+          language: "en",
         },
         criteria: [
           {
@@ -101,10 +104,10 @@ test("translating a task sends interaction examples to the LLM and persists tran
               anchors: [
                 { score: 0, meaning: "Misses emotion." },
                 { score: 2, meaning: "Partially validates." },
-                { score: 4, meaning: "Clearly validates." }
-              ]
-            }
-          }
+                { score: 4, meaning: "Clearly validates." },
+              ],
+            },
+          },
         ],
         examples: [
           {
@@ -113,8 +116,8 @@ test("translating a task sends interaction examples to the LLM and persists tran
             severity_label: null,
             patient_text: "I need to hear I'm okay.",
             language: "en",
-            meta: null
-          }
+            meta: null,
+          },
         ],
         interaction_examples: [
           {
@@ -123,16 +126,16 @@ test("translating a task sends interaction examples to the LLM and persists tran
             title: "Warmth with boundaries",
             patient_text: "Can you tell me I'm not too much?",
             therapist_text:
-              "I hear how tender that feels, and I care about you. I can offer support here, and we can also build your own steadying tools so you feel held between sessions. Let's name the need and pick one small self-soothing step you can take today."
-          }
-        ]
-      }
+              "I hear how tender that feels, and I care about you. I can offer support here, and we can also build your own steadying tools so you feel held between sessions. Let's name the need and pick one small self-soothing step you can take today.",
+          },
+        ],
+      },
     };
 
     const importResponse = await app.request("/api/v1/admin/import-task", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
     });
     assert.equal(importResponse.status, 200);
     const importBody = await importResponse.json();
@@ -143,8 +146,8 @@ test("translating a task sends interaction examples to the LLM and persists tran
       {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ target_language: "fr" })
-      }
+        body: JSON.stringify({ target_language: "fr" }),
+      },
     );
     assert.equal(translateResponse.status, 200);
     const translateBody = await translateResponse.json();

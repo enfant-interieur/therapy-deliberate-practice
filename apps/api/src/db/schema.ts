@@ -1,12 +1,21 @@
-import { sqliteTable, text, integer, real, index, uniqueIndex } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  text,
+  integer,
+  real,
+  index,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),
   display_name: text("display_name").notNull(),
   bio: text("bio"),
-  is_profile_public: integer("is_profile_public", { mode: "boolean" }).notNull().default(true),
-  created_at: integer("created_at").notNull()
+  is_profile_public: integer("is_profile_public", { mode: "boolean" })
+    .notNull()
+    .default(true),
+  created_at: integer("created_at").notNull(),
 });
 
 export const tasks = sqliteTable(
@@ -25,13 +34,13 @@ export const tasks = sqliteTable(
     is_published: integer("is_published", { mode: "boolean" }).notNull(),
     parent_task_id: text("parent_task_id"),
     created_at: integer("created_at").notNull(),
-    updated_at: integer("updated_at").notNull()
+    updated_at: integer("updated_at").notNull(),
   },
   (table) => ({
     skillDomainIdx: index("tasks_skill_domain_idx").on(table.skill_domain),
     isPublishedIdx: index("tasks_is_published_idx").on(table.is_published),
-    parentTaskIdx: index("tasks_parent_task_id_idx").on(table.parent_task_id)
-  })
+    parentTaskIdx: index("tasks_parent_task_id_idx").on(table.parent_task_id),
+  }),
 );
 
 export const taskCriteria = sqliteTable(
@@ -42,11 +51,11 @@ export const taskCriteria = sqliteTable(
     label: text("label").notNull(),
     description: text("description").notNull(),
     rubric: text("rubric", { mode: "json" }),
-    sort_order: integer("sort_order").notNull().default(0)
+    sort_order: integer("sort_order").notNull().default(0),
   },
   (table) => ({
-    pk: uniqueIndex("task_criteria_pk").on(table.task_id, table.id)
-  })
+    pk: uniqueIndex("task_criteria_pk").on(table.task_id, table.id),
+  }),
 );
 
 export const taskExamples = sqliteTable(
@@ -60,15 +69,15 @@ export const taskExamples = sqliteTable(
     language: text("language").notNull().default("en"),
     meta: text("meta", { mode: "json" }),
     created_at: integer("created_at").notNull(),
-    updated_at: integer("updated_at").notNull()
+    updated_at: integer("updated_at").notNull(),
   },
   (table) => ({
     taskIdx: index("task_examples_task_id_idx").on(table.task_id),
     taskDifficultyIdx: index("task_examples_task_id_difficulty_idx").on(
       table.task_id,
-      table.difficulty
-    )
-  })
+      table.difficulty,
+    ),
+  }),
 );
 
 export const taskInteractionExamples = sqliteTable(
@@ -83,15 +92,14 @@ export const taskInteractionExamples = sqliteTable(
     language: text("language").notNull().default("en"),
     meta: text("meta", { mode: "json" }),
     created_at: integer("created_at").notNull(),
-    updated_at: integer("updated_at").notNull()
+    updated_at: integer("updated_at").notNull(),
   },
   (table) => ({
     taskIdx: index("task_interaction_examples_task_id_idx").on(table.task_id),
-    taskDifficultyIdx: index("task_interaction_examples_task_id_difficulty_idx").on(
-      table.task_id,
-      table.difficulty
-    )
-  })
+    taskDifficultyIdx: index(
+      "task_interaction_examples_task_id_difficulty_idx",
+    ).on(table.task_id, table.difficulty),
+  }),
 );
 
 export const practiceSessions = sqliteTable(
@@ -103,14 +111,14 @@ export const practiceSessions = sqliteTable(
     source_task_id: text("source_task_id"),
     random_seed: text("random_seed"),
     created_at: integer("created_at").notNull(),
-    ended_at: integer("ended_at")
+    ended_at: integer("ended_at"),
   },
   (table) => ({
     userCreatedIdx: index("practice_sessions_user_id_created_at_idx").on(
       table.user_id,
-      table.created_at
-    )
-  })
+      table.created_at,
+    ),
+  }),
 );
 
 export const practiceSessionItems = sqliteTable(
@@ -122,17 +130,20 @@ export const practiceSessionItems = sqliteTable(
     task_id: text("task_id").notNull(),
     example_id: text("example_id").notNull(),
     target_difficulty: integer("target_difficulty").notNull(),
-    created_at: integer("created_at").notNull()
+    created_at: integer("created_at").notNull(),
   },
   (table) => ({
-    sessionPositionIdx: uniqueIndex("practice_session_items_session_position_idx").on(
+    sessionPositionIdx: uniqueIndex(
+      "practice_session_items_session_position_idx",
+    ).on(table.session_id, table.position),
+    sessionIdx: index("practice_session_items_session_id_idx").on(
       table.session_id,
-      table.position
     ),
-    sessionIdx: index("practice_session_items_session_id_idx").on(table.session_id),
     taskIdx: index("practice_session_items_task_id_idx").on(table.task_id),
-    exampleIdx: index("practice_session_items_example_id_idx").on(table.example_id)
-  })
+    exampleIdx: index("practice_session_items_example_id_idx").on(
+      table.example_id,
+    ),
+  }),
 );
 
 export const attempts = sqliteTable(
@@ -151,26 +162,31 @@ export const attempts = sqliteTable(
     evaluation: text("evaluation", { mode: "json" }).notNull(),
     overall_pass: integer("overall_pass", { mode: "boolean" }).notNull(),
     overall_score: real("overall_score").notNull(),
-    model_info: text("model_info", { mode: "json" })
+    score_trust: text("score_trust").notNull().default("local_unverified"),
+    model_info: text("model_info", { mode: "json" }),
   },
   (table) => ({
     userStartedIdx: index("attempts_user_id_started_at_idx").on(
       table.user_id,
-      table.started_at
+      table.started_at,
     ),
     taskStartedIdx: index("attempts_task_id_started_at_idx").on(
       table.task_id,
-      table.started_at
+      table.started_at,
     ),
     exampleStartedIdx: index("attempts_example_id_started_at_idx").on(
       table.example_id,
-      table.started_at
+      table.started_at,
     ),
     sessionStartedIdx: index("attempts_session_id_started_at_idx").on(
       table.session_id,
-      table.started_at
-    )
-  })
+      table.started_at,
+    ),
+    scoreTrustCompletedIdx: index("attempts_score_trust_completed_at_idx").on(
+      table.score_trust,
+      table.completed_at,
+    ),
+  }),
 );
 
 export const userTaskProgress = sqliteTable(
@@ -183,15 +199,15 @@ export const userTaskProgress = sqliteTable(
     last_pass: integer("last_pass", { mode: "boolean" }),
     streak: integer("streak").notNull().default(0),
     attempt_count: integer("attempt_count").notNull().default(0),
-    updated_at: integer("updated_at").notNull()
+    updated_at: integer("updated_at").notNull(),
   },
   (table) => ({
     pk: uniqueIndex("user_task_progress_pk").on(table.user_id, table.task_id),
     userUpdatedIdx: index("user_task_progress_user_id_updated_at_idx").on(
       table.user_id,
-      table.updated_at
-    )
-  })
+      table.updated_at,
+    ),
+  }),
 );
 
 export const userSettings = sqliteTable("user_settings", {
@@ -200,12 +216,14 @@ export const userSettings = sqliteTable("user_settings", {
   local_base_url: text("local_base_url"),
   local_stt_url: text("local_stt_url"),
   local_llm_url: text("local_llm_url"),
-  store_audio: integer("store_audio", { mode: "boolean" }).notNull().default(false),
+  store_audio: integer("store_audio", { mode: "boolean" })
+    .notNull()
+    .default(false),
   openai_key_ciphertext: text("openai_key_ciphertext"),
   openai_key_iv: text("openai_key_iv"),
   openai_key_kid: text("openai_key_kid"),
   updated_at: integer("updated_at").notNull(),
-  created_at: integer("created_at").notNull()
+  created_at: integer("created_at").notNull(),
 });
 
 export const adminBatchParseJobs = sqliteTable(
@@ -217,15 +235,20 @@ export const adminBatchParseJobs = sqliteTable(
     parse_mode: text("parse_mode").notNull().default("original"),
     total_segments: integer("total_segments"),
     completed_segments: integer("completed_segments").notNull().default(0),
-    created_task_ids: text("created_task_ids", { mode: "json" }).notNull().default("[]"),
+    created_task_ids: text("created_task_ids", { mode: "json" })
+      .notNull()
+      .default("[]"),
     error: text("error"),
     source_hash: text("source_hash"),
     created_at: integer("created_at").notNull(),
-    updated_at: integer("updated_at").notNull()
+    updated_at: integer("updated_at").notNull(),
   },
   (table) => ({
-    statusIdx: index("admin_batch_parse_jobs_status_idx").on(table.status, table.updated_at)
-  })
+    statusIdx: index("admin_batch_parse_jobs_status_idx").on(
+      table.status,
+      table.updated_at,
+    ),
+  }),
 );
 
 export const adminBatchParseJobEvents = sqliteTable(
@@ -237,21 +260,27 @@ export const adminBatchParseJobEvents = sqliteTable(
     level: text("level").notNull(),
     step: text("step").notNull(),
     message: text("message").notNull(),
-    meta: text("meta", { mode: "json" })
+    meta: text("meta", { mode: "json" }),
   },
   (table) => ({
-    jobIdx: index("admin_batch_parse_job_events_job_idx").on(table.job_id, table.id)
-  })
+    jobIdx: index("admin_batch_parse_job_events_job_idx").on(
+      table.job_id,
+      table.id,
+    ),
+  }),
 );
 
-export const adminBatchParseJobPayloads = sqliteTable("admin_batch_parse_job_payloads", {
-  job_id: text("job_id")
-    .primaryKey()
-    .references(() => adminBatchParseJobs.id, { onDelete: "cascade" }),
-  source_text: text("source_text").notNull(),
-  created_at: integer("created_at").notNull(),
-  updated_at: integer("updated_at").notNull()
-});
+export const adminBatchParseJobPayloads = sqliteTable(
+  "admin_batch_parse_job_payloads",
+  {
+    job_id: text("job_id")
+      .primaryKey()
+      .references(() => adminBatchParseJobs.id, { onDelete: "cascade" }),
+    source_text: text("source_text").notNull(),
+    created_at: integer("created_at").notNull(),
+    updated_at: integer("updated_at").notNull(),
+  },
+);
 
 export const minigameSessions = sqliteTable(
   "minigame_sessions",
@@ -267,20 +296,17 @@ export const minigameSessions = sqliteTable(
     last_active_at: integer("last_active_at"),
     current_round_id: text("current_round_id"),
     current_player_id: text("current_player_id"),
-    deleted_at: integer("deleted_at")
+    deleted_at: integer("deleted_at"),
   },
   (table) => ({
     userCreatedIdx: index("minigame_sessions_user_id_created_at_idx").on(
       table.user_id,
-      table.created_at
+      table.created_at,
     ),
-    userStatusIdx: index("minigame_sessions_user_id_deleted_at_ended_at_last_active_at_idx").on(
-      table.user_id,
-      table.deleted_at,
-      table.ended_at,
-      table.last_active_at
-    )
-  })
+    userStatusIdx: index(
+      "minigame_sessions_user_id_deleted_at_ended_at_last_active_at_idx",
+    ).on(table.user_id, table.deleted_at, table.ended_at, table.last_active_at),
+  }),
 );
 
 export const minigameTeams = sqliteTable(
@@ -290,11 +316,11 @@ export const minigameTeams = sqliteTable(
     session_id: text("session_id").notNull(),
     name: text("name").notNull(),
     color: text("color").notNull(),
-    created_at: integer("created_at").notNull()
+    created_at: integer("created_at").notNull(),
   },
   (table) => ({
-    sessionIdx: index("minigame_teams_session_id_idx").on(table.session_id)
-  })
+    sessionIdx: index("minigame_teams_session_id_idx").on(table.session_id),
+  }),
 );
 
 export const minigamePlayers = sqliteTable(
@@ -305,11 +331,11 @@ export const minigamePlayers = sqliteTable(
     name: text("name").notNull(),
     avatar: text("avatar").notNull(),
     team_id: text("team_id"),
-    created_at: integer("created_at").notNull()
+    created_at: integer("created_at").notNull(),
   },
   (table) => ({
-    sessionIdx: index("minigame_players_session_id_idx").on(table.session_id)
-  })
+    sessionIdx: index("minigame_players_session_id_idx").on(table.session_id),
+  }),
 );
 
 export const minigameRounds = sqliteTable(
@@ -326,14 +352,14 @@ export const minigameRounds = sqliteTable(
     team_b_id: text("team_b_id"),
     status: text("status").notNull(),
     started_at: integer("started_at"),
-    completed_at: integer("completed_at")
+    completed_at: integer("completed_at"),
   },
   (table) => ({
     sessionPositionIdx: index("minigame_rounds_session_id_position_idx").on(
       table.session_id,
-      table.position
-    )
-  })
+      table.position,
+    ),
+  }),
 );
 
 export const minigameRoundResults = sqliteTable(
@@ -345,11 +371,17 @@ export const minigameRoundResults = sqliteTable(
     attempt_id: text("attempt_id").notNull(),
     overall_score: real("overall_score").notNull(),
     overall_pass: integer("overall_pass", { mode: "boolean" }).notNull(),
-    created_at: integer("created_at").notNull()
+    created_at: integer("created_at").notNull(),
   },
   (table) => ({
-    roundIdx: index("minigame_round_results_round_id_idx").on(table.round_id)
-  })
+    roundIdx: index("minigame_round_results_round_id_idx").on(table.round_id),
+    roundPlayerUniqueIdx: uniqueIndex(
+      "minigame_round_results_round_player_unique_idx",
+    ).on(table.round_id, table.player_id),
+    attemptUniqueIdx: uniqueIndex(
+      "minigame_round_results_attempt_unique_idx",
+    ).on(table.attempt_id),
+  }),
 );
 
 export const minigamePlayerPromptHistory = sqliteTable(
@@ -358,16 +390,57 @@ export const minigamePlayerPromptHistory = sqliteTable(
     session_id: text("session_id").notNull(),
     player_id: text("player_id").notNull(),
     patient_statement_id: text("patient_statement_id").notNull(),
-    created_at: integer("created_at").notNull()
+    created_at: integer("created_at").notNull(),
   },
   (table) => ({
-    sessionPromptIdx: uniqueIndex("minigame_player_prompt_history_session_player_statement_idx").on(
+    sessionPromptIdx: uniqueIndex(
+      "minigame_player_prompt_history_session_player_statement_idx",
+    ).on(table.session_id, table.player_id, table.patient_statement_id),
+    sessionIdx: index("minigame_player_prompt_history_session_id_idx").on(
       table.session_id,
-      table.player_id,
-      table.patient_statement_id
     ),
-    sessionIdx: index("minigame_player_prompt_history_session_id_idx").on(table.session_id)
-  })
+  }),
+);
+
+export const minigameRedrawClaims = sqliteTable(
+  "minigame_redraw_claims",
+  {
+    replaced_round_id: text("replaced_round_id").primaryKey(),
+    replacement_round_id: text("replacement_round_id").notNull(),
+    created_at: integer("created_at").notNull(),
+  },
+  (table) => ({
+    replacementUniqueIdx: uniqueIndex(
+      "minigame_redraw_claims_replacement_round_id_idx",
+    ).on(table.replacement_round_id),
+  }),
+);
+
+export const minigameRoundStartClaims = sqliteTable(
+  "minigame_round_start_claims",
+  {
+    round_id: text("round_id").primaryKey(),
+    session_id: text("session_id").notNull(),
+    created_at: integer("created_at").notNull(),
+  },
+);
+
+export const minigameSubmissionClaims = sqliteTable(
+  "minigame_submission_claims",
+  {
+    round_id: text("round_id").notNull(),
+    player_id: text("player_id").notNull(),
+    attempt_id: text("attempt_id").notNull(),
+    created_at: integer("created_at").notNull(),
+  },
+  (table) => ({
+    roundPlayerUniqueIdx: uniqueIndex(
+      "minigame_submission_claims_round_player_idx",
+    ).on(table.round_id, table.player_id),
+    attemptUniqueIdx: uniqueIndex(
+      "minigame_submission_claims_attempt_id_idx",
+    ).on(table.attempt_id),
+  }),
 );
 
 export const ttsAssets = sqliteTable(
@@ -386,9 +459,9 @@ export const ttsAssets = sqliteTable(
     status: text("status").notNull(),
     error: text("error"),
     created_at: integer("created_at").notNull(),
-    updated_at: integer("updated_at").notNull()
+    updated_at: integer("updated_at").notNull(),
   },
   (table) => ({
-    cacheKeyIdx: uniqueIndex("tts_assets_cache_key_idx").on(table.cache_key)
-  })
+    cacheKeyIdx: uniqueIndex("tts_assets_cache_key_idx").on(table.cache_key),
+  }),
 );

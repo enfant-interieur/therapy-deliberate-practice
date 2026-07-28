@@ -9,7 +9,7 @@ import {
   taskCriteria,
   taskExamples,
   taskInteractionExamples,
-  tasks
+  tasks,
 } from "../db/schema";
 import { batchSegmentationInstructions } from "../providers/batchSegmentationPrompt";
 import {
@@ -17,7 +17,7 @@ import {
   deliberatePracticeTaskV2Schema,
   type BatchParsePlan,
   type DeliberatePracticeTaskV2,
-  type ParseMode
+  type ParseMode,
 } from "@deliberate/shared";
 import { createStructuredResponse } from "../providers/openaiResponses";
 import { buildEnvAiConfig } from "../providers/config";
@@ -31,11 +31,16 @@ import {
   safeTruncate,
   type LogFields,
   type LogFn,
-  type LogLevel
+  type LogLevel,
 } from "../utils/logger";
 
 type JobStatus = "queued" | "running" | "completed" | "failed" | "canceled";
-type JobStep = "created_job" | "planning_segments" | "parsing_segment" | "persisting_task" | "done";
+type JobStep =
+  | "created_job"
+  | "planning_segments"
+  | "parsing_segment"
+  | "persisting_task"
+  | "done";
 
 type SegmentContextBlock = {
   start: number;
@@ -55,18 +60,19 @@ const now = () => Date.now();
 
 const headingRegex = /^\s*(\d+)[\).]\s+/;
 
-const extractHeadingTitle = (line: string) => line.replace(headingRegex, "").trim();
+const extractHeadingTitle = (line: string) =>
+  line.replace(headingRegex, "").trim();
 
-const getSubtle = async () => {
-  if (globalThis.crypto?.subtle) {
-    return globalThis.crypto.subtle;
+const getSubtle = () => {
+  const subtle = globalThis.crypto?.subtle;
+  if (!subtle) {
+    throw new Error("Web Crypto is unavailable in this runtime.");
   }
-  const { webcrypto } = await import("node:crypto");
-  return webcrypto.subtle;
+  return subtle;
 };
 
 const hashCheap = async (text: string) => {
-  const subtle = await getSubtle();
+  const subtle = getSubtle();
   const encoded = new TextEncoder().encode(text);
   const digest = await subtle.digest("SHA-256", encoded);
   const bytes = Array.from(new Uint8Array(digest));
@@ -76,20 +82,30 @@ const hashCheap = async (text: string) => {
 const toLineNumbered = (text: string) => {
   const normalized = text.replace(/\r\n/g, "\n");
   const lines = normalized.split("\n");
-  const numberedText = lines.map((line, index) => `L${String(index + 1).padStart(4, "0")}: ${line}`).join("\n");
+  const numberedText = lines
+    .map((line, index) => `L${String(index + 1).padStart(4, "0")}: ${line}`)
+    .join("\n");
   return { lines, numberedText };
 };
 
 const sliceByLines = (lines: string[], start: number, end: number) => {
   const safeStart = Math.max(1, Math.min(lines.length, start));
   const safeEnd = Math.max(safeStart, Math.min(lines.length, end));
-  return lines.slice(safeStart - 1, safeEnd).join("\n").trim();
+  return lines
+    .slice(safeStart - 1, safeEnd)
+    .join("\n")
+    .trim();
 };
 
 const appendEvent = async (
   db: ApiDatabase,
   jobId: string,
-  event: { level: "info" | "warn" | "error"; step: JobStep; message: string; meta?: unknown }
+  event: {
+    level: "info" | "warn" | "error";
+    step: JobStep;
+    message: string;
+    meta?: unknown;
+  },
 ) => {
   await db.insert(adminBatchParseJobEvents).values({
     job_id: jobId,
@@ -97,7 +113,7 @@ const appendEvent = async (
     level: event.level,
     step: event.step,
     message: event.message,
-    meta: event.meta ?? null
+    meta: event.meta ?? null,
   });
 };
 
@@ -111,31 +127,44 @@ const updateJob = async (
     completed_segments: number;
     created_task_ids: string[];
     error: string | null;
-  }>
+  }>,
 ) => {
   await db
     .update(adminBatchParseJobs)
     .set({
       ...(patch.status ? { status: patch.status } : {}),
       ...(patch.step ? { step: patch.step } : {}),
-      ...(patch.total_segments !== undefined ? { total_segments: patch.total_segments } : {}),
-      ...(patch.completed_segments !== undefined ? { completed_segments: patch.completed_segments } : {}),
-      ...(patch.created_task_ids !== undefined ? { created_task_ids: patch.created_task_ids } : {}),
+      ...(patch.total_segments !== undefined
+        ? { total_segments: patch.total_segments }
+        : {}),
+      ...(patch.completed_segments !== undefined
+        ? { completed_segments: patch.completed_segments }
+        : {}),
+      ...(patch.created_task_ids !== undefined
+        ? { created_task_ids: patch.created_task_ids }
+        : {}),
       ...(patch.error !== undefined ? { error: patch.error } : {}),
-      updated_at: now()
+      updated_at: now(),
     })
     .where(eq(adminBatchParseJobs.id, jobId));
 };
 
 const normalizeSegments = (lines: string[], segments: BatchSegment[]) => {
   if (!segments.length) {
-    return [{ start: 1, end: lines.length, titleHint: null, contextBlocks: [] }];
+    return [
+      { start: 1, end: lines.length, titleHint: null, contextBlocks: [] },
+    ];
   }
   return segments
     .map((segment) => {
       const start = Math.max(1, Math.min(lines.length, segment.start));
       const end = Math.max(start, Math.min(lines.length, segment.end));
-      return { start, end, titleHint: segment.titleHint, contextBlocks: segment.contextBlocks };
+      return {
+        start,
+        end,
+        titleHint: segment.titleHint,
+        contextBlocks: segment.contextBlocks,
+      };
     })
     .sort((a, b) => a.start - b.start);
 };
@@ -144,7 +173,10 @@ const detectHeadingSegments = (lines: string[]): BatchSegment[] => {
   const headings: Array<{ line: number; titleHint: string | null }> = [];
   lines.forEach((line, index) => {
     if (headingRegex.test(line)) {
-      headings.push({ line: index + 1, titleHint: extractHeadingTitle(line) || null });
+      headings.push({
+        line: index + 1,
+        titleHint: extractHeadingTitle(line) || null,
+      });
     }
   });
   if (headings.length <= 1) {
@@ -156,12 +188,15 @@ const detectHeadingSegments = (lines: string[]): BatchSegment[] => {
       start: heading.line,
       end: next ? next.line - 1 : lines.length,
       titleHint: heading.titleHint,
-      contextBlocks: []
+      contextBlocks: [],
     };
   });
 };
 
-const normalizeContextBlocks = (lines: string[], blocks?: BatchParsePlan["tasks"][number]["context_blocks"]) => {
+const normalizeContextBlocks = (
+  lines: string[],
+  blocks?: BatchParsePlan["tasks"][number]["context_blocks"],
+) => {
   if (!blocks?.length) return [];
   const seen = new Set<string>();
   return blocks
@@ -175,7 +210,7 @@ const normalizeContextBlocks = (lines: string[], blocks?: BatchParsePlan["tasks"
             start,
             end,
             label,
-            reason
+            reason,
           }
         : null;
     })
@@ -190,19 +225,28 @@ const normalizeContextBlocks = (lines: string[], blocks?: BatchParsePlan["tasks"
 
 const MAX_SEGMENT_DEBUG = 25;
 
-const describeSegments = (segments: Array<{ start: number; end: number; titleHint: string | null; contextBlocks: SegmentContextBlock[] }>) => {
-  const preview = segments.slice(0, MAX_SEGMENT_DEBUG).map((segment, index) => ({
-    index: index + 1,
-    start_line: segment.start,
-    end_line: segment.end,
-    title_hint: segment.titleHint,
-    context_block_count: segment.contextBlocks.length
-  }));
+const describeSegments = (
+  segments: Array<{
+    start: number;
+    end: number;
+    titleHint: string | null;
+    contextBlocks: SegmentContextBlock[];
+  }>,
+) => {
+  const preview = segments
+    .slice(0, MAX_SEGMENT_DEBUG)
+    .map((segment, index) => ({
+      index: index + 1,
+      start_line: segment.start,
+      end_line: segment.end,
+      title_hint: segment.titleHint,
+      context_block_count: segment.contextBlocks.length,
+    }));
   return {
     total: segments.length,
     preview_count: preview.length,
     truncated_count: Math.max(0, segments.length - preview.length),
-    segments: preview
+    segments: preview,
   };
 };
 
@@ -225,7 +269,10 @@ const extractSegmentMetadata = (segmentText: string) => {
 
 type SegmentContextSnippet = SegmentContextBlock & { text: string };
 
-const gatherContextSnippets = (lines: string[], blocks: SegmentContextBlock[]) => {
+const gatherContextSnippets = (
+  lines: string[],
+  blocks: SegmentContextBlock[],
+) => {
   if (!blocks?.length) return [];
   return blocks
     .map((block) => {
@@ -244,12 +291,12 @@ const buildSegmentPrompt = (
     totalSegments: number;
     globalContext: string | null;
     contextBlocks: SegmentContextSnippet[];
-  }
+  },
 ) => {
   const metadata = extractSegmentMetadata(segmentText);
   const contextualMeta: Record<string, unknown> = {
     segment_index: options.segmentIndex,
-    total_segments: options.totalSegments
+    total_segments: options.totalSegments,
   };
   if (options.titleHint) {
     contextualMeta.title_hint = options.titleHint;
@@ -258,12 +305,14 @@ const buildSegmentPrompt = (
     contextualMeta.global_context = options.globalContext;
   }
   if (options.contextBlocks.length) {
-    contextualMeta.external_context_blocks = options.contextBlocks.map((block) => ({
-      label: block.label,
-      reason: block.reason,
-      start_line: block.start,
-      end_line: block.end
-    }));
+    contextualMeta.external_context_blocks = options.contextBlocks.map(
+      (block) => ({
+        label: block.label,
+        reason: block.reason,
+        start_line: block.start,
+        end_line: block.end,
+      }),
+    );
   }
   if (Object.keys(metadata).length) {
     contextualMeta.detected_metadata = metadata;
@@ -288,7 +337,7 @@ const MAX_PARSE_ATTEMPTS = 3;
 const RETRIABLE_PARSE_ERROR_PATTERNS = [
   /schema validation failed/i,
   /invalid json/i,
-  /returned empty output/i
+  /returned empty output/i,
 ];
 
 const getErrorMessage = (error: unknown) => {
@@ -304,7 +353,9 @@ const getErrorMessage = (error: unknown) => {
 const shouldRetryParseError = (error: unknown) => {
   const message = getErrorMessage(error);
   if (!message) return false;
-  return RETRIABLE_PARSE_ERROR_PATTERNS.some((pattern) => pattern.test(message));
+  return RETRIABLE_PARSE_ERROR_PATTERNS.some((pattern) =>
+    pattern.test(message),
+  );
 };
 
 const buildRetryHints = (message: string) => {
@@ -312,15 +363,20 @@ const buildRetryHints = (message: string) => {
   const lower = message.toLowerCase();
   if (lower.includes("examples") && lower.includes("language")) {
     hints.push(
-      "Every example object must include a non-empty `language` field that matches task.language (for English, use \"en\"). Never return null."
+      'Every example object must include a non-empty `language` field that matches task.language (for English, use "en"). Never return null.',
     );
   }
-  if (lower.includes("interaction_examples") && lower.includes("therapist_text")) {
-    hints.push("Each interaction example needs a single patient_text and therapist_text. Do not omit either field.");
+  if (
+    lower.includes("interaction_examples") &&
+    lower.includes("therapist_text")
+  ) {
+    hints.push(
+      "Each interaction example needs a single patient_text and therapist_text. Do not omit either field.",
+    );
   }
   if (lower.includes("criteria") && lower.includes("anchors")) {
     hints.push(
-      "Each criterion rubric must include anchors for scores 0, 2, and 4 (score_min=0, score_max=4). Supply observable behaviors."
+      "Each criterion rubric must include anchors for scores 0, 2, and 4 (score_min=0, score_max=4). Supply observable behaviors.",
     );
   }
   return hints;
@@ -336,11 +392,11 @@ const buildRetryInstruction = (attempt: number, message: string) => {
     "- Validate that every field matches the DeliberatePracticeTask schema.",
     "- Do not return null or empty strings for required properties.",
     "- Ensure ids remain stable (c1/c2…, ex1/ex2…, ix1/ix2…).",
-    "- Re-run your internal validation before sending the JSON."
+    "- Re-run your internal validation before sending the JSON.",
   ];
   hints.forEach((hint) => instructions.push(`- ${hint}`));
   instructions.push(
-    "Return strictly valid JSON only. Do not apologize or describe the fix—just output the corrected object."
+    "Return strictly valid JSON only. Do not apologize or describe the fix—just output the corrected object.",
   );
   return instructions.join("\n");
 };
@@ -355,11 +411,17 @@ const buildPromptWithRetryNotes = (basePrompt: string, notes: string[]) => {
 
 const prepareParsedTask = (parsed: DeliberatePracticeTaskV2) => {
   const fallbackLanguage = parsed.task.language ?? "en";
-  const { items: criteria, idMap: criteriaIdMap } = remapUniqueUuids(parsed.criteria, "criteria");
-  const { items: examples, idMap: exampleIdMap } = remapUniqueUuids(parsed.examples, "examples");
+  const { items: criteria, idMap: criteriaIdMap } = remapUniqueUuids(
+    parsed.criteria,
+    "criteria",
+  );
+  const { items: examples, idMap: exampleIdMap } = remapUniqueUuids(
+    parsed.examples,
+    "examples",
+  );
   const { items: interactions, idMap: interactionIdMap } = remapUniqueUuids(
     parsed.interaction_examples ?? [],
-    "interaction_examples"
+    "interaction_examples",
   );
   const normalized = remapIdReferences(
     {
@@ -368,18 +430,23 @@ const prepareParsedTask = (parsed: DeliberatePracticeTaskV2) => {
       criteria,
       examples: examples.map((example) => ({
         ...example,
-        language: example.language ?? fallbackLanguage
+        language: example.language ?? fallbackLanguage,
       })),
-      interaction_examples: interactions
+      interaction_examples: interactions,
     },
-    [criteriaIdMap, exampleIdMap, interactionIdMap]
+    [criteriaIdMap, exampleIdMap, interactionIdMap],
   );
   const validated = deliberatePracticeTaskV2Schema.parse(normalized);
-  const sanitizedInteractions = sanitizeInteractionExamples(validated.interaction_examples);
+  const sanitizedInteractions = sanitizeInteractionExamples(
+    validated.interaction_examples,
+  );
   return { ...validated, interaction_examples: sanitizedInteractions };
 };
 
-const createDraftTaskFromParsed = async (db: ApiDatabase, parsed: DeliberatePracticeTaskV2) => {
+const createDraftTaskFromParsed = async (
+  db: ApiDatabase,
+  parsed: DeliberatePracticeTaskV2,
+) => {
   const taskId = `task_${nanoid(12)}`;
   const base = slugify(parsed.task.title) || "task";
   const slug = `${base}-${nanoid(6)}`.slice(0, 80);
@@ -397,10 +464,10 @@ const createDraftTaskFromParsed = async (db: ApiDatabase, parsed: DeliberatePrac
     tags: parsed.task.tags,
     authors: [],
     language,
-    is_published: 0,
+    is_published: false,
     parent_task_id: null,
     created_at: timestamp,
-    updated_at: timestamp
+    updated_at: timestamp,
   });
 
   if (parsed.criteria.length) {
@@ -411,8 +478,8 @@ const createDraftTaskFromParsed = async (db: ApiDatabase, parsed: DeliberatePrac
         label: criterion.label,
         description: criterion.description,
         rubric: criterion.rubric ?? null,
-        sort_order: index
-      }))
+        sort_order: index,
+      })),
     );
   }
 
@@ -427,8 +494,8 @@ const createDraftTaskFromParsed = async (db: ApiDatabase, parsed: DeliberatePrac
         language: example.language ?? language,
         meta: example.meta ?? null,
         created_at: timestamp,
-        updated_at: timestamp
-      }))
+        updated_at: timestamp,
+      })),
     );
   }
 
@@ -444,15 +511,19 @@ const createDraftTaskFromParsed = async (db: ApiDatabase, parsed: DeliberatePrac
         language,
         meta: null,
         created_at: timestamp,
-        updated_at: timestamp
-      }))
+        updated_at: timestamp,
+      })),
     );
   }
 
   return { taskId, slug, title: parsed.task.title };
 };
 
-export const createBatchParseJob = async (db: ApiDatabase, sourceText: string, parseMode: ParseMode = "original") => {
+export const createBatchParseJob = async (
+  db: ApiDatabase,
+  sourceText: string,
+  parseMode: ParseMode = "original",
+) => {
   const jobId = `job_${nanoid(12)}`;
   const ts = now();
   const source_hash = await hashCheap(sourceText);
@@ -467,20 +538,29 @@ export const createBatchParseJob = async (db: ApiDatabase, sourceText: string, p
     error: null,
     source_hash,
     created_at: ts,
-    updated_at: ts
+    updated_at: ts,
   });
   await db.insert(adminBatchParseJobPayloads).values({
     job_id: jobId,
     source_text: sourceText,
     created_at: ts,
-    updated_at: ts
+    updated_at: ts,
   });
-  await appendEvent(db, jobId, { level: "info", step: "created_job", message: "Job created." });
+  await appendEvent(db, jobId, {
+    level: "info",
+    step: "created_job",
+    message: "Job created.",
+  });
   return jobId;
 };
 
-type SegmentPlanner = (input: { numberedText: string }) => Promise<BatchParsePlan>;
-type SegmentParser = (input: { sourceText: string; parseMode?: ParseMode }) => Promise<DeliberatePracticeTaskV2>;
+type SegmentPlanner = (input: {
+  numberedText: string;
+}) => Promise<BatchParsePlan>;
+type SegmentParser = (input: {
+  sourceText: string;
+  parseMode?: ParseMode;
+}) => Promise<DeliberatePracticeTaskV2>;
 
 export type BatchParseJobDeps = {
   planSegments?: SegmentPlanner;
@@ -501,9 +581,13 @@ export const runBatchParseJob = async (
   env: RuntimeEnv,
   jobId: string,
   input: { sourceText?: string; parseMode?: ParseMode } = {},
-  deps: BatchParseJobDeps = {}
+  deps: BatchParseJobDeps = {},
 ) => {
-  const [jobRow] = await db.select().from(adminBatchParseJobs).where(eq(adminBatchParseJobs.id, jobId)).limit(1);
+  const [jobRow] = await db
+    .select()
+    .from(adminBatchParseJobs)
+    .where(eq(adminBatchParseJobs.id, jobId))
+    .limit(1);
   if (!jobRow) {
     throw new Error(`Batch parse job ${jobId} not found.`);
   }
@@ -517,22 +601,28 @@ export const runBatchParseJob = async (
   if (!sourceText) {
     throw new Error(`Batch parse job ${jobId} has no source text payload.`);
   }
-  const parseMode = input.parseMode ?? (jobRow.parse_mode as ParseMode | undefined) ?? "original";
+  const parseMode =
+    input.parseMode ??
+    (jobRow.parse_mode as ParseMode | undefined) ??
+    "original";
   const logFn = deps.logger ?? defaultLog;
   const baseLogFields: LogFields = {
     jobId,
-    parseMode
+    parseMode,
   };
   const jobLog = (level: LogLevel, event: string, fields?: LogFields) => {
     logFn(level, event, { ...baseLogFields, ...(fields ?? {}) });
   };
 
   try {
-    await updateJob(db, jobId, { status: "running", step: "planning_segments" });
+    await updateJob(db, jobId, {
+      status: "running",
+      step: "planning_segments",
+    });
     await appendEvent(db, jobId, {
       level: "info",
       step: "planning_segments",
-      message: "Analyzing text to detect task boundaries…"
+      message: "Analyzing text to detect task boundaries…",
     });
 
     const { lines, numberedText } = toLineNumbered(sourceText);
@@ -540,7 +630,7 @@ export const runBatchParseJob = async (
     jobLog("info", "batch_parse.job.run_start", {
       source_char_count: sourceText.length,
       source_line_count: lines.length,
-      source_hash: sourceHash
+      source_hash: sourceHash,
     });
 
     const planSegments: SegmentPlanner =
@@ -556,7 +646,7 @@ export const runBatchParseJob = async (
           instructions: batchSegmentationInstructions,
           input: text,
           schemaName: "BatchParsePlan",
-          schema: batchParsePlanSchema
+          schema: batchParsePlanSchema,
         });
         return structured.value;
       });
@@ -565,12 +655,12 @@ export const runBatchParseJob = async (
     let parsedPlan: BatchParsePlan;
     try {
       jobLog("info", "batch_parse.plan_segments.request", {
-        numbered_preview: numberedText.slice(0, 500)
+        numbered_preview: numberedText.slice(0, 500),
       });
       parsedPlan = await planSegments({ numberedText });
       jobLog("info", "batch_parse.plan_segments.ok", {
         duration_ms: now() - planStart,
-        planned_segments: parsedPlan.tasks.length
+        planned_segments: parsedPlan.tasks.length,
       });
     } catch (error) {
       const safe = safeError(error);
@@ -579,7 +669,7 @@ export const runBatchParseJob = async (
         level: "error",
         step: "planning_segments",
         message: "Segment planning failed.",
-        meta: safe
+        meta: safe,
       });
       throw error;
     }
@@ -590,8 +680,8 @@ export const runBatchParseJob = async (
               start_line: 1,
               end_line: lines.length,
               title_hint: parsedPlan.tasks[0]?.title_hint ?? null,
-              context_blocks: parsedPlan.tasks[0]?.context_blocks ?? []
-            }
+              context_blocks: parsedPlan.tasks[0]?.context_blocks ?? [],
+            },
           ]
         : parsedPlan.tasks;
 
@@ -601,7 +691,7 @@ export const runBatchParseJob = async (
         start: segment.start_line,
         end: segment.end_line,
         titleHint: segment.title_hint ?? null,
-        contextBlocks: normalizeContextBlocks(lines, segment.context_blocks)
+        contextBlocks: normalizeContextBlocks(lines, segment.context_blocks),
       }));
 
     if (candidateSegments.length <= 1) {
@@ -609,12 +699,12 @@ export const runBatchParseJob = async (
       if (implicit.length > 1) {
         candidateSegments = implicit.map((segment) => ({
           ...segment,
-          contextBlocks: []
+          contextBlocks: [],
         }));
         await appendEvent(db, jobId, {
           level: "info",
           step: "planning_segments",
-          message: `Detected ${implicit.length} numbered headings and will split segments accordingly.`
+          message: `Detected ${implicit.length} numbered headings and will split segments accordingly.`,
         });
       }
     }
@@ -626,9 +716,13 @@ export const runBatchParseJob = async (
       level: "info",
       step: "planning_segments",
       message: `Detected ${normalizedSegments.length} segment(s).`,
-      meta: describeSegments(normalizedSegments)
+      meta: describeSegments(normalizedSegments),
     });
-    jobLog("info", "batch_parse.plan_segments.normalized", describeSegments(normalizedSegments));
+    jobLog(
+      "info",
+      "batch_parse.plan_segments.normalized",
+      describeSegments(normalizedSegments),
+    );
 
     const parseSegment: SegmentParser =
       deps.parseSegment ??
@@ -644,23 +738,30 @@ export const runBatchParseJob = async (
         };
       })();
 
-    const prefaceEnd = normalizedSegments[0] ? normalizedSegments[0].start - 1 : 0;
-    const globalContext = prefaceEnd > 0 ? sliceByLines(lines, 1, prefaceEnd).trim() || null : null;
+    const prefaceEnd = normalizedSegments[0]
+      ? normalizedSegments[0].start - 1
+      : 0;
+    const globalContext =
+      prefaceEnd > 0 ? sliceByLines(lines, 1, prefaceEnd).trim() || null : null;
     if (globalContext) {
       await appendEvent(db, jobId, {
         level: "info",
         step: "planning_segments",
         message: "Global context detected before the first segment.",
-        meta: { char_count: globalContext.length }
+        meta: { char_count: globalContext.length },
       });
-      jobLog("info", "batch_parse.global_context.detected", { char_count: globalContext.length });
+      jobLog("info", "batch_parse.global_context.detected", {
+        char_count: globalContext.length,
+      });
     }
 
     await updateJob(db, jobId, { step: "parsing_segment" });
 
-    const createdTaskResults: Array<{ taskId: string; slug: string; title: string } | null> = new Array(
-      normalizedSegments.length
-    ).fill(null);
+    const createdTaskResults: Array<{
+      taskId: string;
+      slug: string;
+      title: string;
+    } | null> = new Array(normalizedSegments.length).fill(null);
     let completedSegments = 0;
     let persistStepSet = false;
 
@@ -671,19 +772,25 @@ export const runBatchParseJob = async (
     };
 
     const currentTaskIds = () =>
-      createdTaskResults.filter((result): result is { taskId: string; slug: string; title: string } => Boolean(result)).map(
-        (result) => result.taskId
-      );
+      createdTaskResults
+        .filter(
+          (result): result is { taskId: string; slug: string; title: string } =>
+            Boolean(result),
+        )
+        .map((result) => result.taskId);
 
     const processSegment = async (segment: BatchSegment, index: number) => {
       const segmentText = sliceByLines(lines, segment.start, segment.end);
-      const contextSnippets = gatherContextSnippets(lines, segment.contextBlocks);
+      const contextSnippets = gatherContextSnippets(
+        lines,
+        segment.contextBlocks,
+      );
       const baseSegmentPrompt = buildSegmentPrompt(segmentText, {
         titleHint: segment.titleHint,
         segmentIndex: index + 1,
         totalSegments: normalizedSegments.length,
         globalContext,
-        contextBlocks: contextSnippets
+        contextBlocks: contextSnippets,
       });
 
       const retryNotes: string[] = [];
@@ -691,7 +798,10 @@ export const runBatchParseJob = async (
       let lastError: unknown = null;
 
       for (let attempt = 1; attempt <= MAX_PARSE_ATTEMPTS; attempt += 1) {
-        const segmentPrompt = buildPromptWithRetryNotes(baseSegmentPrompt, retryNotes);
+        const segmentPrompt = buildPromptWithRetryNotes(
+          baseSegmentPrompt,
+          retryNotes,
+        );
 
         await appendEvent(db, jobId, {
           level: "info",
@@ -704,8 +814,8 @@ export const runBatchParseJob = async (
             context_block_count: contextSnippets.length,
             attempt,
             max_attempts: MAX_PARSE_ATTEMPTS,
-            prompt_char_count: segmentPrompt.length
-          }
+            prompt_char_count: segmentPrompt.length,
+          },
         });
 
         const parseStarted = now();
@@ -716,7 +826,7 @@ export const runBatchParseJob = async (
             end_line: segment.end,
             prompt_char_count: segmentPrompt.length,
             context_block_count: contextSnippets.length,
-            attempt
+            attempt,
           });
           parsed = await parseSegment({ sourceText: segmentPrompt, parseMode });
           jobLog("info", "batch_parse.segment.parse_ok", {
@@ -725,20 +835,21 @@ export const runBatchParseJob = async (
             criteria_count: parsed.criteria.length,
             example_count: parsed.examples.length,
             interaction_example_count: parsed.interaction_examples?.length ?? 0,
-            attempt
+            attempt,
           });
           break;
         } catch (error) {
           lastError = error;
           const safe = safeError(error);
-          const retriable = attempt < MAX_PARSE_ATTEMPTS && shouldRetryParseError(error);
+          const retriable =
+            attempt < MAX_PARSE_ATTEMPTS && shouldRetryParseError(error);
           jobLog("error", "batch_parse.segment.parse_error", {
             segment_index: index + 1,
             start_line: segment.start,
             end_line: segment.end,
             attempt,
             retriable,
-            error: safe
+            error: safe,
           });
           await appendEvent(db, jobId, {
             level: retriable ? "warn" : "error",
@@ -752,8 +863,8 @@ export const runBatchParseJob = async (
               title_hint: segment.titleHint,
               attempt,
               retriable,
-              error: safe
-            }
+              error: safe,
+            },
           });
           if (!retriable) {
             throw error;
@@ -764,7 +875,12 @@ export const runBatchParseJob = async (
       }
 
       if (!parsed) {
-        throw lastError ?? new Error(`Segment ${index + 1} failed after ${MAX_PARSE_ATTEMPTS} attempts.`);
+        throw (
+          lastError ??
+          new Error(
+            `Segment ${index + 1} failed after ${MAX_PARSE_ATTEMPTS} attempts.`,
+          )
+        );
       }
 
       const normalizedParsed = prepareParsedTask(parsed);
@@ -775,8 +891,9 @@ export const runBatchParseJob = async (
         meta: {
           criteria_count: normalizedParsed.criteria.length,
           example_count: normalizedParsed.examples.length,
-          interaction_example_count: normalizedParsed.interaction_examples?.length ?? 0
-        }
+          interaction_example_count:
+            normalizedParsed.interaction_examples?.length ?? 0,
+        },
       });
 
       await markPersistingStep();
@@ -784,7 +901,7 @@ export const runBatchParseJob = async (
         level: "info",
         step: "persisting_task",
         message: `Creating draft task ${index + 1} of ${normalizedSegments.length}…`,
-        meta: { title: normalizedParsed.task.title }
+        meta: { title: normalizedParsed.task.title },
       });
 
       let created: Awaited<ReturnType<typeof createDraftTaskFromParsed>>;
@@ -794,7 +911,7 @@ export const runBatchParseJob = async (
         const safe = safeError(error);
         jobLog("error", "batch_parse.segment.persist_error", {
           segment_index: index + 1,
-          error: safe
+          error: safe,
         });
         await appendEvent(db, jobId, {
           level: "error",
@@ -802,33 +919,37 @@ export const runBatchParseJob = async (
           message: `Draft creation failed for segment ${index + 1}.`,
           meta: {
             error: safe,
-            title: normalizedParsed.task.title
-          }
+            title: normalizedParsed.task.title,
+          },
         });
         throw error;
       }
       jobLog("info", "batch_parse.segment.persist_ok", {
         segment_index: index + 1,
         task_id: created.taskId,
-        slug: created.slug
+        slug: created.slug,
       });
       createdTaskResults[index] = created;
       completedSegments += 1;
       await updateJob(db, jobId, {
         completed_segments: completedSegments,
-        created_task_ids: currentTaskIds()
+        created_task_ids: currentTaskIds(),
       });
       await appendEvent(db, jobId, {
         level: "info",
         step: "persisting_task",
         message: `Draft created: ${created.title}`,
-        meta: { task_id: created.taskId, slug: created.slug }
+        meta: { task_id: created.taskId, slug: created.slug },
       });
     };
 
-    const segmentPromises = normalizedSegments.map((segment, index) => processSegment(segment, index));
+    const segmentPromises = normalizedSegments.map((segment, index) =>
+      processSegment(segment, index),
+    );
     const settledResults = await Promise.allSettled(segmentPromises);
-    const failedResult = settledResults.find((result) => result.status === "rejected");
+    const failedResult = settledResults.find(
+      (result) => result.status === "rejected",
+    );
     if (failedResult && failedResult.status === "rejected") {
       throw failedResult.reason;
     }
@@ -837,20 +958,24 @@ export const runBatchParseJob = async (
     await appendEvent(db, jobId, {
       level: "info",
       step: "done",
-      message: "Batch parsing completed."
+      message: "Batch parsing completed.",
     });
     jobLog("info", "batch_parse.job.completed", {
-      total_segments: createdTaskResults.filter(Boolean).length
+      total_segments: createdTaskResults.filter(Boolean).length,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    await updateJob(db, jobId, { status: "failed", step: "done", error: message });
+    await updateJob(db, jobId, {
+      status: "failed",
+      step: "done",
+      error: message,
+    });
     const safe = safeError(error);
     await appendEvent(db, jobId, {
       level: "error",
       step: "done",
       message: `Batch parsing failed: ${message}`,
-      meta: safe
+      meta: safe,
     });
     jobLog("error", "batch_parse.job.failed", safe);
   }
@@ -860,7 +985,7 @@ export const handleBatchParseQueueMessage = async (
   db: ApiDatabase,
   env: RuntimeEnv,
   message: BatchParseQueueMessage,
-  deps: BatchParseJobDeps = {}
+  deps: BatchParseJobDeps = {},
 ) => {
   await runBatchParseJob(db, env, message.jobId, {}, deps);
 };
@@ -891,17 +1016,32 @@ const parseJsonValue = (value: unknown) => {
   return value;
 };
 
-export const getBatchParseStatus = async (db: ApiDatabase, jobId: string, afterEventId: number) => {
-  const [job] = await db.select().from(adminBatchParseJobs).where(eq(adminBatchParseJobs.id, jobId)).limit(1);
+export const getBatchParseStatus = async (
+  db: ApiDatabase,
+  jobId: string,
+  afterEventId: number,
+) => {
+  const [job] = await db
+    .select()
+    .from(adminBatchParseJobs)
+    .where(eq(adminBatchParseJobs.id, jobId))
+    .limit(1);
   if (!job) return null;
 
   const events = await db
     .select()
     .from(adminBatchParseJobEvents)
-    .where(and(eq(adminBatchParseJobEvents.job_id, jobId), gt(adminBatchParseJobEvents.id, afterEventId)))
+    .where(
+      and(
+        eq(adminBatchParseJobEvents.job_id, jobId),
+        gt(adminBatchParseJobEvents.id, afterEventId),
+      ),
+    )
     .orderBy(adminBatchParseJobEvents.id);
 
-  const nextAfterEventId = events.length ? events[events.length - 1]!.id : afterEventId;
+  const nextAfterEventId = events.length
+    ? events[events.length - 1]!.id
+    : afterEventId;
 
   return {
     job: {
@@ -913,7 +1053,7 @@ export const getBatchParseStatus = async (db: ApiDatabase, jobId: string, afterE
       createdTaskIds: parseJsonArray(job.created_task_ids),
       error: job.error ?? null,
       createdAt: job.created_at,
-      updatedAt: job.updated_at
+      updatedAt: job.updated_at,
     },
     events: events.map((event) => ({
       id: event.id,
@@ -921,8 +1061,8 @@ export const getBatchParseStatus = async (db: ApiDatabase, jobId: string, afterE
       level: event.level as "info" | "warn" | "error",
       step: event.step as JobStep,
       message: event.message,
-      meta: parseJsonValue(event.meta)
+      meta: parseJsonValue(event.meta),
     })),
-    nextAfterEventId
+    nextAfterEventId,
   };
 };

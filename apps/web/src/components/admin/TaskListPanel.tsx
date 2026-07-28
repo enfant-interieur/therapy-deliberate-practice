@@ -20,10 +20,13 @@ export const TaskListPanel = ({
   selectedTaskIds = [],
   onToggleSelect,
   onClose,
-  isLoading
+  isLoading,
 }: TaskListPanelProps) => {
   const { t } = useTranslation();
-  const selectedSet = useMemo(() => new Set(selectedTaskIds), [selectedTaskIds]);
+  const selectedSet = useMemo(
+    () => new Set(selectedTaskIds),
+    [selectedTaskIds],
+  );
   const difficultyLabel = (difficulty: number) => {
     if (difficulty <= 2) return t("admin.list.difficulty.easy");
     if (difficulty <= 4) return t("admin.list.difficulty.medium");
@@ -37,7 +40,9 @@ export const TaskListPanel = ({
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
             {t("admin.list.kicker")}
           </p>
-          <h3 className="text-lg font-semibold text-white">{t("admin.list.title")}</h3>
+          <h3 className="text-lg font-semibold text-white">
+            {t("admin.list.title")}
+          </h3>
         </div>
         {onClose && (
           <Button type="button" variant="ghost" onClick={onClose}>
@@ -46,9 +51,7 @@ export const TaskListPanel = ({
         )}
       </div>
       <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>
-          {t("admin.list.count", { count: tasks.length })}
-        </span>
+        <span>{t("admin.list.count", { count: tasks.length })}</span>
         {isLoading && <span>{t("admin.list.loading")}</span>}
       </div>
       <div className="flex-1 space-y-3 overflow-auto pr-1">
@@ -58,7 +61,9 @@ export const TaskListPanel = ({
               <div className="flex h-full items-center">
                 <input
                   type="checkbox"
-                  aria-label={t("admin.library.selectTask", { title: task.title })}
+                  aria-label={t("admin.library.selectTask", {
+                    title: task.title,
+                  })}
                   className="h-5 w-5 rounded-md border-2 border-white/20 bg-slate-950/70 text-teal-400 shadow-[0_0_0_1px_rgba(148,163,184,0.2)] accent-teal-400 transition focus:ring-2 focus:ring-teal-500/60 focus:ring-offset-0 checked:border-teal-300 checked:bg-teal-500/30"
                   checked={selectedSet.has(task.id)}
                   onChange={() => onToggleSelect(task.id)}
@@ -76,18 +81,26 @@ export const TaskListPanel = ({
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-sm font-semibold text-white">{task.title}</p>
+                  <p className="text-sm font-semibold text-white">
+                    {task.title}
+                  </p>
                   <p className="text-xs text-slate-400">{task.skill_domain}</p>
                 </div>
-                <Badge className="text-[10px]">{difficultyLabel(task.base_difficulty)}</Badge>
+                <Badge className="text-[10px]">
+                  {difficultyLabel(task.base_difficulty)}
+                </Badge>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Badge
                   className={
-                    task.is_published ? "border-teal-400/40 text-teal-100" : "border-amber-400/40 text-amber-100"
+                    task.is_published
+                      ? "border-teal-400/40 text-teal-100"
+                      : "border-amber-400/40 text-amber-100"
                   }
                 >
-                  {task.is_published ? t("admin.list.published") : t("admin.list.draft")}
+                  {task.is_published
+                    ? t("admin.list.published")
+                    : t("admin.list.draft")}
                 </Badge>
                 {task.tags.slice(0, 2).map((tag) => (
                   <Badge key={`${task.id}-${tag}`} className="text-[10px]">

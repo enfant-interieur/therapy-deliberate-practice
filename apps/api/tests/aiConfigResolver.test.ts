@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { RuntimeEnv } from "../src/env";
-import { assertLocalBaseUrl, assertOpenAiKey, resolveEffectiveAiConfig } from "../src/providers/config";
+import {
+  assertLocalBaseUrl,
+  assertOpenAiKey,
+  resolveEffectiveAiConfig,
+} from "../src/providers/config";
 import { ProviderConfigError } from "../src/providers/providerErrors";
 
 const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
@@ -11,6 +15,7 @@ const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
   adminEmails: [],
   adminGroups: [],
   cfAccessAud: "",
+  cfAccessIssuer: "",
   bypassAdminAuth: false,
   devAdminToken: "",
   environment: "test",
@@ -30,21 +35,21 @@ const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
   supabaseJwtSecret: "test-secret",
   r2Bucket: "tts-bucket",
   r2PublicBaseUrl: "",
-  ...overrides
+  ...overrides,
 });
 
 test("assertOpenAiKey throws when openai_only has no key", async () => {
   const env = createEnv();
   const config = await resolveEffectiveAiConfig({
     env,
-    settings: { ai_mode: "openai_only" }
+    settings: { ai_mode: "openai_only" },
   });
 
   assert.throws(
     () => assertOpenAiKey(config),
     (error) =>
       error instanceof ProviderConfigError &&
-      error.code === "OPENAI_KEY_MISSING"
+      error.code === "OPENAI_KEY_MISSING",
   );
 });
 
@@ -52,7 +57,7 @@ test("local_only defaults to the local suite base URL when none is set", async (
   const env = createEnv({ openaiApiKey: "server-key" });
   const config = await resolveEffectiveAiConfig({
     env,
-    settings: { ai_mode: "local_only" }
+    settings: { ai_mode: "local_only" },
   });
 
   assert.equal(config.local.baseUrl, "http://127.0.0.1:8484");
@@ -63,7 +68,11 @@ test("local_prefer falls back to env OpenAI key when local base URL missing", as
   const env = createEnv({ openaiApiKey: "server-key" });
   const config = await resolveEffectiveAiConfig({
     env,
-    settings: { ai_mode: "local_prefer", local_stt_url: null, local_llm_url: null }
+    settings: {
+      ai_mode: "local_prefer",
+      local_stt_url: null,
+      local_llm_url: null,
+    },
   });
 
   assert.equal(config.mode, "local_prefer");

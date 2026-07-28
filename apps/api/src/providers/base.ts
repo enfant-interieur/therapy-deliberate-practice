@@ -9,7 +9,7 @@ import type {
   SttProvider,
   LlmProvider,
   SttTranscribeOptions,
-  Transcript
+  Transcript,
 } from "@deliberate/shared";
 import type { TtsProvider } from "./tts";
 import { getErrorLogFields, getErrorRequestId } from "./providerErrors";
@@ -28,8 +28,8 @@ type TelemetryOptions = {
 };
 
 export abstract class BaseProvider {
-  protected readonly kind: ProviderKind;
-  protected readonly model?: string;
+  public readonly kind: ProviderKind;
+  public readonly model?: string;
   protected readonly logger?: LogFn;
 
   protected constructor(kind: ProviderKind, model?: string, logger?: LogFn) {
@@ -39,13 +39,18 @@ export abstract class BaseProvider {
   }
 
   protected providerMeta(override?: { kind: ProviderKind; model?: string }) {
-    return override ?? { kind: this.kind, ...(this.model ? { model: this.model } : {}) };
+    return (
+      override ?? {
+        kind: this.kind,
+        ...(this.model ? { model: this.model } : {}),
+      }
+    );
   }
 
   protected async runWithTelemetry<T>(
     opName: string,
     fn: () => Promise<TelemetryResult<T>>,
-    options: TelemetryOptions = {}
+    options: TelemetryOptions = {},
   ): Promise<T> {
     const provider = this.providerMeta(options.provider);
     const startFields = options.startFields ?? {};
@@ -53,7 +58,7 @@ export abstract class BaseProvider {
 
     this.logger?.("info", `${opName}.http_start`, {
       provider,
-      ...startFields
+      ...startFields,
     });
 
     try {
@@ -62,7 +67,7 @@ export abstract class BaseProvider {
         provider,
         duration_ms: Date.now() - start,
         ...(result.requestId ? { request_id: result.requestId } : {}),
-        ...(result.log ?? {})
+        ...(result.log ?? {}),
       });
       return result.value;
     } catch (error) {
@@ -74,49 +79,69 @@ export abstract class BaseProvider {
         ...startFields,
         ...(requestId ? { request_id: requestId } : {}),
         ...(logFields ?? {}),
-        error: safeTruncate(String(error), 200)
+        error: safeTruncate(String(error), 200),
       });
       throw error;
     }
   }
 }
 
-export abstract class BaseSttProvider extends BaseProvider implements SttProvider {
+export abstract class BaseSttProvider
+  extends BaseProvider
+  implements SttProvider
+{
   abstract healthCheck(): Promise<boolean>;
-  async transcribe(audio: string, opts?: SttTranscribeOptions): Promise<Transcript> {
-    return this.runWithTelemetry("stt.transcribe", () => this.doTranscribe(audio, opts), {
-      startFields: this.getStartFields(opts),
-      provider: this.getProviderOverride(opts)
-    });
+  async transcribe(
+    audio: string,
+    opts?: SttTranscribeOptions,
+  ): Promise<Transcript> {
+    return this.runWithTelemetry(
+      "stt.transcribe",
+      () => this.doTranscribe(audio, opts),
+      {
+        startFields: this.getStartFields(opts),
+        provider: this.getProviderOverride(opts),
+      },
+    );
   }
 
-  protected getProviderOverride(_opts?: SttTranscribeOptions):
-    | { kind: ProviderKind; model?: string }
-    | undefined {
+  protected getProviderOverride(
+    _opts?: SttTranscribeOptions,
+  ): { kind: ProviderKind; model?: string } | undefined {
     return undefined;
   }
 
-  protected getStartFields(_opts?: SttTranscribeOptions): LogFields | undefined {
+  protected getStartFields(
+    _opts?: SttTranscribeOptions,
+  ): LogFields | undefined {
     return undefined;
   }
 
   protected abstract doTranscribe(
     audio: string,
-    opts?: SttTranscribeOptions
+    opts?: SttTranscribeOptions,
   ): Promise<TelemetryResult<Transcript>>;
 }
 
-export abstract class BaseTtsProvider extends BaseProvider implements TtsProvider {
+export abstract class BaseTtsProvider
+  extends BaseProvider
+  implements TtsProvider
+{
+  declare public readonly model: string;
   abstract healthCheck(): Promise<boolean>;
   abstract voice: string;
   abstract format: TtsProvider["format"];
 
   async synthesize(input: { text: string }) {
-    return this.runWithTelemetry("tts.synthesize", () => this.doSynthesize(input), {
-      startFields: {
-        text_length: input.text.length
-      }
-    });
+    return this.runWithTelemetry(
+      "tts.synthesize",
+      () => this.doSynthesize(input),
+      {
+        startFields: {
+          text_length: input.text.length,
+        },
+      },
+    );
   }
 
   protected abstract doSynthesize(input: {
@@ -124,28 +149,44 @@ export abstract class BaseTtsProvider extends BaseProvider implements TtsProvide
   }): Promise<TelemetryResult<{ bytes: Uint8Array; contentType: string }>>;
 }
 
-export abstract class BaseLlmProvider extends BaseProvider implements LlmProvider {
+export abstract class BaseLlmProvider
+  extends BaseProvider
+  implements LlmProvider
+{
   abstract healthCheck(): Promise<boolean>;
 
-  async evaluateDeliberatePractice(input: EvaluationInput): Promise<EvaluationResult> {
-    return this.runWithTelemetry("llm.evaluate", () => this.doEvaluateDeliberatePractice(input));
+  async evaluateDeliberatePractice(
+    input: EvaluationInput,
+  ): Promise<EvaluationResult> {
+    return this.runWithTelemetry("llm.evaluate", () =>
+      this.doEvaluateDeliberatePractice(input),
+    );
   }
 
-  async parseExercise(input: { sourceText: string; parseMode?: ParseMode }): Promise<LlmParseResult> {
-    return this.runWithTelemetry("llm.parse", () => this.doParseExercise(input));
+  async parseExercise(input: {
+    sourceText: string;
+    parseMode?: ParseMode;
+  }): Promise<LlmParseResult> {
+    return this.runWithTelemetry("llm.parse", () =>
+      this.doParseExercise(input),
+    );
   }
 
   async translateTask(input: {
     source: DeliberatePracticeTaskV2;
     targetLanguage: string;
   }): Promise<DeliberatePracticeTaskV2> {
-    return this.runWithTelemetry("llm.translate", () => this.doTranslateTask(input), {
-      startFields: { target_language: input.targetLanguage }
-    });
+    return this.runWithTelemetry(
+      "llm.translate",
+      () => this.doTranslateTask(input),
+      {
+        startFields: { target_language: input.targetLanguage },
+      },
+    );
   }
 
   protected abstract doEvaluateDeliberatePractice(
-    input: EvaluationInput
+    input: EvaluationInput,
   ): Promise<TelemetryResult<EvaluationResult>>;
   protected abstract doParseExercise(input: {
     sourceText: string;

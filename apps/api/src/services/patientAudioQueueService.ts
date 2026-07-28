@@ -3,9 +3,12 @@ import type { RuntimeEnv } from "../env";
 import type { ApiDatabase } from "../db/types";
 import { userSettings } from "../db/schema";
 import { resolveEffectiveAiConfig } from "../providers/config";
-import { getErrorRequestId, isProviderConfigError } from "../providers/providerErrors";
+import {
+  getErrorRequestId,
+  isProviderConfigError,
+} from "../providers/providerErrors";
 import { decryptOpenAiKey } from "../utils/crypto";
-import { log, safeError } from "../utils/logger";
+import { log, safeError, type LogFn } from "../utils/logger";
 import { getOrCreateTtsAsset, type TtsStorage } from "./ttsService";
 import { selectPatientTtsProvider } from "./patientAudioService";
 
@@ -25,19 +28,19 @@ export const handlePatientAudioQueueMessage = async (
   db: ApiDatabase,
   env: RuntimeEnv,
   storage: TtsStorage,
-  message: PatientAudioQueueMessage
+  message: PatientAudioQueueMessage,
 ) => {
   const baseFields = {
     queue: "patient_audio",
     requestId: message.requestId ?? null,
     userId: message.userId,
     exerciseId: message.exerciseId,
-    statementId: message.statementId
+    statementId: message.statementId,
   };
-  const logEvent = (
-    level: "info" | "warn" | "error",
+  const logEvent: LogFn = (
+    level,
     event: string,
-    fields: Record<string, unknown> = {}
+    fields: Record<string, unknown> = {},
   ) => {
     log(level, event, { ...baseFields, ...fields });
   };
@@ -58,7 +61,7 @@ export const handlePatientAudioQueueMessage = async (
     config = await resolveEffectiveAiConfig({
       env,
       settings,
-      decryptOpenAiKey
+      decryptOpenAiKey,
     });
   } catch (error) {
     if (isProviderConfigError(error)) {
@@ -74,7 +77,7 @@ export const handlePatientAudioQueueMessage = async (
     ttsProvider = await selectPatientTtsProvider({
       env,
       config,
-      logEvent
+      logEvent,
     });
   } catch (error) {
     logEvent("error", "tts.queue.select_error", { error: safeError(error) });
@@ -91,15 +94,15 @@ export const handlePatientAudioQueueMessage = async (
         text: message.text,
         voice: ttsProvider.voice,
         model: ttsProvider.model,
-        format: ttsProvider.format
+        format: ttsProvider.format,
       },
       logEvent,
-      { forceGenerate: true }
+      { forceGenerate: true },
     );
   } catch (error) {
     logEvent("error", "tts.queue.generate_error", {
       error: safeError(error),
-      error_request_id: getErrorRequestId(error)
+      error_request_id: getErrorRequestId(error),
     });
     throw error;
   }

@@ -1,6 +1,13 @@
-import { NavLink, Outlet, useLocation, useOutletContext } from "react-router-dom";
+import {
+  NavLink,
+  Outlet,
+  useLocation,
+  useOutletContext,
+  type NavLinkRenderProps,
+} from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAccessibleDialog } from "../../hooks/useAccessibleDialog";
 
 type HelpContext = {
   openAiSetup?: () => void;
@@ -12,6 +19,9 @@ export const HelpLayout = () => {
   const parentContext = useOutletContext<HelpContext | undefined>() ?? {};
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const { dialogRef } = useAccessibleDialog(isDrawerOpen, () =>
+    setIsDrawerOpen(false),
+  );
   const helpPages = useMemo(
     () => [
       {
@@ -19,91 +29,139 @@ export const HelpLayout = () => {
         title: t("help.nav.gettingStarted.title"),
         description: t("help.nav.gettingStarted.description"),
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 4v16m8-8H4"
+            />
           </svg>
-        )
+        ),
       },
       {
         slug: "how-it-works",
         title: t("help.nav.howItWorks.title"),
         description: t("help.nav.howItWorks.description"),
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
               d="M7 7h10M7 12h6M7 17h4M4 4h16v16H4z"
             />
           </svg>
-        )
+        ),
       },
       {
         slug: "deliberate-practice",
         title: t("help.nav.deliberatePractice.title"),
         description: t("help.nav.deliberatePractice.description"),
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 20l14-8-14-8v16z" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 20l14-8-14-8v16z"
+            />
           </svg>
-        )
+        ),
       },
       {
         slug: "about",
         title: t("help.nav.about.title"),
         description: t("help.nav.about.description"),
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8h.01M12 12v4m8-4a8 8 0 1 1-16 0a8 8 0 0 1 16 0Z" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 8h.01M12 12v4m8-4a8 8 0 1 1-16 0a8 8 0 0 1 16 0Z"
+            />
           </svg>
-        )
+        ),
       },
       {
         slug: "local-suite",
         title: t("help.nav.localSuite.title"),
         description: t("help.nav.localSuite.description"),
         icon: (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 7h16M6 12h12M8 17h8" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-5 w-5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 7h16M6 12h12M8 17h8"
+            />
           </svg>
-        )
-      }
+        ),
+      },
     ],
-    [t]
+    [t],
   );
 
   const filteredPages = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     if (!normalized) return helpPages;
     return helpPages.filter((page) =>
-      `${page.title} ${page.description}`.toLowerCase().includes(normalized)
+      `${page.title} ${page.description}`.toLowerCase().includes(normalized),
     );
-  }, [query]);
+  }, [helpPages, query]);
 
   useEffect(() => {
     setIsDrawerOpen(false);
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (!isDrawerOpen) return;
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsDrawerOpen(false);
-      }
-    };
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [isDrawerOpen]);
-
   const renderNav = (isMobile = false) => (
     <div className="space-y-4">
       <div className="rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-3">
-        <label className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400" htmlFor={isMobile ? "help-search-mobile" : "help-search"}>
+        <label
+          className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-400"
+          htmlFor={isMobile ? "help-search-mobile" : "help-search"}
+        >
           {t("help.layout.searchLabel")}
         </label>
         <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-slate-900/70 px-3 py-2">
-          <svg viewBox="0 0 24 24" className="h-4 w-4 text-slate-400" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4 text-slate-400"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m21 21-4.35-4.35M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z"
+            />
           </svg>
           <input
             id={isMobile ? "help-search-mobile" : "help-search"}
@@ -120,7 +178,7 @@ export const HelpLayout = () => {
           <NavLink
             key={page.slug}
             to={`/help/${page.slug}`}
-            className={({ isActive }) =>
+            className={({ isActive }: NavLinkRenderProps) =>
               `group relative flex items-start gap-3 rounded-2xl border border-transparent px-3 py-3 text-left text-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70 ${
                 isActive
                   ? "border-white/10 bg-white/10 text-white"
@@ -128,19 +186,25 @@ export const HelpLayout = () => {
               }`
             }
           >
-            {({ isActive }) => (
+            {({ isActive }: NavLinkRenderProps) => (
               <>
                 <span
                   className={`absolute left-0 top-3 h-8 w-1 rounded-full bg-teal-400 transition ${
-                    isActive ? "opacity-100" : "opacity-0 group-hover:opacity-60"
+                    isActive
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-60"
                   }`}
                 />
                 <span className="mt-1 inline-flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-slate-900/70 text-teal-200">
                   {page.icon}
                 </span>
                 <span className="space-y-1">
-                  <span className="block font-semibold text-white/90">{page.title}</span>
-                  <span className="block text-xs text-slate-400">{page.description}</span>
+                  <span className="block font-semibold text-white/90">
+                    {page.title}
+                  </span>
+                  <span className="block text-xs text-slate-400">
+                    {page.description}
+                  </span>
                 </span>
               </>
             )}
@@ -159,8 +223,12 @@ export const HelpLayout = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-950/60 px-4 py-4 lg:hidden">
         <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("help.layout.mobile.kicker")}</p>
-          <p className="text-lg font-semibold text-white">{t("help.layout.mobile.title")}</p>
+          <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
+            {t("help.layout.mobile.kicker")}
+          </p>
+          <p className="text-lg font-semibold text-white">
+            {t("help.layout.mobile.title")}
+          </p>
         </div>
         <button
           type="button"
@@ -168,8 +236,18 @@ export const HelpLayout = () => {
           onClick={() => setIsDrawerOpen(true)}
           aria-label={t("help.layout.mobile.openNavLabel")}
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-4 w-4"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.7"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M4 6h16M4 12h16M4 18h16"
+            />
           </svg>
           {t("help.layout.mobile.menu")}
         </button>
@@ -180,9 +258,15 @@ export const HelpLayout = () => {
           <div className="sticky top-24 space-y-6">
             {renderNav()}
             <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-teal-500/10 via-slate-900/60 to-slate-950/80 p-5 text-sm text-slate-200">
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("help.layout.sidebar.kicker")}</p>
-              <p className="mt-2 font-semibold text-white">{t("help.layout.sidebar.title")}</p>
-              <p className="mt-2 text-xs text-slate-400">{t("help.layout.sidebar.subtitle")}</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
+                {t("help.layout.sidebar.kicker")}
+              </p>
+              <p className="mt-2 font-semibold text-white">
+                {t("help.layout.sidebar.title")}
+              </p>
+              <p className="mt-2 text-xs text-slate-400">
+                {t("help.layout.sidebar.subtitle")}
+              </p>
             </div>
           </div>
         </aside>
@@ -198,28 +282,38 @@ export const HelpLayout = () => {
       </div>
 
       {isDrawerOpen ? (
-        <div className="fixed inset-0 z-40 lg:hidden" aria-hidden={!isDrawerOpen}>
+        <div
+          className="fixed inset-0 z-40 lg:hidden"
+          aria-hidden={!isDrawerOpen}
+        >
           <div
             className="absolute inset-0 bg-slate-950/70 backdrop-blur"
             onClick={() => setIsDrawerOpen(false)}
           />
           <div
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-label={t("help.layout.dialog.ariaLabel")}
+            tabIndex={-1}
             className="absolute inset-x-4 top-6 rounded-3xl border border-white/10 bg-slate-950/95 p-4 shadow-2xl shadow-black/40"
           >
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-white">{t("help.layout.dialog.title")}</p>
+              <p className="text-sm font-semibold text-white">
+                {t("help.layout.dialog.title")}
+              </p>
               <button
                 type="button"
+                data-dialog-autofocus
                 className="inline-flex items-center gap-2 rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-slate-200 hover:bg-white/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-400/70"
                 onClick={() => setIsDrawerOpen(false)}
               >
                 {t("help.layout.dialog.close")}
               </button>
             </div>
-            <div className="mt-4 max-h-[70vh] overflow-y-auto pr-2">{renderNav(true)}</div>
+            <div className="mt-4 max-h-[70vh] overflow-y-auto pr-2">
+              {renderNav(true)}
+            </div>
           </div>
         </div>
       ) : null}

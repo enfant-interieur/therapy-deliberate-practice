@@ -12,11 +12,11 @@ export const deliberatePracticeEvaluationPromptLocal = [
   "Write rationales, quotes, summaries, and patient_reaction in the same language used in the therapist transcript.",
   "Infer patient_reaction from the transcript; if there is no signal, default to a neutral emotion with intensity 0.",
   "Return STRICT JSON ONLY that matches EvaluationResult with criterion_scores - no markdown, no commentary.",
-  "Populate every schema field; when information is unavailable, use null or an empty array rather than omitting keys."
+  "Populate every schema field; when information is unavailable, use null or an empty array rather than omitting keys.",
 ].join("\n");
 
 export const prompts = {
   evaluation: {
-    deliberatePractice: deliberatePracticeEvaluationPrompt
-  }
+    deliberatePractice: deliberatePracticeEvaluationPrompt,
+  },
 } as const;

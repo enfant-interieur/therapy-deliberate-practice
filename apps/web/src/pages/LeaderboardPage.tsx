@@ -8,42 +8,61 @@ import { formatDateTime } from "../utils/scoreFormatters";
 
 export const LeaderboardPage = () => {
   const { t, i18n } = useTranslation();
-  const { filters, toggleTag, clearTags, clearAll, setSkillDomain, setLanguage, setLimit, defaultLimit } =
-    useLeaderboardFilters();
+  const {
+    filters,
+    toggleTag,
+    clearTags,
+    clearAll,
+    setSkillDomain,
+    setLanguage,
+    setLimit,
+    defaultLimit,
+  } = useLeaderboardFilters();
 
   const { data: tasks = [] } = useGetTasksQuery({ published: 1 });
 
-  const { availableTags, availableSkillDomains, availableLanguages } = useMemo(() => {
-    const tagSet = new Set<string>();
-    const skillDomains = new Set<string>();
-    const languages = new Set<string>();
-    tasks.forEach((task) => {
-      task.tags.forEach((tag) => tagSet.add(tag));
-      if (task.skill_domain) {
-        skillDomains.add(task.skill_domain);
-      }
-      if (task.language) {
-        languages.add(task.language);
-      }
-    });
-    return {
-      availableTags: Array.from(tagSet).sort((a, b) => a.localeCompare(b)),
-      availableSkillDomains: Array.from(skillDomains).sort((a, b) => a.localeCompare(b)),
-      availableLanguages: Array.from(languages).sort((a, b) => a.localeCompare(b))
-    };
-  }, [tasks]);
+  const { availableTags, availableSkillDomains, availableLanguages } =
+    useMemo(() => {
+      const tagSet = new Set<string>();
+      const skillDomains = new Set<string>();
+      const languages = new Set<string>();
+      tasks.forEach((task) => {
+        task.tags.forEach((tag) => tagSet.add(tag));
+        if (task.skill_domain) {
+          skillDomains.add(task.skill_domain);
+        }
+        if (task.language) {
+          languages.add(task.language);
+        }
+      });
+      return {
+        availableTags: Array.from(tagSet).sort((a, b) => a.localeCompare(b)),
+        availableSkillDomains: Array.from(skillDomains).sort((a, b) =>
+          a.localeCompare(b),
+        ),
+        availableLanguages: Array.from(languages).sort((a, b) =>
+          a.localeCompare(b),
+        ),
+      };
+    }, [tasks]);
 
   const leaderboardQuery = useMemo(
     () => ({
       tags: filters.tags,
       skill_domain: filters.skillDomain,
       language: filters.language,
-      limit: filters.limit
+      limit: filters.limit,
     }),
-    [filters]
+    [filters],
   );
 
-  const { data: leaderboardData, isLoading } = useGetLeaderboardQuery(leaderboardQuery);
+  const {
+    data: leaderboardData,
+    isLoading,
+    isFetching,
+    isError,
+    refetch,
+  } = useGetLeaderboardQuery(leaderboardQuery);
   const generatedAt = leaderboardData?.generated_at ?? null;
 
   return (
@@ -58,13 +77,20 @@ export const LeaderboardPage = () => {
             {generatedAt && (
               <span className="text-xs text-slate-400">
                 {t("leaderboard.updated", {
-                  time: formatDateTime(generatedAt, i18n.resolvedLanguage ?? "en")
+                  time: formatDateTime(
+                    generatedAt,
+                    i18n.resolvedLanguage ?? "en",
+                  ),
                 })}
               </span>
             )}
           </div>
-          <h1 className="text-3xl font-semibold text-white">{t("leaderboard.title")}</h1>
-          <p className="max-w-2xl text-sm text-slate-300">{t("leaderboard.subtitle")}</p>
+          <h1 className="text-3xl font-semibold text-white">
+            {t("leaderboard.title")}
+          </h1>
+          <p className="max-w-2xl text-sm text-slate-300">
+            {t("leaderboard.subtitle")}
+          </p>
         </div>
       </section>
 
@@ -88,6 +114,9 @@ export const LeaderboardPage = () => {
       <LeaderboardTable
         entries={leaderboardData?.entries ?? []}
         isLoading={isLoading}
+        isFetching={isFetching}
+        isError={isError}
+        onRetry={() => void refetch()}
         locale={i18n.resolvedLanguage ?? "en"}
       />
     </div>

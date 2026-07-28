@@ -33,12 +33,18 @@ const buildTaskFilters = (query: LeaderboardQuery) => {
   }
   if (query.tags.length > 0) {
     const tagFilters = query.tags.map((tag) => like(tasks.tags, `%"${tag}"%`));
-    filters.push(or(...tagFilters));
+    const tagFilter = or(...tagFilters);
+    if (tagFilter) {
+      filters.push(tagFilter);
+    }
   }
   return filters;
 };
 
-export const buildDisplayName = (displayName: string | null, email: string | null) => {
+export const buildDisplayName = (
+  displayName: string | null,
+  email: string | null,
+) => {
   if (displayName && displayName.trim()) {
     return displayName.trim();
   }
@@ -57,11 +63,14 @@ export const buildDisplayName = (displayName: string | null, email: string | nul
 
 export const fetchLeaderboardEntries = async (
   db: ApiDatabase,
-  query: LeaderboardQuery
+  query: LeaderboardQuery,
 ): Promise<LeaderboardEntry[]> => {
   const taskFilters = buildTaskFilters(query);
   const taskRows = taskFilters.length
-    ? await db.select({ id: tasks.id }).from(tasks).where(and(...taskFilters))
+    ? await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(and(...taskFilters))
     : await db.select({ id: tasks.id }).from(tasks);
   const taskIds = taskRows.map((row) => row.id);
 
@@ -71,15 +80,18 @@ export const fetchLeaderboardEntries = async (
 
   const attemptFilters = [
     inArray(attempts.task_id, taskIds),
+    eq(attempts.score_trust, "cloud_trusted"),
     isNotNull(attempts.completed_at),
-    isNotNull(attempts.overall_score)
+    isNotNull(attempts.overall_score),
   ];
 
   const latestAttemptSubquery = db
     .select({
       user_id: attempts.user_id,
       task_id: attempts.task_id,
-      completed_at: sql<number>`max(${attempts.completed_at})`.as("completed_at")
+      completed_at: sql<number>`max(${attempts.completed_at})`.as(
+        "completed_at",
+      ),
     })
     .from(attempts)
     .where(and(...attemptFilters))
@@ -93,7 +105,9 @@ export const fetchLeaderboardEntries = async (
       user_id: attempts.user_id,
       task_id: attempts.task_id,
       completed_at: latestAttemptCompletedAt.as("completed_at"),
-      overall_score: sql<number>`max(${attempts.overall_score})`.as("overall_score")
+      overall_score: sql<number>`max(${attempts.overall_score})`.as(
+        "overall_score",
+      ),
     })
     .from(attempts)
     .innerJoin(
@@ -101,9 +115,10 @@ export const fetchLeaderboardEntries = async (
       and(
         eq(attempts.user_id, latestAttemptSubquery.user_id),
         eq(attempts.task_id, latestAttemptSubquery.task_id),
-        eq(attempts.completed_at, latestAttemptCompletedAt)
-      )
+        eq(attempts.completed_at, latestAttemptCompletedAt),
+      ),
     )
+    .where(eq(attempts.score_trust, "cloud_trusted"))
     .groupBy(attempts.user_id, attempts.task_id, latestAttemptCompletedAt)
     .as("latest_attempts");
 
@@ -118,7 +133,7 @@ export const fetchLeaderboardEntries = async (
       display_name: users.display_name,
       score: averageScore.as("score"),
       played: playedCount.as("played"),
-      last_active_at: lastActive.as("last_active_at")
+      last_active_at: lastActive.as("last_active_at"),
     })
     .from(latestAttempts)
     .innerJoin(users, eq(users.id, latestAttempts.user_id))
@@ -131,13 +146,13 @@ export const fetchLeaderboardEntries = async (
     display_name: buildDisplayName(row.display_name, row.email),
     score: Number(row.score ?? 0),
     played: Number(row.played ?? 0),
-    last_active_at: row.last_active_at ?? null
+    last_active_at: row.last_active_at ?? null,
   }));
 };
 
 export const fetchUserProfileStats = async (
   db: ApiDatabase,
-  userId: string
+  userId: string,
 ): Promise<UserProfileStats> => {
   const taskRows = await db
     .select({ id: tasks.id })
@@ -152,14 +167,17 @@ export const fetchUserProfileStats = async (
   const attemptFilters = [
     eq(attempts.user_id, userId),
     inArray(attempts.task_id, taskIds),
+    eq(attempts.score_trust, "cloud_trusted"),
     isNotNull(attempts.completed_at),
-    isNotNull(attempts.overall_score)
+    isNotNull(attempts.overall_score),
   ];
 
   const latestAttemptSubquery = db
     .select({
       task_id: attempts.task_id,
-      completed_at: sql<number>`max(${attempts.completed_at})`.as("completed_at")
+      completed_at: sql<number>`max(${attempts.completed_at})`.as(
+        "completed_at",
+      ),
     })
     .from(attempts)
     .where(and(...attemptFilters))
@@ -172,31 +190,44 @@ export const fetchUserProfileStats = async (
     .select({
       task_id: attempts.task_id,
       completed_at: latestAttemptCompletedAt.as("completed_at"),
-      overall_score: sql<number>`max(${attempts.overall_score})`.as("overall_score")
+      overall_score: sql<number>`max(${attempts.overall_score})`.as(
+        "overall_score",
+      ),
     })
     .from(attempts)
     .innerJoin(
       latestAttemptSubquery,
       and(
         eq(attempts.task_id, latestAttemptSubquery.task_id),
-        eq(attempts.completed_at, latestAttemptCompletedAt)
-      )
+        eq(attempts.completed_at, latestAttemptCompletedAt),
+      ),
     )
-    .where(eq(attempts.user_id, userId))
+    .where(
+      and(
+        eq(attempts.user_id, userId),
+        eq(attempts.score_trust, "cloud_trusted"),
+      ),
+    )
     .groupBy(attempts.task_id, latestAttemptCompletedAt)
     .as("latest_attempts");
 
   const [row] = await db
     .select({
-      average_score: sql<number>`avg(${latestAttempts.overall_score})`.as("average_score"),
-      tasks_played: sql<number>`count(distinct ${latestAttempts.task_id})`.as("tasks_played"),
-      last_active_at: sql<number>`max(${latestAttempts.completed_at})`.as("last_active_at")
+      average_score: sql<number>`avg(${latestAttempts.overall_score})`.as(
+        "average_score",
+      ),
+      tasks_played: sql<number>`count(distinct ${latestAttempts.task_id})`.as(
+        "tasks_played",
+      ),
+      last_active_at: sql<number>`max(${latestAttempts.completed_at})`.as(
+        "last_active_at",
+      ),
     })
     .from(latestAttempts);
 
   return {
     average_score: Number(row?.average_score ?? 0),
     tasks_played: Number(row?.tasks_played ?? 0),
-    last_active_at: row?.last_active_at ?? null
+    last_active_at: row?.last_active_at ?? null,
   };
 };

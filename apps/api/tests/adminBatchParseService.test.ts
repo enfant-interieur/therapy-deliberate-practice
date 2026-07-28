@@ -11,7 +11,7 @@ import { resolveEnv } from "../src/env";
 import {
   createBatchParseJob,
   getBatchParseStatus,
-  runBatchParseJob
+  runBatchParseJob,
 } from "../src/services/adminBatchParseService";
 import { tasks, taskExamples } from "../src/db/schema";
 
@@ -28,15 +28,27 @@ test("batchParsePlanSchema enforces valid ranges", () => {
   assert.throws(() =>
     batchParsePlanSchema.parse({
       tasks: [
-        { start_line: 0, end_line: 5, title_hint: null, confidence: 0.8, reason: "bad start" }
-      ]
-    })
+        {
+          start_line: 0,
+          end_line: 5,
+          title_hint: null,
+          confidence: 0.8,
+          reason: "bad start",
+        },
+      ],
+    }),
   );
 
   const result = batchParsePlanSchema.parse({
     tasks: [
-      { start_line: 1, end_line: 10, title_hint: "Task A", confidence: 0.9, reason: "clear break" }
-    ]
+      {
+        start_line: 1,
+        end_line: 10,
+        title_hint: "Task A",
+        confidence: 0.9,
+        reason: "clear break",
+      },
+    ],
   });
   assert.equal(result.tasks.length, 1);
 });
@@ -56,7 +68,7 @@ test("batch parse job stores incremental events and remaps duplicate example ids
       base_difficulty: 3,
       general_objective: null,
       tags: [],
-      language: "en"
+      language: "en",
     },
     criteria: [
       {
@@ -68,14 +80,28 @@ test("batch parse job stores incremental events and remaps duplicate example ids
           score_max: 4,
           anchors: [
             { score: 0, meaning: "low" },
-            { score: 4, meaning: "high" }
-          ]
-        }
-      }
+            { score: 4, meaning: "high" },
+          ],
+        },
+      },
     ],
     examples: [
-      { id: "dup", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null },
-      { id: "dup", difficulty: 3, severity_label: null, patient_text: "There", language: "en", meta: null }
+      {
+        id: "dup",
+        difficulty: 2,
+        severity_label: null,
+        patient_text: "Hi",
+        language: "en",
+        meta: null,
+      },
+      {
+        id: "dup",
+        difficulty: 3,
+        severity_label: null,
+        patient_text: "There",
+        language: "en",
+        meta: null,
+      },
     ],
     interaction_examples: [
       {
@@ -83,9 +109,9 @@ test("batch parse job stores incremental events and remaps duplicate example ids
         difficulty: 2,
         title: "Say hi",
         patient_text: "Please help",
-        therapist_text: "I'm here"
-      }
-    ]
+        therapist_text: "I'm here",
+      },
+    ],
   };
 
   await runBatchParseJob(
@@ -96,12 +122,24 @@ test("batch parse job stores incremental events and remaps duplicate example ids
     {
       planSegments: async () => ({
         tasks: [
-          { start_line: 1, end_line: 1, title_hint: "A", confidence: 0.9, reason: "split" },
-          { start_line: 3, end_line: 3, title_hint: "B", confidence: 0.8, reason: "split" }
-        ]
+          {
+            start_line: 1,
+            end_line: 1,
+            title_hint: "A",
+            confidence: 0.9,
+            reason: "split",
+          },
+          {
+            start_line: 3,
+            end_line: 3,
+            title_hint: "B",
+            confidence: 0.8,
+            reason: "split",
+          },
+        ],
       }),
-      parseSegment: async () => mockParsed
-    }
+      parseSegment: async () => mockParsed,
+    },
   );
 
   const firstStatus = await getBatchParseStatus(db, jobId, 0);
@@ -145,7 +183,7 @@ Therapy model: Test Model B`;
       base_difficulty: 3,
       general_objective: null,
       tags: [],
-      language: "en"
+      language: "en",
     },
     criteria: [
       {
@@ -157,15 +195,22 @@ Therapy model: Test Model B`;
           score_max: 4,
           anchors: [
             { score: 0, meaning: "low" },
-            { score: 4, meaning: "high" }
-          ]
-        }
-      }
+            { score: 4, meaning: "high" },
+          ],
+        },
+      },
     ],
     examples: [
-      { id: "dup", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null }
+      {
+        id: "dup",
+        difficulty: 2,
+        severity_label: null,
+        patient_text: "Hi",
+        language: "en",
+        meta: null,
+      },
     ],
-    interaction_examples: []
+    interaction_examples: [],
   };
 
   let parseCalls = 0;
@@ -176,13 +221,13 @@ Therapy model: Test Model B`;
     { sourceText, parseMode: "exact" },
     {
       planSegments: async () => ({
-        tasks: [{ start_line: 1, end_line: 5, title_hint: "Whole blob" }]
+        tasks: [{ start_line: 1, end_line: 5, title_hint: "Whole blob" }],
       }),
       parseSegment: async () => {
         parseCalls += 1;
         return mockParsed;
-      }
-    }
+      },
+    },
   );
 
   const status = await getBatchParseStatus(db, jobId, 0);
@@ -212,7 +257,7 @@ Therapy model: Demo`;
       base_difficulty: 3,
       general_objective: null,
       tags: [],
-      language: "en"
+      language: "en",
     },
     criteria: [
       {
@@ -224,15 +269,22 @@ Therapy model: Demo`;
           score_max: 4,
           anchors: [
             { score: 0, meaning: "low" },
-            { score: 4, meaning: "high" }
-          ]
-        }
-      }
+            { score: 4, meaning: "high" },
+          ],
+        },
+      },
     ],
     examples: [
-      { id: "dup", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null }
+      {
+        id: "dup",
+        difficulty: 2,
+        severity_label: null,
+        patient_text: "Hi",
+        language: "en",
+        meta: null,
+      },
     ],
-    interaction_examples: []
+    interaction_examples: [],
   };
 
   let seenPrompt = "";
@@ -251,16 +303,21 @@ Therapy model: Demo`;
             confidence: 0.9,
             reason: "single block",
             context_blocks: [
-              { start_line: 1, end_line: 1, label: "Cluster overview", reason: "Applies to the skill card." }
-            ]
-          }
-        ]
+              {
+                start_line: 1,
+                end_line: 1,
+                label: "Cluster overview",
+                reason: "Applies to the skill card.",
+              },
+            ],
+          },
+        ],
       }),
       parseSegment: async ({ sourceText: prompt }) => {
         seenPrompt = prompt;
         return mockParsed;
-      }
-    }
+      },
+    },
   );
 
   assert.match(seenPrompt, /Additional context outside this segment/i);
@@ -283,11 +340,20 @@ test("runBatchParseJob reads persisted payload when no source text override is p
       base_difficulty: 2,
       general_objective: null,
       tags: [],
-      language: "en"
+      language: "en",
     },
     criteria: [],
-    examples: [{ id: "ex", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null }],
-    interaction_examples: []
+    examples: [
+      {
+        id: "ex",
+        difficulty: 2,
+        severity_label: null,
+        patient_text: "Hi",
+        language: "en",
+        meta: null,
+      },
+    ],
+    interaction_examples: [],
   };
   let sawStoredText = false;
   await runBatchParseJob(
@@ -299,11 +365,19 @@ test("runBatchParseJob reads persisted payload when no source text override is p
       planSegments: async ({ numberedText }) => {
         sawStoredText = numberedText.includes("Only segment");
         return {
-          tasks: [{ start_line: 1, end_line: 2, title_hint: "Only", confidence: 0.9, reason: "single" }]
+          tasks: [
+            {
+              start_line: 1,
+              end_line: 2,
+              title_hint: "Only",
+              confidence: 0.9,
+              reason: "single",
+            },
+          ],
         };
       },
-      parseSegment: async () => mockParsed
-    }
+      parseSegment: async () => mockParsed,
+    },
   );
   assert.ok(sawStoredText);
   const status = await getBatchParseStatus(db, jobId, 0);
@@ -330,7 +404,7 @@ Line`;
       base_difficulty: 3,
       general_objective: null,
       tags: [],
-      language: "en"
+      language: "en",
     },
     criteria: [
       {
@@ -342,15 +416,22 @@ Line`;
           score_max: 4,
           anchors: [
             { score: 0, meaning: "low" },
-            { score: 4, meaning: "high" }
-          ]
-        }
-      }
+            { score: 4, meaning: "high" },
+          ],
+        },
+      },
     ],
     examples: [
-      { id: "dup", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null }
+      {
+        id: "dup",
+        difficulty: 2,
+        severity_label: null,
+        patient_text: "Hi",
+        language: "en",
+        meta: null,
+      },
     ],
-    interaction_examples: []
+    interaction_examples: [],
   };
 
   let active = 0;
@@ -363,9 +444,21 @@ Line`;
     {
       planSegments: async () => ({
         tasks: [
-          { start_line: 1, end_line: 2, title_hint: "A", confidence: 0.9, reason: "card 1" },
-          { start_line: 4, end_line: 5, title_hint: "B", confidence: 0.9, reason: "card 2" }
-        ]
+          {
+            start_line: 1,
+            end_line: 2,
+            title_hint: "A",
+            confidence: 0.9,
+            reason: "card 1",
+          },
+          {
+            start_line: 4,
+            end_line: 5,
+            title_hint: "B",
+            confidence: 0.9,
+            reason: "card 2",
+          },
+        ],
       }),
       parseSegment: async () => {
         active += 1;
@@ -373,8 +466,8 @@ Line`;
         await new Promise((resolve) => setTimeout(resolve, 20));
         active -= 1;
         return mockParsed;
-      }
-    }
+      },
+    },
   );
 
   assert.ok(maxActive >= 2);
@@ -398,7 +491,7 @@ Line`;
       base_difficulty: 3,
       general_objective: null,
       tags: [],
-      language: "en"
+      language: "en",
     },
     criteria: [
       {
@@ -410,15 +503,22 @@ Line`;
           score_max: 4,
           anchors: [
             { score: 0, meaning: "low" },
-            { score: 4, meaning: "high" }
-          ]
-        }
-      }
+            { score: 4, meaning: "high" },
+          ],
+        },
+      },
     ],
     examples: [
-      { id: "ex1", difficulty: 2, severity_label: null, patient_text: "Hi", language: "en", meta: null }
+      {
+        id: "ex1",
+        difficulty: 2,
+        severity_label: null,
+        patient_text: "Hi",
+        language: "en",
+        meta: null,
+      },
     ],
-    interaction_examples: []
+    interaction_examples: [],
   };
 
   const prompts: string[] = [];
@@ -430,19 +530,27 @@ Line`;
     { sourceText, parseMode: "exact" },
     {
       planSegments: async () => ({
-        tasks: [{ start_line: 1, end_line: 2, title_hint: "Skill", confidence: 0.9, reason: "single block" }]
+        tasks: [
+          {
+            start_line: 1,
+            end_line: 2,
+            title_hint: "Skill",
+            confidence: 0.9,
+            reason: "single block",
+          },
+        ],
       }),
       parseSegment: async ({ sourceText: prompt }) => {
         prompts.push(prompt);
         call += 1;
         if (call === 1) {
           throw new Error(
-            'OpenAI Responses schema validation failed: [{"code":"invalid_type","expected":"string","received":"null","path":["examples",0,"language"],"message":"Expected string, received null"}]'
+            'OpenAI Responses schema validation failed: [{"code":"invalid_type","expected":"string","received":"null","path":["examples",0,"language"],"message":"Expected string, received null"}]',
           );
         }
         return mockParsed;
-      }
-    }
+      },
+    },
   );
 
   const status = await getBatchParseStatus(db, jobId, 0);

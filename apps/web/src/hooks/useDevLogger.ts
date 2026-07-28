@@ -23,6 +23,6 @@ export const useDevLogger = (namespace: string) => {
         console.debug(prefix, message);
       }
     },
-    [isDev, namespace]
+    [isDev, namespace],
   );
 };

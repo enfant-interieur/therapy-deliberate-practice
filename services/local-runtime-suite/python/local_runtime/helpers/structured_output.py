@@ -3,12 +3,13 @@ from __future__ import annotations
 import copy
 import json
 import re
+from collections.abc import Callable
 from functools import lru_cache
-from typing import Any, Callable
+from typing import Any
 
 try:  # pragma: no cover - import guard exercised in tests
     from jsonschema import Draft7Validator
-except Exception:  # pragma: no cover
+except ImportError:  # pragma: no cover
     Draft7Validator = None  # type: ignore
 
 THINKING_PATTERN = re.compile(r"<\s*(thinking|think)\s*>(.*?)<\s*/\s*\1\s*>", re.IGNORECASE | re.DOTALL)
@@ -47,7 +48,9 @@ def _autoclose_json(candidate: str) -> str | None:
     stack: list[str] = []
     in_string = False
     escape = False
+    repaired: list[str] = []
     for ch in candidate:
+        repaired.append(ch)
         if escape:
             escape = False
             continue
@@ -63,16 +66,18 @@ def _autoclose_json(candidate: str) -> str | None:
         if ch in _OPEN_TO_CLOSE:
             stack.append(ch)
         elif ch in _CLOSE_TO_OPEN:
-            if stack and stack[-1] == _CLOSE_TO_OPEN[ch]:
-                stack.pop()
-            else:
+            expected_open = _CLOSE_TO_OPEN[ch]
+            while stack and stack[-1] != expected_open:
+                repaired.insert(-1, _OPEN_TO_CLOSE[stack.pop()])
+            if not stack:
                 return None
+            stack.pop()
     if in_string:
         return None
     if not stack:
-        return candidate
+        return "".join(repaired)
     closing = "".join(_OPEN_TO_CLOSE[ch] for ch in reversed(stack))
-    return candidate + closing
+    return "".join(repaired) + closing
 
 
 def extract_json_region(text: str) -> str:
@@ -169,9 +174,15 @@ def make_openai_strict_schema(schema: dict) -> dict:
             props = node.get("properties")
             if isinstance(props, dict):
                 node["properties"] = {k: _apply(v) for k, v in props.items()}
+                keys = list(node["properties"])
                 required = node.get("required")
-                if isinstance(required, list):
-                    node["required"] = [key for key in required if key in node["properties"]]
+                ordered = (
+                    [key for key in required if key in node["properties"]]
+                    if isinstance(required, list)
+                    else []
+                )
+                ordered.extend(key for key in keys if key not in ordered)
+                node["required"] = ordered
                 node.setdefault("additionalProperties", False)
             items = node.get("items")
             if isinstance(items, dict):
@@ -205,7 +216,7 @@ def validate_against_schema(obj: Any, schema: dict) -> list[str]:
             if isinstance(elem, int):
                 path += f"[{elem}]"
             else:
-                path += f"[\"{elem}\"]"
+                path += f'["{elem}"]'
         errors.append(f"{path}: {error.message}")
         if len(errors) >= 25:
             break
@@ -294,7 +305,7 @@ def parse_and_validate_structured_output(
             try:
                 if fixer(parsed):
                     changed = True
-            except Exception:  # pragma: no cover - guard rail
+            except (AttributeError, IndexError, KeyError, TypeError, ValueError):
                 continue
     if changed:
         canonical = json.dumps(parsed, ensure_ascii=False, separators=(",", ":"))

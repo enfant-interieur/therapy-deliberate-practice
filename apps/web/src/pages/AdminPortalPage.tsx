@@ -1,9 +1,17 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Button, Card, Input, SectionHeader } from "../components/admin/AdminUi";
+import {
+  Button,
+  Card,
+  Input,
+  SectionHeader,
+} from "../components/admin/AdminUi";
 import { AddTaskChoiceDialog } from "../components/admin/AddTaskChoiceDialog";
-import { CreateTaskDialog, type CreateTaskPayload } from "../components/admin/CreateTaskDialog";
+import {
+  CreateTaskDialog,
+  type CreateTaskPayload,
+} from "../components/admin/CreateTaskDialog";
 import { ImportTaskDialog } from "../components/admin/ImportTaskDialog";
 import { ToastProvider, useToast } from "../components/admin/ToastProvider";
 import { useCreateTaskMutation, useImportTaskMutation } from "../store/api";
@@ -36,7 +44,7 @@ const AdminPortalPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
@@ -44,14 +52,14 @@ const AdminPortalPageContent = () => {
   const handleImport = async (payloads: DeliberatePracticeTaskV2[]) => {
     try {
       const results = await Promise.all(
-        payloads.map((payload) => importTask({ task_v2: payload }).unwrap())
+        payloads.map((payload) => importTask({ task_v2: payload }).unwrap()),
       );
       pushToast({
         title:
           results.length > 1
             ? t("admin.toast.importedMany", { count: results.length })
             : t("admin.toast.imported"),
-        tone: "success"
+        tone: "success",
       });
       if (results.length === 1) {
         navigate(`/admin/tasks/${results[0].id}`);
@@ -62,7 +70,7 @@ const AdminPortalPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
@@ -82,17 +90,28 @@ const AdminPortalPageContent = () => {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
                   {t("admin.portal.searchKicker")}
                 </p>
-                <h3 className="text-lg font-semibold text-white">{t("admin.portal.searchTitle")}</h3>
-                <p className="text-sm text-slate-400">{t("admin.portal.searchSubtitle")}</p>
+                <h3 className="text-lg font-semibold text-white">
+                  {t("admin.portal.searchTitle")}
+                </h3>
+                <p className="text-sm text-slate-400">
+                  {t("admin.portal.searchSubtitle")}
+                </p>
               </div>
-              <form className="flex flex-col gap-3 sm:flex-row" onSubmit={handleSearchSubmit}>
+              <form
+                className="flex flex-col gap-3 sm:flex-row"
+                onSubmit={handleSearchSubmit}
+              >
                 <Input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder={t("admin.searchPlaceholder")}
                   aria-label={t("admin.searchPlaceholder")}
                 />
-                <Button type="submit" variant="primary" className="sm:w-[140px]">
+                <Button
+                  type="submit"
+                  variant="primary"
+                  className="sm:w-[140px]"
+                >
                   {t("admin.portal.searchAction")}
                 </Button>
               </form>
@@ -105,8 +124,12 @@ const AdminPortalPageContent = () => {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
                   {t("admin.portal.quickKicker")}
                 </p>
-                <h3 className="text-lg font-semibold text-white">{t("admin.portal.quickTitle")}</h3>
-                <p className="text-sm text-slate-400">{t("admin.portal.quickSubtitle")}</p>
+                <h3 className="text-lg font-semibold text-white">
+                  {t("admin.portal.quickTitle")}
+                </h3>
+                <p className="text-sm text-slate-400">
+                  {t("admin.portal.quickSubtitle")}
+                </p>
               </div>
               <div className="flex flex-col gap-3">
                 <Button variant="primary" onClick={() => setShowChoice(true)}>

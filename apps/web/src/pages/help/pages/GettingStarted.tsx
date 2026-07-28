@@ -15,16 +15,22 @@ export const GettingStarted = () => {
   const quickStartSteps = [
     {
       title: t("help.gettingStarted.quickStart.steps.chooseTask.title"),
-      description: t("help.gettingStarted.quickStart.steps.chooseTask.description")
+      description: t(
+        "help.gettingStarted.quickStart.steps.chooseTask.description",
+      ),
     },
     {
       title: t("help.gettingStarted.quickStart.steps.configureAi.title"),
-      description: t("help.gettingStarted.quickStart.steps.configureAi.description")
+      description: t(
+        "help.gettingStarted.quickStart.steps.configureAi.description",
+      ),
     },
     {
       title: t("help.gettingStarted.quickStart.steps.practiceReview.title"),
-      description: t("help.gettingStarted.quickStart.steps.practiceReview.description")
-    }
+      description: t(
+        "help.gettingStarted.quickStart.steps.practiceReview.description",
+      ),
+    },
   ];
 
   return (
@@ -52,23 +58,34 @@ export const GettingStarted = () => {
         }
       />
 
-      <Section title={t("help.gettingStarted.purpose.title")} subtitle={t("help.gettingStarted.purpose.subtitle")}>
+      <Section
+        title={t("help.gettingStarted.purpose.title")}
+        subtitle={t("help.gettingStarted.purpose.subtitle")}
+      >
         <div className="space-y-3 text-sm text-slate-200">
           <p>{t("help.gettingStarted.purpose.bodyOne")}</p>
           <p>{t("help.gettingStarted.purpose.bodyTwo")}</p>
         </div>
       </Section>
 
-      <Section title={t("help.gettingStarted.quickStart.title")} subtitle={t("help.gettingStarted.quickStart.subtitle")}>
+      <Section
+        title={t("help.gettingStarted.quickStart.title")}
+        subtitle={t("help.gettingStarted.quickStart.subtitle")}
+      >
         <ol className="grid gap-4 md:grid-cols-3">
           {quickStartSteps.map((step, index) => (
-            <li key={step.title} className="rounded-3xl border border-white/10 bg-slate-950/60 p-4">
+            <li
+              key={step.title}
+              className="rounded-3xl border border-white/10 bg-slate-950/60 p-4"
+            >
               <div className="flex items-center gap-3">
                 <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-teal-400/10 text-sm font-semibold text-teal-200">
                   {index + 1}
                 </span>
                 <div>
-                  <p className="text-sm font-semibold text-white">{step.title}</p>
+                  <p className="text-sm font-semibold text-white">
+                    {step.title}
+                  </p>
                   <p className="text-xs text-slate-400">{step.description}</p>
                 </div>
               </div>
@@ -77,15 +94,33 @@ export const GettingStarted = () => {
         </ol>
       </Section>
 
-      <Section title={t("help.gettingStarted.troubleshooting.title")} subtitle={t("help.gettingStarted.troubleshooting.subtitle")}>
+      <Section
+        title={t("help.gettingStarted.troubleshooting.title")}
+        subtitle={t("help.gettingStarted.troubleshooting.subtitle")}
+      >
         <div className="space-y-4">
-          <Callout variant="note" title={t("help.gettingStarted.troubleshooting.localEndpoints.title")}>
+          <Callout
+            variant="note"
+            title={t(
+              "help.gettingStarted.troubleshooting.localEndpoints.title",
+            )}
+          >
             {t("help.gettingStarted.troubleshooting.localEndpoints.body")}
           </Callout>
-          <Callout variant="warning" title={t("help.gettingStarted.troubleshooting.missingOpenAiKey.title")}>
+          <Callout
+            variant="warning"
+            title={t(
+              "help.gettingStarted.troubleshooting.missingOpenAiKey.title",
+            )}
+          >
             {t("help.gettingStarted.troubleshooting.missingOpenAiKey.body")}
           </Callout>
-          <Callout variant="tip" title={t("help.gettingStarted.troubleshooting.workingOffline.title")}>
+          <Callout
+            variant="tip"
+            title={t(
+              "help.gettingStarted.troubleshooting.workingOffline.title",
+            )}
+          >
             {t("help.gettingStarted.troubleshooting.workingOffline.body")}
           </Callout>
         </div>

@@ -6,10 +6,20 @@ import {
   useGetMeSettingsQuery,
   useUpdateMeSettingsMutation,
   useUpdateOpenAiKeyMutation,
-  useValidateOpenAiKeyMutation
+  useValidateOpenAiKeyMutation,
 } from "../store/api";
 import { useAppDispatch, useAppSelector } from "../store/hooks";
 import { hydrateSettings, setHasOpenAiKey } from "../store/settingsSlice";
+import {
+  checkLocalRuntimeHealth,
+  getLocalRuntimeDetails,
+  isLocalRuntimePairingError,
+  loadLocalRuntimePairingKey,
+  localRuntimeResponseError,
+  resolveLocalRuntimeGatewayOrigin,
+  saveLocalRuntimePairingKey,
+} from "../localRuntime/client";
+import i18n from "../i18n";
 
 type DiagnosticStatus = "idle" | "running" | "ok" | "error";
 
@@ -33,7 +43,7 @@ const SAMPLE_WAV_BASE64 =
 const createEmptyDiagnostics = (): LocalRuntimeDiagnostics => ({
   health: { status: "idle" },
   responses: { status: "idle" },
-  stt: { status: "idle" }
+  stt: { status: "idle" },
 });
 
 const normalizeUrlValue = (value?: string | null) => {
@@ -44,16 +54,6 @@ const normalizeUrlValue = (value?: string | null) => {
 
 const stripTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
-const extractOrigin = (value?: string | null) => {
-  const normalized = normalizeUrlValue(value);
-  if (!normalized) return null;
-  try {
-    return new URL(normalized).origin;
-  } catch {
-    return null;
-  }
-};
-
 const hasApiPath = (value: string) => {
   try {
     const { pathname } = new URL(value);
@@ -63,13 +63,20 @@ const hasApiPath = (value: string) => {
   }
 };
 
-const resolveApiUrl = (overrideUrl: string | null, fallbackBase: string | null, path: string) => {
-  const candidate = normalizeUrlValue(overrideUrl) ?? normalizeUrlValue(fallbackBase);
+const resolveApiUrl = (
+  overrideUrl: string | null,
+  fallbackBase: string | null,
+  path: string,
+) => {
+  const candidate =
+    normalizeUrlValue(overrideUrl) ?? normalizeUrlValue(fallbackBase);
   if (!candidate) {
-    throw new Error("Missing URL for local runtime.");
+    throw new Error(i18n.t("settings.localDiagnostics.missingUrl"));
   }
   if (!/^https?:\/\//i.test(candidate)) {
-    throw new Error(`Invalid URL: ${candidate}`);
+    throw new Error(
+      i18n.t("settings.localDiagnostics.invalidUrl", { url: candidate }),
+    );
   }
   const normalized = stripTrailingSlash(candidate);
   if (hasApiPath(candidate)) {
@@ -96,7 +103,8 @@ const createSampleAudioFile = () => {
   return blob;
 };
 
-const truncate = (value: string, limit = 140) => (value.length > limit ? `${value.slice(0, limit)}…` : value);
+const truncate = (value: string, limit = 140) =>
+  value.length > limit ? `${value.slice(0, limit)}…` : value;
 
 const summarizeResponsesPayload = (payload: unknown) => {
   if (!payload || typeof payload !== "object") {
@@ -113,7 +121,11 @@ const summarizeResponsesPayload = (payload: unknown) => {
   const output = record.output ?? [];
   for (const item of output) {
     for (const content of item.content ?? []) {
-      if (content?.type === "output_text" && typeof content.text === "string" && content.text.trim()) {
+      if (
+        content?.type === "output_text" &&
+        typeof content.text === "string" &&
+        content.text.trim()
+      ) {
         return truncate(content.text.trim());
       }
     }
@@ -128,11 +140,16 @@ const summarizeTranscriptionPayload = (payload: unknown) => {
   if (!payload || typeof payload !== "object") {
     return null;
   }
-  const record = payload as { text?: string; segments?: Array<{ text?: string }> };
+  const record = payload as {
+    text?: string;
+    segments?: Array<{ text?: string }>;
+  };
   if (record.text) {
     return truncate(record.text);
   }
-  const firstSegment = record.segments?.find((segment) => typeof segment.text === "string" && segment.text.trim());
+  const firstSegment = record.segments?.find(
+    (segment) => typeof segment.text === "string" && segment.text.trim(),
+  );
   return firstSegment ? truncate(firstSegment.text!.trim()) : null;
 };
 
@@ -142,18 +159,29 @@ export const SettingsPage = () => {
   const { data, isLoading, isError } = useGetMeSettingsQuery();
   const location = useLocation();
   const settings = useAppSelector((state) => state.settings);
-  const [saveSettings, { isLoading: isSavingSettings }] = useUpdateMeSettingsMutation();
+  const [saveSettings, { isLoading: isSavingSettings }] =
+    useUpdateMeSettingsMutation();
   const [updateKey, { isLoading: isSavingKey }] = useUpdateOpenAiKeyMutation();
-  const [deleteKey, { isLoading: isDeletingKey }] = useDeleteOpenAiKeyMutation();
-  const [validateKey, { isLoading: isValidatingKey }] = useValidateOpenAiKeyMutation();
+  const [deleteKey, { isLoading: isDeletingKey }] =
+    useDeleteOpenAiKeyMutation();
+  const [validateKey, { isLoading: isValidatingKey }] =
+    useValidateOpenAiKeyMutation();
 
   const [aiMode, setAiMode] = useState(settings.aiMode);
-  const [localAiBaseUrl, setLocalAiBaseUrl] = useState(settings.localAiBaseUrl ?? "");
+  const [localAiBaseUrl, setLocalAiBaseUrl] = useState(
+    settings.localAiBaseUrl ?? "",
+  );
   const [localSttUrl, setLocalSttUrl] = useState("");
   const [localLlmUrl, setLocalLlmUrl] = useState("");
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [storeAudio, setStoreAudio] = useState(settings.privacy.storeAudio);
-  const [diagnostics, setDiagnostics] = useState<LocalRuntimeDiagnostics>(() => createEmptyDiagnostics());
+  const [localPairingKey, setLocalPairingKey] = useState("");
+  const [showLocalPairingKey, setShowLocalPairingKey] = useState(false);
+  const [localPairingStatus, setLocalPairingStatus] = useState<string | null>(
+    null,
+  );
+  const [diagnostics, setDiagnostics] = useState<LocalRuntimeDiagnostics>(() =>
+    createEmptyDiagnostics(),
+  );
   const [openAiKey, setOpenAiKey] = useState("");
   const [showKey, setShowKey] = useState(false);
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
@@ -164,17 +192,28 @@ export const SettingsPage = () => {
   const normalizedBaseUrl = normalizeUrlValue(localAiBaseUrl);
   const normalizedLlmUrl = normalizeUrlValue(localLlmUrl);
   const normalizedSttUrl = normalizeUrlValue(localSttUrl);
-  const derivedHealthBase = normalizedBaseUrl ?? extractOrigin(localLlmUrl) ?? extractOrigin(localSttUrl);
-  const responsesBaseCandidate = normalizedLlmUrl ?? derivedHealthBase;
-  const sttBaseCandidate = normalizedSttUrl ?? derivedHealthBase;
+  let gatewayOrigin: string | null = null;
+  try {
+    gatewayOrigin = resolveLocalRuntimeGatewayOrigin({
+      baseUrl: normalizedBaseUrl,
+      sttUrl: normalizedSttUrl,
+      llmUrl: normalizedLlmUrl,
+    });
+  } catch {
+    gatewayOrigin = null;
+  }
+  const responsesBaseCandidate = gatewayOrigin;
+  const sttBaseCandidate = gatewayOrigin;
   const hasLocalOverrides = Boolean(normalizedLlmUrl || normalizedSttUrl);
-  const diagnosticsAvailable = Boolean(derivedHealthBase || normalizedLlmUrl || normalizedSttUrl);
-  const diagnosticsBusy = Object.values(diagnostics).some((check) => check.status === "running");
+  const diagnosticsAvailable = Boolean(gatewayOrigin && localPairingKey.trim());
+  const diagnosticsBusy = Object.values(diagnostics).some(
+    (check) => check.status === "running",
+  );
   const statusBadgeClasses: Record<DiagnosticStatus, string> = {
     idle: "bg-slate-800/70 text-slate-300",
     running: "bg-indigo-500/30 text-indigo-100",
     ok: "bg-emerald-500/30 text-emerald-100",
-    error: "bg-rose-500/30 text-rose-100"
+    error: "bg-rose-500/30 text-rose-100",
   };
   const handleLocalBaseChange = (value: string) => {
     setLocalAiBaseUrl(value);
@@ -215,13 +254,11 @@ export const SettingsPage = () => {
     setLocalLlmUrl(llm);
     setLocalSttUrl(stt);
     setShowAdvanced(hasOverrides);
-    setStoreAudio(settings.privacy.storeAudio);
   }, [
     settings.aiMode,
     settings.localAiBaseUrl,
     settings.localEndpoints.llm,
     settings.localEndpoints.stt,
-    settings.privacy.storeAudio
   ]);
 
   useEffect(() => {
@@ -241,24 +278,60 @@ export const SettingsPage = () => {
     }
   }, [localModeEnabled]);
 
+  useEffect(() => {
+    if (!gatewayOrigin) {
+      setLocalPairingKey("");
+      return;
+    }
+    try {
+      setLocalPairingKey(loadLocalRuntimePairingKey(gatewayOrigin));
+    } catch {
+      setLocalPairingKey("");
+    }
+  }, [gatewayOrigin]);
+
   const handleSaveSettings = async () => {
     setSaveStatus(null);
+    setLocalPairingStatus(null);
     try {
-      const trimmedBase = localAiBaseUrl.trim();
-      const trimmedLlm = localLlmUrl.trim();
-      const trimmedStt = localSttUrl.trim();
-      const hasOverrides = Boolean(trimmedLlm || trimmedStt);
+      const hasLocalUrl = Boolean(
+        localAiBaseUrl.trim() || localSttUrl.trim() || localLlmUrl.trim(),
+      );
+      const resolvedGatewayOrigin = hasLocalUrl
+        ? resolveLocalRuntimeGatewayOrigin({
+            baseUrl: localAiBaseUrl,
+            sttUrl: localSttUrl,
+            llmUrl: localLlmUrl,
+          })
+        : null;
+      if (localModeEnabled) {
+        if (!resolvedGatewayOrigin) {
+          throw new Error(t("settings.localPairing.missingUrl"));
+        }
+        saveLocalRuntimePairingKey(resolvedGatewayOrigin, localPairingKey);
+      }
       const result = await saveSettings({
         aiMode,
-        localAiBaseUrl: !hasOverrides && trimmedBase ? trimmedBase : null,
-        localSttUrl: hasOverrides ? (trimmedStt ? trimmedStt : null) : null,
-        localLlmUrl: hasOverrides ? (trimmedLlm ? trimmedLlm : null) : null,
-        storeAudio
+        localAiBaseUrl: resolvedGatewayOrigin,
+        localSttUrl: null,
+        localLlmUrl: null,
+        // Audio retention is not implemented. Keep the legacy field false for
+        // backward-compatible API parsing without presenting a false consent control.
+        storeAudio: false,
       }).unwrap();
       dispatch(hydrateSettings(result));
+      setLocalAiBaseUrl(resolvedGatewayOrigin ?? "");
+      setLocalSttUrl("");
+      setLocalLlmUrl("");
+      setShowAdvanced(false);
       setSaveStatus(t("settings.status.saved"));
+      if (localModeEnabled) {
+        setLocalPairingStatus(t("settings.localPairing.saved"));
+      }
     } catch (error) {
-      setSaveStatus(t("settings.status.saveError"));
+      setSaveStatus(
+        error instanceof Error ? error.message : t("settings.status.saveError"),
+      );
     }
   };
 
@@ -270,11 +343,13 @@ export const SettingsPage = () => {
       return;
     }
     try {
-      const result = await updateKey({ openaiApiKey: openAiKey.trim() }).unwrap();
+      const result = await updateKey({
+        openaiApiKey: openAiKey.trim(),
+      }).unwrap();
       dispatch(setHasOpenAiKey(result.hasOpenAiKey));
       setOpenAiKey("");
       setKeyStatus(t("settings.openAi.keyStatus.saved"));
-    } catch (error) {
+    } catch {
       setKeyStatus(t("settings.openAi.keyStatus.saveError"));
     }
   };
@@ -289,7 +364,7 @@ export const SettingsPage = () => {
       const result = await deleteKey().unwrap();
       dispatch(setHasOpenAiKey(result.hasOpenAiKey));
       setKeyStatus(t("settings.openAi.keyStatus.removed"));
-    } catch (error) {
+    } catch {
       setKeyStatus(t("settings.openAi.keyStatus.removeError"));
     }
   };
@@ -304,118 +379,135 @@ export const SettingsPage = () => {
     }
 
     try {
-      const result = await validateKey(typed ? { openaiApiKey: typed } : {}).unwrap();
+      const result = await validateKey(
+        typed ? { openaiApiKey: typed } : {},
+      ).unwrap();
       if (result.ok) {
         setValidationStatus(t("settings.openAi.validateStatus.valid"));
       } else {
-        setValidationStatus(result.error ?? t("settings.openAi.validateStatus.invalidFallback"));
+        setValidationStatus(
+          result.error ?? t("settings.openAi.validateStatus.invalidFallback"),
+        );
       }
-    } catch (error) {
+    } catch {
       setValidationStatus(t("settings.openAi.validateStatus.error"));
     }
   };
 
-  const updateDiagnostic = (key: DiagnosticKey, updates: Partial<DiagnosticSnapshot>) => {
+  const updateDiagnostic = (
+    key: DiagnosticKey,
+    updates: Partial<DiagnosticSnapshot>,
+  ) => {
     setDiagnostics((prev) => ({
       ...prev,
       [key]: {
         ...prev[key],
         ...updates,
-        ...(updates.status && updates.status !== "running" ? { timestamp: Date.now() } : {})
-      }
+        ...(updates.status && updates.status !== "running"
+          ? { timestamp: Date.now() }
+          : {}),
+      },
     }));
   };
 
   const runHealthCheck = async () => {
-    if (!derivedHealthBase) {
-      updateDiagnostic("health", { status: "error", detail: t("settings.localDiagnostics.messages.missingBase") });
+    if (!gatewayOrigin) {
+      updateDiagnostic("health", {
+        status: "error",
+        detail: t("settings.localDiagnostics.messages.missingBase"),
+      });
       return;
     }
     updateDiagnostic("health", { status: "running", detail: undefined });
     try {
-      const url = resolveApiUrl(null, derivedHealthBase, "/health");
-      const response = await fetch(url);
-      const contentType = response.headers.get("content-type") ?? "";
-      let payload: Record<string, unknown> | string | null = null;
-      if (contentType.includes("application/json")) {
-        payload = (await response.json()) as Record<string, unknown>;
-      } else {
-        payload = await response.text();
-      }
-      if (!response.ok) {
-        const detail =
-          typeof payload === "string"
-            ? payload || response.statusText
-            : ((payload as { detail?: string })?.detail ?? response.statusText);
-        throw new Error(detail);
-      }
-      const record = (payload as {
-        status?: string;
-        platform_id?: string;
-        defaults?: Record<string, string>;
-      }) ?? { status: response.status };
+      const health = await checkLocalRuntimeHealth(gatewayOrigin);
+      const details = localPairingKey.trim()
+        ? await getLocalRuntimeDetails(gatewayOrigin, localPairingKey.trim())
+        : null;
       const summary: string[] = [];
-      if (record.status) {
-        summary.push(`${t("settings.localDiagnostics.healthSummary.status")}: ${record.status}`);
+      summary.push(
+        `${t("settings.localDiagnostics.healthSummary.status")}: ${health.status}`,
+      );
+      if (details?.platform_id) {
+        summary.push(
+          `${t("settings.localDiagnostics.healthSummary.platform")}: ${details.platform_id}`,
+        );
       }
-      if (record.platform_id) {
-        summary.push(`${t("settings.localDiagnostics.healthSummary.platform")}: ${record.platform_id}`);
-      }
-      if (record.defaults && typeof record.defaults === "object") {
-        const defaultsList = Object.entries(record.defaults)
+      if (details?.defaults && typeof details.defaults === "object") {
+        const defaultsList = Object.entries(details.defaults)
           .map(([endpoint, model]) => `${endpoint}→${model}`)
           .join(", ");
         if (defaultsList) {
-          summary.push(`${t("settings.localDiagnostics.healthSummary.defaults")}: ${defaultsList}`);
+          summary.push(
+            `${t("settings.localDiagnostics.healthSummary.defaults")}: ${defaultsList}`,
+          );
         }
       }
       updateDiagnostic("health", {
         status: "ok",
-        detail: summary.join(" • ") || t("settings.localDiagnostics.messages.healthOk")
+        detail:
+          summary.join(" • ") ||
+          t("settings.localDiagnostics.messages.healthOk"),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = isLocalRuntimePairingError(error)
+        ? t("settings.localPairing.pairAgain")
+        : error instanceof Error
+          ? error.message
+          : String(error);
       updateDiagnostic("health", {
         status: "error",
-        detail: t("settings.localDiagnostics.messages.healthError", { error: message })
+        detail: t("settings.localDiagnostics.messages.healthError", {
+          error: message,
+        }),
       });
     }
   };
 
   const runResponsesCheck = async () => {
-    if (!responsesBaseCandidate) {
+    if (!responsesBaseCandidate || !localPairingKey.trim()) {
       updateDiagnostic("responses", {
         status: "error",
-        detail: t("settings.localDiagnostics.messages.missingResponsesUrl")
+        detail: t("settings.localDiagnostics.messages.missingResponsesUrl"),
       });
       return;
     }
     updateDiagnostic("responses", { status: "running", detail: undefined });
     try {
-      const url = resolveApiUrl(normalizedLlmUrl, derivedHealthBase, "/v1/responses");
+      const url = resolveApiUrl(null, gatewayOrigin, "/v1/responses");
       const payload = {
         stream: false,
         messages: [
-          { role: "system", content: "You are a latency probe. Reply with a single short acknowledgement." },
-          { role: "user", content: "Respond with the word 'connected' if this request reached you." }
-        ]
+          {
+            role: "system",
+            content:
+              "You are a latency probe. Reply with a single short acknowledgement.",
+          },
+          {
+            role: "user",
+            content:
+              "Respond with the word 'connected' if this request reached you.",
+          },
+        ],
       };
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        headers: {
+          Authorization: `Bearer ${localPairingKey.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
       });
       const contentType = response.headers.get("content-type") ?? "";
       const isJson = contentType.includes("application/json");
       const body = isJson ? await response.json() : await response.text();
       if (!response.ok) {
-        const message =
-          typeof body === "string"
-            ? body || response.statusText
-            : (body as { error?: string; message?: string }).error ??
-              (body as { message?: string }).message ??
-              response.statusText;
-        throw new Error(message);
+        throw await localRuntimeResponseError(
+          new Response(typeof body === "string" ? body : JSON.stringify(body), {
+            status: response.status,
+            headers: { "Content-Type": contentType },
+          }),
+        );
       }
       const detail =
         (isJson ? summarizeResponsesPayload(body) : null) ??
@@ -423,58 +515,81 @@ export const SettingsPage = () => {
         t("settings.localDiagnostics.messages.responsesOk");
       updateDiagnostic("responses", { status: "ok", detail });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = isLocalRuntimePairingError(error)
+        ? t("settings.localPairing.pairAgain")
+        : error instanceof Error
+          ? error.message
+          : String(error);
       updateDiagnostic("responses", {
         status: "error",
-        detail: t("settings.localDiagnostics.messages.responsesError", { error: message })
+        detail: t("settings.localDiagnostics.messages.responsesError", {
+          error: message,
+        }),
       });
     }
   };
 
   const runSttCheck = async () => {
-    if (!sttBaseCandidate) {
+    if (!sttBaseCandidate || !localPairingKey.trim()) {
       updateDiagnostic("stt", {
         status: "error",
-        detail: t("settings.localDiagnostics.messages.missingSttUrl")
+        detail: t("settings.localDiagnostics.messages.missingSttUrl"),
       });
       return;
     }
     updateDiagnostic("stt", { status: "running", detail: undefined });
     try {
-      const url = resolveApiUrl(normalizedSttUrl, derivedHealthBase, "/v1/audio/transcriptions");
+      const url = resolveApiUrl(
+        null,
+        gatewayOrigin,
+        "/v1/audio/transcriptions",
+      );
       const fileBlob = createSampleAudioFile();
       const formData = new FormData();
       const fallbackName = "diagnostic.wav";
       const fileName =
-        typeof File !== "undefined" && fileBlob instanceof File && fileBlob.name ? fileBlob.name : fallbackName;
+        typeof File !== "undefined" && fileBlob instanceof File && fileBlob.name
+          ? fileBlob.name
+          : fallbackName;
       formData.append("file", fileBlob, fileName);
       formData.append("response_format", "json");
       formData.append("stream", "false");
       const response = await fetch(url, {
         method: "POST",
-        body: formData
+        headers: {
+          Authorization: `Bearer ${localPairingKey.trim()}`,
+        },
+        body: formData,
       });
       const contentType = response.headers.get("content-type") ?? "";
       const isJson = contentType.includes("application/json");
       const body = isJson ? await response.json() : await response.text();
       if (!response.ok) {
-        const message =
-          typeof body === "string"
-            ? body || response.statusText
-            : (body as { error?: string; detail?: string }).error ??
-              (body as { detail?: string }).detail ??
-              response.statusText;
-        throw new Error(message);
+        throw await localRuntimeResponseError(
+          new Response(typeof body === "string" ? body : JSON.stringify(body), {
+            status: response.status,
+            headers: { "Content-Type": contentType },
+          }),
+        );
       }
       const detail =
-        (isJson ? summarizeTranscriptionPayload(body) : typeof body === "string" ? truncate(body) : null) ??
-        t("settings.localDiagnostics.messages.sttOk");
+        (isJson
+          ? summarizeTranscriptionPayload(body)
+          : typeof body === "string"
+            ? truncate(body)
+            : null) ?? t("settings.localDiagnostics.messages.sttOk");
       updateDiagnostic("stt", { status: "ok", detail });
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = isLocalRuntimePairingError(error)
+        ? t("settings.localPairing.pairAgain")
+        : error instanceof Error
+          ? error.message
+          : String(error);
       updateDiagnostic("stt", {
         status: "error",
-        detail: t("settings.localDiagnostics.messages.sttError", { error: message })
+        detail: t("settings.localDiagnostics.messages.sttError", {
+          error: message,
+        }),
       });
     }
   };
@@ -499,7 +614,7 @@ export const SettingsPage = () => {
       description: t("settings.localDiagnostics.checks.health.description"),
       actionLabel: t("settings.localDiagnostics.actions.health"),
       onClick: runHealthCheck,
-      enabled: Boolean(derivedHealthBase)
+      enabled: Boolean(gatewayOrigin),
     },
     {
       key: "responses",
@@ -507,7 +622,7 @@ export const SettingsPage = () => {
       description: t("settings.localDiagnostics.checks.responses.description"),
       actionLabel: t("settings.localDiagnostics.actions.responses"),
       onClick: runResponsesCheck,
-      enabled: Boolean(responsesBaseCandidate)
+      enabled: Boolean(responsesBaseCandidate && localPairingKey.trim()),
     },
     {
       key: "stt",
@@ -515,83 +630,165 @@ export const SettingsPage = () => {
       description: t("settings.localDiagnostics.checks.stt.description"),
       actionLabel: t("settings.localDiagnostics.actions.stt"),
       onClick: runSttCheck,
-      enabled: Boolean(sttBaseCandidate)
-    }
+      enabled: Boolean(sttBaseCandidate && localPairingKey.trim()),
+    },
   ];
-
 
   return (
     <div className="space-y-8">
       <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{t("settings.tagline")}</p>
+        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
+          {t("settings.tagline")}
+        </p>
         <h2 className="mt-3 text-3xl font-semibold">{t("settings.title")}</h2>
         <p className="mt-3 text-sm text-slate-300">{t("settings.subtitle")}</p>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-8">
-        {isLoading && <p className="text-sm text-slate-400">{t("settings.loading")}</p>}
+        {isLoading && (
+          <p className="text-sm text-slate-400">{t("settings.loading")}</p>
+        )}
         {isError && (
           <p className="text-sm text-rose-300">{t("settings.error")}</p>
         )}
         <div className="space-y-6">
           <div className="space-y-3">
-            <label className="text-sm font-semibold">{t("settings.aiMode.label")}</label>
-            <p className="text-xs text-slate-400">{t("settings.aiMode.helper")}</p>
+            <label className="text-sm font-semibold" htmlFor="settings-ai-mode">
+              {t("settings.aiMode.label")}
+            </label>
+            <p className="text-xs text-slate-400">
+              {t("settings.aiMode.helper")}
+            </p>
             <select
+              id="settings-ai-mode"
               className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
               value={aiMode}
-              onChange={(event) => setAiMode(event.target.value as typeof aiMode)}
+              onChange={(event) =>
+                setAiMode(event.target.value as typeof aiMode)
+              }
             >
-              <option value="local_prefer">{t("settings.aiMode.options.localPrefer")}</option>
-              <option value="openai_only">{t("settings.aiMode.options.openaiOnly")}</option>
-              <option value="local_only">{t("settings.aiMode.options.localOnly")}</option>
+              <option value="local_prefer">
+                {t("settings.aiMode.options.localPrefer")}
+              </option>
+              <option value="openai_only">
+                {t("settings.aiMode.options.openaiOnly")}
+              </option>
+              <option value="local_only">
+                {t("settings.aiMode.options.localOnly")}
+              </option>
             </select>
           </div>
 
           <div className="space-y-4">
             <div className="space-y-3">
-              <label className="text-sm font-semibold">{t("settings.localAiBase.label")}</label>
+              <label className="text-sm font-semibold">
+                {t("settings.localAiBase.label")}
+              </label>
               <input
                 className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
                 value={localAiBaseUrl}
                 onChange={(event) => handleLocalBaseChange(event.target.value)}
                 placeholder={t("settings.localAiBase.placeholder")}
               />
-              <p className="text-xs text-slate-400">{t("settings.localAiBase.helper")}</p>
+              <p className="text-xs text-slate-400">
+                {t("settings.localAiBase.helper")}
+              </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-slate-950/30 p-4 text-xs text-slate-300">
               {t("settings.localAiBase.callout")}
+            </div>
+            <div className="space-y-3 rounded-2xl border border-teal-400/20 bg-teal-400/5 p-4">
+              <label
+                htmlFor="local-pairing-key"
+                className="text-sm font-semibold"
+              >
+                {t("settings.localPairing.label")}
+              </label>
+              <p className="text-xs text-slate-400">
+                {t("settings.localPairing.helper")}
+              </p>
+              <div className="flex flex-col gap-3 md:flex-row">
+                <input
+                  id="local-pairing-key"
+                  className="min-w-0 flex-1 rounded-2xl border border-white/10 bg-slate-950/60 px-4 py-2 font-mono text-sm text-slate-100"
+                  type={showLocalPairingKey ? "text" : "password"}
+                  value={localPairingKey}
+                  onChange={(event) => {
+                    setLocalPairingKey(event.target.value);
+                    setLocalPairingStatus(null);
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={t("settings.localPairing.placeholder")}
+                />
+                <button
+                  type="button"
+                  className="rounded-full border border-white/10 px-4 py-2 text-xs text-slate-200"
+                  onClick={() => setShowLocalPairingKey((value) => !value)}
+                  aria-pressed={showLocalPairingKey}
+                >
+                  {showLocalPairingKey
+                    ? t("settings.localPairing.hide")
+                    : t("settings.localPairing.reveal")}
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                {t("settings.localPairing.security")}
+              </p>
+              {localPairingStatus ? (
+                <p className="text-xs text-emerald-200">{localPairingStatus}</p>
+              ) : null}
             </div>
             <button
               className="text-left text-xs font-semibold text-teal-200 underline decoration-dashed"
               onClick={() => setShowAdvanced((value) => !value)}
             >
-              {showAdvanced ? t("settings.localAiBase.advancedHide") : t("settings.localAiBase.advancedShow")}
+              {showAdvanced
+                ? t("settings.localAiBase.advancedHide")
+                : t("settings.localAiBase.advancedShow")}
             </button>
             {!showAdvanced && hasLocalOverrides ? (
-              <p className="text-xs text-amber-200">{t("settings.localAiBase.overrideActive")}</p>
+              <p className="text-xs text-amber-200">
+                {t("settings.localAiBase.overrideActive")}
+              </p>
             ) : null}
             {showAdvanced ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-3">
-                  <label className="text-sm font-semibold">{t("settings.localAiBase.overrideLlmLabel")}</label>
+                  <label className="text-sm font-semibold">
+                    {t("settings.localAiBase.overrideLlmLabel")}
+                  </label>
                   <input
                     className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
                     value={localLlmUrl}
-                    onChange={(event) => handleLocalLlmChange(event.target.value)}
-                    placeholder={t("settings.localAiBase.overrideLlmPlaceholder")}
+                    onChange={(event) =>
+                      handleLocalLlmChange(event.target.value)
+                    }
+                    placeholder={t(
+                      "settings.localAiBase.overrideLlmPlaceholder",
+                    )}
                   />
-                  <p className="text-xs text-slate-400">{t("settings.localAiBase.overrideLlmHelper")}</p>
+                  <p className="text-xs text-slate-400">
+                    {t("settings.localAiBase.overrideLlmHelper")}
+                  </p>
                 </div>
                 <div className="space-y-3">
-                  <label className="text-sm font-semibold">{t("settings.localAiBase.overrideSttLabel")}</label>
+                  <label className="text-sm font-semibold">
+                    {t("settings.localAiBase.overrideSttLabel")}
+                  </label>
                   <input
                     className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
                     value={localSttUrl}
-                    onChange={(event) => handleLocalSttChange(event.target.value)}
-                    placeholder={t("settings.localAiBase.overrideSttPlaceholder")}
+                    onChange={(event) =>
+                      handleLocalSttChange(event.target.value)
+                    }
+                    placeholder={t(
+                      "settings.localAiBase.overrideSttPlaceholder",
+                    )}
                   />
-                  <p className="text-xs text-slate-400">{t("settings.localAiBase.overrideSttHelper")}</p>
+                  <p className="text-xs text-slate-400">
+                    {t("settings.localAiBase.overrideSttHelper")}
+                  </p>
                 </div>
               </div>
             ) : null}
@@ -604,7 +801,9 @@ export const SettingsPage = () => {
                   <p className="text-[11px] uppercase tracking-[0.35em] text-teal-200">
                     {t("settings.localDiagnostics.title")}
                   </p>
-                  <p className="mt-1 text-sm text-slate-300">{t("settings.localDiagnostics.subtitle")}</p>
+                  <p className="mt-1 text-sm text-slate-300">
+                    {t("settings.localDiagnostics.subtitle")}
+                  </p>
                 </div>
                 <button
                   className="rounded-full bg-teal-400/90 px-5 py-2 text-xs font-semibold text-slate-950 transition hover:bg-teal-300 disabled:cursor-not-allowed disabled:opacity-40"
@@ -625,20 +824,30 @@ export const SettingsPage = () => {
                   {diagnosticCards.map((card) => {
                     const snapshot = diagnostics[card.key];
                     return (
-                      <div key={card.key} className="rounded-2xl border border-white/10 bg-slate-900/50 p-4">
+                      <div
+                        key={card.key}
+                        className="rounded-2xl border border-white/10 bg-slate-900/50 p-4"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="text-sm font-semibold text-white">{card.title}</p>
-                            <p className="text-xs text-slate-400">{card.description}</p>
+                            <p className="text-sm font-semibold text-white">
+                              {card.title}
+                            </p>
+                            <p className="text-xs text-slate-400">
+                              {card.description}
+                            </p>
                           </div>
                           <span
                             className={`rounded-full px-3 py-1 text-[11px] font-semibold ${statusBadgeClasses[snapshot.status]}`}
                           >
-                            {t(`settings.localDiagnostics.statusLabel.${snapshot.status}`)}
+                            {t(
+                              `settings.localDiagnostics.statusLabel.${snapshot.status}`,
+                            )}
                           </span>
                         </div>
                         <p className="mt-3 min-h-[32px] text-xs text-slate-200">
-                          {snapshot.detail ?? t("settings.localDiagnostics.waiting")}
+                          {snapshot.detail ??
+                            t("settings.localDiagnostics.waiting")}
                         </p>
                         <button
                           className="mt-4 w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-40"
@@ -658,19 +867,15 @@ export const SettingsPage = () => {
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/40 p-4">
+          <div className="rounded-2xl border border-white/10 bg-slate-950/40 p-4">
             <div>
-              <p className="text-sm font-semibold">{t("settings.storeAudio.label")}</p>
-              <p className="text-xs text-slate-400">{t("settings.storeAudio.helper")}</p>
+              <p className="text-sm font-semibold">
+                {t("settings.retention.title")}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-slate-400">
+                {t("settings.retention.description")}
+              </p>
             </div>
-            <button
-              className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                storeAudio ? "bg-emerald-400 text-slate-950" : "bg-slate-800 text-slate-200"
-              }`}
-              onClick={() => setStoreAudio((value) => !value)}
-            >
-              {storeAudio ? t("settings.storeAudio.enabled") : t("settings.storeAudio.disabled")}
-            </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
@@ -679,9 +884,13 @@ export const SettingsPage = () => {
               onClick={handleSaveSettings}
               disabled={isSavingSettings}
             >
-              {isSavingSettings ? t("settings.actions.saving") : t("settings.actions.save")}
+              {isSavingSettings
+                ? t("settings.actions.saving")
+                : t("settings.actions.save")}
             </button>
-            {saveStatus && <span className="text-xs text-slate-300">{saveStatus}</span>}
+            {saveStatus && (
+              <span className="text-xs text-slate-300">{saveStatus}</span>
+            )}
           </div>
         </div>
       </section>
@@ -689,7 +898,9 @@ export const SettingsPage = () => {
       <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-8">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h3 className="text-lg font-semibold">{t("settings.openAi.title")}</h3>
+            <h3 className="text-lg font-semibold">
+              {t("settings.openAi.title")}
+            </h3>
             <p className="text-sm text-slate-300">
               {settings.hasOpenAiKey
                 ? t("settings.openAi.connected")
@@ -698,20 +909,24 @@ export const SettingsPage = () => {
           </div>
           <span
             className={`rounded-full px-3 py-1 text-xs font-semibold ${
-              settings.hasOpenAiKey ? "bg-emerald-400/20 text-emerald-300" : "bg-amber-400/20 text-amber-200"
+              settings.hasOpenAiKey
+                ? "bg-emerald-400/20 text-emerald-300"
+                : "bg-amber-400/20 text-amber-200"
             }`}
           >
-            {settings.hasOpenAiKey ? t("settings.openAi.status.connected") : t("settings.openAi.status.disconnected")}
+            {settings.hasOpenAiKey
+              ? t("settings.openAi.status.connected")
+              : t("settings.openAi.status.disconnected")}
           </span>
         </div>
 
-          <div className="mt-6 space-y-4">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
-              <input
-                id="openai-key"
-                ref={openAiKeyRef}
-                className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-                type={showKey ? "text" : "password"}
+        <div className="mt-6 space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <input
+              id="openai-key"
+              ref={openAiKeyRef}
+              className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
+              type={showKey ? "text" : "password"}
               placeholder={t("settings.openAi.placeholder")}
               value={openAiKey}
               onChange={(event) => setOpenAiKey(event.target.value)}
@@ -720,7 +935,9 @@ export const SettingsPage = () => {
               className="rounded-full border border-white/10 px-4 py-2 text-xs text-slate-200"
               onClick={() => setShowKey((value) => !value)}
             >
-              {showKey ? t("settings.openAi.hide") : t("settings.openAi.reveal")}
+              {showKey
+                ? t("settings.openAi.hide")
+                : t("settings.openAi.reveal")}
             </button>
           </div>
 
@@ -730,25 +947,33 @@ export const SettingsPage = () => {
               onClick={handleSaveKey}
               disabled={isSavingKey}
             >
-              {isSavingKey ? t("settings.openAi.saveLoading") : t("settings.openAi.save")}
+              {isSavingKey
+                ? t("settings.openAi.saveLoading")
+                : t("settings.openAi.save")}
             </button>
             <button
               className="rounded-full border border-white/10 px-6 py-2 text-sm text-slate-200"
               onClick={handleValidateKey}
               disabled={isValidatingKey}
             >
-              {isValidatingKey ? t("settings.openAi.validateLoading") : t("settings.openAi.validate")}
+              {isValidatingKey
+                ? t("settings.openAi.validateLoading")
+                : t("settings.openAi.validate")}
             </button>
             <button
               className="rounded-full border border-rose-400/40 px-6 py-2 text-sm text-rose-200"
               onClick={handleRemoveKey}
               disabled={isDeletingKey}
             >
-              {isDeletingKey ? t("settings.openAi.removeLoading") : t("settings.openAi.remove")}
+              {isDeletingKey
+                ? t("settings.openAi.removeLoading")
+                : t("settings.openAi.remove")}
             </button>
           </div>
           {keyStatus && <p className="text-xs text-slate-300">{keyStatus}</p>}
-          {validationStatus && <p className="text-xs text-slate-300">{validationStatus}</p>}
+          {validationStatus && (
+            <p className="text-xs text-slate-300">{validationStatus}</p>
+          )}
           <p className="text-xs text-slate-500">
             {t("settings.openAi.securityNote")}
           </p>

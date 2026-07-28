@@ -18,12 +18,12 @@ const initialState: SettingsState = {
   localAiBaseUrl: "http://127.0.0.1:8484",
   localEndpoints: {
     stt: null,
-    llm: null
+    llm: null,
   },
   privacy: {
-    storeAudio: false
+    storeAudio: false,
   },
-  hasOpenAiKey: false
+  hasOpenAiKey: false,
 };
 
 const settingsSlice = createSlice({
@@ -39,7 +39,7 @@ const settingsSlice = createSlice({
         localLlmUrl: string | null;
         storeAudio: boolean;
         hasOpenAiKey: boolean;
-      }>
+      }>,
     ) {
       state.aiMode = action.payload.aiMode;
       state.localAiBaseUrl = action.payload.localAiBaseUrl ?? null;
@@ -53,7 +53,7 @@ const settingsSlice = createSlice({
     },
     setLocalEndpoint(
       state,
-      action: PayloadAction<{ kind: "stt" | "llm"; url: string | null }>
+      action: PayloadAction<{ kind: "stt" | "llm"; url: string | null }>,
     ) {
       state.localEndpoints[action.payload.kind] = action.payload.url;
     },
@@ -62,10 +62,15 @@ const settingsSlice = createSlice({
     },
     setHasOpenAiKey(state, action: PayloadAction<boolean>) {
       state.hasOpenAiKey = action.payload;
-    }
-  }
+    },
+  },
 });
 
-export const { hydrateSettings, setAiMode, setLocalEndpoint, setStoreAudio, setHasOpenAiKey } =
-  settingsSlice.actions;
+export const {
+  hydrateSettings,
+  setAiMode,
+  setLocalEndpoint,
+  setStoreAudio,
+  setHasOpenAiKey,
+} = settingsSlice.actions;
 export const settingsReducer = settingsSlice.reducer;

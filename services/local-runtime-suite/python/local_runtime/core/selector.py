@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import platform as platform_module
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from local_runtime.core.errors import ModelNotFoundError
 from local_runtime.core.loader import LoadedModel
@@ -34,7 +34,11 @@ class SelectionStrategy:
         endpoint: str,
         requested: str | None = None,
     ) -> LoadedModel:
-        candidates = [m for m in models if m.spec.api.endpoint == endpoint and is_platform_supported(m.spec, self.platform_id)]
+        candidates = [
+            m
+            for m in models
+            if m.spec.api.endpoint == endpoint and is_platform_supported(m.spec, self.platform_id)
+        ]
         if requested:
             for model in candidates:
                 if model.spec.id == requested or model.spec.api.advertised_model_name == requested:

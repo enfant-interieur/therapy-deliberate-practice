@@ -21,7 +21,9 @@ def install_structured_stub(monkeypatch):
     def _install(outputs: list[dict]):
         module = StructuredStubModule(outputs)
         loaded = SimpleNamespace(spec=SimpleNamespace(id="local//test/structured"), module=module)
-        monkeypatch.setattr("local_runtime.main._select_model", lambda endpoint, requested, _loaded=loaded: _loaded)
+        monkeypatch.setattr(
+            "local_runtime.main._select_model", lambda endpoint, requested, _loaded=loaded: _loaded
+        )
         return module
 
     return _install
@@ -46,7 +48,7 @@ def _structured_payload(stream: bool = False):
 def test_structured_retry_succeeds(client, install_structured_stub):
     stub = install_structured_stub(
         [
-            {"output_text": '<thinking>draft</thinking>{"a":1,}'},
+            {"output_text": '{"a":"wrong"}'},
             {"output_text": '{"a":1}'},
         ]
     )
@@ -69,4 +71,5 @@ def test_structured_streaming_emits_only_valid_json(client, install_structured_s
     assert body
     assert "<think>" not in body
     assert "```" not in body
-    assert '{"a":1}' in body
+    data_lines = [line.removeprefix("data: ") for line in body.splitlines() if line.startswith("data: ")]
+    assert any('\\"a\\":1' in line for line in data_lines)

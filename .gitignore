@@ -4,7 +4,8 @@ node_modules
 **/build
 **/out
 .env
-.env.release
+.env.release*
+*.log
 .DS_Store
 .idea
 .git
@@ -25,3 +26,5 @@ infra/local.db
 **/.runtime-cache
 services/local-runtime-suite/desktop/src-tauri/local-runtime-python
 services/local-runtime-suite/desktop/src-tauri/embedded.provisionprofile
+**/test-results
+services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python

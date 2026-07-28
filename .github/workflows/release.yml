@@ -1,207 +1,181 @@
-name: release
+name: desktop-release-draft
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to release (e.g. v0.1.0). Leave empty to use the ref that started the run."
-        required: false
+        description: "Existing exact version tag to release, for example v0.1.5"
+        required: true
+        type: string
+      build_run_id:
+        description: "Successful desktop-signed-build run for the exact tag"
+        required: true
+        type: string
+      confirmation:
+        description: "Type PUBLISH to authorize creating the draft GitHub Release"
+        required: true
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build-tauri:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # ---- GitHub-hosted runners (CI/CD) ----
-#          - os: ubuntu-24.04
-#            runs_on: ubuntu-24.04
-#            bundles: "deb,appimage,rpm"
-#
-#          - os: windows-latest
-#            runs_on: windows-latest
-#            bundles: "nsis,msi"
-#
-#          - os: macos-latest
-#            runs_on: macos-latest
-#            bundles: "app,dmg"
-
-          # ---- Your self-hosted runner (macOS ARM64) ----
-          - os: macos-selfhosted
-            runs_on: [ self-hosted, macOS, ARM64 ]
-            bundles: "app"
-
-    runs-on: ${{ matrix.runs_on }}
+  publish-draft:
+    name: verify and create draft
+    runs-on: ubuntu-24.04
+    environment: desktop-release
+    permissions:
+      actions: read
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-        with:
-          # If manually dispatched with a tag, checkout that tag
-          ref: ${{ inputs.tag || github.ref }}
-
-      - name: Verify Tauri build script exists
+      - name: Require explicit publication confirmation
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
         run: |
-          test -f services/local-runtime-suite/desktop/src-tauri/build.rs || (echo "Missing src-tauri/build.rs for Tauri build script." && exit 1)
-
-      - name: Remove legacy runtime bundle path
-        run: rm -rf services/local-runtime-suite/desktop/src-tauri/resources/local-runtime-python
-
-      - name: Configure toolcache paths (self-hosted)
-        if: contains(matrix.runs_on, 'self-hosted')
-        shell: bash
-        run: |
-          TOOLCACHE="$HOME/actions-runner/_toolcache"
-          mkdir -p "$TOOLCACHE"
-          echo "RUNNER_TOOL_CACHE=$TOOLCACHE" >> "$GITHUB_ENV"
-          echo "AGENT_TOOLSDIRECTORY=$TOOLCACHE" >> "$GITHUB_ENV"
-          echo "RUNNER_TEMP=$HOME/actions-runner/_temp" >> "$GITHUB_ENV"
-          echo "TMPDIR=$HOME/actions-runner/_temp" >> "$GITHUB_ENV"
-          mkdir -p "$HOME/actions-runner/_temp"
-
-      - name: Install Linux system dependencies
-        if: startsWith(matrix.os, 'ubuntu')
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            pkg-config \
-            libssl-dev \
-            libgtk-3-dev \
-            libwebkit2gtk-4.1-dev \
-            libjavascriptcoregtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: "npm"
-
-      - name: Set up Python (GitHub-hosted only)
-        if: "!contains(matrix.runs_on, 'self-hosted')"
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Expose PYTHON
-        if: "!contains(matrix.runs_on, 'self-hosted')"
-        shell: bash
-        run: |
-          echo "PYTHON=$(command -v python3 || command -v python)" >> "$GITHUB_ENV"
-          echo "PYTHON=$PYTHON"
-
-      - name: Use preinstalled Python (self-hosted)
-        if: "contains(matrix.runs_on, 'self-hosted')"
-        shell: bash
-        run: |
-          set -e
-          PY_CMD=""
-          if command -v python3.11 >/dev/null 2>&1; then
-            PY_CMD="python3.11"
-          elif command -v python3 >/dev/null 2>&1; then
-            PY_CMD="python3"
-          else
-            echo "No python found on runner PATH" >&2
+          if [[ "$CONFIRMATION" != "PUBLISH" ]]; then
+            echo "Confirmation must be exactly PUBLISH." >&2
             exit 1
           fi
-          echo "PYTHON=$PY_CMD" >> "$GITHUB_ENV"
-          "$PY_CMD" --version
-          "$PY_CMD" -m pip --version
-
-      - name: Fix pkg-config search path (setup-python may overwrite PKG_CONFIG_PATH)
-        if: startsWith(matrix.os, 'ubuntu')
-        shell: bash
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.12.0"
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+        with:
+          python-version: "3.12.13"
+      - name: Validate tag and matching build run
+        id: provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
+          BUILD_RUN_ID: ${{ inputs.build_run_id }}
+          REPOSITORY_ID: ${{ github.repository_id }}
         run: |
-          DEFAULT_PC_PATH="$(pkg-config --variable pc_path pkg-config)"
-          if [[ -n "${PKG_CONFIG_PATH:-}" ]]; then
-            echo "PKG_CONFIG_PATH=$DEFAULT_PC_PATH:$PKG_CONFIG_PATH" >> "$GITHUB_ENV"
-          else
-            echo "PKG_CONFIG_PATH=$DEFAULT_PC_PATH" >> "$GITHUB_ENV"
+          node services/local-runtime-suite/desktop/scripts/verify-release-config.mjs "$RELEASE_TAG"
+          tag_sha="$(git rev-list -n 1 "$RELEASE_TAG")"
+          run_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID")"
+          artifacts_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID/artifacts?per_page=100")"
+          python - "$run_json" "$artifacts_json" "$tag_sha" <<'PY'
+          import json
+          import os
+          import sys
+
+          run = json.loads(sys.argv[1])
+          artifacts = json.loads(sys.argv[2]).get("artifacts", [])
+          tag_sha = sys.argv[3]
+          repository = run.get("repository") or {}
+          expected = {
+              "name": "desktop-signed-build",
+              "path": ".github/workflows/desktop-signed-build.yml",
+              "event": "workflow_dispatch",
+              "head_sha": tag_sha,
+              "head_branch": os.environ["RELEASE_TAG"],
+          }
+          for field, value in expected.items():
+              if run.get(field) != value:
+                  raise SystemExit(
+                      f"Selected build run {field} is {run.get(field)!r}; expected {value!r}."
+                  )
+          if run.get("conclusion") != "success":
+              raise SystemExit("Selected desktop-signed-build run did not succeed.")
+          if repository.get("full_name") != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("Selected build run belongs to a different repository.")
+          if str(repository.get("id")) != os.environ["REPOSITORY_ID"]:
+              raise SystemExit("Selected build run repository ID does not match this repository.")
+          expected_names = {
+              f"desktop-macos-arm64-{tag_sha}",
+              f"desktop-macos-intel-{tag_sha}",
+              f"desktop-windows-x64-{tag_sha}",
+              f"desktop-linux-x64-{tag_sha}",
+          }
+          actual_names = {
+              artifact.get("name")
+              for artifact in artifacts
+              if not artifact.get("expired")
+          }
+          if actual_names != expected_names:
+              raise SystemExit(
+                  f"Selected run artifacts are {sorted(actual_names)}; "
+                  f"expected {sorted(expected_names)}."
+              )
+          PY
+          echo "tag_sha=$tag_sha" >> "$GITHUB_OUTPUT"
+      - name: Download sealed build artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download "${{ inputs.build_run_id }}" --dir release-artifacts
+      - name: Verify signatures, checksums, provenance, and package smokes
+        run: >-
+          python services/local-runtime-suite/desktop/scripts/verify-release-artifacts.py
+          --artifacts release-artifacts
+          --tag "${{ inputs.tag }}"
+          --source-sha "${{ steps.provenance.outputs.tag_sha }}"
+      - name: Verify cryptographic build attestations
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.provenance.outputs.tag_sha }}
+          SOURCE_REF: refs/tags/${{ inputs.tag }}
+        run: |
+          mapfile -t packages < <(
+            find release-artifacts -type f \
+              \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \
+                 -o -name '*.msi' -o -name '*-setup.exe' \) \
+              -print
+          )
+          if [[ "${#packages[@]}" -ne 7 ]]; then
+            echo "Expected exactly seven attested native packages, found ${#packages[@]}." >&2
+            exit 1
           fi
-
-      - name: Use local npm cache
-        if: contains(matrix.runs_on, 'self-hosted')
-        run: echo "npm_config_cache=$HOME/.npm" >> "$GITHUB_ENV"
-
-      - name: Install dependencies
-        run: npm ci --workspace services/local-runtime-suite/desktop
-
-      - name: Install local runtime dependencies
-        run: $PYTHON -m pip install -e services/local-runtime-suite/python
-
-      - name: Generate model catalog
-        run: $PYTHON services/local-runtime-suite/tools/gen_models_json.py
-
-      - name: Clean stale signing keychain
-        if: startsWith(matrix.os, 'macos')
-        run: security delete-keychain signing_temp.keychain || true
-
-      - name: Import macOS signing certificate
-        if: startsWith(matrix.os, 'macos')
-        uses: apple-actions/import-codesign-certs@v3
-        with:
-          p12-file-base64: ${{ secrets.APPSTORE_CERTIFICATES_FILE_BASE64 }}
-          p12-password: ${{ secrets.APPSTORE_CERTIFICATES_PASSWORD }}
-
-      - name: List codesigning identities
-        if: startsWith(matrix.os, 'macos')
-        run: security find-identity -v -p codesigning
-
-      - name: Build sidecar
-        run: npm run sidecar:build -w services/local-runtime-suite/desktop
+          for package in "${packages[@]}"; do
+            gh attestation verify "$package" \
+              --repo "$GITHUB_REPOSITORY" \
+              --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/desktop-signed-build.yml" \
+              --signer-digest "$SOURCE_SHA" \
+              --source-ref "$SOURCE_REF" \
+              --source-digest "$SOURCE_SHA" \
+              --deny-self-hosted-runners
+          done
+      - name: Create draft GitHub Release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # keep your mac signing envs here as you already started doing
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        with:
-          projectPath: services/local-runtime-suite/desktop
-          args: >
-            --config src-tauri/tauri.conf.json
-            --config src-tauri/tauri.sidecar.conf.json
-            --bundles ${{ matrix.bundles }}
-          tagName: ${{ inputs.tag || github.ref_name }}
-          releaseName: "Local Runtime Suite ${{ inputs.tag || github.ref_name }}"
-          releaseBody: "Automated release"
-          releaseDraft: false
-          prerelease: false
-          includeDebug: false
-          includeRelease: true
-
-      - name: Package DMG (self-hosted macOS)
-        if: startsWith(matrix.os, 'macos')
-        shell: bash
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.tag }}
         run: |
-          set -euo pipefail
-          APP_NAME="Local Runtime Suite"
-          APP_DIR="services/local-runtime-suite/desktop/src-tauri/target/release/bundle/macos/${APP_NAME}.app"
-          VERSION="$(node -e 'console.log(require("./services/local-runtime-suite/desktop/src-tauri/tauri.conf.json").version)')"
-          ARCH="$(rustc -vV | awk '/host:/ {print $2}' | cut -d- -f1)"
-          DMG_DIR="services/local-runtime-suite/desktop/src-tauri/target/release/bundle/dmg"
-          DMG_NAME="${APP_NAME}_${VERSION}_${ARCH}.dmg"
-          TMPDIR="$(mktemp -d)"
-          trap 'rm -rf "$TMPDIR"' EXIT
-          cp -R "$APP_DIR" "$TMPDIR/"
-          ln -s /Applications "$TMPDIR/Applications"
-          mkdir -p "$DMG_DIR"
-          hdiutil create -ov -format UDZO -volname "$APP_NAME" -srcfolder "$TMPDIR" "$DMG_DIR/$DMG_NAME"
-          echo "LOCAL_RUNTIME_DMG=$DMG_DIR/$DMG_NAME" >> "$GITHUB_ENV"
+          mapfile -t packages < <(
+            find release-artifacts -type f \
+              \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \
+                 -o -name '*.msi' -o -name '*-setup.exe' \) \
+              -print
+          )
+          if [[ "${#packages[@]}" -eq 0 ]]; then
+            echo "No publishable packages were found." >&2
+            exit 1
+          fi
+          python - "${packages[@]}" <<'PY'
+          import hashlib
+          import sys
+          from pathlib import Path
 
-      - name: Upload DMG asset
-        if: startsWith(matrix.os, 'macos')
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        with:
-          tag_name: ${{ inputs.tag || github.ref_name }}
-          files: ${{ env.LOCAL_RUNTIME_DMG }}
+          def sha256_file(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          packages = [Path(value) for value in sys.argv[1:]]
+          if len({package.name for package in packages}) != len(packages):
+              raise SystemExit("Publishable package filenames must be unique.")
+          lines = []
+          for package in sorted(packages, key=lambda candidate: candidate.name):
+              lines.append(f"{sha256_file(package)}  {package.name}")
+          Path("release-checksums.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+          PY
+          gh release create "$RELEASE_TAG" "${packages[@]}" release-checksums.txt \
+            --verify-tag \
+            --draft \
+            --title "Local Runtime Suite $RELEASE_TAG" \
+            --notes "Verified desktop packages. macOS packages are signed and notarized, Windows packages are signed, and Linux packages are unsigned. Review the attached checksums and build attestations before publishing."

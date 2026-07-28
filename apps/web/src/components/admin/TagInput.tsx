@@ -1,14 +1,15 @@
 import { useState, type KeyboardEvent } from "react";
+import { useTranslation } from "react-i18next";
 import { Label } from "./AdminUi";
 
 type TagInputProps = {
   label: string;
   placeholder?: string;
-  value: string[];
+  value?: readonly string[] | null;
   onChange: (next: string[]) => void;
 };
 
-const normalizeTags = (tags: string[]) => {
+const normalizeTags = (tags: readonly string[]) => {
   const seen = new Set<string>();
   return tags
     .map((tag) => tag.trim())
@@ -21,12 +22,19 @@ const normalizeTags = (tags: string[]) => {
     });
 };
 
-export const TagInput = ({ label, placeholder, value, onChange }: TagInputProps) => {
+export const TagInput = ({
+  label,
+  placeholder,
+  value,
+  onChange,
+}: TagInputProps) => {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState("");
+  const tags = value ?? [];
 
   const commitDraft = () => {
-    const next = normalizeTags([...value, draft]);
-    if (next.length !== value.length) {
+    const next = normalizeTags([...tags, draft]);
+    if (next.length !== tags.length) {
       onChange(next);
     }
     setDraft("");
@@ -38,21 +46,21 @@ export const TagInput = ({ label, placeholder, value, onChange }: TagInputProps)
       commitDraft();
       return;
     }
-    if (event.key === "Backspace" && !draft && value.length) {
+    if (event.key === "Backspace" && !draft && tags.length) {
       event.preventDefault();
-      onChange(value.slice(0, -1));
+      onChange(tags.slice(0, -1));
     }
   };
 
   const handleRemove = (index: number) => {
-    onChange(value.filter((_, i) => i !== index));
+    onChange(tags.filter((_, i) => i !== index));
   };
 
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-white/10 bg-slate-950/60 px-3 py-2">
-        {value.map((tag, index) => (
+        {tags.map((tag, index) => (
           <span
             key={`${tag}-${index}`}
             className="flex items-center gap-2 rounded-full border border-teal-400/30 bg-teal-500/10 px-3 py-1 text-xs font-semibold text-teal-100"
@@ -62,7 +70,7 @@ export const TagInput = ({ label, placeholder, value, onChange }: TagInputProps)
               type="button"
               onClick={() => handleRemove(index)}
               className="text-teal-100/70 transition hover:text-white"
-              aria-label={`Remove ${tag}`}
+              aria-label={t("admin.content.removeTag", { tag })}
             >
               ×
             </button>

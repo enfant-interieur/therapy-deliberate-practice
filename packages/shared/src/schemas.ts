@@ -36,13 +36,13 @@ export const batchParsePlanSchema = z.object({
               start_line: z.number().int().min(1),
               end_line: z.number().int().min(1),
               label: z.string().trim().min(1),
-              reason: z.string().trim().min(1).nullable().optional()
-            })
+              reason: z.string().trim().min(1).nullable().optional(),
+            }),
           )
-          .optional()
-      })
+          .optional(),
+      }),
     )
-    .min(1)
+    .min(1),
 });
 
 export type BatchParsePlan = z.infer<typeof batchParsePlanSchema>;
@@ -57,18 +57,18 @@ export const rubricSchema = z.object({
         z.literal(1),
         z.literal(2),
         z.literal(3),
-        z.literal(4)
+        z.literal(4),
       ]),
-      meaning: z.string()
-    })
-  )
+      meaning: z.string(),
+    }),
+  ),
 });
 
 export const taskCriterionSchema = z.object({
   id: idSchema,
   label: z.string(),
   description: z.string(),
-  rubric: rubricSchema.optional()
+  rubric: rubricSchema.optional(),
 });
 
 export const taskExampleSchema = z.object({
@@ -81,15 +81,18 @@ export const taskExampleSchema = z.object({
     .string()
     .optional()
     .nullable()
-    .transform((value) => (typeof value === "string" && value.trim() ? value : undefined)),
+    .transform((value) =>
+      typeof value === "string" && value.trim() ? value : undefined,
+    ),
   meta: z
     .record(
-      z.union([z.string(), z.number(), z.boolean(), z.null()])
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean(), z.null()]),
     )
     .nullable()
     .optional(),
   created_at: z.number().optional(),
-  updated_at: z.number().optional()
+  updated_at: z.number().optional(),
 });
 
 export const taskInteractionExampleSchema = z.object({
@@ -97,7 +100,7 @@ export const taskInteractionExampleSchema = z.object({
   difficulty: z.number().min(1).max(5),
   title: z.string().nullable().optional(),
   patient_text: z.string(),
-  therapist_text: z.string()
+  therapist_text: z.string(),
 });
 
 export const taskSchema = z.object({
@@ -117,7 +120,7 @@ export const taskSchema = z.object({
   updated_at: z.number(),
   criteria: z.array(taskCriterionSchema).optional(),
   examples: z.array(taskExampleSchema).optional(),
-  interaction_examples: z.array(taskInteractionExampleSchema).optional()
+  interaction_examples: z.array(taskInteractionExampleSchema).optional(),
 });
 
 export const deliberatePracticeTaskV2Schema = z.object({
@@ -129,11 +132,11 @@ export const deliberatePracticeTaskV2Schema = z.object({
     base_difficulty: z.number().min(1).max(5),
     general_objective: z.string().nullable().optional(),
     tags: z.array(z.string()),
-    language: z.string().default("en")
+    language: z.string().default("en"),
   }),
   criteria: z.array(taskCriterionSchema),
   examples: z.array(taskExampleSchema),
-  interaction_examples: z.array(taskInteractionExampleSchema).optional()
+  interaction_examples: z.array(taskInteractionExampleSchema).optional(),
 });
 
 export const llmParseSchema = z.object({
@@ -145,15 +148,15 @@ export const llmParseSchema = z.object({
     description: z.string(),
     general_objective: z.string().nullable(),
     tags: z.array(z.string()),
-    language: z.string().default("en")
+    language: z.string().default("en"),
   }),
   criteria: z.array(
     z.object({
       id: z.string(),
       label: z.string(),
       description: z.string(),
-      rubric: rubricSchema.optional()
-    })
+      rubric: rubricSchema.optional(),
+    }),
   ),
   examples: z.array(
     z.object({
@@ -162,10 +165,10 @@ export const llmParseSchema = z.object({
       severity_label: z.string().nullable(),
       patient_text: z.string(),
       language: z.string().optional(),
-      meta: z.object({}).nullable().optional()
-    })
+      meta: z.object({}).nullable().optional(),
+    }),
   ),
-  interaction_examples: z.array(taskInteractionExampleSchema)
+  interaction_examples: z.array(taskInteractionExampleSchema),
 });
 
 export type LlmParseResult = z.infer<typeof llmParseSchema>;
@@ -184,11 +187,11 @@ export const evaluationResultSchema = z.object({
           w: z.string(),
           t0: z.number().nullable().optional(),
           t1: z.number().nullable().optional(),
-          p: z.number().nullable().optional()
-        })
+          p: z.number().nullable().optional(),
+        }),
       )
       .nullable()
-      .optional()
+      .optional(),
   }),
   criterion_scores: z.array(
     z.object({
@@ -196,14 +199,14 @@ export const evaluationResultSchema = z.object({
       score: z.number().min(0).max(4),
       rationale_short: z.string().max(800),
       evidence_quotes: z.array(z.string()).nullable().optional(),
-      missed_points: z.array(z.string()).nullable().optional()
-    })
+      missed_points: z.array(z.string()).nullable().optional(),
+    }),
   ),
   overall: z.object({
     score: z.number().min(0).max(4),
     pass: z.boolean(),
     summary_feedback: z.string().max(1500),
-    what_to_improve_next: z.array(z.string()).min(1).max(3)
+    what_to_improve_next: z.array(z.string()).min(1).max(3),
   }),
   patient_reaction: z.object({
     emotion: z.enum([
@@ -213,60 +216,48 @@ export const evaluationResultSchema = z.object({
       "anxious",
       "angry",
       "relieved",
-      "engaged"
+      "engaged",
     ]),
     intensity: z.union([
       z.literal(0),
       z.literal(1),
       z.literal(2),
-      z.literal(3)
+      z.literal(3),
     ]),
     action: z
       .enum(["nod", "shake_head", "look_away", "lean_in", "sigh", "smile"])
       .nullable()
       .optional(),
-    response_text: z.string().nullable().optional()
+    response_text: z.string().nullable().optional(),
   }),
   diagnostics: z
     .object({
       provider: z.object({
         stt: z.object({
           kind: z.enum(["local", "openai"]),
-          model: z.string().nullable().optional()
+          model: z.string().nullable().optional(),
         }),
         llm: z.object({
           kind: z.enum(["local", "openai"]),
-          model: z.string().nullable().optional()
-        })
+          model: z.string().nullable().optional(),
+        }),
       }),
       timing_ms: z
         .object({
           stt: z.number().nullable().optional(),
           llm: z.number().nullable().optional(),
-          total: z.number().nullable().optional()
+          total: z.number().nullable().optional(),
         })
         .nullable()
-        .optional()
+        .optional(),
     })
     .nullable()
-    .optional()
+    .optional(),
 });
 
 const providerDescriptorSchema = z.object({
   kind: z.enum(["local", "openai"]),
-  model: z.string()
-});
-
-const clientTranscriptSchema = z.object({
-  text: z.string(),
-  provider: providerDescriptorSchema,
-  duration_ms: z.number().nonnegative()
-});
-
-const clientEvaluationSchema = z.object({
-  evaluation: evaluationResultSchema,
-  provider: providerDescriptorSchema,
-  duration_ms: z.number().nonnegative()
+  model: z.string(),
 });
 
 export const practiceRunInputSchema = z
@@ -275,11 +266,10 @@ export const practiceRunInputSchema = z
     task_id: z.string().optional(),
     example_id: z.string().optional(),
     attempt_id: z.string().optional(),
+    input_mode: z.enum(["audio", "typed"]).optional(),
     audio: z.string().optional(),
     audio_mime: z.string().optional(),
-    transcript_text: z.string().optional(),
-    client_transcript: clientTranscriptSchema.optional(),
-    client_evaluation: clientEvaluationSchema.optional(),
+    transcript_text: z.string().trim().min(1).max(20_000).optional(),
     skip_scoring: z.boolean().optional(),
     mode: z.enum(["local_prefer", "openai_only", "local_only"]).optional(),
     practice_mode: z.enum(["standard", "real_time"]).optional(),
@@ -292,17 +282,29 @@ export const practiceRunInputSchema = z
             response_delay_ms: z.number().nullable().optional(),
             response_duration_ms: z.number().nullable().optional(),
             response_timer_seconds: z.number().optional(),
-            max_response_duration_seconds: z.number().optional()
+            max_response_duration_seconds: z.number().optional(),
           })
-          .optional()
+          .optional(),
       })
-      .optional()
+      .optional(),
   })
   .superRefine((data, ctx) => {
-    if (!data.audio && !data.transcript_text && !data.client_transcript) {
+    if (!data.audio && !data.transcript_text) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Provide audio, transcript_text, or client_transcript."
+        message: "Provide audio or transcript_text.",
+      });
+    }
+    if (data.input_mode === "typed" && data.audio) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Typed practice cannot include audio.",
+      });
+    }
+    if (data.input_mode === "typed" && !data.transcript_text) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Typed practice requires transcript_text.",
       });
     }
   });
@@ -310,16 +312,19 @@ export const practiceRunInputSchema = z
 export const practiceRunResponseSchema = z.object({
   requestId: z.string(),
   attemptId: z.string().optional(),
+  score_trust: z.enum(["cloud_trusted", "local_unverified"]).optional(),
   next_recommended_difficulty: z.number().optional(),
   transcript: z
     .object({
       text: z.string(),
-      provider: z.object({
-        kind: z.enum(["local", "openai"]),
-        model: z.string()
-      }),
-      duration_ms: z.number(),
-      origin: z.enum(["local", "openai"])
+      input_mode: z.enum(["audio", "typed"]).optional(),
+      provider: z
+        .object({
+          kind: z.enum(["local", "openai"]),
+          model: z.string(),
+        })
+        .nullable(),
+      duration_ms: z.number().nullable(),
     })
     .optional(),
   timing_penalty: z.number().optional(),
@@ -329,35 +334,36 @@ export const practiceRunResponseSchema = z.object({
       evaluation: evaluationResultSchema,
       provider: z.object({
         kind: z.enum(["local", "openai"]),
-        model: z.string()
+        model: z.string(),
       }),
       duration_ms: z.number(),
-      origin: z.enum(["local", "openai"])
     })
     .optional(),
   errors: z
     .array(
       z.object({
         stage: z.enum(["input", "stt", "scoring", "db"]),
-        message: z.string()
-      })
+        message: z.string(),
+      }),
     )
     .optional(),
   debug: z
     .object({
-      timings: z.record(z.number()),
+      timings: z.record(z.string(), z.number()),
       selectedProviders: z.object({
-        stt: z.object({
-          kind: z.enum(["local", "openai"]),
-          model: z.string()
-        }),
+        stt: z
+          .object({
+            kind: z.enum(["local", "openai"]),
+            model: z.string(),
+          })
+          .nullable(),
         llm: z
           .object({
             kind: z.enum(["local", "openai"]),
-            model: z.string()
+            model: z.string(),
           })
-          .nullable()
-      })
+          .nullable(),
+      }),
     })
-    .optional()
+    .optional(),
 });

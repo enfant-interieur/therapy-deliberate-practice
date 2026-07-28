@@ -6,23 +6,36 @@ import type {
   DeliberatePracticeTaskV2,
   ParseMode,
   TaskExample,
-  TaskInteractionExample
+  TaskInteractionExample,
 } from "@deliberate/shared";
 import type { LogFn } from "../utils/logger";
 import {
   deliberatePracticeEvaluationPrompt,
-  deliberatePracticeEvaluationPromptLocal,
   deliberatePracticeTaskV2Schema,
   evaluationResultSchema,
   llmParseSchema,
   taskCriterionSchema,
-  taskInteractionExampleSchema
+  taskInteractionExampleSchema,
 } from "@deliberate/shared";
 import { createStructuredResponse } from "./openaiResponses";
 import { OPENAI_LLM_MODEL } from "./models";
 import { BaseLlmProvider } from "./base";
-import { localSuiteHealthCheck, localSuiteStructuredResponse } from "./localSuite";
 import { z } from "zod";
+
+const sanitizeExampleMeta = (
+  meta: Record<string, unknown> | null | undefined,
+) => {
+  if (!meta) return null;
+  return Object.fromEntries(
+    Object.entries(meta).filter(
+      (entry): entry is [string, string | number | boolean | null] =>
+        entry[1] === null ||
+        typeof entry[1] === "string" ||
+        typeof entry[1] === "number" ||
+        typeof entry[1] === "boolean",
+    ),
+  );
+};
 
 const sanitizeExample = (example: TaskExample, targetLanguage: string) => ({
   id: example.id,
@@ -30,7 +43,7 @@ const sanitizeExample = (example: TaskExample, targetLanguage: string) => ({
   severity_label: example.severity_label ?? null,
   patient_text: example.patient_text,
   language: targetLanguage,
-  meta: example.meta ?? null
+  meta: sanitizeExampleMeta(example.meta),
 });
 
 const sanitizeInteractionExample = (example: TaskInteractionExample) => ({
@@ -38,7 +51,7 @@ const sanitizeInteractionExample = (example: TaskInteractionExample) => ({
   difficulty: example.difficulty,
   title: example.title ?? null,
   patient_text: example.patient_text,
-  therapist_text: example.therapist_text
+  therapist_text: example.therapist_text,
 });
 
 const translationExampleSchema = z.object({
@@ -48,9 +61,12 @@ const translationExampleSchema = z.object({
   patient_text: z.string(),
   language: z.string().optional(),
   meta: z
-    .record(z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .record(
+      z.string(),
+      z.union([z.string(), z.number(), z.boolean(), z.null()]),
+    )
     .nullable()
-    .optional()
+    .optional(),
 });
 
 const translationTaskSchema = z.object({
@@ -62,62 +78,32 @@ const translationTaskSchema = z.object({
     base_difficulty: z.number().min(1).max(5),
     general_objective: z.string().nullable().optional(),
     tags: z.array(z.string()),
-    language: z.string()
+    language: z.string(),
   }),
   criteria: z.array(taskCriterionSchema),
   examples: z.array(translationExampleSchema),
-  interaction_examples: z.array(taskInteractionExampleSchema).optional()
+  interaction_examples: z.array(taskInteractionExampleSchema).optional(),
 });
 
 type TranslationTaskPayload = z.infer<typeof translationTaskSchema>;
 
-class LocalMlxLlmProviderImpl extends BaseLlmProvider {
-  constructor(private baseUrl: string, logger?: LogFn) {
-    super("local", undefined, logger);
-  }
-
-  healthCheck() {
-    return localSuiteHealthCheck(this.baseUrl);
-  }
-
-  protected async doEvaluateDeliberatePractice(input: EvaluationInput) {
-    const result = await localSuiteStructuredResponse<EvaluationResult>({
-      baseUrl: this.baseUrl,
-      temperature: 0.2,
-      instructions: deliberatePracticeEvaluationPromptLocal,
-      input: JSON.stringify(input),
-      schemaName: "EvaluationResult",
-      schema: evaluationResultSchema
-    });
-    return { value: result.value, requestId: result.responseId };
-  }
-
-  protected async doParseExercise(_input: { sourceText: string; parseMode?: ParseMode }) {
-    throw new Error("Local LLM does not support task parsing.");
-  }
-
-  protected async doTranslateTask(_input: {
-    source: DeliberatePracticeTaskV2;
-    targetLanguage: string;
-  }) {
-    throw new Error("Local LLM does not support task translation.");
-  }
-}
-
 class OpenAILlmProviderImpl extends BaseLlmProvider {
-  constructor(private apiKey: string, logger?: LogFn) {
+  constructor(
+    private apiKey: string,
+    logger?: LogFn,
+  ) {
     super("openai", OPENAI_LLM_MODEL, logger);
   }
 
   private prepareTranslationPayload(
     source: DeliberatePracticeTaskV2,
-    targetLanguage: string
+    targetLanguage: string,
   ): TranslationTaskPayload {
     const normalizedExamples = source.examples.map((example) =>
-      sanitizeExample(example, targetLanguage)
+      sanitizeExample(example, targetLanguage),
     );
-    const normalizedInteractions = source.interaction_examples?.map((interaction) =>
-      sanitizeInteractionExample(interaction)
+    const normalizedInteractions = source.interaction_examples?.map(
+      (interaction) => sanitizeInteractionExample(interaction),
     );
     return {
       version: "2.1",
@@ -128,16 +114,18 @@ class OpenAILlmProviderImpl extends BaseLlmProvider {
         base_difficulty: source.task.base_difficulty,
         general_objective: source.task.general_objective ?? null,
         tags: source.task.tags ?? [],
-        language: targetLanguage
+        language: targetLanguage,
       },
       criteria: source.criteria.map((criterion) => ({
         id: criterion.id,
         label: criterion.label,
         description: criterion.description,
-        rubric: criterion.rubric
+        rubric: criterion.rubric,
       })),
       examples: normalizedExamples,
-      ...(normalizedInteractions ? { interaction_examples: normalizedInteractions } : {})
+      ...(normalizedInteractions
+        ? { interaction_examples: normalizedInteractions }
+        : {}),
     };
   }
 
@@ -153,11 +141,11 @@ class OpenAILlmProviderImpl extends BaseLlmProvider {
       instructions: deliberatePracticeEvaluationPrompt,
       input: JSON.stringify(input),
       schemaName: "EvaluationResult",
-      schema: evaluationResultSchema
+      schema: evaluationResultSchema,
     });
     return {
       value: result.value,
-      requestId: result.responseId
+      requestId: result.responseId,
     };
   }
 
@@ -343,14 +331,14 @@ The following is an example of valid output structure. Do not copy its content u
       instructions: systemPrompt,
       input: input.sourceText,
       schemaName: "DeliberatePracticeTask",
-      schema: llmParseSchema
+      schema: llmParseSchema,
     });
     return { value: result.value, requestId: result.responseId };
   }
 
   protected async doTranslateTask({
     source,
-    targetLanguage
+    targetLanguage,
   }: {
     source: DeliberatePracticeTaskV2;
     targetLanguage: string;
@@ -372,16 +360,16 @@ Translation rules:
       instructions: systemPrompt,
       input: JSON.stringify(payload),
       schemaName: "DeliberatePracticeTaskV2",
-      schema: translationTaskSchema
+      schema: translationTaskSchema,
     });
-    return { value: deliberatePracticeTaskV2Schema.parse(result.value), requestId: result.responseId };
+    return {
+      value: deliberatePracticeTaskV2Schema.parse(result.value),
+      requestId: result.responseId,
+    };
   }
 }
 
-export const LocalMlxLlmProvider = (baseUrl: string, logger?: LogFn): LlmProvider =>
-  new LocalMlxLlmProviderImpl(baseUrl, logger);
-
 export const OpenAILlmProvider = (
   { apiKey }: { apiKey: string },
-  logger?: LogFn
+  logger?: LogFn,
 ): LlmProvider => new OpenAILlmProviderImpl(apiKey, logger);

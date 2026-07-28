@@ -4,34 +4,61 @@ import { useTranslation } from "react-i18next";
 import { Badge, Button, IconButton, Input, Label, Textarea } from "./AdminUi";
 
 const ArrowUp = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M12 19V5m0 0l-6 6m6-6l6 6" strokeLinecap="round" />
   </svg>
 );
 
 const ArrowDown = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M12 5v14m0 0l-6-6m6 6l6-6" strokeLinecap="round" />
   </svg>
 );
 
 const DuplicateIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M8 8h10v10H8z" />
     <path d="M6 16H4V4h12v2" />
   </svg>
 );
 
 const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M4 7h16" strokeLinecap="round" />
     <path d="M9 7V5h6v2" strokeLinecap="round" />
     <path d="M8 7l1 12h6l1-12" strokeLinecap="round" />
   </svg>
 );
 
-const updateArrayItem = <T,>(items: T[], index: number, updater: (item: T) => T): T[] =>
-  items.map((item, idx) => (idx === index ? updater(item) : item));
+const updateArrayItem = <T,>(
+  items: T[],
+  index: number,
+  updater: (item: T) => T,
+): T[] => items.map((item, idx) => (idx === index ? updater(item) : item));
 
 type ExampleErrors = {
   id?: string;
@@ -45,14 +72,22 @@ type ExamplesListEditorProps = {
   onChange: (examples: TaskExample[]) => void;
 };
 
-export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListEditorProps) => {
+export const ExamplesListEditor = ({
+  examples,
+  errors,
+  onChange,
+}: ExamplesListEditorProps) => {
   const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
-  const [difficultyFilter, setDifficultyFilter] = useState<number | "all">("all");
+  const [difficultyFilter, setDifficultyFilter] = useState<number | "all">(
+    "all",
+  );
 
   const filtered = useMemo(() => {
     if (difficultyFilter === "all") return examples;
-    return examples.filter((example) => example.difficulty === difficultyFilter);
+    return examples.filter(
+      (example) => example.difficulty === difficultyFilter,
+    );
   }, [difficultyFilter, examples]);
 
   const addExample = () => {
@@ -63,8 +98,8 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
         id: `ex${nextIndex}`,
         difficulty: 3,
         patient_text: "",
-        severity_label: null
-      }
+        severity_label: null,
+      },
     ]);
   };
 
@@ -93,8 +128,12 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h4 className="text-sm font-semibold text-teal-200">{t("admin.content.examples")}</h4>
-          <p className="text-xs text-slate-400">{t("admin.content.examplesHint")}</p>
+          <h4 className="text-sm font-semibold text-teal-200">
+            {t("admin.content.examples")}
+          </h4>
+          <p className="text-xs text-slate-400">
+            {t("admin.content.examplesHint")}
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/60 px-2 py-1">
@@ -106,7 +145,9 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
                 key={`filter-${value}`}
                 type="button"
                 className={`rounded-full px-2 py-1 text-xs font-semibold transition ${
-                  difficultyFilter === value ? "bg-teal-400/20 text-teal-100" : "text-slate-300"
+                  difficultyFilter === value
+                    ? "bg-teal-400/20 text-teal-100"
+                    : "text-slate-300"
                 }`}
                 onClick={() => setDifficultyFilter(value as number | "all")}
               >
@@ -120,7 +161,7 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
         </div>
       </div>
       <div className="space-y-4">
-        {filtered.map((example, filteredIndex) => {
+        {filtered.map((example) => {
           const index = examples.findIndex((item) => item.id === example.id);
           const exampleErrors = errors[index] || {};
           const isCollapsed = collapsed[example.id];
@@ -135,15 +176,24 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
                     type="button"
                     className="text-left"
                     onClick={() =>
-                      setCollapsed((prev) => ({ ...prev, [example.id]: !prev[example.id] }))
+                      setCollapsed((prev) => ({
+                        ...prev,
+                        [example.id]: !prev[example.id],
+                      }))
                     }
                   >
-                    <p className="text-sm font-semibold text-white">{example.id}</p>
+                    <p className="text-sm font-semibold text-white">
+                      {example.id}
+                    </p>
                     <p className="text-xs text-slate-400">
-                      {t("admin.content.difficultyLabel", { difficulty: example.difficulty })}
+                      {t("admin.content.difficultyLabel", {
+                        difficulty: example.difficulty,
+                      })}
                     </p>
                   </button>
-                  {example.severity_label && <Badge>{example.severity_label}</Badge>}
+                  {example.severity_label && (
+                    <Badge>{example.severity_label}</Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <IconButton
@@ -185,13 +235,15 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
                         onChange(
                           updateArrayItem(examples, index, (item) => ({
                             ...item,
-                            id: event.target.value
-                          }))
+                            id: event.target.value,
+                          })),
                         )
                       }
                     />
                     {exampleErrors.id && (
-                      <p className="text-xs text-rose-300">{exampleErrors.id}</p>
+                      <p className="text-xs text-rose-300">
+                        {exampleErrors.id}
+                      </p>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -210,8 +262,8 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
                             onChange(
                               updateArrayItem(examples, index, (item) => ({
                                 ...item,
-                                difficulty: value
-                              }))
+                                difficulty: value,
+                              })),
                             )
                           }
                         >
@@ -220,7 +272,9 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
                       ))}
                     </div>
                     {exampleErrors.difficulty && (
-                      <p className="text-xs text-rose-300">{exampleErrors.difficulty}</p>
+                      <p className="text-xs text-rose-300">
+                        {exampleErrors.difficulty}
+                      </p>
                     )}
                   </div>
                   <div className="space-y-2">
@@ -231,8 +285,8 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
                         onChange(
                           updateArrayItem(examples, index, (item) => ({
                             ...item,
-                            severity_label: event.target.value || null
-                          }))
+                            severity_label: event.target.value || null,
+                          })),
                         )
                       }
                       placeholder={t("admin.content.severityPlaceholder")}
@@ -247,16 +301,21 @@ export const ExamplesListEditor = ({ examples, errors, onChange }: ExamplesListE
                         onChange(
                           updateArrayItem(examples, index, (item) => ({
                             ...item,
-                            patient_text: event.target.value
-                          }))
+                            patient_text: event.target.value,
+                          })),
                         )
                       }
                     />
                     <div className="flex items-center justify-between text-xs text-slate-400">
                       {exampleErrors.patient_text && (
-                        <span className="text-rose-300">{exampleErrors.patient_text}</span>
+                        <span className="text-rose-300">
+                          {exampleErrors.patient_text}
+                        </span>
                       )}
-                      <span>{example.patient_text.length} {t("admin.content.characters")}</span>
+                      <span>
+                        {example.patient_text.length}{" "}
+                        {t("admin.content.characters")}
+                      </span>
                     </div>
                   </div>
                 </div>

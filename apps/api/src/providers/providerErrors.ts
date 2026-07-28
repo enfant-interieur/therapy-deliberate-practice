@@ -9,6 +9,7 @@ export type ProviderConfigErrorCode =
   | "OPENAI_KEY_MISSING"
   | "LOCAL_BASE_URL_MISSING"
   | "LOCAL_UNREACHABLE"
+  | "LOCAL_BROWSER_REQUIRED"
   | "OPENAI_KEY_SECRET_MISSING";
 
 export class ProviderConfigError extends Error {
@@ -22,12 +23,13 @@ export class ProviderConfigError extends Error {
   }
 }
 
-export const isProviderConfigError = (error: unknown): error is ProviderConfigError =>
-  error instanceof ProviderConfigError;
+export const isProviderConfigError = (
+  error: unknown,
+): error is ProviderConfigError => error instanceof ProviderConfigError;
 
 export const createProviderError = (
   message: string,
-  options?: { requestId?: string; logFields?: LogFields }
+  options?: { requestId?: string; logFields?: LogFields },
 ) => {
   const error = new Error(message) as ProviderError;
   if (options?.requestId) {

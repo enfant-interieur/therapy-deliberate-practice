@@ -5,25 +5,130 @@ on:
     branches: ["main"]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  javascript:
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
         with:
-          node-version: 20
-          cache: "npm"
-      - uses: actions/setup-python@v5
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          python-version: "3.11"
-      - name: Install node dependencies
-        run: npm ci
-      - name: Install local runtime dependencies
-        run: pip install -e services/local-runtime-suite/python[lint]
-      - name: Lint local runtime
-        run: ruff check services/local-runtime-suite/python
-      - name: Validate model specs
-        run: python services/local-runtime-suite/tools/gen_models_json.py
+          node-version: "24.12.0"
+          cache: npm
+      - run: npm ci
+      - name: Lint browser and desktop code
+        run: |
+          npm run lint -w apps/web
+          npm run lint -w services/local-runtime-suite/desktop
+      - name: Type-check browser code
+        run: |
+          npm run typecheck -w apps/web
+          npm run typecheck -w services/local-runtime-suite/desktop
+      - name: Run JavaScript and TypeScript tests
+        run: |
+          npm test -w apps/api
+          npm test -w apps/web
+          npm test -w services/local-runtime-suite/desktop
+      - name: Build application surfaces
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+        run: |
+          npm run build
+          npm run build -w services/local-runtime-suite/desktop
+      - name: Install browser for maintained web flows
+        run: npx playwright install --with-deps chromium
+      - name: Run all maintained browser flows
+        env:
+          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
+          VITE_SUPABASE_ANON_KEY: ci-placeholder
+        run: |
+          (
+            cd apps/web
+            npx playwright test --grep-invert "existing deployed HTTPS origin"
+          )
+      - name: Audit production dependency placement
+        run: npm run audit:production
+
+  python:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.2.0
+        with:
+          python-version: "3.12.13"
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.13"
+          enable-cache: true
+      - name: Verify committed dependency lock
+        run: uv lock --check --project services/local-runtime-suite/python
+      - name: Lint and format-check Python
+        run: |
+          uvx --from ruff==0.16.0 ruff check \
+            services/local-runtime-suite/python \
+            services/local-runtime-suite/desktop/scripts
+          uvx --from ruff==0.16.0 ruff format --check \
+            services/local-runtime-suite/python \
+            services/local-runtime-suite/desktop/scripts
+      - name: Run deterministic Python tests
+        run: >-
+          uv run --python 3.12 --no-project
+          --with-requirements services/local-runtime-suite/python/requirements-test.txt
+          python -m pytest -q services/local-runtime-suite/python/tests
       - name: Verify generated model catalog
-        run: git diff --exit-code apps/web/public/local-suite/models.json
+        run: |
+          uv run --python 3.12 --no-project \
+            --with-requirements services/local-runtime-suite/python/requirements-test.txt \
+            python services/local-runtime-suite/tools/gen_models_json.py
+          git diff --exit-code apps/web/public/local-suite/models.json
+
+  rust:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Verify Rust formatting
+        working-directory: services/local-runtime-suite/desktop/src-tauri
+        run: cargo fmt --check
+      - name: Lint Rust with warnings denied
+        working-directory: services/local-runtime-suite/desktop/src-tauri
+        run: cargo clippy --locked --all-targets --features sidecar-launcher -- -D warnings
+      - name: Check locked Rust build
+        working-directory: services/local-runtime-suite/desktop/src-tauri
+        run: cargo check --locked --features sidecar-launcher
+      - name: Run Rust tests
+        working-directory: services/local-runtime-suite/desktop/src-tauri
+        run: cargo test --locked --features sidecar-launcher
+
+  workflows:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "24.12.0"
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: "1.26.1"
+          cache: false
+      - name: Install and run actionlint
+        run: |
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          actionlint
+      - name: Verify desktop release metadata
+        run: node services/local-runtime-suite/desktop/scripts/verify-release-config.mjs

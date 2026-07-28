@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 
 import pytest
+from model_fakes import fake_model_run
 
 from local_runtime.core.config import RuntimeConfig
 from local_runtime.core.loader import load_models
@@ -14,13 +15,15 @@ from local_runtime.runtime_types import RunContext
 
 
 @pytest.mark.asyncio
-async def test_selftest_runner_succeeds(tmp_path):
+async def test_selftest_runner_succeeds(tmp_path, monkeypatch):
     config = RuntimeConfig(
         data_dir=str(tmp_path / "data"),
         cache_dir=str(tmp_path / "cache"),
     )
     config.ensure_dirs()
     models = load_models()
+    for loaded in models:
+        monkeypatch.setattr(loaded.module, "run", fake_model_run)
     registry = ModelRegistry(models, detect_platform(), logging.getLogger("test-selftest"))
     defaults: dict[str, str] = {}
     for endpoint, entries in registry.models_by_endpoint.items():

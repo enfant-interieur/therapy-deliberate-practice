@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 import { z } from "zod";
-import { buildStrictJsonSchema } from "@deliberate/shared";
 import { attemptJsonRepair } from "../utils/jsonRepair";
 import { safeTruncate } from "../utils/logger";
 import { getOpenAIClient } from "./openaiClient";
@@ -74,6 +73,73 @@ const extractOutputText = (payload: unknown): string | null => {
   return null;
 };
 
+const buildStrictJsonSchema = (
+  schema: z.ZodSchema<unknown>,
+  _schemaName: string,
+) => {
+  const root = z.toJSONSchema(schema, {
+    target: "draft-07",
+    reused: "inline",
+  }) as Record<string, unknown>;
+
+  if (
+    root &&
+    typeof root === "object" &&
+    root.type == null &&
+    root.properties
+  ) {
+    root.type = "object";
+  }
+
+  // OpenAI strict schema rules:
+  // - additionalProperties must be false for every object
+  // - required must exist and include every key in properties
+  const ensureRequiredAllProps = (record: Record<string, unknown>) => {
+    if (!record.properties || typeof record.properties !== "object") return;
+    const props = record.properties as Record<string, unknown>;
+    const keys = Object.keys(props);
+
+    // Always require all keys (OpenAI strict expects this)
+    record.required = keys;
+  };
+
+  const enforceStrict = (node: unknown) => {
+    if (!node || typeof node !== "object") return;
+    const record = node as Record<string, unknown>;
+    const type = record.type;
+    if (type === "object" && record.properties) {
+      if (!("additionalProperties" in record)) {
+        record.additionalProperties = false;
+      }
+      ensureRequiredAllProps(record);
+      for (const value of Object.values(
+        record.properties as Record<string, unknown>,
+      )) {
+        enforceStrict(value);
+      }
+    }
+    if (type === "array" && record.items) {
+      enforceStrict(record.items);
+    }
+    if (record.anyOf && Array.isArray(record.anyOf)) {
+      for (const value of record.anyOf) {
+        enforceStrict(value);
+      }
+    }
+    if (record.oneOf && Array.isArray(record.oneOf)) {
+      for (const value of record.oneOf) {
+        enforceStrict(value);
+      }
+    }
+    if (record.allOf && Array.isArray(record.allOf)) {
+      for (const value of record.allOf) {
+        enforceStrict(value);
+      }
+    }
+  };
+  enforceStrict(root);
+  return root;
+};
 const toSdkError = (error: unknown, fallback: string) => {
   const requestId = getErrorRequestId(error);
   const status =
@@ -81,14 +147,16 @@ const toSdkError = (error: unknown, fallback: string) => {
       ? (error as { status?: number }).status
       : undefined;
   const message =
-    error instanceof Error ? safeTruncate(error.message, 200) : safeTruncate(String(error), 200);
+    error instanceof Error
+      ? safeTruncate(error.message, 200)
+      : safeTruncate(String(error), 200);
   const prefix = status ? `${fallback} (${status})` : fallback;
   return createProviderError(
     `${prefix}${requestId ? ` [${requestId}]` : ""}: ${message}`,
     {
       requestId,
-      logFields: status ? { status } : undefined
-    }
+      logFields: status ? { status } : undefined,
+    },
   );
 };
 
@@ -98,7 +166,7 @@ export const createTextResponse = async ({
   instructions,
   input,
   temperature,
-  client
+  client,
 }: OpenAIResponseInput): Promise<OpenAITextResult> => {
   const openai = client ?? getOpenAIClient({ apiKey });
   let response: unknown;
@@ -107,7 +175,7 @@ export const createTextResponse = async ({
       model,
       input,
       instructions,
-      temperature
+      temperature,
     });
   } catch (error) {
     throw toSdkError(error, "OpenAI Responses failed");
@@ -119,7 +187,7 @@ export const createTextResponse = async ({
   if (!text) {
     throw createProviderError(
       `OpenAI Responses returned empty output${responseId ? ` [${responseId}]` : ""}`,
-      { requestId: responseId }
+      { requestId: responseId },
     );
   }
   return { text, responseId, responseObjectId };
@@ -133,7 +201,7 @@ export const createStructuredResponse = async <T>({
   temperature,
   schemaName,
   schema,
-  client
+  client,
 }: StructuredResponseInput<T>): Promise<OpenAIResponseResult<T>> => {
   const jsonSchema = buildStrictJsonSchema(schema, schemaName);
   const openai = client ?? getOpenAIClient({ apiKey });
@@ -149,9 +217,9 @@ export const createStructuredResponse = async <T>({
           type: "json_schema",
           name: schemaName,
           schema: jsonSchema,
-          strict: true
-        }
-      }
+          strict: true,
+        },
+      },
     });
   } catch (error) {
     throw toSdkError(error, "OpenAI Responses failed");
@@ -163,7 +231,7 @@ export const createStructuredResponse = async <T>({
   if (!rawText) {
     throw createProviderError(
       `OpenAI Responses returned empty output${responseId ? ` [${responseId}]` : ""}`,
-      { requestId: responseId }
+      { requestId: responseId },
     );
   }
 
@@ -179,7 +247,7 @@ export const createStructuredResponse = async <T>({
         `OpenAI Responses returned invalid JSON${
           responseId ? ` [${responseId}]` : ""
         }: ${safeTruncate(String(error), 120)}`,
-        { requestId: responseId }
+        { requestId: responseId },
       );
     }
   }
@@ -190,7 +258,7 @@ export const createStructuredResponse = async <T>({
       `OpenAI Responses schema validation failed${
         responseId ? ` [${responseId}]` : ""
       }: ${safeTruncate(validated.error.message, 200)}`,
-      { requestId: responseId }
+      { requestId: responseId },
     );
   }
 

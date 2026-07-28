@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ActiveFilterChips } from "../components/library/ActiveFilterChips";
 import { LibraryAdvancedFilters } from "../components/library/LibraryAdvancedFilters";
@@ -8,15 +8,24 @@ import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import {
   buildLibrarySearchParams,
   defaultLibrarySearchState,
-  parseLibrarySearchParams
+  parseLibrarySearchParams,
 } from "./library/searchState";
-import { useGetTaskLanguagesQuery, useGetTaskSkillDomainsQuery, useGetTaskTagsQuery, useGetTasksQuery } from "../store/api";
+import {
+  useGetTaskLanguagesQuery,
+  useGetTaskSkillDomainsQuery,
+  useGetTaskTagsQuery,
+  useGetTasksQuery,
+} from "../store/api";
 
 export const LibraryPage = () => {
   const { t } = useTranslation();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const inputRef = useRef<HTMLInputElement>(null);
-  const parsedState = useMemo(() => parseLibrarySearchParams(searchParams), [searchParams]);
+  const parsedState = useMemo(
+    () => parseLibrarySearchParams(searchParams),
+    [searchParams],
+  );
   const [searchState, setSearchState] = useState(parsedState);
   const [draftState, setDraftState] = useState(parsedState);
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -27,7 +36,12 @@ export const LibraryPage = () => {
   const { data: tagsData } = useGetTaskTagsQuery();
   const { data: skillDomainsData } = useGetTaskSkillDomainsQuery();
 
-  const { data = [], isLoading } = useGetTasksQuery({
+  const {
+    data = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useGetTasksQuery({
     published: 1,
     q: debouncedQuery || undefined,
     language: searchState.language ?? undefined,
@@ -35,7 +49,7 @@ export const LibraryPage = () => {
     tags: searchState.tags,
     difficulty_min: searchState.difficulty_min ?? undefined,
     difficulty_max: searchState.difficulty_max ?? undefined,
-    sort: searchState.sort
+    sort: searchState.sort,
   });
 
   useEffect(() => {
@@ -89,13 +103,18 @@ export const LibraryPage = () => {
   const languages = languagesData?.languages ?? [];
   const tags = tagsData?.tags ?? [];
   const skillDomains = skillDomainsData?.skill_domains ?? [];
+  const libraryReturnTo = `${location.pathname}${location.search}`;
 
   const handleApplyAdvanced = () => {
     setSearchState(draftState);
   };
 
   const handleResetAdvanced = () => {
-    setDraftState({ ...defaultLibrarySearchState, q: searchState.q, language: searchState.language });
+    setDraftState({
+      ...defaultLibrarySearchState,
+      q: searchState.q,
+      language: searchState.language,
+    });
   };
 
   const handleRemoveFilter = (next: Partial<typeof searchState>) => {
@@ -168,6 +187,8 @@ export const LibraryPage = () => {
           Array.from({ length: 4 }).map((_, index) => (
             <div
               key={`skeleton-${index}`}
+              role="status"
+              aria-label={t("library.loading")}
               className="h-64 animate-pulse rounded-3xl border border-white/10 bg-slate-900/40 p-6"
             >
               <div className="h-4 w-24 rounded-full bg-slate-800/80" />
@@ -183,48 +204,82 @@ export const LibraryPage = () => {
             </div>
           ))}
         {!isLoading &&
+          !isError &&
           data.map((task) => (
-          <article
-            key={task.id}
-            className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg"
-          >
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-teal-300">{task.skill_domain}</p>
-                <h3 className="text-xl font-semibold">{task.title}</h3>
-              </div>
-              <span className="rounded-full bg-teal-500/10 px-3 py-1 text-xs text-teal-200">
-                {t("library.difficulty", { difficulty: task.base_difficulty })}
-              </span>
-            </div>
-            <p className="mt-4 text-sm text-slate-300">{task.description}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {task.tags.map((tag) => (
-                <span key={tag} className="rounded-full border border-white/10 px-3 py-1 text-xs">
-                  {tag}
+            <article
+              key={task.id}
+              className="rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg"
+            >
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
+                    {task.skill_domain}
+                  </p>
+                  <h3 className="text-xl font-semibold">{task.title}</h3>
+                </div>
+                <span className="rounded-full bg-teal-500/10 px-3 py-1 text-xs text-teal-200">
+                  {t("library.difficulty", {
+                    difficulty: task.base_difficulty,
+                  })}
                 </span>
-              ))}
-            </div>
-            <div className="mt-6 flex gap-3">
-              <Link
-                to={`/tasks/${task.id}`}
-                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
-              >
-                {t("library.viewDetails")}
-              </Link>
-              <Link
-                to={`/practice/${task.id}`}
-                className="rounded-full border border-white/20 px-4 py-2 text-sm"
-              >
-                {t("library.startPractice")}
-              </Link>
-            </div>
-          </article>
-        ))}
-        {!isLoading && data.length === 0 && (
+              </div>
+              <p className="mt-4 text-sm text-slate-300">{task.description}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {task.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full border border-white/10 px-3 py-1 text-xs"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-6 flex gap-3">
+                <Link
+                  to={`/tasks/${task.id}`}
+                  state={{ libraryReturnTo }}
+                  className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
+                >
+                  {t("library.viewDetails")}
+                </Link>
+                <Link
+                  to={`/practice/${task.id}`}
+                  state={{ libraryReturnTo }}
+                  className="rounded-full border border-white/20 px-4 py-2 text-sm"
+                >
+                  {t("library.startPractice")}
+                </Link>
+              </div>
+            </article>
+          ))}
+        {!isLoading && isError && (
+          <div
+            role="alert"
+            className="col-span-full rounded-3xl border border-rose-400/30 bg-rose-950/20 p-8 text-center"
+          >
+            <p className="font-semibold text-rose-100">
+              {t("library.errorState.title")}
+            </p>
+            <p className="mt-2 text-sm text-rose-200/80">
+              {t("library.errorState.subtitle")}
+            </p>
+            <button
+              type="button"
+              onClick={() => void refetch()}
+              className="mt-4 rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-950"
+            >
+              {t("library.errorState.retry")}
+            </button>
+          </div>
+        )}
+        {!isLoading && !isError && data.length === 0 && (
           <div className="col-span-full rounded-3xl border border-white/10 bg-slate-900/40 p-8 text-center">
-            <p className="text-sm text-slate-300">{t("library.emptyState.title")}</p>
-            <p className="mt-2 text-xs text-slate-400">{t("library.emptyState.subtitle")}</p>
+            <p className="text-sm text-slate-300">
+              {t("library.emptyState.title")}
+            </p>
+            <p className="mt-2 text-xs text-slate-400">
+              {t("library.emptyState.subtitle")}
+            </p>
             <button
               type="button"
               onClick={handleClearAll}

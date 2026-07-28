@@ -5,7 +5,9 @@ import Database from "better-sqlite3";
 export const seedDatabase = async (dbPath: string) => {
   const sqlite = new Database(dbPath);
   const tableExists = sqlite
-    .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'")
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='tasks'",
+    )
     .get();
   if (!tableExists) {
     sqlite.close();
@@ -18,10 +20,11 @@ export const seedDatabase = async (dbPath: string) => {
   }
   const seedPathCandidates = [
     path.resolve(process.cwd(), "apps/api/infra/seed.sql"),
-    path.resolve(process.cwd(), "infra/seed.sql")
+    path.resolve(process.cwd(), "infra/seed.sql"),
   ];
   const seedPath =
-    seedPathCandidates.find((candidate) => fs.existsSync(candidate)) ?? seedPathCandidates[0];
+    seedPathCandidates.find((candidate) => fs.existsSync(candidate)) ??
+    seedPathCandidates[0];
   const seedSql = fs.readFileSync(seedPath, "utf8");
   sqlite.exec(seedSql);
   sqlite.close();

@@ -9,7 +9,12 @@ type TaskJsonExportModalProps = {
   onCopy?: () => void;
 };
 
-export const TaskJsonExportModal = ({ open, json, onClose, onCopy }: TaskJsonExportModalProps) => {
+export const TaskJsonExportModal = ({
+  open,
+  json,
+  onClose,
+  onCopy,
+}: TaskJsonExportModalProps) => {
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -42,8 +47,12 @@ export const TaskJsonExportModal = ({ open, json, onClose, onCopy }: TaskJsonExp
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
               {t("admin.edit.exportModalKicker")}
             </p>
-            <h3 className="text-xl font-semibold text-white">{t("admin.edit.exportModalTitle")}</h3>
-            <p className="text-sm text-slate-400">{t("admin.edit.exportModalSubtitle")}</p>
+            <h3 className="text-xl font-semibold text-white">
+              {t("admin.edit.exportModalTitle")}
+            </h3>
+            <p className="text-sm text-slate-400">
+              {t("admin.edit.exportModalSubtitle")}
+            </p>
           </div>
           <Button variant="ghost" onClick={onClose}>
             {t("admin.actions.close")}

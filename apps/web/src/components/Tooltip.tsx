@@ -2,17 +2,19 @@ import { cloneElement, useId, type ReactElement } from "react";
 
 type TooltipProps = {
   label: string;
-  children: ReactElement;
+  children: ReactElement<{ "aria-describedby"?: string }>;
 };
 
 export const Tooltip = ({ label, children }: TooltipProps) => {
   const id = useId();
-  const describedBy = [children.props["aria-describedby"], id].filter(Boolean).join(" ");
+  const describedBy = [children.props["aria-describedby"], id]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <span className="group relative inline-flex">
       {cloneElement(children, {
-        "aria-describedby": describedBy
+        "aria-describedby": describedBy,
       })}
       <span
         id={id}

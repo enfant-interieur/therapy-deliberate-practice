@@ -4,8 +4,9 @@ import asyncio
 import inspect
 import logging
 import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from local_runtime.core.loader import LoadedModel
 
@@ -39,6 +40,10 @@ class ModelRegistry:
         self.capabilities: dict[str, dict[str, Any]] = {}
         self._hooks: dict[str, LifecycleHooks] = {}
         self._build_indexes()
+        self._load_locks: dict[str, asyncio.Lock] = {
+            model_id: asyncio.Lock() for model_id in self._models_by_id
+        }
+        self._load_tasks: dict[str, asyncio.Task[Any]] = {}
 
     def _build_indexes(self) -> None:
         for loaded in self._models:
@@ -85,8 +90,14 @@ class ModelRegistry:
                 loaded.append(model_id)
         return loaded
 
-    async def preload_model(self, model_id: str, ctx_factory: Callable[[str], Any]) -> bool:
-        return await self._preload_model(model_id, ctx_factory)
+    async def preload_model(
+        self,
+        model_id: str,
+        ctx_factory: Callable[[str], Any],
+        *,
+        raise_errors: bool = False,
+    ) -> bool:
+        return await self._preload_model(model_id, ctx_factory, raise_errors=raise_errors)
 
     async def ensure_instance(self, model_id: str, ctx: Any) -> Any:
         if model_id in self.model_instances:
@@ -101,9 +112,70 @@ class ModelRegistry:
                 extra={"model_id": model_id, "reason": "missing_load_hook"},
             )
             return None
-        instance = await self._call_hook(hooks.load, ctx, model_id=model_id, phase="load")
+        return await self._await_shared_load(
+            model_id,
+            hooks,
+            ctx,
+            phase="load",
+        )
+
+    async def _await_shared_load(
+        self,
+        model_id: str,
+        hooks: LifecycleHooks,
+        ctx: Any,
+        *,
+        phase: str,
+        warmup_ctx: Any | None = None,
+        run_warmup: bool = False,
+    ) -> Any:
+        async with self._load_locks[model_id]:
+            if model_id in self.model_instances:
+                return self.model_instances[model_id]
+            task = self._load_tasks.get(model_id)
+            if task is None:
+                task = asyncio.create_task(
+                    self._load_and_store(
+                        model_id,
+                        hooks,
+                        ctx,
+                        phase=phase,
+                        warmup_ctx=warmup_ctx,
+                        run_warmup=run_warmup,
+                    ),
+                    name=f"load-model:{model_id}",
+                )
+                self._load_tasks[model_id] = task
+                task.add_done_callback(
+                    lambda completed, target=model_id: self._clear_load_task(target, completed)
+                )
+        return await asyncio.shield(task)
+
+    async def _load_and_store(
+        self,
+        model_id: str,
+        hooks: LifecycleHooks,
+        ctx: Any,
+        *,
+        phase: str,
+        warmup_ctx: Any | None,
+        run_warmup: bool,
+    ) -> Any:
+        instance = await self._call_hook(hooks.load, ctx, model_id=model_id, phase=phase)
+        if run_warmup and hooks.warmup is not None:
+            await self._call_hook(
+                hooks.warmup,
+                instance,
+                warmup_ctx,
+                model_id=model_id,
+                phase="warmup",
+            )
         self.model_instances[model_id] = instance
         return instance
+
+    def _clear_load_task(self, model_id: str, completed: asyncio.Task[Any]) -> None:
+        if self._load_tasks.get(model_id) is completed:
+            self._load_tasks.pop(model_id, None)
 
     async def shutdown(self, ctx_factory: Callable[[str], Any]) -> None:
         for model_id, hooks in self._hooks.items():
@@ -113,7 +185,13 @@ class ModelRegistry:
             instance = self.model_instances[model_id]
             await self._call_hook(hooks.shutdown, instance, ctx, model_id=model_id, phase="shutdown")
 
-    async def _preload_model(self, model_id: str, ctx_factory: Callable[[str], Any]) -> bool:
+    async def _preload_model(
+        self,
+        model_id: str,
+        ctx_factory: Callable[[str], Any],
+        *,
+        raise_errors: bool = False,
+    ) -> bool:
         hooks = self._hooks.get(model_id)
         loaded = self._models_by_id.get(model_id)
         if not loaded:
@@ -131,26 +209,35 @@ class ModelRegistry:
             )
             return False
         ctx = ctx_factory(f"preload:{model_id}")
-        start = time.perf_counter()
-        try:
-            instance = await self._call_hook(hooks.load, ctx, model_id=model_id, phase="preload")
-        except Exception:
-            self.logger.error(
-                "model.preload.failed",
-                extra={"model_id": model_id},
-            )
-            return False
-        self.model_instances[model_id] = instance
-        duration_ms = round((time.perf_counter() - start) * 1000, 2)
-        self.logger.info("model.preload.ok", extra={"model_id": model_id, "duration_ms": duration_ms})
         should_warmup = bool(
             hooks.warmup
             and self.enable_warmup
             and bool(getattr(loaded.spec.execution, "warmup_on_start", False))
         )
-        if should_warmup:
-            warmup_ctx = ctx_factory(f"warmup:{model_id}")
-            await self._call_hook(hooks.warmup, instance, warmup_ctx, model_id=model_id, phase="warmup")
+        warmup_ctx = ctx_factory(f"warmup:{model_id}") if should_warmup else None
+        start = time.perf_counter()
+        try:
+            await self._await_shared_load(
+                model_id,
+                hooks,
+                ctx,
+                phase="preload",
+                warmup_ctx=warmup_ctx,
+                run_warmup=should_warmup,
+            )
+        except Exception:
+            self.logger.error(
+                "model.preload.failed",
+                extra={"model_id": model_id},
+            )
+            if raise_errors:
+                raise
+            return False
+        duration_ms = round((time.perf_counter() - start) * 1000, 2)
+        self.logger.info(
+            "model.preload.ok",
+            extra={"model_id": model_id, "duration_ms": duration_ms},
+        )
         return True
 
     async def _call_hook(self, hook: Callable, *args, model_id: str, phase: str):

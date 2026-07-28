@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAccessibleDialog } from "../hooks/useAccessibleDialog";
 
 type GuideMode = "intro" | "local" | "openai";
 
@@ -30,19 +31,34 @@ const LinkIcon = () => (
     stroke="currentColor"
     strokeWidth="1.8"
   >
-    <path d="M13 5h6m0 0v6m0-6L10 16" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M9 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3" strokeLinecap="round" />
+    <path
+      d="M13 5h6m0 0v6m0-6L10 16"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M9 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3"
+      strokeLinecap="round"
+    />
   </svg>
 );
 
-const StepIndicator = ({ total, current }: { total: number; current: number }) => {
+const StepIndicator = ({
+  total,
+  current,
+}: {
+  total: number;
+  current: number;
+}) => {
   return (
     <div className="flex items-center gap-2">
       {Array.from({ length: total }).map((_, index) => (
         <span
           key={`step-${index}`}
           className={`h-2 w-8 rounded-full transition-all duration-500 ${
-            index === current ? "bg-teal-400 shadow-[0_0_18px_rgba(45,212,191,0.75)]" : "bg-white/10"
+            index === current
+              ? "bg-teal-400 shadow-[0_0_18px_rgba(45,212,191,0.75)]"
+              : "bg-white/10"
           }`}
         />
       ))}
@@ -66,6 +82,9 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
   const { t } = useTranslation();
   const [mode, setMode] = useState<GuideMode>("intro");
   const [stepIndex, setStepIndex] = useState(0);
+  const { dialogRef, titleId } = useAccessibleDialog(open, () =>
+    onClose("skip"),
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -81,8 +100,8 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         bullets: [
           t("aiSetup.intro.steps.0.bullets.0"),
           t("aiSetup.intro.steps.0.bullets.1"),
-          t("aiSetup.intro.steps.0.bullets.2")
-        ]
+          t("aiSetup.intro.steps.0.bullets.2"),
+        ],
       },
       {
         title: t("aiSetup.intro.steps.1.title"),
@@ -90,8 +109,8 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         bullets: [
           t("aiSetup.intro.steps.1.bullets.0"),
           t("aiSetup.intro.steps.1.bullets.1"),
-          t("aiSetup.intro.steps.1.bullets.2")
-        ]
+          t("aiSetup.intro.steps.1.bullets.2"),
+        ],
       },
       {
         title: t("aiSetup.intro.steps.2.title"),
@@ -99,11 +118,11 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         bullets: [
           t("aiSetup.intro.steps.2.bullets.0"),
           t("aiSetup.intro.steps.2.bullets.1"),
-          t("aiSetup.intro.steps.2.bullets.2")
-        ]
-      }
+          t("aiSetup.intro.steps.2.bullets.2"),
+        ],
+      },
     ],
-    [t]
+    [t],
   );
 
   const localSteps = useMemo<StepCard[]>(
@@ -114,9 +133,9 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         links: [
           {
             label: t("aiSetup.local.steps.0.links.0.label"),
-            href: t("aiSetup.local.steps.0.links.0.href")
-          }
-        ]
+            href: t("aiSetup.local.steps.0.links.0.href"),
+          },
+        ],
       },
       {
         title: t("aiSetup.local.steps.1.title"),
@@ -124,22 +143,8 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         bullets: [
           t("aiSetup.local.steps.1.bullets.0"),
           t("aiSetup.local.steps.1.bullets.1"),
-          t("aiSetup.local.steps.1.bullets.2")
+          t("aiSetup.local.steps.1.bullets.2"),
         ],
-        links: [
-          {
-            label: t("aiSetup.local.steps.1.links.0.label"),
-            href: t("aiSetup.local.steps.1.links.0.href")
-          },
-          {
-            label: t("aiSetup.local.steps.1.links.1.label"),
-            href: t("aiSetup.local.steps.1.links.1.href")
-          },
-          {
-            label: t("aiSetup.local.steps.1.links.2.label"),
-            href: t("aiSetup.local.steps.1.links.2.href")
-          }
-        ]
       },
       {
         title: t("aiSetup.local.steps.2.title"),
@@ -147,12 +152,11 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         bullets: [
           t("aiSetup.local.steps.2.bullets.0"),
           t("aiSetup.local.steps.2.bullets.1"),
-          t("aiSetup.local.steps.2.bullets.2")
+          t("aiSetup.local.steps.2.bullets.2"),
         ],
-        code: t("aiSetup.local.steps.2.code")
-      }
+      },
     ],
-    [t]
+    [t],
   );
 
   const openAiSteps = useMemo<StepCard[]>(
@@ -163,18 +167,18 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         bullets: [
           t("aiSetup.openai.steps.0.bullets.0"),
           t("aiSetup.openai.steps.0.bullets.1"),
-          t("aiSetup.openai.steps.0.bullets.2")
+          t("aiSetup.openai.steps.0.bullets.2"),
         ],
         links: [
           {
             label: t("aiSetup.openai.steps.0.links.0.label"),
-            href: t("aiSetup.openai.steps.0.links.0.href")
+            href: t("aiSetup.openai.steps.0.links.0.href"),
           },
           {
             label: t("aiSetup.openai.steps.0.links.1.label"),
-            href: t("aiSetup.openai.steps.0.links.1.href")
-          }
-        ]
+            href: t("aiSetup.openai.steps.0.links.1.href"),
+          },
+        ],
       },
       {
         title: t("aiSetup.openai.steps.1.title"),
@@ -182,32 +186,33 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
         bullets: [
           t("aiSetup.openai.steps.1.bullets.0"),
           t("aiSetup.openai.steps.1.bullets.1"),
-          t("aiSetup.openai.steps.1.bullets.2")
+          t("aiSetup.openai.steps.1.bullets.2"),
         ],
         links: [
           {
             label: t("aiSetup.openai.steps.1.links.0.label"),
-            href: t("aiSetup.openai.steps.1.links.0.href")
+            href: t("aiSetup.openai.steps.1.links.0.href"),
           },
           {
             label: t("aiSetup.openai.steps.1.links.1.label"),
-            href: t("aiSetup.openai.steps.1.links.1.href")
-          }
-        ]
+            href: t("aiSetup.openai.steps.1.links.1.href"),
+          },
+        ],
       },
       {
         title: t("aiSetup.openai.steps.2.title"),
         description: t("aiSetup.openai.steps.2.description"),
         bullets: [
           t("aiSetup.openai.steps.2.bullets.0"),
-          t("aiSetup.openai.steps.2.bullets.1")
-        ]
-      }
+          t("aiSetup.openai.steps.2.bullets.1"),
+        ],
+      },
     ],
-    [t]
+    [t],
   );
 
-  const steps = mode === "intro" ? introSteps : mode === "local" ? localSteps : openAiSteps;
+  const steps =
+    mode === "intro" ? introSteps : mode === "local" ? localSteps : openAiSteps;
   const totalSteps = steps.length;
   const currentStep = steps[stepIndex];
   const isFirst = stepIndex === 0;
@@ -219,20 +224,28 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/80 px-6 py-10">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(45,212,191,0.2),_transparent_60%)]" />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className="relative z-10 w-full max-w-4xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950/80 shadow-[0_30px_120px_rgba(15,23,42,0.9)] backdrop-blur"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="relative z-10 max-h-[90dvh] w-full max-w-4xl overflow-y-auto rounded-3xl border border-white/10 bg-slate-950/80 shadow-[0_30px_120px_rgba(15,23,42,0.9)] backdrop-blur"
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/10 px-8 py-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.35em] text-teal-300">
               {t("aiSetup.title.kicker")}
             </p>
-            <h2 className="text-2xl font-semibold text-white">{t("aiSetup.title.main")}</h2>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">{t("aiSetup.title.subtitle")}</p>
+            <h2 id={titleId} className="text-2xl font-semibold text-white">
+              {t("aiSetup.title.main")}
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-slate-300">
+              {t("aiSetup.title.subtitle")}
+            </p>
           </div>
           <button
             type="button"
+            data-dialog-autofocus
             onClick={() => onClose("skip")}
             className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-200 transition hover:border-white/30 hover:text-white"
           >
@@ -244,14 +257,21 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
           <div className="ai-setup-card flex flex-col gap-6 rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-950/80 p-6 shadow-[0_20px_60px_rgba(15,23,42,0.7)]">
             <div className="flex items-center justify-between gap-4">
               <p className="rounded-full border border-teal-400/40 bg-teal-500/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.3em] text-teal-200">
-                {t("aiSetup.stepsLabel", { current: stepIndex + 1, total: totalSteps })}
+                {t("aiSetup.stepsLabel", {
+                  current: stepIndex + 1,
+                  total: totalSteps,
+                })}
               </p>
               <StepIndicator total={totalSteps} current={stepIndex} />
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-xl font-semibold text-white">{currentStep.title}</h3>
-              <p className="text-sm text-slate-200">{currentStep.description}</p>
+              <h3 className="text-xl font-semibold text-white">
+                {currentStep.title}
+              </h3>
+              <p className="text-sm text-slate-200">
+                {currentStep.description}
+              </p>
               {currentStep.bullets && (
                 <ul className="space-y-2 text-sm text-slate-300">
                   {currentStep.bullets.map((item) => (
@@ -296,7 +316,9 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
                     className="group inline-flex items-center gap-2 rounded-full border border-teal-300/40 bg-teal-500/10 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-teal-100 transition hover:-translate-y-0.5 hover:border-teal-200/80 hover:bg-teal-400/20"
                   >
                     {t("aiSetup.actions.openSettings")}
-                    <span className="text-base text-teal-200 transition group-hover:translate-x-1">→</span>
+                    <span className="text-base text-teal-200 transition group-hover:translate-x-1">
+                      →
+                    </span>
                   </a>
                 )}
                 {mode !== "intro" && (
@@ -315,23 +337,27 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
                   type="button"
                   onClick={() => {
                     if (!isLast) {
-                      setStepIndex((value) => Math.min(totalSteps - 1, value + 1));
+                      setStepIndex((value) =>
+                        Math.min(totalSteps - 1, value + 1),
+                      );
                       return;
                     }
                     if (mode === "intro") {
-                      document.getElementById("ai-setup-choice")?.scrollIntoView({
-                        behavior: "smooth",
-                        block: "center"
-                      });
+                      document
+                        .getElementById("ai-setup-choice")
+                        ?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "center",
+                        });
                       return;
                     }
-                    if (mode !== "intro") {
-                      onClose("dismiss");
-                    }
+                    onClose("dismiss");
                   }}
                   className="rounded-full bg-teal-400 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-950 transition hover:-translate-y-0.5 hover:bg-teal-300"
                 >
-                  {mode === "intro" && isLast ? t("aiSetup.actions.choosePath") : t("aiSetup.actions.next")}
+                  {mode === "intro" && isLast
+                    ? t("aiSetup.actions.choosePath")
+                    : t("aiSetup.actions.next")}
                 </button>
               </div>
             </div>
@@ -342,10 +368,16 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
               <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
                 {t("aiSetup.side.title")}
               </p>
-              <h4 className="mt-3 text-lg font-semibold text-white">{t("aiSetup.side.subtitle")}</h4>
-              <p className="mt-2 text-sm text-slate-300">{t("aiSetup.side.description")}</p>
+              <h4 className="mt-3 text-lg font-semibold text-white">
+                {t("aiSetup.side.subtitle")}
+              </h4>
+              <p className="mt-2 text-sm text-slate-300">
+                {t("aiSetup.side.description")}
+              </p>
               <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/70 p-4 text-xs text-slate-300">
-                <p className="font-semibold text-teal-200">{t("aiSetup.side.tipTitle")}</p>
+                <p className="font-semibold text-teal-200">
+                  {t("aiSetup.side.tipTitle")}
+                </p>
                 <p className="mt-2">{t("aiSetup.side.tipBody")}</p>
               </div>
             </div>
@@ -355,8 +387,12 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
                 id="ai-setup-choice"
                 className="ai-setup-card flex flex-col gap-4 rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-950/80 p-6"
               >
-                <h4 className="text-lg font-semibold text-white">{t("aiSetup.choice.title")}</h4>
-                <p className="text-sm text-slate-300">{t("aiSetup.choice.description")}</p>
+                <h4 className="text-lg font-semibold text-white">
+                  {t("aiSetup.choice.title")}
+                </h4>
+                <p className="text-sm text-slate-300">
+                  {t("aiSetup.choice.description")}
+                </p>
                 <div className="grid gap-3">
                   <button
                     type="button"
@@ -367,10 +403,16 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
                     className="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:border-teal-300/70 hover:bg-teal-400/10"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-white">{t("aiSetup.choice.local.title")}</p>
-                      <p className="text-xs text-slate-300">{t("aiSetup.choice.local.body")}</p>
+                      <p className="text-sm font-semibold text-white">
+                        {t("aiSetup.choice.local.title")}
+                      </p>
+                      <p className="text-xs text-slate-300">
+                        {t("aiSetup.choice.local.body")}
+                      </p>
                     </div>
-                    <span className="text-teal-300 transition group-hover:translate-x-1">→</span>
+                    <span className="text-teal-300 transition group-hover:translate-x-1">
+                      →
+                    </span>
                   </button>
                   <button
                     type="button"
@@ -381,10 +423,16 @@ export const AiSetupModal = ({ open, onClose }: AiSetupModalProps) => {
                     className="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left transition hover:border-teal-300/70 hover:bg-teal-400/10"
                   >
                     <div>
-                      <p className="text-sm font-semibold text-white">{t("aiSetup.choice.openai.title")}</p>
-                      <p className="text-xs text-slate-300">{t("aiSetup.choice.openai.body")}</p>
+                      <p className="text-sm font-semibold text-white">
+                        {t("aiSetup.choice.openai.title")}
+                      </p>
+                      <p className="text-xs text-slate-300">
+                        {t("aiSetup.choice.openai.body")}
+                      </p>
                     </div>
-                    <span className="text-teal-300 transition group-hover:translate-x-1">→</span>
+                    <span className="text-teal-300 transition group-hover:translate-x-1">
+                      →
+                    </span>
                   </button>
                   <button
                     type="button"

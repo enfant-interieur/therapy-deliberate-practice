@@ -1,5 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { type LibrarySearchState, type LibrarySortOption } from "../../pages/library/searchState";
+import {
+  type LibrarySearchState,
+  type LibrarySortOption,
+} from "../../pages/library/searchState";
 
 type ActiveFilterChipsProps = {
   total: number;
@@ -14,10 +17,15 @@ const sortLabels: Record<LibrarySortOption, string> = {
   difficulty_asc: "library.sort.difficultyAsc",
   difficulty_desc: "library.sort.difficultyDesc",
   title_asc: "library.sort.titleAsc",
-  title_desc: "library.sort.titleDesc"
+  title_desc: "library.sort.titleDesc",
 };
 
-export const ActiveFilterChips = ({ total, filters, onRemoveFilter, onClearAll }: ActiveFilterChipsProps) => {
+export const ActiveFilterChips = ({
+  total,
+  filters,
+  onRemoveFilter,
+  onClearAll,
+}: ActiveFilterChipsProps) => {
   const { t } = useTranslation();
   const chips: Array<{ key: string; label: string; onRemove: () => void }> = [];
 
@@ -25,21 +33,23 @@ export const ActiveFilterChips = ({ total, filters, onRemoveFilter, onClearAll }
     chips.push({
       key: "q",
       label: t("library.filters.searchChip", { query: filters.q }),
-      onRemove: () => onRemoveFilter({ q: "" })
+      onRemove: () => onRemoveFilter({ q: "" }),
     });
   }
   if (filters.language) {
     chips.push({
       key: "language",
-      label: t("library.filters.languageChip", { language: filters.language.toUpperCase() }),
-      onRemove: () => onRemoveFilter({ language: null })
+      label: t("library.filters.languageChip", {
+        language: filters.language.toUpperCase(),
+      }),
+      onRemove: () => onRemoveFilter({ language: null }),
     });
   }
   if (filters.skill_domain) {
     chips.push({
       key: "skill_domain",
       label: t("library.filters.skillChip", { skill: filters.skill_domain }),
-      onRemove: () => onRemoveFilter({ skill_domain: null })
+      onRemove: () => onRemoveFilter({ skill_domain: null }),
     });
   }
   if (filters.tags.length > 0) {
@@ -47,7 +57,10 @@ export const ActiveFilterChips = ({ total, filters, onRemoveFilter, onClearAll }
       chips.push({
         key: `tag-${tag}`,
         label: t("library.filters.tagChip", { tag }),
-        onRemove: () => onRemoveFilter({ tags: filters.tags.filter((value) => value !== tag) })
+        onRemove: () =>
+          onRemoveFilter({
+            tags: filters.tags.filter((value) => value !== tag),
+          }),
       });
     });
   }
@@ -57,14 +70,17 @@ export const ActiveFilterChips = ({ total, filters, onRemoveFilter, onClearAll }
     chips.push({
       key: "difficulty",
       label: t("library.filters.difficultyChip", { min, max }),
-      onRemove: () => onRemoveFilter({ difficulty_min: null, difficulty_max: null })
+      onRemove: () =>
+        onRemoveFilter({ difficulty_min: null, difficulty_max: null }),
     });
   }
   if (filters.sort !== "newest") {
     chips.push({
       key: "sort",
-      label: t("library.filters.sortChip", { sort: t(sortLabels[filters.sort]) }),
-      onRemove: () => onRemoveFilter({ sort: "newest" })
+      label: t("library.filters.sortChip", {
+        sort: t(sortLabels[filters.sort]),
+      }),
+      onRemove: () => onRemoveFilter({ sort: "newest" }),
     });
   }
 
@@ -78,7 +94,9 @@ export const ActiveFilterChips = ({ total, filters, onRemoveFilter, onClearAll }
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <span className="text-sm text-slate-300">{t("library.resultsSummary", { count: total })}</span>
+      <span className="text-sm text-slate-300">
+        {t("library.resultsSummary", { count: total })}
+      </span>
       <div className="flex flex-wrap items-center gap-2">
         {chips.map((chip) => (
           <button

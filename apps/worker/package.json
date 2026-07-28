@@ -13,6 +13,6 @@
     "deploy:ci": "npm run migrate:remote && wrangler deploy"
   },
   "devDependencies": {
-    "wrangler": "^4.54.0"
+    "wrangler": "^4.114.0"
   }
 }

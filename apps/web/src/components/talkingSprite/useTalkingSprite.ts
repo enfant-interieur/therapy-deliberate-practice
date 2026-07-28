@@ -22,7 +22,7 @@ export const useTalkingSprite = ({
   rig,
   width,
   height,
-  onDone
+  onDone,
 }: UseTalkingSpriteOptions) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
@@ -45,7 +45,7 @@ export const useTalkingSprite = ({
         onDone?.();
       }
     },
-    [onDone]
+    [onDone],
   );
 
   useEffect(() => {
@@ -63,7 +63,7 @@ export const useTalkingSprite = ({
         width,
         height,
         backgroundAlpha: 0,
-        antialias: true
+        antialias: true,
       });
 
       if (cancelled) {
@@ -121,6 +121,6 @@ export const useTalkingSprite = ({
     play,
     stop,
     isReady,
-    isPlaying
+    isPlaying,
   };
 };

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import importlib
 import pkgutil
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable
 
 from local_runtime.core.errors import ValidationError
 from local_runtime.spec import ModelSpec, validate_spec

@@ -5,7 +5,9 @@ import { useAppSelector } from "../store/hooks";
 
 export const UserRouteGuard = ({ children }: PropsWithChildren) => {
   const { t } = useTranslation();
-  const { isAuthenticated, authChecked } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, authChecked } = useAppSelector(
+    (state) => state.auth,
+  );
   const location = useLocation();
 
   if (!authChecked) {
@@ -18,7 +20,12 @@ export const UserRouteGuard = ({ children }: PropsWithChildren) => {
 
   if (!isAuthenticated) {
     const returnTo = `${location.pathname}${location.search}`;
-    return <Navigate to={`/login?returnTo=${encodeURIComponent(returnTo)}`} replace />;
+    return (
+      <Navigate
+        to={`/login?returnTo=${encodeURIComponent(returnTo)}`}
+        replace
+      />
+    );
   }
 
   return <>{children}</>;

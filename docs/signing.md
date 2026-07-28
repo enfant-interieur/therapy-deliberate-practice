@@ -1,63 +1,59 @@
-# Signing & Notarization Setup (Local Builds)
+# Desktop signing controls
 
-This document explains how to provision the secrets required by the **local** release scripts in `scripts/release/`. **Never commit private keys or certificates to the repo.** Provide them as environment variables on the machine performing the build.
+Desktop signing happens only inside the manual `desktop-signed-build` GitHub Actions workflow. The repository does not support local signing scripts, workstation release environment files, Mac App Store credentials, or automatic signing on a branch or tag push.
 
-## Quick start
+## Protected environment
 
-1. Copy `.env.release.example` to `.env.release`.
-2. Fill in the variables relevant to your platform (macOS, Windows, notarization, etc.).
-3. Optionally create `.env.release.local` for machine-specific overrides (also gitignored).
-4. Run `npm run release` (or `npm run release:dmg`); the scripts automatically source both files.
+Repository administrators must configure a GitHub environment named `desktop-signing` before the signed workflow is used. The environment must:
 
-Only `.env.release.example` is committed. The real `.env.release*` files stay on your workstation so your Apple IDs, certificates, and passwords never enter git history.
+- require independent approval;
+- prevent self-review;
+- prevent administrator bypass where the GitHub plan permits it;
+- restrict deployments to version tags;
+- expose signing secrets only to jobs that pass those controls.
 
-## macOS (codesign + notarization + stapling)
+The workflow file can name this environment but cannot prove that its repository settings are correct. Treat signed-release readiness as blocked until an administrator has inspected and recorded those settings outside the public repository.
 
-| Env | Description |
-| --- | --- |
-| `APPSTORE_CERTIFICATES_FILE_BASE64` | Base64-encoded `.p12` containing a **Developer ID Application** (or Apple Distribution) certificate. Create via `base64 -i DeveloperID_Application.p12`. (`MAC_CODESIGN_CERT_B64` still works for legacy setups.) |
-| `APPSTORE_CERTIFICATES_PASSWORD` | Password used when exporting the `.p12`. (`MAC_CODESIGN_CERT_PASSWORD` still works for legacy setups.) |
-| `APPLE_SIGNING_IDENTITY` | Signing identity name, e.g. `Developer ID Application: Therapy Inc (TEAMID1234)`. Used by `codesign`/Tauri. |
-| `APPLE_INSTALLER_IDENTITY` (optional) | Installer identity for signing `.pkg` files, e.g. `Developer ID Installer: Therapy Inc (TEAMID1234)`. |
-| `APPLE_TEAM_ID` | 10-character Team ID used for notarization. |
-| `APPLE_ID` + `APPLE_APP_SPECIFIC_PASSWORD` | Apple ID email + app-specific password (use when **not** using API keys). |
-| `APPLE_API_KEY_B64`, `APPLE_API_KEY_ID`, `APPLE_API_ISSUER` | API key flow. Base64 encode the `.p8` key (`base64 -i AuthKey_ABC123XYZ.p8`). The build script writes it to a temp file and exports `APPLE_API_KEY_PATH`. |
+## Required secrets
 
-The notarization helper (`scripts/release/notarize-dmg.sh`) automatically picks whichever credential set is available, submits the DMG, waits for approval, and staples the ticket. If notarization is not desired (e.g., internal builds), omit the secrets and the step is skipped.
+Configure these secrets only in the `desktop-signing` environment.
 
-> `APPLE_SIGNING_IDENTITY` is merged into Tauri’s config via `TAURI_CONFIG` at build time, so you never need to place your personal identity into `src-tauri/tauri.conf.json`.
+### macOS
 
-## Mac App Store (App Store Connect)
+| Secret                       | Purpose                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| `MACOS_CERTIFICATE`          | Base64-encoded Developer ID Application certificate in PKCS #12 format. |
+| `MACOS_CERTIFICATE_PASSWORD` | Password for the PKCS #12 certificate.                                  |
+| `APPLE_SIGNING_IDENTITY`     | Exact Developer ID Application identity used by Tauri and `codesign`.   |
+| `APPLE_ID`                   | Apple Developer account used by `notarytool`.                           |
+| `APPLE_PASSWORD`             | App-specific password used by `notarytool`.                             |
+| `APPLE_TEAM_ID`              | Apple Developer team identifier.                                        |
 
-| Env | Description |
-| --- | --- |
-| `APPSTORE_SIGNING_IDENTITY` | `3rd Party Mac Developer Application: Your Company (TEAMID)`. Used to sign the `.app` for App Store builds. |
-| `APPSTORE_INSTALLER_IDENTITY` | `3rd Party Mac Developer Installer: Your Company (TEAMID)`. Used to sign the `.pkg`. |
-| `APPSTORE_PROVISION_PROFILE_B64` | Base64-encoded `.provisionprofile` downloaded from App Store Connect → Profiles (Mac App Store). |
-| `APPSTORE_ASC_PROVIDER` (optional) | ASC provider short name when uploading via Transporter (`xcrun altool`) and the Apple ID belongs to multiple teams. |
+The workflow imports the certificate through the pinned `apple-actions/import-codesign-certs` action, signs the application and DMG, submits the DMG to Apple notarization, staples the ticket, and verifies the installed package. Missing or invalid material fails the job.
 
-The `.p12` referenced earlier (`APPSTORE_CERTIFICATES_FILE_BASE64`) should contain the Mac App Store distribution certificate. The App Store release script decodes the provisioning profile into `src-tauri/embedded.provisionprofile`, builds the universal binary, produces a signed `.pkg`, and optionally uploads via Apple ID + app-specific password.
+### Windows
 
-## Windows (Authenticode)
+| Secret                         | Purpose                                                                |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `WINDOWS_CERTIFICATE`          | Base64-encoded Authenticode certificate and private key in PFX format. |
+| `WINDOWS_CERTIFICATE_PASSWORD` | Password for the PFX certificate.                                      |
 
-| Env | Description |
-| --- | --- |
-| `WINDOWS_CODESIGN_CERT_B64` | Base64-encoded `.pfx` containing the Authenticode certificate + private key. |
-| `WINDOWS_CODESIGN_CERT_PASSWORD` | PFX password. |
-| `WINDOWS_CODESIGN_SUBJECT` | Subject string passed to `signtool /n`, e.g. `Therapy Inc`. |
+The workflow imports the certificate into the ephemeral runner, signs the sidecars, desktop executable, NSIS installer, and MSI, and verifies Authenticode after installation. Missing or invalid material fails the job.
 
-The Windows build script imports the certificate into the current user store and signs every `.exe` and `.msi` produced by Tauri. Keep these secrets in `.env.release` on the Windows host (the script loads both `.env.release` and `.env.release.local`). If you use Azure Key Vault, a hardware token, or another HSM, replace the import/sign step with your provider’s CLI while keeping the filenames identical.
+### Linux
 
-## Linux Packages
+Linux AppImage, Debian, and RPM packages are currently unsigned. Their artifact manifest and build attestations must state that status explicitly. Do not describe them as cryptographically signed packages.
 
-By default the `.deb`, `.rpm`, and `.AppImage` artifacts remain unsigned. For production repos you should consider:
+## Draft-release environment
 
-1. **Debian packages** – import an armored GPG key into your local keyring, install `dpkg-sig`, and run `dpkg-sig -k "$DEB_KEY_ID" --sign builder <path>.deb`.
-2. **RPM packages** – use `rpm --addsign *.rpm` with a locally stored GPG key. Publish the public key with your repo metadata.
-3. **AppImage** – optional `appimagetool --sign` with an OpenPGP key.
+The separate `desktop-release` GitHub environment controls `desktop-release-draft`. It must use the same independent-review, no-self-review, no-bypass, and version-tag restrictions. That workflow does not receive signing secrets. It accepts only a successful `desktop-signed-build` run for the exact tag and commit, verifies all packages and attestations, and creates a draft only after explicit `PUBLISH` confirmation.
 
-## Secret Storage Tips
+## Secret handling
 
-* Store certs and passwords in your OS keychain or a local secret manager (1Password CLI, Keychain Access, Windows Credential Manager).
-* Use short-lived export files and avoid exporting keys to disk unless necessary.
-* Rotate signing credentials regularly and track key IDs in your internal security inventory.
+- Never commit certificates, keys, passwords, tokens, or filled environment files.
+- Never print secret values in logs or documentation.
+- Keep signing material out of unsigned validation workflows.
+- Rotate a credential immediately if exposure is suspected.
+- Do not copy protected environment secrets to a developer workstation as part of this release process.
+
+The current repository has no supported Mac App Store or iOS release path. Adding one is a separate product and security decision that requires its own design, implementation, review, and explicit authorization.

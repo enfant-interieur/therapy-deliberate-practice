@@ -1,10 +1,20 @@
-import { expect, test } from "@playwright/test";
+import { expect, fulfillJson, test } from "./fixtures";
 
 test.describe("end game results overlay", () => {
-  test("shows winner and allows scrolling results", async ({ page, baseURL }) => {
-    const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "https://test.supabase.co";
+  test("shows winner and allows scrolling results", async ({
+    page,
+    baseURL,
+  }) => {
+    const supabaseUrl =
+      process.env.VITE_SUPABASE_URL ?? "https://test.supabase.co";
     const projectRef = supabaseUrl.split("//")[1]?.split(".")[0] ?? "test";
     const sessionId = "session-1";
+    let endSessionCalls = 0;
+    let stateCalls = 0;
+    let releaseFirstEnd: (() => void) | undefined;
+    const firstEndGate = new Promise<void>((resolve) => {
+      releaseFirstEnd = resolve;
+    });
     const players = [
       {
         id: "player-1",
@@ -12,7 +22,7 @@ test.describe("end game results overlay", () => {
         name: "Ava",
         avatar: "astro",
         team_id: null,
-        created_at: 0
+        created_at: 0,
       },
       {
         id: "player-2",
@@ -20,8 +30,8 @@ test.describe("end game results overlay", () => {
         name: "Ben",
         avatar: "nova",
         team_id: null,
-        created_at: 0
-      }
+        created_at: 0,
+      },
     ];
 
     const rounds = Array.from({ length: 12 }, (_, index) => ({
@@ -36,7 +46,7 @@ test.describe("end game results overlay", () => {
       team_b_id: null,
       status: "completed" as const,
       started_at: 0,
-      completed_at: 0
+      completed_at: 0,
     }));
 
     const results = rounds.flatMap((round, index) => [
@@ -50,7 +60,7 @@ test.describe("end game results overlay", () => {
         created_at: 0,
         transcript: "Sample transcript",
         evaluation: null,
-        client_penalty: null
+        client_penalty: null,
       },
       {
         id: `result-${index + 1}-b`,
@@ -62,8 +72,8 @@ test.describe("end game results overlay", () => {
         created_at: 0,
         transcript: "Sample transcript",
         evaluation: null,
-        client_penalty: null
-      }
+        client_penalty: null,
+      },
     ]);
 
     await page.route("**/api/v1/tasks?*", async (route) => {
@@ -71,8 +81,13 @@ test.describe("end game results overlay", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          { id: "task-1", title: "Task One", tags: [], skill_domain: "general" }
-        ])
+          {
+            id: "task-1",
+            title: "Task One",
+            tags: [],
+            skill_domain: "general",
+          },
+        ]),
       });
     });
     await page.route("**/api/v1/me", async (route) => {
@@ -85,8 +100,8 @@ test.describe("end game results overlay", () => {
           display_name: "Dev User",
           bio: null,
           created_at: null,
-          hasOpenAiKey: false
-        })
+          hasOpenAiKey: false,
+        }),
       });
     });
     await page.route("**/api/v1/me/settings", async (route) => {
@@ -99,15 +114,19 @@ test.describe("end game results overlay", () => {
           localSttUrl: null,
           localLlmUrl: null,
           storeAudio: false,
-          hasOpenAiKey: false
-        })
+          hasOpenAiKey: false,
+        }),
       });
     });
     await page.route("**/api/v1/admin/whoami", async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ isAuthenticated: true, isAdmin: false, email: "dev@example.com" })
+        body: JSON.stringify({
+          isAuthenticated: true,
+          isAdmin: false,
+          email: "dev@example.com",
+        }),
       });
     });
 
@@ -115,59 +134,86 @@ test.describe("end game results overlay", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ session_id: sessionId })
+        body: JSON.stringify({ session_id: sessionId }),
       });
     });
 
-    await page.route(`**/api/v1/minigames/sessions/${sessionId}/players`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ players })
-      });
-    });
+    await page.route(
+      `**/api/v1/minigames/sessions/${sessionId}/players`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ players }),
+        });
+      },
+    );
 
-    await page.route(`**/api/v1/minigames/sessions/${sessionId}/rounds/generate`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ round_count: rounds.length })
-      });
-    });
+    await page.route(
+      `**/api/v1/minigames/sessions/${sessionId}/rounds/generate`,
+      async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ round_count: rounds.length }),
+        });
+      },
+    );
 
-    await page.route(`**/api/v1/minigames/sessions/${sessionId}/state`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          session: {
-            id: sessionId,
-            user_id: "user-1",
-            game_type: "ffa",
-            visibility_mode: "normal",
-            task_selection: {},
-            settings: {},
-            created_at: 0,
-            ended_at: null,
-            last_active_at: 0,
-            current_round_id: null,
-            current_player_id: null
-          },
-          teams: [],
-          players,
-          rounds,
-          results
-        })
-      });
-    });
+    await page.route(
+      `**/api/v1/minigames/sessions/${sessionId}/state`,
+      async (route) => {
+        stateCalls += 1;
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            session: {
+              id: sessionId,
+              user_id: "user-1",
+              game_type: "ffa",
+              visibility_mode: "normal",
+              task_selection: {},
+              settings: {},
+              created_at: 0,
+              ended_at: null,
+              last_active_at: 0,
+              current_round_id: null,
+              current_player_id: null,
+            },
+            teams: [],
+            players,
+            rounds,
+            results,
+          }),
+        });
+      },
+    );
 
-    await page.route(`**/api/v1/minigames/sessions/${sessionId}/end`, async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ ok: true })
-      });
-    });
+    await page.route(
+      `**/api/v1/minigames/sessions/${sessionId}/end`,
+      async (route) => {
+        endSessionCalls += 1;
+        if (endSessionCalls === 1) {
+          await firstEndGate;
+          await route.fulfill({
+            status: 503,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "Temporary failure." }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+      },
+    );
+    await page.route(
+      `**/api/v1/minigames/sessions/${sessionId}/resume`,
+      (route) => fulfillJson(route, { ok: true }),
+    );
 
     await page.addInitScript(
       ({ key }) => {
@@ -177,42 +223,65 @@ test.describe("end game results overlay", () => {
           expires_in: 3600,
           expires_at: Math.floor(Date.now() / 1000) + 3600,
           refresh_token: "refresh-token",
-          user: { id: "user-1", email: "dev@example.com" }
+          user: { id: "user-1", email: "dev@example.com" },
         };
         window.localStorage.setItem(key, JSON.stringify(session));
       },
-      { key: `sb-${projectRef}-auth-token` }
+      { key: `sb-${projectRef}-auth-token` },
     );
 
-    await page.goto(`${baseURL ?? "http://localhost:5173"}/minigames`);
-
-    await expect(page.getByRole("heading", { name: /choose your mode/i })).toBeVisible();
-    const ffaCard = page.getByRole("heading", { name: /free for all/i }).locator("..").locator("..");
-    await ffaCard.getByRole("button", { name: /start setup/i }).click();
-
-    await page.getByRole("button", { name: /next/i }).click();
-    await page.getByRole("button", { name: /next/i }).click();
-    await page.getByRole("button", { name: /next/i }).click();
-
-    await page.getByRole("button", { name: /add player/i }).click();
-    await page.getByRole("button", { name: /add player/i }).click();
-
-    await page.getByRole("button", { name: /next/i }).click();
-    await page.getByRole("button", { name: /start game/i }).click();
+    await page.goto(
+      `${baseURL ?? "http://localhost:5173"}/minigames/play/${sessionId}`,
+    );
 
     const endGameButton = page.getByRole("button", { name: /end game/i });
     await expect(endGameButton).toBeVisible();
+    const stateCallsBeforeEnd = stateCalls;
     await endGameButton.click();
 
+    const loadingDialog = page.getByRole("dialog", {
+      name: "Wrapping up your session",
+    });
+    await expect(loadingDialog).toBeVisible();
+    const loadingAction = loadingDialog.getByRole("button", {
+      name: "Back to game hub",
+    });
+    await expect(loadingAction).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(loadingAction).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(loadingAction).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(loadingDialog).toBeVisible();
+
+    releaseFirstEnd?.();
+    await expect(loadingDialog).toBeHidden();
+    await expect(
+      page.getByText(
+        "We couldn’t end the game, so your session is still active. Check your connection and try again.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole("heading", { name: /wins/i })).toHaveCount(0);
+    await expect(endGameButton).toBeEnabled();
+    await expect(endGameButton).toBeFocused();
+    expect(stateCalls).toBe(stateCallsBeforeEnd);
+
+    await page.getByRole("button", { name: "Try ending again" }).click();
     await expect(page.getByRole("heading", { name: /wins/i })).toBeVisible();
+    expect(endSessionCalls).toBe(2);
+    expect(stateCalls).toBeGreaterThan(stateCallsBeforeEnd);
     const scrollArea = page.getByTestId("endgame-results-scroll");
     await expect(scrollArea).toBeVisible();
 
-    const beforeScroll = await scrollArea.evaluate((element) => element.scrollTop);
+    const beforeScroll = await scrollArea.evaluate(
+      (element) => element.scrollTop,
+    );
     await scrollArea.evaluate((element) => {
       element.scrollTop = 200;
     });
-    const afterScroll = await scrollArea.evaluate((element) => element.scrollTop);
+    const afterScroll = await scrollArea.evaluate(
+      (element) => element.scrollTop,
+    );
 
     expect(afterScroll).toBeGreaterThan(beforeScroll);
   });

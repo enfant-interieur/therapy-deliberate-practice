@@ -15,18 +15,18 @@ test("transcribeWithOpenAI supports text response", async () => {
         create: async ({ file }: { file: { name?: string } }) => {
           fileName = file.name;
           return "hello world";
-        }
-      }
-    }
+        },
+      },
+    },
   };
 
   const result = await transcribeWithOpenAI(
     {
       apiKey: "test",
       audioBase64: toBase64("audio"),
-      opts: { responseFormat: "text" }
+      opts: { responseFormat: "text" },
     },
-    client as any
+    client as any,
   );
 
   assert.equal(result.transcript.text, "hello world");
@@ -40,19 +40,19 @@ test("transcribeWithOpenAI normalizes diarized_json", async () => {
         create: async () => ({
           text: undefined,
           segments: [{ start: 0, end: 1, text: undefined }],
-          _request_id: "req_stt"
-        })
-      }
-    }
+          _request_id: "req_stt",
+        }),
+      },
+    },
   };
 
   const result = await transcribeWithOpenAI(
     {
       apiKey: "test",
       audioBase64: toBase64("audio"),
-      opts: { model: "gpt-4o-transcribe-diarize" }
+      opts: { model: "gpt-4o-transcribe-diarize" },
     },
-    client as any
+    client as any,
   );
 
   assert.equal(result.transcript.text, "");

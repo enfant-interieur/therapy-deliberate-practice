@@ -1,5 +1,6 @@
 import { teamColorMap } from "./LeaderboardPanel";
 import type { MinigamePlayer, MinigameTeam } from "../../store/api";
+import { useTranslation } from "react-i18next";
 
 const avatarIconMap: Record<string, string> = {
   astro: "🚀",
@@ -7,7 +8,7 @@ const avatarIconMap: Record<string, string> = {
   ember: "🔥",
   pulse: "💓",
   lumen: "💡",
-  halo: "🪩"
+  halo: "🪩",
 };
 
 type PlayerCardProps = {
@@ -29,9 +30,16 @@ export const PlayerCard = ({
   isActive,
   isUpNext,
   canSwitch,
-  onClick
+  onClick,
 }: PlayerCardProps) => {
-  const statusLabel = isActive ? "Turn" : isUpNext ? "Up next" : remainingRounds === 0 ? "Done" : "Queued";
+  const { t } = useTranslation();
+  const statusLabel = isActive
+    ? t("minigameUi.playerTurn")
+    : isUpNext
+      ? t("minigameUi.upNext")
+      : remainingRounds === 0
+        ? t("minigameUi.done")
+        : t("minigameUi.queued");
   const statusTone = isActive
     ? "border-teal-300/60 bg-teal-500/20 text-teal-100"
     : isUpNext
@@ -52,11 +60,12 @@ export const PlayerCard = ({
       type="button"
       onClick={onClick}
       disabled={!onClick || !canSwitch || isActive}
+      aria-label={`${player.name}, ${statusLabel}, ${t("minigameUi.roundsRemaining", { count: remainingRounds })}, ${t("minigameUi.score")} ${score.toFixed(1)}`}
       title={
         !canSwitch && !isActive
-          ? "Finish or abort the current action before switching."
+          ? t("minigameUi.switchBlocked")
           : isActive
-            ? "Current turn"
+            ? t("minigameUi.currentTurn")
             : undefined
       }
       className={`w-full rounded-2xl border px-3 py-3 text-left transition ${cardTone} ${interactionTone}`}
@@ -67,7 +76,9 @@ export const PlayerCard = ({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="truncate text-sm font-semibold text-white">{player.name}</p>
+            <p className="truncate text-sm font-semibold text-white">
+              {player.name}
+            </p>
             {team && (
               <span
                 className={`inline-flex rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${
@@ -79,19 +90,23 @@ export const PlayerCard = ({
             )}
           </div>
           <p className="text-[10px] uppercase tracking-[0.25em] text-slate-400">
-            {remainingRounds} rounds remaining
+            {t("minigameUi.roundsRemaining", { count: remainingRounds })}
           </p>
         </div>
         <div className="text-right">
-          <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${statusTone}`}>
+          <span
+            className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] ${statusTone}`}
+          >
             {statusLabel}
           </span>
-          <p className="mt-2 text-sm font-semibold text-white">{score.toFixed(1)}</p>
+          <p className="mt-2 text-sm font-semibold text-white">
+            {score.toFixed(1)}
+          </p>
         </div>
       </div>
       {isActive && (
         <p className="mt-2 text-[10px] uppercase tracking-[0.25em] text-teal-200/80">
-          Player turn
+          {t("minigameUi.playerTurn")}
         </p>
       )}
     </button>

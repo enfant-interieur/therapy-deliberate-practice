@@ -1,0 +1,13 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "bundle": {
+    "resources": [],
+    "linux": {
+      "appimage": {
+        "files": {
+          "/usr/share/local-runtime-python": "resources/local-runtime-python"
+        }
+      }
+    }
+  }
+}

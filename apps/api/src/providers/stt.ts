@@ -3,25 +3,6 @@ import type { LogFn } from "../utils/logger";
 import { OPENAI_STT_MODEL } from "./models";
 import { BaseSttProvider } from "./base";
 import { transcribeWithOpenAI } from "./openaiStt";
-import { localSuiteHealthCheck, localSuiteTranscribe } from "./localSuite";
-
-class LocalWhisperSttProviderImpl extends BaseSttProvider {
-  constructor(private baseUrl: string, logger?: LogFn) {
-    super("local", undefined, logger);
-  }
-
-  healthCheck() {
-    return localSuiteHealthCheck(this.baseUrl);
-  }
-
-  protected async doTranscribe(audio: string) {
-    const result = await localSuiteTranscribe({
-      baseUrl: this.baseUrl,
-      audioBase64: audio
-    });
-    return { value: result.transcript };
-  }
-}
 
 const resolveResponseFormat = (opts?: SttTranscribeOptions, model?: string) => {
   const resolvedModel = model ?? OPENAI_STT_MODEL;
@@ -30,7 +11,10 @@ const resolveResponseFormat = (opts?: SttTranscribeOptions, model?: string) => {
 };
 
 class OpenAISttProviderImpl extends BaseSttProvider {
-  constructor(private apiKey: string, logger?: LogFn) {
+  constructor(
+    private apiKey: string,
+    logger?: LogFn,
+  ) {
     super("openai", OPENAI_STT_MODEL, logger);
   }
 
@@ -40,14 +24,14 @@ class OpenAISttProviderImpl extends BaseSttProvider {
 
   protected getProviderOverride(opts?: SttTranscribeOptions) {
     const model = opts?.model ?? OPENAI_STT_MODEL;
-    return { kind: "openai", model };
+    return { kind: "openai" as const, model };
   }
 
   protected getStartFields(opts?: SttTranscribeOptions) {
     const responseFormat = resolveResponseFormat(opts, opts?.model);
     const fields = {
       ...(opts?.model ? { model_override: opts.model } : {}),
-      ...(responseFormat ? { response_format: responseFormat } : {})
+      ...(responseFormat ? { response_format: responseFormat } : {}),
     };
     return Object.keys(fields).length > 0 ? fields : undefined;
   }
@@ -56,16 +40,13 @@ class OpenAISttProviderImpl extends BaseSttProvider {
     const result = await transcribeWithOpenAI({
       apiKey: this.apiKey,
       audioBase64: audio,
-      opts
+      opts,
     });
     return { value: result.transcript, requestId: result.requestId };
   }
 }
 
-export const LocalWhisperSttProvider = (baseUrl: string, logger?: LogFn): SttProvider =>
-  new LocalWhisperSttProviderImpl(baseUrl, logger);
-
 export const OpenAISttProvider = (
   { apiKey }: { apiKey: string },
-  logger?: LogFn
+  logger?: LogFn,
 ): SttProvider => new OpenAISttProviderImpl(apiKey, logger);

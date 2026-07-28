@@ -4,12 +4,15 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { z } from "zod";
-import { createStructuredResponse, createTextResponse } from "../src/providers/openaiResponses";
+import {
+  createStructuredResponse,
+  createTextResponse,
+} from "../src/providers/openaiResponses";
 
 const mockOpenAI = (payload: unknown) => ({
   responses: {
-    create: async () => payload
-  }
+    create: async () => payload,
+  },
 });
 
 test("createTextResponse extracts output_text", async () => {
@@ -19,8 +22,8 @@ test("createTextResponse extracts output_text", async () => {
     input: "hi",
     client: mockOpenAI({
       output: [{ content: [{ type: "output_text", text: "hello world" }] }],
-      _request_id: "req_123"
-    })
+      _request_id: "req_123",
+    }),
   });
 
   assert.equal(result.text, "hello world");
@@ -36,9 +39,9 @@ test("createStructuredResponse validates with Zod", async () => {
     schemaName: "TestSchema",
     schema,
     client: mockOpenAI({
-      output: [{ content: [{ type: "output_text", text: "{\"ok\":true}" }] }],
-      _request_id: "req_456"
-    })
+      output: [{ content: [{ type: "output_text", text: '{"ok":true}' }] }],
+      _request_id: "req_456",
+    }),
   });
 
   assert.deepEqual(result.value, { ok: true });

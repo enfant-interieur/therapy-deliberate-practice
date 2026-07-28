@@ -1,18 +1,21 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Badge, Button, Card } from "./AdminUi";
 import { useAppDispatch } from "../../store/hooks";
 import { api, useGetBatchParseStatusQuery } from "../../store/api";
 import { useDevLogger } from "../../hooks/useDevLogger";
 
-const stepLabels: Record<string, string> = {
-  created_job: "Queued",
-  planning_segments: "Planning",
-  parsing_segment: "Parsing",
-  persisting_task: "Saving drafts",
-  done: "Done"
+const stepLabelKeys: Record<string, string> = {
+  created_job: "admin.parse.batch.steps.queued",
+  planning_segments: "admin.parse.batch.steps.planning",
+  parsing_segment: "admin.parse.batch.steps.parsing",
+  persisting_task: "admin.parse.batch.steps.saving",
+  done: "admin.parse.batch.steps.done",
 };
 
-const statusToneClass = (status: "queued" | "running" | "completed" | "failed" | "canceled") => {
+const statusToneClass = (
+  status: "queued" | "running" | "completed" | "failed" | "canceled",
+) => {
   if (status === "failed") return "border-rose-400/60 text-rose-200";
   if (status === "completed") return "border-emerald-400/60 text-emerald-200";
   return "border-white/20 text-white/80";
@@ -26,11 +29,19 @@ type Props = {
 };
 
 export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const devLog = useDevLogger("BatchParseProgressModal");
   const [afterEventId, setAfterEventId] = useState(0);
   const [events, setEvents] = useState<
-    Array<{ id: number; ts: number; level: "info" | "warn" | "error"; step: string; message: string; meta: unknown | null }>
+    Array<{
+      id: number;
+      ts: number;
+      level: "info" | "warn" | "error";
+      step: string;
+      message: string;
+      meta: unknown | null;
+    }>
   >([]);
   const [pollingMs, setPollingMs] = useState(800);
 
@@ -43,7 +54,11 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
 
   const query = useGetBatchParseStatusQuery(
     { jobId, afterEventId },
-    { skip: !jobId, pollingInterval: pollingMs, refetchOnMountOrArgChange: true }
+    {
+      skip: !jobId,
+      pollingInterval: pollingMs,
+      refetchOnMountOrArgChange: true,
+    },
   );
   const job = query.data?.job;
 
@@ -52,11 +67,15 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
     if (query.data.events.length) {
       devLog("events.received", {
         batchSize: query.data.events.length,
-        lastEventId: query.data.events[query.data.events.length - 1]?.id ?? null
+        lastEventId:
+          query.data.events[query.data.events.length - 1]?.id ?? null,
       });
       setEvents((prev) => {
         const seen = new Set(prev.map((event) => event.id));
-        const merged = [...prev, ...query.data!.events.filter((event) => !seen.has(event.id))];
+        const merged = [
+          ...prev,
+          ...query.data!.events.filter((event) => !seen.has(event.id)),
+        ];
         merged.sort((a, b) => a.id - b.id);
         return merged;
       });
@@ -66,7 +85,11 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
 
   useEffect(() => {
     if (!job) return;
-    if (job.status === "completed" || job.status === "failed" || job.status === "canceled") {
+    if (
+      job.status === "completed" ||
+      job.status === "failed" ||
+      job.status === "canceled"
+    ) {
       setPollingMs(0);
       dispatch(api.util.invalidateTags(["Task"]));
     }
@@ -79,9 +102,9 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
       step: job.step,
       completedSegments: job.completedSegments,
       totalSegments: job.totalSegments,
-      error: job.error
+      error: job.error,
     });
-  }, [job?.updatedAt, job?.status, job?.step, job?.completedSegments, job?.totalSegments, job?.error, devLog]);
+  }, [job, devLog]);
 
   useEffect(() => {
     if (!query.error) return;
@@ -90,22 +113,47 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
 
   const total = job?.totalSegments ?? null;
   const completed = job?.completedSegments ?? 0;
-  const progress = total && total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : job?.status === "completed" ? 100 : 0;
+  const progress =
+    total && total > 0
+      ? Math.min(100, Math.round((completed / total) * 100))
+      : job?.status === "completed"
+        ? 100
+        : 0;
 
   const headerLabel = useMemo(() => {
     if (!job) {
-      return { text: "Loading…", className: "border-white/20 text-white/80" };
+      return {
+        text: t("admin.parse.batch.status.loading"),
+        className: "border-white/20 text-white/80",
+      };
     }
     if (job.status === "failed") {
-      return { text: "Failed", className: statusToneClass("failed") };
+      return {
+        text: t("admin.parse.batch.status.failed"),
+        className: statusToneClass("failed"),
+      };
     }
     if (job.status === "completed") {
-      return { text: "Completed", className: statusToneClass("completed") };
+      return {
+        text: t("admin.parse.batch.status.completed"),
+        className: statusToneClass("completed"),
+      };
     }
-    return { text: stepLabels[job.step] ?? "Running", className: statusToneClass(job.status) };
-  }, [job]);
+    return {
+      text: stepLabelKeys[job.step]
+        ? t(stepLabelKeys[job.step])
+        : t("admin.parse.batch.status.running"),
+      className: statusToneClass(job.status),
+    };
+  }, [job, t]);
 
-  const steps = ["created_job", "planning_segments", "parsing_segment", "persisting_task", "done"];
+  const steps = [
+    "created_job",
+    "planning_segments",
+    "parsing_segment",
+    "persisting_task",
+    "done",
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm">
@@ -113,22 +161,37 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-white">Batch parsing</h2>
-              <Badge className={headerLabel.className}>{headerLabel.text}</Badge>
+              <h2 className="text-lg font-semibold text-white">
+                {t("admin.parse.batch.progressTitle")}
+              </h2>
+              <Badge className={headerLabel.className}>
+                {headerLabel.text}
+              </Badge>
             </div>
             <p className="mt-1 text-sm text-slate-300/80">
-              {total ? `${completed} of ${total} segments processed` : "Detecting segments…"}
+              {total
+                ? t("admin.parse.batch.progress", { completed, total })
+                : t("admin.parse.batch.detecting")}
             </p>
           </div>
-          <Button onClick={onClose}>Close</Button>
+          <Button onClick={onClose}>{t("admin.parse.batch.close")}</Button>
         </div>
 
         <div className="mt-4">
           <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
-            <div className="h-full bg-teal-400/80 transition-all" style={{ width: `${progress}%` }} />
+            <div
+              className="h-full bg-teal-400/80 transition-all"
+              style={{ width: `${progress}%` }}
+            />
           </div>
           <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-            <span>{job ? stepLabels[job.step] ?? job.step : "…"}</span>
+            <span>
+              {job
+                ? stepLabelKeys[job.step]
+                  ? t(stepLabelKeys[job.step])
+                  : job.step
+                : "…"}
+            </span>
             {total ? <span>{progress}%</span> : null}
           </div>
         </div>
@@ -151,7 +214,7 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
                 : `${baseClasses} border-white/10 text-slate-400`;
             return (
               <div key={step} className={className}>
-                {stepLabels[step] ?? step}
+                {stepLabelKeys[step] ? t(stepLabelKeys[step]) : step}
               </div>
             );
           })}
@@ -159,7 +222,9 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
 
         <div className="mt-4 max-h-[45vh] overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/40">
           {events.length === 0 ? (
-            <div className="p-4 text-sm text-slate-300/80">Waiting for updates…</div>
+            <div className="p-4 text-sm text-slate-300/80">
+              {t("admin.parse.batch.waiting")}
+            </div>
           ) : (
             <ul className="divide-y divide-white/5">
               {events.map((event) => (
@@ -173,14 +238,18 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
                             : "border-white/20 text-white/80"
                         }
                       >
-                        {event.level}
+                        {t(`admin.parse.batch.levels.${event.level}`)}
                       </Badge>
-                      <span>{stepLabels[event.step] ?? event.step}</span>
+                      <span>
+                        {stepLabelKeys[event.step]
+                          ? t(stepLabelKeys[event.step])
+                          : event.step}
+                      </span>
                     </div>
                     <span>{formatTime(event.ts)}</span>
                   </div>
                   <p className="mt-1 text-sm text-white">{event.message}</p>
-                  {event.meta && (
+                  {event.meta !== undefined && event.meta !== null && (
                     <pre className="mt-2 overflow-x-auto rounded-xl bg-black/30 p-2 text-xs text-slate-300">
                       {JSON.stringify(event.meta, null, 2)}
                     </pre>
@@ -193,26 +262,32 @@ export const BatchParseProgressModal = ({ jobId, onClose }: Props) => {
 
         {job?.status === "completed" && job.createdTaskIds.length > 0 && (
           <div className="mt-4 rounded-2xl border border-white/10 p-4">
-            <p className="text-sm font-semibold text-white">Drafts created</p>
+            <p className="text-sm font-semibold text-white">
+              {t("admin.parse.batch.createdTitle")}
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {job.createdTaskIds.map((taskId) => (
                 <Button
                   key={taskId}
                   variant="ghost"
                   className="border border-white/10 text-xs font-normal text-white/90"
-                  onClick={() => window.open(`/admin/tasks/${taskId}`, "_blank")}
+                  onClick={() =>
+                    window.open(`/admin/tasks/${taskId}`, "_blank")
+                  }
                 >
-                  Open {taskId}
+                  {t("admin.parse.batch.openTask", { taskId })}
                 </Button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-slate-400">Task library has been refreshed with these drafts.</p>
+            <p className="mt-2 text-xs text-slate-400">
+              {t("admin.parse.batch.refreshed")}
+            </p>
           </div>
         )}
 
         {job?.status === "failed" && (
           <div className="mt-4 rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-100">
-            {job.error ?? "Unknown error occurred."}
+            {job.error ?? t("admin.parse.batch.unknownError")}
           </div>
         )}
       </Card>

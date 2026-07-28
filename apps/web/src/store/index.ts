@@ -5,7 +5,10 @@ import { taskReducer } from "./taskSlice";
 import { practiceReducer } from "./practiceSlice";
 import { settingsReducer } from "./settingsSlice";
 import { minigamesReducer } from "./minigamesSlice";
-import { requestIdMiddleware, errorNormalizationMiddleware } from "./middleware";
+import {
+  requestIdMiddleware,
+  errorNormalizationMiddleware,
+} from "./middleware";
 
 export const store = configureStore({
   reducer: {
@@ -14,10 +17,14 @@ export const store = configureStore({
     task: taskReducer,
     practice: practiceReducer,
     minigames: minigamesReducer,
-    settings: settingsReducer
+    settings: settingsReducer,
   },
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware().concat(api.middleware, requestIdMiddleware, errorNormalizationMiddleware)
+    getDefaultMiddleware().concat(
+      api.middleware,
+      requestIdMiddleware,
+      errorNormalizationMiddleware,
+    ),
 });
 
 export type RootState = ReturnType<typeof store.getState>;

@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { TaskSelectionState } from "./TaskSelectionStep";
 import type { PlayerDraft, TeamDraft } from "./PlayersTeamsStep";
 
@@ -16,43 +17,64 @@ export const ReviewStartStep = ({
   visibilityMode,
   players,
   teams,
-  roundsPerPlayer
+  roundsPerPlayer,
 }: ReviewStartStepProps) => {
+  const { t } = useTranslation();
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Game mode</p>
-        <p className="mt-2 text-lg font-semibold text-white">
-          {mode === "tdm" ? "Team Deathmatch" : "Free For All"}
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+          {t("minigameUi.gameMode")}
         </p>
-        <p className="mt-3 text-xs text-slate-300">Visibility: {visibilityMode}</p>
+        <p className="mt-2 text-lg font-semibold text-white">
+          {mode === "tdm"
+            ? t("minigameUi.teamDeathmatch")
+            : t("minigameUi.freeForAll")}
+        </p>
+        <p className="mt-3 text-xs text-slate-300">
+          {t("minigameUi.visibilityValue", { value: visibilityMode })}
+        </p>
         {mode === "tdm" && (
           <p className="mt-1 text-xs text-slate-300">
-            Rounds per player: {roundsPerPlayer}
+            {t("minigameUi.roundsPerPlayerValue", { count: roundsPerPlayer })}
           </p>
         )}
       </div>
       <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Task selection</p>
-        <p className="mt-2 text-sm text-white">Strategy: {taskSelection.strategy}</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+          {t("minigameUi.taskSelection")}
+        </p>
+        <p className="mt-2 text-sm text-white">
+          {t("minigameUi.strategyValue", {
+            value: t(`minigameUi.strategy.${taskSelection.strategy}`),
+          })}
+        </p>
         {taskSelection.task_ids?.length ? (
           <p className="mt-2 text-xs text-slate-300">
-            Manual tasks: {taskSelection.task_ids.length}
+            {t("minigameUi.manualTasksValue", {
+              count: taskSelection.task_ids.length,
+            })}
           </p>
         ) : null}
         {taskSelection.tags?.length ? (
           <p className="mt-2 text-xs text-slate-300">
-            Tags: {taskSelection.tags.join(", ")}
+            {t("minigameUi.tagsValue", {
+              value: taskSelection.tags.join(", "),
+            })}
           </p>
         ) : null}
         {taskSelection.skill_domains?.length ? (
           <p className="mt-2 text-xs text-slate-300">
-            Domains: {taskSelection.skill_domains.join(", ")}
+            {t("minigameUi.domainsValue", {
+              value: taskSelection.skill_domains.join(", "),
+            })}
           </p>
         ) : null}
       </div>
       <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-        <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Players</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+          {t("minigameUi.players")}
+        </p>
         <div className="mt-2 space-y-1 text-xs text-slate-200">
           {players.map((player) => (
             <div key={player.id} className="flex items-center justify-between">
@@ -64,7 +86,9 @@ export const ReviewStartStep = ({
       </div>
       {mode === "tdm" && (
         <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Teams</p>
+          <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+            {t("minigameUi.teams")}
+          </p>
           <div className="mt-2 space-y-1 text-xs text-slate-200">
             {teams.map((team) => (
               <div key={team.id} className="flex items-center justify-between">

@@ -13,7 +13,10 @@ type LibrarySearchBarProps = {
   onSubmit?: () => void;
 };
 
-export const LibrarySearchBar = forwardRef<HTMLInputElement, LibrarySearchBarProps>(
+export const LibrarySearchBar = forwardRef<
+  HTMLInputElement,
+  LibrarySearchBarProps
+>(
   (
     {
       query,
@@ -24,9 +27,9 @@ export const LibrarySearchBar = forwardRef<HTMLInputElement, LibrarySearchBarPro
       onLanguageChange,
       onClearQuery,
       onToggleAdvanced,
-      onSubmit
+      onSubmit,
     },
-    ref
+    ref,
   ) => {
     const { t } = useTranslation();
 
@@ -129,7 +132,7 @@ export const LibrarySearchBar = forwardRef<HTMLInputElement, LibrarySearchBarPro
         </p>
       </form>
     );
-  }
+  },
 );
 
 LibrarySearchBar.displayName = "LibrarySearchBar";

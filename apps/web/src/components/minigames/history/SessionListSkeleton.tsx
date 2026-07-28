@@ -11,7 +11,10 @@ export const SessionListSkeleton = () => (
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-3">
           {Array.from({ length: 6 }).map((__, rowIndex) => (
-            <div key={`row-${rowIndex}`} className="h-10 rounded-2xl bg-white/5" />
+            <div
+              key={`row-${rowIndex}`}
+              className="h-10 rounded-2xl bg-white/5"
+            />
           ))}
         </div>
       </div>

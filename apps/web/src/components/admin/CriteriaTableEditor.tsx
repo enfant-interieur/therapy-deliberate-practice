@@ -3,26 +3,50 @@ import { useTranslation } from "react-i18next";
 import { Button, IconButton, Input, Label, Textarea } from "./AdminUi";
 
 const ArrowUp = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M12 19V5m0 0l-6 6m6-6l6 6" strokeLinecap="round" />
   </svg>
 );
 
 const ArrowDown = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M12 5v14m0 0l-6-6m6 6l6-6" strokeLinecap="round" />
   </svg>
 );
 
 const DuplicateIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M8 8h10v10H8z" />
     <path d="M6 16H4V4h12v2" />
   </svg>
 );
 
 const TrashIcon = () => (
-  <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg
+    viewBox="0 0 24 24"
+    className="h-6 w-6"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+  >
     <path d="M4 7h16" strokeLinecap="round" />
     <path d="M9 7V5h6v2" strokeLinecap="round" />
     <path d="M8 7l1 12h6l1-12" strokeLinecap="round" />
@@ -41,22 +65,32 @@ type CriteriaTableEditorProps = {
   onChange: (criteria: TaskCriterion[]) => void;
 };
 
-const updateArrayItem = <T,>(items: T[], index: number, updater: (item: T) => T): T[] =>
-  items.map((item, idx) => (idx === index ? updater(item) : item));
+const updateArrayItem = <T,>(
+  items: T[],
+  index: number,
+  updater: (item: T) => T,
+): T[] => items.map((item, idx) => (idx === index ? updater(item) : item));
 
-export const CriteriaTableEditor = ({ criteria, errors, onChange }: CriteriaTableEditorProps) => {
+export const CriteriaTableEditor = ({
+  criteria,
+  errors,
+  onChange,
+}: CriteriaTableEditorProps) => {
   const { t } = useTranslation();
 
   const addCriterion = () => {
     const nextIndex = criteria.length + 1;
-    onChange([...criteria, { id: `c${nextIndex}`, label: "", description: "" }]);
+    onChange([
+      ...criteria,
+      { id: `c${nextIndex}`, label: "", description: "" },
+    ]);
   };
 
   const duplicateCriterion = (index: number) => {
     const base = criteria[index];
     const cloned = {
       ...base,
-      id: `${base.id || "c"}${criteria.length + 1}`
+      id: `${base.id || "c"}${criteria.length + 1}`,
     };
     const next = [...criteria];
     next.splice(index + 1, 0, cloned);
@@ -83,7 +117,9 @@ export const CriteriaTableEditor = ({ criteria, errors, onChange }: CriteriaTabl
           <h4 className="text-sm font-semibold text-teal-200">
             {t("admin.content.criteria")}
           </h4>
-          <p className="text-xs text-slate-400">{t("admin.content.criteriaHint")}</p>
+          <p className="text-xs text-slate-400">
+            {t("admin.content.criteriaHint")}
+          </p>
         </div>
         <Button type="button" variant="secondary" onClick={addCriterion}>
           {t("admin.content.addCriterion")}
@@ -102,7 +138,9 @@ export const CriteriaTableEditor = ({ criteria, errors, onChange }: CriteriaTabl
                   <p className="text-sm font-semibold text-white">
                     {t("admin.content.criteria")} {index + 1}
                   </p>
-                  <p className="text-xs text-slate-400">{criterion.id || t("admin.content.criterionId")}</p>
+                  <p className="text-xs text-slate-400">
+                    {criterion.id || t("admin.content.criterionId")}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <IconButton
@@ -144,12 +182,14 @@ export const CriteriaTableEditor = ({ criteria, errors, onChange }: CriteriaTabl
                       onChange(
                         updateArrayItem(criteria, index, (item) => ({
                           ...item,
-                          id: event.target.value
-                        }))
+                          id: event.target.value,
+                        })),
                       )
                     }
                   />
-                  {rowErrors.id && <p className="text-xs text-rose-300">{rowErrors.id}</p>}
+                  {rowErrors.id && (
+                    <p className="text-xs text-rose-300">{rowErrors.id}</p>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label>{t("admin.content.label")}</Label>
@@ -160,8 +200,8 @@ export const CriteriaTableEditor = ({ criteria, errors, onChange }: CriteriaTabl
                       onChange(
                         updateArrayItem(criteria, index, (item) => ({
                           ...item,
-                          label: event.target.value
-                        }))
+                          label: event.target.value,
+                        })),
                       )
                     }
                     className="min-h-[100px]"
@@ -179,14 +219,16 @@ export const CriteriaTableEditor = ({ criteria, errors, onChange }: CriteriaTabl
                       onChange(
                         updateArrayItem(criteria, index, (item) => ({
                           ...item,
-                          description: event.target.value
-                        }))
+                          description: event.target.value,
+                        })),
                       )
                     }
                     className="min-h-[140px]"
                   />
                   {rowErrors.description && (
-                    <p className="text-xs text-rose-300">{rowErrors.description}</p>
+                    <p className="text-xs text-rose-300">
+                      {rowErrors.description}
+                    </p>
                   )}
                 </div>
               </div>

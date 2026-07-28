@@ -1,4 +1,9 @@
-import type { Task, TaskCriterion, TaskExample, TaskInteractionExample } from "@deliberate/shared";
+import type {
+  Task,
+  TaskCriterion,
+  TaskExample,
+  TaskInteractionExample,
+} from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
 import { Badge, Button, Card, Input, Label, Select, Textarea } from "./AdminUi";
 import { CriteriaTableEditor } from "./CriteriaTableEditor";
@@ -14,11 +19,22 @@ export type EditableTask = Task & {
 
 type ValidationErrors = {
   task?: Record<string, string>;
-  criteria: Record<number, { id?: string; label?: string; description?: string }>;
-  examples: Record<number, { id?: string; difficulty?: string; patient_text?: string }>;
+  criteria: Record<
+    number,
+    { id?: string; label?: string; description?: string }
+  >;
+  examples: Record<
+    number,
+    { id?: string; difficulty?: string; patient_text?: string }
+  >;
   interaction_examples: Record<
     number,
-    { id?: string; difficulty?: string; patient_text?: string; therapist_text?: string }
+    {
+      id?: string;
+      difficulty?: string;
+      patient_text?: string;
+      therapist_text?: string;
+    }
   >;
 };
 
@@ -26,7 +42,7 @@ type TaskEditorPanelProps = {
   task: EditableTask;
   onChange: (task: EditableTask) => void;
   onDuplicate: () => void;
-  onTranslate: () => void;
+  onTranslate?: () => void;
   onDelete: () => void;
   isTranslating?: boolean;
   errors: ValidationErrors;
@@ -39,7 +55,7 @@ const sectionIds = [
   { id: "authors", label: "admin.sections.authors" },
   { id: "criteria", label: "admin.sections.criteria" },
   { id: "examples", label: "admin.sections.examples" },
-  { id: "interaction-examples", label: "admin.sections.interactions" }
+  { id: "interaction-examples", label: "admin.sections.interactions" },
 ];
 
 export const TaskEditorPanel = ({
@@ -49,23 +65,26 @@ export const TaskEditorPanel = ({
   onTranslate,
   onDelete,
   isTranslating = false,
-  errors
+  errors,
 }: TaskEditorPanelProps) => {
   const { t } = useTranslation();
 
-  const updateTask = (patch: Partial<EditableTask>) => onChange({ ...task, ...patch });
+  const updateTask = (patch: Partial<EditableTask>) =>
+    onChange({ ...task, ...patch });
   const updateLanguage = (language: string) =>
     onChange({
       ...task,
       language,
       examples: task.examples.map((example) => ({
         ...example,
-        language
-      }))
+        language,
+      })),
     });
 
   const scrollToSection = (id: string) => {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    document
+      .getElementById(id)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
@@ -76,12 +95,26 @@ export const TaskEditorPanel = ({
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
               {t("admin.editor.kicker")}
             </p>
-            <h3 className="text-xl font-semibold text-white">{task.title || t("admin.editor.untitled")}</h3>
+            <h3 className="text-xl font-semibold text-white">
+              {task.title || t("admin.editor.untitled")}
+            </h3>
             <div className="mt-2 flex flex-wrap gap-2">
               <Badge>{task.skill_domain}</Badge>
-              <Badge>{t("admin.editor.difficulty", { difficulty: task.base_difficulty })}</Badge>
-              <Badge className={task.is_published ? "border-teal-400/40 text-teal-100" : "border-amber-400/40 text-amber-100"}>
-                {task.is_published ? t("admin.editor.published") : t("admin.editor.draft")}
+              <Badge>
+                {t("admin.editor.difficulty", {
+                  difficulty: task.base_difficulty,
+                })}
+              </Badge>
+              <Badge
+                className={
+                  task.is_published
+                    ? "border-teal-400/40 text-teal-100"
+                    : "border-amber-400/40 text-amber-100"
+                }
+              >
+                {task.is_published
+                  ? t("admin.editor.published")
+                  : t("admin.editor.draft")}
               </Badge>
             </div>
           </div>
@@ -89,9 +122,18 @@ export const TaskEditorPanel = ({
             <Button type="button" variant="secondary" onClick={onDuplicate}>
               {t("admin.actions.duplicate")}
             </Button>
-            <Button type="button" variant="secondary" onClick={onTranslate} disabled={isTranslating}>
-              {isTranslating ? t("admin.translate.translating") : t("admin.actions.translate")}
-            </Button>
+            {onTranslate && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onTranslate}
+                disabled={isTranslating}
+              >
+                {isTranslating
+                  ? t("admin.translate.translating")
+                  : t("admin.actions.translate")}
+              </Button>
+            )}
             <Button type="button" variant="danger" onClick={onDelete}>
               {t("admin.actions.delete")}
             </Button>
@@ -113,7 +155,9 @@ export const TaskEditorPanel = ({
 
       <Card id="overview" className="p-6">
         <div className="space-y-4">
-          <h4 className="text-sm font-semibold text-teal-200">{t("admin.sections.overview")}</h4>
+          <h4 className="text-sm font-semibold text-teal-200">
+            {t("admin.sections.overview")}
+          </h4>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>{t("admin.task.titleLabel")}</Label>
@@ -122,17 +166,23 @@ export const TaskEditorPanel = ({
                 onChange={(event) => updateTask({ title: event.target.value })}
                 placeholder={t("admin.task.titlePlaceholder")}
               />
-              {errors.task?.title && <p className="text-xs text-rose-300">{errors.task.title}</p>}
+              {errors.task?.title && (
+                <p className="text-xs text-rose-300">{errors.task.title}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label>{t("admin.task.skillDomainLabel")}</Label>
               <Input
                 value={task.skill_domain}
-                onChange={(event) => updateTask({ skill_domain: event.target.value })}
+                onChange={(event) =>
+                  updateTask({ skill_domain: event.target.value })
+                }
                 placeholder={t("admin.task.skillDomainPlaceholder")}
               />
               {errors.task?.skill_domain && (
-                <p className="text-xs text-rose-300">{errors.task.skill_domain}</p>
+                <p className="text-xs text-rose-300">
+                  {errors.task.skill_domain}
+                </p>
               )}
             </div>
             <div className="space-y-2">
@@ -154,7 +204,9 @@ export const TaskEditorPanel = ({
                 ))}
               </div>
               {errors.task?.base_difficulty && (
-                <p className="text-xs text-rose-300">{errors.task.base_difficulty}</p>
+                <p className="text-xs text-rose-300">
+                  {errors.task.base_difficulty}
+                </p>
               )}
             </div>
             <div className="space-y-2">
@@ -200,25 +252,33 @@ export const TaskEditorPanel = ({
 
       <Card id="description" className="p-6">
         <div className="space-y-4">
-          <h4 className="text-sm font-semibold text-teal-200">{t("admin.sections.description")}</h4>
+          <h4 className="text-sm font-semibold text-teal-200">
+            {t("admin.sections.description")}
+          </h4>
           <div className="grid gap-4">
             <div className="space-y-2">
               <Label>{t("admin.task.descriptionLabel")}</Label>
               <Textarea
                 value={task.description}
-                onChange={(event) => updateTask({ description: event.target.value })}
+                onChange={(event) =>
+                  updateTask({ description: event.target.value })
+                }
                 placeholder={t("admin.task.descriptionPlaceholder")}
                 className="min-h-[140px]"
               />
               {errors.task?.description && (
-                <p className="text-xs text-rose-300">{errors.task.description}</p>
+                <p className="text-xs text-rose-300">
+                  {errors.task.description}
+                </p>
               )}
             </div>
             <div className="space-y-2">
               <Label>{t("admin.task.generalObjectiveLabel")}</Label>
               <Textarea
                 value={task.general_objective ?? ""}
-                onChange={(event) => updateTask({ general_objective: event.target.value })}
+                onChange={(event) =>
+                  updateTask({ general_objective: event.target.value })
+                }
                 placeholder={t("admin.task.generalObjectivePlaceholder")}
                 className="min-h-[120px]"
               />
@@ -229,7 +289,9 @@ export const TaskEditorPanel = ({
 
       <Card id="tags" className="p-6">
         <div className="space-y-4">
-          <h4 className="text-sm font-semibold text-teal-200">{t("admin.sections.tags")}</h4>
+          <h4 className="text-sm font-semibold text-teal-200">
+            {t("admin.sections.tags")}
+          </h4>
           <div className="space-y-3">
             <Label>{t("admin.task.tagsLabel")}</Label>
             <Input
@@ -239,7 +301,7 @@ export const TaskEditorPanel = ({
                   tags: event.target.value
                     .split(",")
                     .map((tag) => tag.trim())
-                    .filter(Boolean)
+                    .filter(Boolean),
                 })
               }
               placeholder={t("admin.task.tagsPlaceholder")}
@@ -257,7 +319,9 @@ export const TaskEditorPanel = ({
 
       <Card id="authors" className="p-6">
         <div className="space-y-4">
-          <h4 className="text-sm font-semibold text-teal-200">{t("admin.sections.authors")}</h4>
+          <h4 className="text-sm font-semibold text-teal-200">
+            {t("admin.sections.authors")}
+          </h4>
           <TagInput
             label={t("admin.task.authorsLabel")}
             placeholder={t("admin.task.authorsPlaceholder")}
@@ -287,7 +351,9 @@ export const TaskEditorPanel = ({
         <InteractionExamplesEditor
           interactions={task.interaction_examples}
           errors={errors.interaction_examples}
-          onChange={(interaction_examples) => updateTask({ interaction_examples })}
+          onChange={(interaction_examples) =>
+            updateTask({ interaction_examples })
+          }
         />
       </Card>
     </div>

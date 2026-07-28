@@ -3,15 +3,30 @@ import type { DeliberatePracticeTaskV2, ParseMode } from "@deliberate/shared";
 import { deliberatePracticeTaskV2Schema } from "@deliberate/shared";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { Badge, Button, Card, Input, Label, SectionHeader, Select, Textarea } from "../components/admin/AdminUi";
+import {
+  Badge,
+  Button,
+  Card,
+  Input,
+  Label,
+  SectionHeader,
+  Select,
+  Textarea,
+} from "../components/admin/AdminUi";
 import { ToastProvider, useToast } from "../components/admin/ToastProvider";
 import { BatchParseProgressModal } from "../components/admin/BatchParseProgressModal";
-import { useImportTaskMutation, useParseTaskMutation, useStartBatchParseMutation } from "../store/api";
+import {
+  useImportTaskMutation,
+  useParseTaskMutation,
+  useStartBatchParseMutation,
+} from "../store/api";
 import { useDevLogger } from "../hooks/useDevLogger";
 
 const SummaryRow = ({ label, value }: { label: string; value: string }) => (
   <div>
-    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+      {label}
+    </p>
     <p className="text-sm text-white">{value}</p>
   </div>
 );
@@ -31,40 +46,78 @@ const AdminParseTaskPageContent = () => {
   const [jsonVisible, setJsonVisible] = useState(false);
   const [batchJobId, setBatchJobId] = useState<string | null>(null);
   const isPartialPrompt = parseMode === "partial_prompt";
-  const freeTextLabel = mode === "batch"
-    ? "Batch source text"
-    : isPartialPrompt
-      ? "Instruction prompt"
-      : t("admin.parse.inputs.freeText");
+  const freeTextLabel =
+    mode === "batch"
+      ? t("admin.parse.batch.sourceLabel")
+      : isPartialPrompt
+        ? t("admin.parse.inputs.instructionPrompt")
+        : t("admin.parse.inputs.freeText");
 
   const [parseTask, parseState] = useParseTaskMutation();
   const [importTask, importState] = useImportTaskMutation();
   const [startBatchParse, startBatchState] = useStartBatchParseMutation();
 
-  const jsonPreview = useMemo(() => (result ? JSON.stringify(result, null, 2) : ""), [result]);
+  const jsonPreview = useMemo(
+    () => (result ? JSON.stringify(result, null, 2) : ""),
+    [result],
+  );
   const validation = useMemo(
     () => (result ? deliberatePracticeTaskV2Schema.safeParse(result) : null),
-    [result]
+    [result],
   );
   const validationMessage = validation?.success
     ? t("admin.parse.validationValid")
     : validation
-      ? validation.error.issues[0]?.message ?? t("admin.parse.validationInvalid")
+      ? (validation.error.issues[0]?.message ??
+        t("admin.parse.validationInvalid"))
       : t("admin.parse.validationEmpty");
-  const canCreate = Boolean(result && reviewed && validation?.success && !importState.isLoading);
+  const canCreate = Boolean(
+    result && reviewed && validation?.success && !importState.isLoading,
+  );
+
+  const clearParsedResult = () => {
+    setResult(null);
+    setReviewed(false);
+    setJsonVisible(false);
+    setError(null);
+  };
+
+  const handleFreeTextChange = (value: string) => {
+    setFreeText(value);
+    if (value.trim()) setSourceUrl("");
+    clearParsedResult();
+  };
+
+  const handleSourceUrlChange = (value: string) => {
+    setSourceUrl(value);
+    if (value.trim()) setFreeText("");
+    clearParsedResult();
+  };
+
+  const handleParseModeChange = (nextMode: ParseMode) => {
+    setParseMode(nextMode);
+    if (nextMode === "partial_prompt") setSourceUrl("");
+    clearParsedResult();
+  };
+
+  const handleModeChange = (nextMode: "single" | "batch") => {
+    setMode(nextMode);
+    if (nextMode === "batch") setSourceUrl("");
+    clearParsedResult();
+  };
 
   const handleSingleParse = async () => {
     setError(null);
     devLog("single.parse.start", {
       parseMode,
       hasFreeText: Boolean(freeText.trim()),
-      hasSourceUrl: Boolean(sourceUrl.trim())
+      hasSourceUrl: Boolean(sourceUrl.trim()),
     });
     try {
       const parsed = await parseTask({
         free_text: freeText || undefined,
         source_url: sourceUrl || undefined,
-        parse_mode: parseMode
+        parse_mode: parseMode,
       }).unwrap();
       setResult(parsed);
       setReviewed(false);
@@ -72,17 +125,17 @@ const AdminParseTaskPageContent = () => {
       devLog("single.parse.success", {
         taskTitle: parsed.task.title,
         criteria: parsed.criteria.length,
-        examples: parsed.examples.length
+        examples: parsed.examples.length,
       });
     } catch (err) {
       setError((err as Error).message);
       pushToast({
         title: t("admin.toast.error"),
         message: (err as Error).message,
-        tone: "error"
+        tone: "error",
       });
       devLog("single.parse.error", {
-        message: (err as Error).message
+        message: (err as Error).message,
       });
     }
   };
@@ -97,7 +150,7 @@ const AdminParseTaskPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (err as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
@@ -107,35 +160,38 @@ const AdminParseTaskPageContent = () => {
     if (!trimmed) {
       pushToast({
         title: t("admin.toast.error"),
-        message: "Add source text before starting a batch parse.",
-        tone: "error"
+        message: t("admin.parse.batch.sourceRequired"),
+        tone: "error",
       });
       return;
     }
     devLog("batch.parse.start", {
       parseMode,
       charCount: trimmed.length,
-      lineCount: trimmed.split(/\r?\n/g).length
+      lineCount: trimmed.split(/\r?\n/g).length,
     });
     try {
-      const response = await startBatchParse({ sourceText: trimmed, parseMode }).unwrap();
+      const response = await startBatchParse({
+        sourceText: trimmed,
+        parseMode,
+      }).unwrap();
       setBatchJobId(response.jobId);
       pushToast({
-        title: "Batch parsing started",
-        message: "Progress will show in the modal.",
-        tone: "success"
+        title: t("admin.parse.batch.startedTitle"),
+        message: t("admin.parse.batch.startedMessage"),
+        tone: "success",
       });
       devLog("batch.parse.success", {
-        jobId: response.jobId
+        jobId: response.jobId,
       });
     } catch (err) {
       pushToast({
         title: t("admin.toast.error"),
         message: (err as Error).message,
-        tone: "error"
+        tone: "error",
       });
       devLog("batch.parse.error", {
-        message: (err as Error).message
+        message: (err as Error).message,
       });
     }
   };
@@ -158,60 +214,91 @@ const AdminParseTaskPageContent = () => {
           <Card className="space-y-6 p-6">
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 space-y-2">
-                <Label>Mode</Label>
+                <Label htmlFor="admin-parse-source-mode">
+                  {t("admin.parse.batch.modeLabel")}
+                </Label>
                 <Select
+                  id="admin-parse-source-mode"
                   value={mode}
-                  onChange={(event) => setMode(event.target.value as "single" | "batch")}
+                  onChange={(event) =>
+                    handleModeChange(
+                      event.target.value as "single" | "batch",
+                    )
+                  }
                 >
-                  <option value="single">Single</option>
-                  <option value="batch">Batch</option>
+                  <option value="single">
+                    {t("admin.parse.batch.singleMode")}
+                  </option>
+                  <option value="batch">
+                    {t("admin.parse.batch.batchMode")}
+                  </option>
                 </Select>
               </div>
               <div className="flex-1 space-y-2">
-                <Label>{t("admin.parse.inputs.parseMode")}</Label>
+                <Label htmlFor="admin-parse-mode">
+                  {t("admin.parse.inputs.parseMode")}
+                </Label>
                 <Select
+                  id="admin-parse-mode"
                   value={parseMode}
-                  onChange={(event) => setParseMode(event.target.value as ParseMode)}
+                  onChange={(event) =>
+                    handleParseModeChange(event.target.value as ParseMode)
+                  }
                 >
-                  <option value="original">{t("admin.parse.mode.original")}</option>
+                  <option value="original">
+                    {t("admin.parse.mode.original")}
+                  </option>
                   <option value="exact">{t("admin.parse.mode.exact")}</option>
-                  <option value="partial_prompt">From partial prompt</option>
+                  <option value="partial_prompt">
+                    {t("admin.parse.mode.partialPrompt")}
+                  </option>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>{freeTextLabel}</Label>
+              <Label htmlFor="admin-parse-source-text">{freeTextLabel}</Label>
               <Textarea
+                id="admin-parse-source-text"
                 className="min-h-[240px]"
                 value={freeText}
-                onChange={(event) => setFreeText(event.target.value)}
+                onChange={(event) => handleFreeTextChange(event.target.value)}
                 placeholder={t("admin.createFromText.placeholderText")}
               />
               {mode === "single" && isPartialPrompt && (
                 <p className="text-xs text-slate-400">
-                  Provide instructions for the task you want generated (not source material to parse).
+                  {t("admin.parse.inputs.instructionHint")}
                 </p>
               )}
             </div>
-            {mode === "single" ? (
+            {mode === "single" && !isPartialPrompt ? (
               <div className="space-y-2">
-                <Label>{t("admin.parse.inputs.sourceUrl")}</Label>
+                <Label htmlFor="admin-parse-source-url">
+                  {t("admin.parse.inputs.sourceUrl")}
+                </Label>
                 <Input
+                  id="admin-parse-source-url"
                   value={sourceUrl}
-                  onChange={(event) => setSourceUrl(event.target.value)}
+                  onChange={(event) =>
+                    handleSourceUrlChange(event.target.value)
+                  }
                   placeholder="https://"
                 />
+                <p className="text-xs text-slate-400">
+                  {t("admin.parse.inputs.sourceChoiceHint")}
+                </p>
               </div>
-            ) : (
+            ) : mode === "batch" ? (
               <p className="text-xs text-slate-400">
-                Batch mode only uses the text above. Each detected segment is parsed and saved as a draft automatically.
+                {t("admin.parse.batch.sourceHint")}
               </p>
-            )}
+            ) : null}
             {error && <p className="text-xs text-rose-300">{error}</p>}
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="primary"
-                onClick={mode === "batch" ? handleBatchParse : handleSingleParse}
+                onClick={
+                  mode === "batch" ? handleBatchParse : handleSingleParse
+                }
                 disabled={
                   mode === "batch"
                     ? startBatchState.isLoading || !freeText.trim()
@@ -220,8 +307,8 @@ const AdminParseTaskPageContent = () => {
               >
                 {mode === "batch"
                   ? startBatchState.isLoading
-                    ? "Starting…"
-                    : "Start batch parse"
+                    ? t("admin.parse.batch.starting")
+                    : t("admin.parse.batch.startAction")
                   : parseState.isLoading
                     ? t("admin.createFromText.parsing")
                     : t("admin.createFromText.parse")}
@@ -249,28 +336,57 @@ const AdminParseTaskPageContent = () => {
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
                   {t("admin.parse.reviewKicker")}
                 </p>
-                <h3 className="text-lg font-semibold text-white">{t("admin.parse.reviewTitle")}</h3>
-                <p className="text-sm text-slate-400">{t("admin.parse.reviewSubtitle")}</p>
+                <h3 className="text-lg font-semibold text-white">
+                  {t("admin.parse.reviewTitle")}
+                </h3>
+                <p className="text-sm text-slate-400">
+                  {t("admin.parse.reviewSubtitle")}
+                </p>
               </div>
               {!result && (
-                <p className="text-sm text-slate-400">{t("admin.parse.reviewEmpty")}</p>
+                <p className="text-sm text-slate-400">
+                  {t("admin.parse.reviewEmpty")}
+                </p>
               )}
               {result && (
                 <div className="space-y-4">
                   <div className="grid gap-3 md:grid-cols-2">
-                    <SummaryRow label={t("admin.task.titleLabel")} value={result.task.title} />
-                    <SummaryRow label={t("admin.task.skillDomainLabel")} value={result.task.skill_domain} />
+                    <SummaryRow
+                      label={t("admin.task.titleLabel")}
+                      value={result.task.title}
+                    />
+                    <SummaryRow
+                      label={t("admin.task.skillDomainLabel")}
+                      value={result.task.skill_domain}
+                    />
                     <SummaryRow
                       label={t("admin.task.difficultyLabel")}
                       value={String(result.task.base_difficulty)}
                     />
-                    <SummaryRow label={t("admin.parse.summary.criteria")} value={String(result.criteria.length)} />
-                    <SummaryRow label={t("admin.parse.summary.examples")} value={String(result.examples.length)} />
-                    <SummaryRow label={t("admin.parse.summary.tags")} value={String(result.task.tags?.length ?? 0)} />
+                    <SummaryRow
+                      label={t("admin.parse.summary.criteria")}
+                      value={String(result.criteria.length)}
+                    />
+                    <SummaryRow
+                      label={t("admin.parse.summary.examples")}
+                      value={String(result.examples.length)}
+                    />
+                    <SummaryRow
+                      label={t("admin.parse.summary.tags")}
+                      value={String(result.task.tags?.length ?? 0)}
+                    />
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-300">
-                    <Badge className={validation?.success ? "border-teal-400/40 text-teal-100" : "border-rose-400/40 text-rose-200"}>
-                      {validation?.success ? t("admin.parse.validationPass") : t("admin.parse.validationFail")}
+                    <Badge
+                      className={
+                        validation?.success
+                          ? "border-teal-400/40 text-teal-100"
+                          : "border-rose-400/40 text-rose-200"
+                      }
+                    >
+                      {validation?.success
+                        ? t("admin.parse.validationPass")
+                        : t("admin.parse.validationFail")}
                     </Badge>
                     <span>{validationMessage}</span>
                   </div>
@@ -287,13 +403,25 @@ const AdminParseTaskPageContent = () => {
                     type="button"
                     onClick={() => setJsonVisible((prev) => !prev)}
                   >
-                    {jsonVisible ? t("admin.parse.hideJson") : t("admin.parse.showJson")}
+                    {jsonVisible
+                      ? t("admin.parse.hideJson")
+                      : t("admin.parse.showJson")}
                   </Button>
                   {jsonVisible && (
-                    <Textarea className="min-h-[220px] font-mono text-xs" value={jsonPreview} readOnly />
+                    <Textarea
+                      className="min-h-[220px] font-mono text-xs"
+                      value={jsonPreview}
+                      readOnly
+                    />
                   )}
-                  <Button variant="primary" onClick={handleImport} disabled={!canCreate}>
-                    {importState.isLoading ? t("admin.task.importing") : t("admin.parse.createAction")}
+                  <Button
+                    variant="primary"
+                    onClick={handleImport}
+                    disabled={!canCreate}
+                  >
+                    {importState.isLoading
+                      ? t("admin.task.importing")
+                      : t("admin.parse.createAction")}
                   </Button>
                 </div>
               )}
@@ -301,23 +429,30 @@ const AdminParseTaskPageContent = () => {
           ) : (
             <Card className="space-y-4 p-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">Batch mode</p>
-                <h3 className="text-lg font-semibold text-white">Automate draft creation</h3>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
+                  {t("admin.parse.batch.panelKicker")}
+                </p>
+                <h3 className="text-lg font-semibold text-white">
+                  {t("admin.parse.batch.panelTitle")}
+                </h3>
                 <p className="text-sm text-slate-400">
-                  We detect task boundaries, parse each segment, and import drafts automatically. Progress is visible in the modal that opens after you start the batch.
+                  {t("admin.parse.batch.panelDescription")}
                 </p>
               </div>
               <ul className="list-disc space-y-2 pl-5 text-sm text-slate-300">
-                <li>Tasks are saved as unpublished drafts.</li>
-                <li>Examples and criteria reuse the same schema as single parsing.</li>
-                <li>You can close the modal anytime; polling resumes when reopened.</li>
+                <li>{t("admin.parse.batch.draftItem")}</li>
+                <li>{t("admin.parse.batch.schemaItem")}</li>
+                <li>{t("admin.parse.batch.resumeItem")}</li>
               </ul>
             </Card>
           )}
         </div>
       </div>
       {batchJobId ? (
-        <BatchParseProgressModal jobId={batchJobId} onClose={() => setBatchJobId(null)} />
+        <BatchParseProgressModal
+          jobId={batchJobId}
+          onClose={() => setBatchJobId(null)}
+        />
       ) : null}
     </div>
   );

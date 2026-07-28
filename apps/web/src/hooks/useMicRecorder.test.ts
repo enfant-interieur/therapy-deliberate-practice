@@ -41,4 +41,15 @@ describe("classifyMicError", () => {
     const error = { name: "OverconstrainedError", message: "Constraints" };
     expect(classifyMicError(error).kind).toBe("unsupported");
   });
+
+  it("maps a MediaRecorder MIME rejection to unsupported", () => {
+    const error = {
+      name: "NotSupportedError",
+      message: "The selected MIME type is not supported",
+    };
+    const classified = classifyMicError(error);
+
+    expect(classified.kind).toBe("unsupported");
+    expect(classified.isRetryable).toBe(false);
+  });
 });

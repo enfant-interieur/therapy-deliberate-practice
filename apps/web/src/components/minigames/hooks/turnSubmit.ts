@@ -31,7 +31,8 @@ export function normalizeSubmitResponse(resp: unknown): TurnSubmitResult {
     response?.transcript_text ??
     undefined;
 
-  const evaluation = response?.scoring?.evaluation ?? response?.evaluation ?? undefined;
+  const evaluation =
+    response?.scoring?.evaluation ?? response?.evaluation ?? undefined;
 
   const attemptId =
     response?.attemptId ??
@@ -40,10 +41,13 @@ export function normalizeSubmitResponse(resp: unknown): TurnSubmitResult {
     response?.id ??
     undefined;
 
-  const timingPenalty = response?.timing_penalty ?? response?.timingPenalty ?? undefined;
+  const timingPenalty =
+    response?.timing_penalty ?? response?.timingPenalty ?? undefined;
 
   const scoreFromEval =
-    typeof evaluation?.overall?.score === "number" ? evaluation.overall.score : undefined;
+    typeof evaluation?.overall?.score === "number"
+      ? evaluation.overall.score
+      : undefined;
 
   const score =
     typeof response?.adjusted_score === "number"
@@ -57,7 +61,7 @@ export function normalizeSubmitResponse(resp: unknown): TurnSubmitResult {
 
 export function applyTimingPenalty({
   score,
-  timingPenalty
+  timingPenalty,
 }: {
   score?: number;
   timingPenalty?: number;
@@ -70,11 +74,18 @@ export function applyTimingPenalty({
 export function createTimeoutEvaluation({
   taskId,
   exampleId,
-  attemptId
+  attemptId,
+  copy,
 }: {
   taskId: string;
   exampleId: string;
   attemptId: string;
+  copy: {
+    transcript: string;
+    summaryFeedback: string;
+    improveNext: string;
+    patientReaction: string;
+  };
 }): EvaluationResult {
   return {
     version: "2.0",
@@ -82,19 +93,19 @@ export function createTimeoutEvaluation({
     example_id: exampleId,
     attempt_id: attemptId,
     transcript: {
-      text: "No response recorded."
+      text: copy.transcript,
     },
     criterion_scores: [],
     overall: {
       score: 0,
       pass: false,
-      summary_feedback: "No response was recorded before the response window closed.",
-      what_to_improve_next: ["Respond within the response window."]
+      summary_feedback: copy.summaryFeedback,
+      what_to_improve_next: [copy.improveNext],
     },
     patient_reaction: {
       emotion: "sad",
       intensity: 2,
-      response_text: "No response recorded."
-    }
+      response_text: copy.patientReaction,
+    },
   };
 }

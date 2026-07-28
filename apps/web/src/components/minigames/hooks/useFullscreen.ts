@@ -21,7 +21,9 @@ export const useFullscreen = (target?: HTMLElement | null) => {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const element = (target ?? document.documentElement) as FullscreenElement;
-    setIsSupported(Boolean(element.requestFullscreen || element.webkitRequestFullscreen));
+    setIsSupported(
+      Boolean(element.requestFullscreen || element.webkitRequestFullscreen),
+    );
   }, [target]);
 
   useEffect(() => {
@@ -69,6 +71,6 @@ export const useFullscreen = (target?: HTMLElement | null) => {
     isSupported,
     enter,
     exit,
-    toggle
+    toggle,
   };
 };

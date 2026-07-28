@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, AsyncIterator, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -34,10 +35,4 @@ class RunContext:
     cancellation_token: Any | None = None
 
 
-RunResult = (
-    dict
-    | bytes
-    | str
-    | AsyncIterator[dict]
-    | AsyncIterator[bytes]
-)
+RunResult = dict | bytes | str | AsyncIterator[dict] | AsyncIterator[bytes]

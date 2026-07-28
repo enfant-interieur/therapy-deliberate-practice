@@ -1,5 +1,8 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
-import { invokeLauncher } from "../lib/tauri";
+import { useCallback, useEffect, useReducer, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { translate, type Translator } from "../i18n";
+
+const englishTranslator: Translator = (key, values) => translate("en", key, values);
 
 export type GatewayBootPhase = "idle" | "booting" | "polling" | "ready" | "error" | "cancelled";
 
@@ -12,6 +15,25 @@ export type GatewayBootState = {
   lastReadiness?: string;
   error?: string;
 };
+
+export function gatewayBootActivityMessage(
+  boot: GatewayBootState,
+  t: Translator = (key, values) => translate("en", key, values)
+) {
+  if (boot.phase === "ready") return t("launch.readyMessage");
+  if (boot.phase === "error") return t("launch.failedMessage");
+  if (boot.phase === "cancelled") return t("launch.stoppedMessage");
+  if (boot.phase === "idle") return t("launch.idleMessage");
+  if (boot.phase === "booting") return t("launch.bootingMessage");
+  if (boot.attempts === 0) return t("launch.firstHealth");
+  if (boot.lastReadiness) {
+    return t("launch.readiness", { status: boot.lastReadiness });
+  }
+  if (boot.lastHttpStatus) {
+    return t("launch.http", { status: boot.lastHttpStatus });
+  }
+  return t("launch.noHealthyResponse");
+}
 
 type BootAction =
   | { type: "REQUEST_START"; runId: number; startedAtMs: number }
@@ -71,15 +93,27 @@ function sleep(ms: number) {
   });
 }
 
-function formatErrorMessage(error: unknown) {
-  if (error instanceof DOMException && error.name === "AbortError") return "Request timed out.";
+function formatErrorMessage(error: unknown, t: Translator) {
+  if (error instanceof DOMException && error.name === "AbortError") {
+    return t("common.requestTimedOut");
+  }
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   try {
     return JSON.stringify(error);
   } catch {
-    return "Unknown error.";
+    return t("common.unknownError");
   }
+}
+
+export function isReadyGatewayHealth(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const candidate = payload as Record<string, unknown>;
+  return (
+    candidate.service === "therapy-local-runtime" &&
+    candidate.protocol_version === "1" &&
+    candidate.status === "ready"
+  );
 }
 
 async function checkHealthOnce(
@@ -97,10 +131,12 @@ async function checkHealthOnce(
     });
 
     let readiness: string | undefined;
+    let identityMatches = false;
     try {
       const contentType = res.headers.get("content-type") || "";
       if (contentType.includes("application/json")) {
-        const payload = (await res.json()) as { status?: unknown };
+        const payload = (await res.json()) as Record<string, unknown>;
+        identityMatches = isReadyGatewayHealth(payload);
         if (payload && typeof payload.status === "string") {
           readiness = payload.status;
         }
@@ -109,7 +145,7 @@ async function checkHealthOnce(
       // Ignore JSON parse failures; the HTTP status still informs readiness.
     }
 
-    const ok = res.status === 200 && (!readiness || readiness === "ready");
+    const ok = res.status === 200 && identityMatches;
     return { ok, httpStatus: res.status, readiness };
   } finally {
     window.clearTimeout(timer);
@@ -118,6 +154,7 @@ async function checkHealthOnce(
 
 export type UseGatewayBootOptions = {
   healthUrl: string;
+  t?: Translator;
   maxWaitMs?: number;
   pollIntervalMs?: number;
   requestTimeoutMs?: number;
@@ -126,6 +163,7 @@ export type UseGatewayBootOptions = {
 
 export function useGatewayBoot(options: UseGatewayBootOptions) {
   const { healthUrl } = options;
+  const t = options.t ?? englishTranslator;
   const maxWaitMs = options.maxWaitMs ?? 10 * 60 * 1000;
   const pollIntervalMs = options.pollIntervalMs ?? 2000;
   const requestTimeoutMs = options.requestTimeoutMs ?? 1500;
@@ -145,22 +183,33 @@ export function useGatewayBoot(options: UseGatewayBootOptions) {
     dispatch({ type: "REQUEST_START", runId, startedAtMs: Date.now() });
 
     try {
-      await invokeLauncher("start_gateway");
+      await invoke("start_gateway");
       dispatch({ type: "SPAWN_OK" });
     } catch (error) {
-      dispatch({ type: "FAIL", error: `Failed to start gateway: ${formatErrorMessage(error)}` });
+      dispatch({
+        type: "FAIL",
+        error: t("errors.launchStartFailed", {
+          details: formatErrorMessage(error, t)
+        })
+      });
     }
-  }, []);
+  }, [t]);
 
   const cancel = useCallback(async () => {
     cancelRef.current = true;
-    dispatch({ type: "CANCELLED" });
+    runIdRef.current += 1;
     try {
-      await invokeLauncher("stop_gateway");
-    } catch {
-      // ignore stop errors; UI already reflects cancellation
+      await invoke("stop_gateway");
+      dispatch({ type: "CANCELLED" });
+    } catch (error) {
+      dispatch({
+        type: "FAIL",
+        error: t("errors.launchStopFailed", {
+          details: formatErrorMessage(error, t)
+        })
+      });
     }
-  }, []);
+  }, [t]);
 
   const reset = useCallback(() => {
     cancelRef.current = false;
@@ -179,7 +228,7 @@ export function useGatewayBoot(options: UseGatewayBootOptions) {
         if (Date.now() > deadline) {
           dispatch({
             type: "FAIL",
-            error: "Timed out waiting for the gateway health check (10 minutes)."
+            error: t("errors.launchHealthTimeout")
           });
           return;
         }
@@ -212,19 +261,16 @@ export function useGatewayBoot(options: UseGatewayBootOptions) {
     return () => {
       mounted = false;
     };
-  }, [state.phase, state.runId, state.startedAtMs, healthUrl, maxWaitMs, pollIntervalMs, requestTimeoutMs]);
+  }, [
+    state.phase,
+    state.runId,
+    state.startedAtMs,
+    healthUrl,
+    maxWaitMs,
+    pollIntervalMs,
+    requestTimeoutMs,
+    t
+  ]);
 
-  const derived = useMemo(() => {
-    const startedAtMs = state.startedAtMs;
-    const elapsedMs = startedAtMs ? Math.max(0, Date.now() - startedAtMs) : 0;
-    const progress =
-      state.phase === "ready"
-        ? 1
-        : startedAtMs
-          ? Math.min(0.95, elapsedMs / maxWaitMs)
-          : 0;
-    return { elapsedMs, progress, maxWaitMs };
-  }, [state.phase, state.startedAtMs, maxWaitMs]);
-
-  return { state, start, cancel, reset, derived };
+  return { state, start, cancel, reset };
 }

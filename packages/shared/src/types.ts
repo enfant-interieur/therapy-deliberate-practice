@@ -79,15 +79,20 @@ export type EvaluationResult = {
   attempt_id: string;
   transcript: {
     text: string;
-    confidence?: number;
-    words?: Array<{ w: string; t0?: number; t1?: number; p?: number }>;
+    confidence?: number | null;
+    words?: Array<{
+      w: string;
+      t0?: number | null;
+      t1?: number | null;
+      p?: number | null;
+    }> | null;
   };
   criterion_scores: Array<{
     criterion_id: string;
     score: number;
     rationale_short: string;
-    evidence_quotes?: string[];
-    missed_points?: string[];
+    evidence_quotes?: string[] | null;
+    missed_points?: string[] | null;
   }>;
   overall: {
     score: number;
@@ -96,18 +101,24 @@ export type EvaluationResult = {
     what_to_improve_next: string[];
   };
   patient_reaction: {
-    emotion: "neutral" | "warm" | "sad" | "anxious" | "angry" | "relieved" | "engaged";
+    emotion:
+      "neutral" | "warm" | "sad" | "anxious" | "angry" | "relieved" | "engaged";
     intensity: 0 | 1 | 2 | 3;
-    action?: "nod" | "shake_head" | "look_away" | "lean_in" | "sigh" | "smile";
-    response_text?: string;
+    action?:
+      "nod" | "shake_head" | "look_away" | "lean_in" | "sigh" | "smile" | null;
+    response_text?: string | null;
   };
   diagnostics?: {
     provider: {
-      stt: { kind: "local" | "openai"; model?: string };
-      llm: { kind: "local" | "openai"; model?: string };
+      stt: { kind: "local" | "openai"; model?: string | null };
+      llm: { kind: "local" | "openai"; model?: string | null };
     };
-    timing_ms?: { stt?: number; llm?: number; total?: number };
-  };
+    timing_ms?: {
+      stt?: number | null;
+      llm?: number | null;
+      total?: number | null;
+    } | null;
+  } | null;
 };
 
 export type ProviderDescriptor = {
@@ -115,28 +126,15 @@ export type ProviderDescriptor = {
   model: string;
 };
 
-export type ClientTranscriptPayload = {
-  text: string;
-  provider: ProviderDescriptor;
-  duration_ms: number;
-};
-
-export type ClientEvaluationPayload = {
-  evaluation: EvaluationResult;
-  provider: ProviderDescriptor;
-  duration_ms: number;
-};
-
 export type PracticeRunInput = {
   session_item_id?: string;
   task_id?: string;
   example_id?: string;
   attempt_id?: string;
+  input_mode?: "audio" | "typed";
   audio?: string;
   audio_mime?: string;
   transcript_text?: string;
-  client_transcript?: ClientTranscriptPayload;
-  client_evaluation?: ClientEvaluationPayload;
   skip_scoring?: boolean;
   mode?: "local_prefer" | "openai_only" | "local_only";
   practice_mode?: "standard" | "real_time";
@@ -157,17 +155,23 @@ export type PracticeRunError = {
   message: string;
 };
 
-export type PracticeRunTranscript = ClientTranscriptPayload & {
-  origin: "local" | "openai";
+export type PracticeRunTranscript = {
+  text: string;
+  input_mode?: "audio" | "typed";
+  provider: { kind: "local" | "openai"; model: string } | null;
+  duration_ms: number | null;
 };
 
-export type PracticeRunScoring = ClientEvaluationPayload & {
-  origin: "local" | "openai";
+export type PracticeRunScoring = {
+  evaluation: EvaluationResult;
+  provider: ProviderDescriptor;
+  duration_ms: number;
 };
 
 export type PracticeRunResponse = {
   requestId: string;
   attemptId?: string;
+  score_trust?: "cloud_trusted" | "local_unverified";
   next_recommended_difficulty?: number;
   transcript?: PracticeRunTranscript;
   scoring?: PracticeRunScoring;
@@ -177,7 +181,7 @@ export type PracticeRunResponse = {
   debug?: {
     timings: Record<string, number>;
     selectedProviders: {
-      stt: { kind: "local" | "openai"; model: string };
+      stt: { kind: "local" | "openai"; model: string } | null;
       llm: { kind: "local" | "openai"; model: string } | null;
     };
   };

@@ -6,6 +6,6 @@ export const useAudioRecorder = () => {
     ...recorder,
     startRecording: recorder.startFromUserGesture,
     stopRecording: recorder.stop,
-    cancelRecording: recorder.cancel
+    cancelRecording: recorder.cancel,
   };
 };

@@ -2,6 +2,8 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "bundle": {
     "externalBin": ["binaries/local-runtime-gateway"],
-    "resources": ["local-runtime-python"]
+    "resources": {
+      "resources/local-runtime-python": "local-runtime-python"
+    }
   }
 }

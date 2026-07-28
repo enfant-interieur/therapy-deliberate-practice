@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "bash tools/dev.sh",
-    "build": "python tools/gen_models_json.py",
-    "lint": "ruff check python && ruff format --check python",
-    "test": "pytest"
+    "build": "uv run --python 3.12 --no-project --with-requirements python/requirements-test.txt python tools/gen_models_json.py",
+    "lint": "uvx --from ruff==0.16.0 ruff check python desktop/scripts && uvx --from ruff==0.16.0 ruff format --check python desktop/scripts",
+    "test": "uv run --python 3.12 --no-project --with-requirements python/requirements-test.txt python -m pytest -q python/tests"
   }
 }

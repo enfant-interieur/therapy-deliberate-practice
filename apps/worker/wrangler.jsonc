@@ -5,34 +5,34 @@
   "assets": {
     "directory": "../../apps/web/dist",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "deliberate_practice",
       "database_id": "695c3755-8777-45fc-89b3-41b79e26522b",
-      "migrations_dir": "migrations"
-    }
+      "migrations_dir": "migrations",
+    },
   ],
   "placement": {
-    "mode": "smart"
+    "mode": "smart",
   },
   "routes": [
     {
       "pattern": "therapy-deliberate-practice.com/*",
-      "zone_name": "therapy-deliberate-practice.com"
+      "zone_name": "therapy-deliberate-practice.com",
     },
     {
       "pattern": "www.therapy-deliberate-practice.com/*",
-      "zone_name": "therapy-deliberate-practice.com"
-    }
+      "zone_name": "therapy-deliberate-practice.com",
+    },
   ],
   "r2_buckets": [
     {
       "bucket_name": "deliberate-practice-audio",
-      "binding": "deliberate_practice_audio"
-    }
+      "binding": "deliberate_practice_audio",
+    },
   ],
   "queues": {
     "producers": [
@@ -55,18 +55,16 @@
     ]
   },
   // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, SUPABASE_JWT_SECRET,
+  //   CF_ACCESS_AUD, CF_ACCESS_ISSUER,
   //    "ADMIN_EMAILS": "",
   //    "ADMIN_GROUPS": "",
-  //  "AI_MODE": "local_prefer",
-  //  "LOCAL_STT_URL": "http://localhost:7001",
-  //  "LOCAL_LLM_URL": "http://localhost:7002",
-  // "LOCAL_LLM_MODEL": "mlx-community/Mistral-7B-Instruct-v0.2",
+  // Local model URLs belong to the learner's browser settings. A hosted Worker cannot reach them.
   "vars": {
     "SUPABASE_URL": "https://swwnxedbhwfhfoogghqs.supabase.co",
     "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3d254ZWRiaHdmaGZvb2dnaHFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NzAsImV4cCI6MjA4Mjc2MDc3MH0.GxWdmheN1dp3ZunMxfSec4gkNUJXalO00BDOJ4l7_-4",
     "ENV": "production",
     "R2_BUCKET": "deliberate-practice-audio",
     "BYPASS_ADMIN_AUTH": "false",
-    "DEV_ADMIN_TOKEN": ""
-  }
+    "DEV_ADMIN_TOKEN": "",
+  },
 }

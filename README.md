@@ -1,310 +1,252 @@
 # Therapy Deliberate Practice Studio
 
-Production-grade monorepo for Therapy Studio, a psychotherapy deliberate-practice platform that pairs a Vite/React front end with a Cloudflare Worker API and a local runtime suite for on-device STT/LLM/TTS. This README reflects the current v0.1.6 setup (no Docker, native dev tooling only).
+Therapy Deliberate Practice Studio helps psychotherapy trainees practise specific communication skills, record or type a response, and review structured feedback. The repository also contains an optional desktop Local Runtime Suite for running speech and language models on the learner's computer.
 
-## Table of Contents
-1. [Repository layout](#repository-layout)
-2. [Stack & prerequisites](#stack--prerequisites)
-3. [Install & bootstrap](#install--bootstrap)
-4. [Configuration](#configuration)
-5. [Local development](#local-development)
-6. [Database & migrations](#database--migrations)
-7. [Local Runtime Suite](#local-runtime-suite)
-8. [Testing & linting](#testing--linting)
-9. [Builds & releases](#builds--releases)
-10. [Troubleshooting](#troubleshooting)
+## What is in this repository
 
-## Repository layout
-```
-/apps
-  /web        – Vite + React therapist UI
-  /api        – shared Hono API (logic reused by the Worker)
-  /worker     – Cloudflare Worker (serves /api routes + static assets)
-/packages
-  /shared     – TypeScript types, schemas, prompts, helpers
-/services
-  /local-runtime-suite – Python FastAPI gateway + Tauri desktop launcher
-/docs         – supplementary architecture notes
-/scripts      – release helpers, local AI tools
+```text
+apps/
+  web/                    React learner and administration interface
+  api/                    Shared Hono API, provider, and persistence code
+  worker/                 Cloudflare Worker, D1 migrations, and R2 integration
+packages/
+  shared/                 Shared application types and utilities
+services/
+  local-runtime-suite/    FastAPI gateway, model adapters, and Tauri desktop app
+infra/                    Local development resources
 ```
 
-## Stack & prerequisites
-| Requirement | Purpose |
-| --- | --- |
-| Node 20.x & npm 10.x | workspace installs, Vite dev server, Wranger tasks |
-| Python 3.10+ | local runtime FastAPI gateway + tooling |
-| Rust toolchain & `@tauri-apps/cli` | building/running the desktop launcher |
-| Wrangler CLI (`npm i -g wrangler`) | Worker dev server, deploys, D1 migrations |
-| Supabase project | auth + persistence |
-| Cloudflare account | D1 database + R2 cached audio |
-| Optional: `ffmpeg` | microphone recordings + audio conversions |
+The production web path uses a Cloudflare Worker with D1 and R2. The desktop app starts a loopback-only FastAPI gateway. When local AI is selected, the browser calls that gateway directly; a hosted Worker cannot reach a learner's `127.0.0.1`.
 
-> MLX-based local models require macOS on Apple Silicon. On other platforms, configure the local runtime to use Hugging Face/torch backends.
+## Requirements
 
-## Install & bootstrap
-1. **Clone & install JS workspaces**
-   ```bash
-   git clone <repo> therapy-deliberate-practice
-   cd therapy-deliberate-practice
-   npm install
-   ```
-2. **Set up the Python environment (local runtime gateway)**
-   ```bash
-   cd services/local-runtime-suite/python
-   python -m venv .venv
-   source .venv/bin/activate
-   pip install -e ".[lint,test]"
-   ```
-   Reactivate the virtualenv whenever running `npm run dev:local`.
-3. **(Optional) Install desktop launcher deps**
-   ```bash
-   cd services/local-runtime-suite/desktop
-   npm install
-   ```
-4. **Ensure toolchains stay current** – `rustup update`, `npm i -g wrangler`, `pip install --upgrade pip`.
+- Node.js 24 LTS
+- npm 11
+- Python 3.12 and `uv` for Local Runtime development
+- Rust stable and the Tauri platform prerequisites for desktop development
+- Wrangler for Cloudflare Worker development
+- A Supabase project for authentication
+- A Cloudflare account for production D1, R2, and Worker resources
 
-## Configuration & environment prep
-The platform relies on Supabase (auth), Cloudflare (Worker + D1 + R2), and the Local Runtime Suite. Follow the steps below in order for a clean setup.
+The root `package.json` pins the supported Node.js and npm ranges.
 
-### Step 1 – Supabase project
-1. **Create a Supabase project** from the dashboard (choose the free tier or higher).
-2. **Record credentials**:
-   - Project URL – copy from Settings → Project Settings → API (`https://xyz.supabase.co`).
-   - Public anon key – same page, used by the web app.
-   - JWT secret – Settings → API → JWT Secret (used by the Worker API).
-   - Optional: service-role key if you plan to seed data directly.
-3. **Enable providers**:
-   - Go to Authentication → Providers and enable **Email**, **Google**, and **GitHub**.
-   - For each OAuth provider, add redirect URLs:
-     - `http://localhost:5173/login`
-     - `https://<your-prod-domain>/login`
-4. **Configure site settings**:
-   - Authentication → URL Configuration: set Site URL to your production domain (can be changed later).
-   - Add `http://localhost:5173` to `Additional Redirect URLs` for dev.
-5. **Create the default storage bucket (optional)** if you plan to store assets or exports via Supabase Storage.
-6. **Verify email templates** (Authentication → Templates) if you customize copy.
+## First local setup
 
-You now have all values needed for the `.env` files.
+Install the JavaScript dependencies:
 
-### Step 2 – Cloudflare Worker, D1, and R2
-1. **Authenticate Wrangler**
-   ```bash
-   wrangler login
-   wrangler whoami   # confirm account + subscription
-   ```
-2. **Provision D1**
-   ```bash
-   cd apps/worker
-   wrangler d1 create deliberate_practice
-   ```
-   Copy the `database_id` that Wrangler prints and paste it into `apps/worker/wrangler.jsonc` under the `d1_databases[0].database_id` field.
-3. **Create an R2 bucket** (Cloudflare dashboard → R2 → Create bucket). Name it `deliberate-practice-audio` or similar.
-   - Add the bucket binding to `wrangler.jsonc` (already present by default).
-   - Note your Account ID (R2 overview) plus the Access Key / Secret (R2 → Manage R2 API Tokens → Create API Token).
-4. **Configure routes + assets**:
-   - `wrangler.jsonc` already maps `therapy-deliberate-practice.com` / `www` to the Worker.
-   - Update these routes to your domain if different, or remove them for dev-only usage.
-5. **Set Worker secrets** (never store these in the repo):
-   ```bash
-   wrangler secret put OPENAI_API_KEY
-   wrangler secret put OPENAI_KEY_ENCRYPTION_SECRET
-   wrangler secret put SUPABASE_JWT_SECRET
-   wrangler secret put R2_ACCESS_KEY_ID
-   wrangler secret put R2_SECRET_ACCESS_KEY
-   wrangler secret put DEV_ADMIN_TOKEN   # optional, for CLI admin auth
-   ```
-6. **Create the queues** – long-running admin parsing and patient audio generation now dispatch to Cloudflare Queues so long-running jobs never block the Worker request thread.
-   ```bash
-   # One time, per environment
-   cd apps/worker
-   wrangler queues create admin-batch-parse
-   wrangler queues create patient-audio
-   ```
-   - Queue bindings (`ADMIN_BATCH_PARSE_QUEUE`, `PATIENT_AUDIO_QUEUE`) are defined in `apps/worker/wrangler.jsonc`; adjust the `queue_name` if you used a different name.
-   - Deploying via `wrangler deploy` automatically attaches the queue binding; for local `wrangler dev`, Wrangler emulates the queue consumer.
-7. **Verify bindings** by running:
-   ```bash
-   wrangler dev
-   ```
-   Visit `http://localhost:8787/api/health` and confirm you receive a JSON payload instead of an error.
-
-### Step 3 – Environment files
-Create `.env` in the repo root (used by Wrangler dev + Worker deploys):
-```env
-AI_MODE=local_prefer                # local_prefer | local_only | openai_only
-OPENAI_API_KEY=sk-...
-OPENAI_KEY_ENCRYPTION_SECRET=32+char-secret
-SUPABASE_URL=https://<project>.supabase.co
-SUPABASE_ANON_KEY=<public-anon-key>
-SUPABASE_JWT_SECRET=<project-jwt-secret>
-LOCAL_STT_URL=http://127.0.0.1:8484
-LOCAL_LLM_URL=http://127.0.0.1:8484
-LOCAL_TTS_URL=http://127.0.0.1:8484
-LOCAL_LLM_MODEL=Qwen/Qwen3-4B-MLX-4bit
-LOCAL_TTS_MODEL=mlx-community/Kokoro-82M-bf16
-LOCAL_TTS_VOICE=af_bella
-LOCAL_TTS_FORMAT=mp3
-OPENAI_TTS_MODEL=gpt-4o-mini-tts
-OPENAI_TTS_VOICE=sage
-BYPASS_ADMIN_AUTH=true
-DEV_ADMIN_TOKEN=local-dev-token
-R2_BUCKET=deliberate-practice-audio
-R2_PUBLIC_BASE_URL= # optional CDN prefix
-ENV=development
-```
-> `BYPASS_ADMIN_AUTH=true` lets you access admin pages locally without SSO. Disable it in production.
-
-Create `apps/web/.env` for Vite:
-```env
-VITE_SUPABASE_URL=https://<project>.supabase.co
-VITE_SUPABASE_ANON_KEY=<public-anon-key>
-```
-No extra API base env is required—the dev Vite server proxies `/api/*` to Wrangler automatically.
-
-### Step 4 – Local runtime configuration
-The Local Runtime Suite (Python gateway + desktop app) keeps its config at:
-- macOS: `~/Library/Application Support/com.therapy.localruntime/therapy/local-runtime/config.json`
-- Windows: `%APPDATA%\com.therapy.localruntime\therapy\local-runtime\config.json`
-- Linux: `~/.therapy/local-runtime/config.json`
-
-After running the desktop app once, edit the config (or use the Settings tab) to ensure:
-```json
-{
-  "port": 8484,
-  "prefer_local": true,
-  "default_models": {
-    "responses": "local//llm/qwen3-mlx",
-    "audio.transcriptions": "local//stt/parakeet-mlx"
-  }
-}
-```
-All `LOCAL_*` env vars should match the base URL exposed here (`http://127.0.0.1:8484`).
-
-## Local development
-### Step 5 – Run the full stack locally
-1. **Start the Local Runtime Suite (LLM/STT/TTS)**
-   ```bash
-   npm run dev:local              # FastAPI gateway only
-   # or launch the GUI:
-   cd services/local-runtime-suite/desktop
-   npm run tauri:dev
-   ```
-   - Visit `http://127.0.0.1:8484/health` – you should see `{ "status": "ok" }`.
-   - Use `http://127.0.0.1:8484/logs` to inspect structured logs if anything fails.
-2. **Run Wrangler dev (Worker + D1 + assets)**
-   ```bash
-   npm run dev:worker -- --port 8787
-   ```
-   - `http://localhost:8787/api/health` should return a JSON payload describing build info.
-   - D1 migrations are auto-applied when you run `npm run migrate:local -w apps/worker`.
-3. **Run the web app**
-   ```bash
-   npm run dev:web
-   ```
-   - Visit `http://localhost:5173` and sign in through Supabase.
-   - The Vite dev server proxies `/api/*` to Wrangler automatically; no extra config needed.
-4. **Optional shortcut**
-   ```bash
-   npm run dev   # runs worker + web in parallel
-   ```
-5. **End-to-end sanity check**
-   - Navigate to `/practice/<taskSlug>`.
-   - Hit “Start recording”, speak for a few seconds, then “Run evaluation”.
-   - Watch `npm run dev:local` output to confirm STT + LLM runs execute locally.
-   - Open the Practice history sidebar to verify scores and transcripts render.
-
-> When `AI_MODE=local_prefer`, the API uses the local runtime first with OpenAI fallback. Set `AI_MODE=openai_only` if you want to exercise the remote path instead.
-
-## Database & migrations
-Therapy Studio uses Cloudflare D1 for production and development (Wrangler dev). SQL migrations live in `apps/worker/migrations`.
-
-1. **Create the database**
-   ```bash
-   cd apps/worker
-   wrangler d1 create deliberate_practice
-   ```
-   Copy the `database_id` into `wrangler.jsonc`.
-
-2. **Apply migrations**
-   ```bash
-   npm run migrate:local -w apps/worker    # apply to wrangler dev (local miniflare)
-   npm run migrate:remote -w apps/worker   # apply to remote D1
-   ```
-
-3. **Seed sample data (optional)**
-   ```bash
-   wrangler d1 execute DB --file=../api/infra/seed.sql --local
-   wrangler d1 execute DB --file=../api/infra/seed.sql --remote
-   ```
-
-The Node API is not run separately; `apps/worker` imports the shared Hono app (`apps/api/src/app.ts`). API unit tests use in-memory SQLite via `better-sqlite3`.
-
-## Local Runtime Suite
-`services/local-runtime-suite` replaces Dockerized services with native tooling.
-
-### Python FastAPI gateway
-- Entrypoint: `python -m local_runtime.main` (invoked via `npm run dev:local`).
-- Exposes OpenAI-compatible endpoints:
-  - `POST /v1/audio/transcriptions`
-  - `POST /v1/responses`
-  - `POST /v1/audio/speech`
-  - `GET /health`, `GET /logs`
-- Models live under `services/local-runtime-suite/python/local_runtime/models`.
-- Generate/update the model catalog for the web UI:
-  ```bash
-  python services/local-runtime-suite/tools/gen_models_json.py
-  ```
-
-### Desktop launcher (Tauri)
-- Location: `services/local-runtime-suite/desktop`
-- Scripts:
-  ```bash
-  npm run tauri:dev       # build sidecar + run app
-  npm run tauri:build     # produce production installers
-  npm run tauri:appstore  # App Store target (macOS universal)
-  ```
-- Provides GUI toggles, status checks, `/doctor` diagnostics, and auto-starts the gateway + model sidecars.
-
-### Logs & data
-Runtime logs, cache, and downloaded weights live under the same config directory noted above (`~/.therapy/local-runtime/...`).
-
-## Testing & linting
 ```bash
-# Frontend lint (ESLint)
-npm run lint -w apps/web
-
-# Worker/API types
-npm run build -w apps/api          # type-check the shared API
-
-# API unit tests (better-sqlite3 + tsx)
-npm run test -w apps/api
-
-# Local runtime suite lint/tests
-npm run lint -w services/local-runtime-suite
-cd services/local-runtime-suite/python && pytest
-
-# Desktop lint
-cd services/local-runtime-suite/desktop && npm run lint
-
-# Format everything
-npm run format
+npm ci
 ```
 
-## Builds & releases
-- **Web + Worker + API**: `npm run build` (web bundle + API type check + worker bundle). Deploy via `npm run deploy:prod -w apps/worker`.
-- **Local runtime assets**:
-  ```bash
-  npm run build -w services/local-runtime-suite             # python catalog + tooling
-  npm run build:local                                       # python build + tauri build
-  ```
-- **Release automation**: `npm run release` (tags + changelog). Use `npm run release:dmg` / `npm run release:appstore` for macOS deliverables, or `npm run release:gh` for GitHub artifacts.
+Copy the environment example:
 
-## Troubleshooting
-- **Local runtime connection errors** – ensure `npm run dev:local` (or the desktop app) is running and the env variables point to `http://127.0.0.1:8484`. Check logs under `~/Library/Application Support/com.therapy.localruntime/.../logs`.
-- **Audio capture fails** – confirm browser mic permissions, and verify `ffmpeg` is installed if you rely on media conversions.
-- **Real Time Mode audio missing** – verify `R2_BUCKET` env vars and rerun `npm run migrate:local -w apps/worker` so the `tts_assets` table exists.
-- **Supabase auth loop** – double-check the redirect URLs, and make sure `SUPABASE_*` envs match the dev project.
-- **Wrangler dev 5xx** – run `wrangler whoami`, ensure D1 migrations are applied, and restart with `npm run dev:worker`.
-- **Local evaluations wrong language** – open the Local Runtime desktop app → Settings → Models and confirm both STT + LLM defaults use the expected language/runtime.
+```bash
+cp .env.example .env
+```
 
-When in doubt, inspect component-specific READMEs (especially `services/local-runtime-suite/README.md`) or run the desktop doctor's diagnostics page.
+Set the values required by the surface you are running. Keep all secret values out of source control.
+
+For the web client, create `apps/web/.env`:
+
+```dotenv
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
+```
+
+The Vite variables are public browser configuration. Never put service-role keys or other secrets in a `VITE_` variable.
+
+## Run the web application
+
+For the Worker-backed application:
+
+```bash
+npm run dev
+```
+
+This starts the Worker development server and the Vite web server. You can also start them separately:
+
+```bash
+npm run dev:worker
+npm run dev:web
+```
+
+The Node and SQLite API adapter remains available for focused local development:
+
+```bash
+npm run dev:api
+```
+
+## Use local models
+
+The supported learner flow uses one local gateway for speech recognition and language evaluation.
+
+1. Start the Local Runtime Suite from its desktop application or run the development gateway:
+
+   ```bash
+   npm run dev:local
+   ```
+
+2. Open the desktop application and wait until the gateway is ready.
+3. Copy the local URL and pairing key shown by the desktop application.
+4. Open Settings in the Therapy web application.
+5. Select local AI, paste both values, and test the connection.
+6. Load compatible speech and language models before starting practice.
+
+The pairing key is stored in the browser for that exact loopback origin. The browser sends it only to the local gateway as a bearer credential. It is not sent to the hosted API, included in a URL, or written to ordinary application logs.
+
+The default gateway origin is `http://127.0.0.1:8484`. Protected gateway routes require the pairing key. The public health route reveals only basic product status.
+
+See [services/local-runtime-suite/README.md](services/local-runtime-suite/README.md) for model support, gateway development, and packaging details.
+
+## Local-model support
+
+The generated catalog in `apps/web/public/local-suite/models.json` is the source shown by the web and desktop interfaces.
+
+| Model                                  | Purpose             | Packaged platforms                                       |
+| -------------------------------------- | ------------------- | -------------------------------------------------------- |
+| Qwen3 4B Instruct MLX                  | Language evaluation | Apple-silicon macOS                                      |
+| Qwen3 4B Instruct through Transformers | Language evaluation | Apple-silicon macOS, Windows x64, Linux x64              |
+| Parakeet MLX                           | Speech recognition  | Apple-silicon macOS                                      |
+| Faster Whisper                         | Speech recognition  | Apple-silicon macOS, Intel macOS, Windows x64, Linux x64 |
+
+Intel macOS does not advertise a packaged language model because PyTorch 2.13 has no Python 3.12 Intel-macOS wheel. The desktop interface filters the catalog by the detected platform instead of offering a model that cannot load.
+
+## Configure authentication
+
+In Supabase:
+
+1. Enable the required Google and GitHub authentication providers.
+2. Add `http://localhost:5173/login` for local development.
+3. Add the production `/login` URL for the deployed application.
+4. Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_JWT_SECRET` for the relevant runtime.
+
+The anonymous key is browser-visible by design. The JWT secret is sensitive and must remain a server-side secret.
+
+## Configure text-to-speech and R2
+
+Real Time Mode generates or reuses patient audio and stores it in R2.
+
+The Worker uses the `deliberate_practice_audio` R2 binding declared in `apps/worker/wrangler.jsonc`. Set `R2_BUCKET` to the bound bucket name. The Worker does not need S3-compatible R2 access keys.
+
+The Node adapter uses the S3-compatible variables in `.env`:
+
+```dotenv
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET=deliberate-practice-audio
+R2_PUBLIC_BASE_URL=
+R2_S3_ENDPOINT=
+```
+
+Set `OPENAI_API_KEY` when hosted text-to-speech or hosted evaluation is required. The Worker value must be a Wrangler secret.
+
+## Configure background queues
+
+Administrator batch parsing and patient-audio generation use Cloudflare Queues so long-running work does not block the Worker request. Create the production queues once:
+
+```bash
+npx wrangler queues create admin-batch-parse
+npx wrangler queues create patient-audio
+```
+
+The `ADMIN_BATCH_PARSE_QUEUE` and `PATIENT_AUDIO_QUEUE` producer and consumer bindings are declared in `apps/worker/wrangler.jsonc`. Keep those names aligned with the queues in the intended Cloudflare account. Queue creation and remote binding changes are production mutations and require explicit deployment authorization.
+
+## Database migrations
+
+Cloudflare tracks D1 migrations in `apps/worker/migrations`.
+
+Apply local D1 migrations:
+
+```bash
+npm run migrate:local -w apps/worker
+```
+
+Apply remote D1 migrations only when you are deliberately changing the configured production database:
+
+```bash
+npm run migrate:remote -w apps/worker
+```
+
+Initialize the local SQLite database from the same schema:
+
+```bash
+sqlite3 apps/api/infra/local.db < apps/worker/migrations/0001_init_v2.sql
+sqlite3 apps/api/infra/local.db < apps/api/infra/seed.sql
+```
+
+Apply the text-to-speech asset migration when the local database does not yet contain it:
+
+```bash
+sqlite3 apps/api/infra/local.db < apps/worker/migrations/0002_add_tts_assets.sql
+```
+
+## Administration
+
+Local administration can use the development bypass only when `ENV=development`:
+
+```dotenv
+ENV=development
+BYPASS_ADMIN_AUTH=true
+DEV_ADMIN_TOKEN=choose-a-local-token
+```
+
+Store the token in browser local storage for local testing:
+
+```js
+localStorage.setItem("devAdminToken", "<DEV_ADMIN_TOKEN>");
+```
+
+Production administration uses Cloudflare Access plus `ADMIN_EMAILS`, `ADMIN_GROUPS`, `CF_ACCESS_AUD`, and the exact Access team origin in `CF_ACCESS_ISSUER` (for example, `https://your-team.cloudflareaccess.com`, without a trailing slash). Keep the development bypass disabled in production. The API fails closed when the audience or issuer is missing or invalid.
+
+Authorized administrators can curate authors, criteria, patient examples, interaction examples, translations, publication state, and bulk selections. Batch parsing and patient-audio generation expose queued progress instead of holding the request open.
+
+## Validate a change
+
+Run the bounded repository checks:
+
+```bash
+npm run lint
+npm test
+npm run build
+npm run audit:production
+```
+
+The continuous-integration workflow also checks Python formatting and tests, the generated model catalog, Rust formatting and tests, workflow syntax, and desktop release metadata.
+
+Desktop package builds are manual and build-only. They do not create or update a GitHub Release. See [services/local-runtime-suite/desktop/README.md](services/local-runtime-suite/desktop/README.md) for the release boundary.
+
+## Deployment boundary
+
+Building and testing this repository does not deploy the Worker or publish a desktop release.
+
+The Worker deployment command is:
+
+```bash
+npm run deploy:prod
+```
+
+Run it only with explicit deployment authorization and the intended Cloudflare account selected.
+
+Desktop publication uses a separate manual workflow that validates the selected version tag and matching native build, signatures, notarization, and an explicit `PUBLISH` confirmation before it can create a draft release. GitHub environment protection is a repository setting, not something workflow YAML can establish. Treat publication as disabled until administrators independently verify required reviewers, no-bypass rules, version-tag restrictions, and environment-scoped credentials for both desktop release environments. Even after that setup, a human must inspect and publish any draft separately.
+
+## Environment reference
+
+Common server-side variables are:
+
+- `OPENAI_API_KEY`
+- `OPENAI_KEY_ENCRYPTION_SECRET`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_JWT_SECRET`
+- `R2_BUCKET`
+- `R2_PUBLIC_BASE_URL`
+- `ADMIN_EMAILS`
+- `ADMIN_GROUPS`
+- `CF_ACCESS_AUD`
+- `CF_ACCESS_ISSUER`
+- `ENV`
+- `BYPASS_ADMIN_AUTH`
+- `DEV_ADMIN_TOKEN`
+
+`AI_MODE`, `LOCAL_STT_URL`, `LOCAL_LLM_URL`, and `LOCAL_LLM_MODEL` remain for the Node adapter and compatibility tests. The production learner flow does not expect a hosted Worker to call those loopback URLs. Users configure the browser-to-gateway connection in Therapy Settings.

@@ -7,7 +7,7 @@ import {
   minigameSessions,
   practiceSessions,
   taskExamples,
-  tasks
+  tasks,
 } from "../db/schema";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -98,13 +98,17 @@ export type ProfileInsights = {
 const coerceTags = (value: unknown): string[] => {
   if (!value) return [];
   if (Array.isArray(value)) {
-    return value.map((tag) => (typeof tag === "string" ? tag.trim() : "")).filter(Boolean);
+    return value
+      .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+      .filter(Boolean);
   }
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
       if (Array.isArray(parsed)) {
-        return parsed.map((tag) => (typeof tag === "string" ? tag.trim() : "")).filter(Boolean);
+        return parsed
+          .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+          .filter(Boolean);
       }
     } catch (error) {
       return [];
@@ -128,7 +132,9 @@ const startOfDayUtc = (timestamp: number) => {
   return date.getTime();
 };
 
-const buildScoreTrend = (attemptRows: AttemptInsightRow[]): ProfileInsights["score_trend"] => {
+const buildScoreTrend = (
+  attemptRows: AttemptInsightRow[],
+): ProfileInsights["score_trend"] => {
   const buckets = new Map<number, { totalScore: number; count: number }>();
   attemptRows.forEach((attempt) => {
     if (!attempt.completed_at) return;
@@ -143,7 +149,7 @@ const buildScoreTrend = (attemptRows: AttemptInsightRow[]): ProfileInsights["sco
       period_start: start,
       period_end: start + WEEK_MS,
       average_score: value.count ? value.totalScore / value.count : 0,
-      attempts: value.count
+      attempts: value.count,
     }))
     .sort((a, b) => a.period_start - b.period_start);
   return entries.slice(-12);
@@ -151,7 +157,7 @@ const buildScoreTrend = (attemptRows: AttemptInsightRow[]): ProfileInsights["sco
 
 const buildAverageBreakdown = (
   attemptRows: AttemptInsightRow[],
-  selector: (row: AttemptInsightRow) => string
+  selector: (row: AttemptInsightRow) => string,
 ) => {
   const groups = new Map<string, { totalScore: number; count: number }>();
   attemptRows.forEach((row) => {
@@ -166,12 +172,16 @@ const buildAverageBreakdown = (
     .map(([label, value]) => ({
       label,
       average_score: value.count ? value.totalScore / value.count : 0,
-      attempts: value.count
+      attempts: value.count,
     }))
-    .sort((a, b) => b.attempts - a.attempts || b.average_score - a.average_score);
+    .sort(
+      (a, b) => b.attempts - a.attempts || b.average_score - a.average_score,
+    );
 };
 
-const buildTagBreakdown = (attemptRows: AttemptInsightRow[]): ProfileInsights["tag_breakdown"] => {
+const buildTagBreakdown = (
+  attemptRows: AttemptInsightRow[],
+): ProfileInsights["tag_breakdown"] => {
   const groups = new Map<string, { totalScore: number; count: number }>();
   attemptRows.forEach((row) => {
     const tags = coerceTags(row.tags);
@@ -187,13 +197,17 @@ const buildTagBreakdown = (attemptRows: AttemptInsightRow[]): ProfileInsights["t
     .map(([label, value]) => ({
       label,
       average_score: value.count ? value.totalScore / value.count : 0,
-      attempts: value.count
+      attempts: value.count,
     }))
-    .sort((a, b) => b.attempts - a.attempts || b.average_score - a.average_score)
+    .sort(
+      (a, b) => b.attempts - a.attempts || b.average_score - a.average_score,
+    )
     .slice(0, 12);
 };
 
-const buildDifficultyMix = (attemptRows: AttemptInsightRow[]): ProfileInsights["difficulty_mix"] => {
+const buildDifficultyMix = (
+  attemptRows: AttemptInsightRow[],
+): ProfileInsights["difficulty_mix"] => {
   const groups = new Map<number, { totalScore: number; count: number }>();
   attemptRows.forEach((row) => {
     const difficulty = row.difficulty;
@@ -206,7 +220,7 @@ const buildDifficultyMix = (attemptRows: AttemptInsightRow[]): ProfileInsights["
     .map(([difficulty, value]) => ({
       difficulty,
       average_score: value.count ? value.totalScore / value.count : 0,
-      attempts: value.count
+      attempts: value.count,
     }))
     .sort((a, b) => a.difficulty - b.difficulty);
 };
@@ -238,16 +252,19 @@ const computeStreaks = (days: number[]) => {
 
   return {
     best,
-    current: sorted.length === 0 ? 0 : rolling
+    current: sorted.length === 0 ? 0 : rolling,
   };
 };
 
 const buildPracticeSummary = (
   attemptRows: AttemptInsightRow[],
-  sessions: PracticeSessionRow[]
+  sessions: PracticeSessionRow[],
 ): ProfileInsights["practice_summary"] => {
   const totalAttempts = attemptRows.length;
-  const totalScore = attemptRows.reduce((sum, row) => sum + row.overall_score, 0);
+  const totalScore = attemptRows.reduce(
+    (sum, row) => sum + row.overall_score,
+    0,
+  );
   const totalMinutes = attemptRows.reduce((sum, row) => {
     const completed = row.completed_at ?? row.started_at;
     const duration = Math.max(0, completed - row.started_at);
@@ -268,17 +285,21 @@ const buildPracticeSummary = (
     total_attempts: totalAttempts,
     total_minutes: Number(totalMinutes.toFixed(1)),
     sessions: sessions.length,
-    average_session_minutes: sessions.length ? Number((sessionMinutes / sessions.length).toFixed(1)) : 0,
-    average_attempt_score: totalAttempts ? Number((totalScore / totalAttempts).toFixed(2)) : 0,
+    average_session_minutes: sessions.length
+      ? Number((sessionMinutes / sessions.length).toFixed(1))
+      : 0,
+    average_attempt_score: totalAttempts
+      ? Number((totalScore / totalAttempts).toFixed(2))
+      : 0,
     current_streak_days: streaks.current,
-    best_streak_days: streaks.best
+    best_streak_days: streaks.best,
   };
 };
 
 const buildMinigameSummary = (
   sessionRows: MinigameSessionRow[],
   roundCounts: RoundCountRow[],
-  playerCounts: PlayerCountRow[]
+  playerCounts: PlayerCountRow[],
 ): ProfileInsights["minigame_summary"] => {
   if (sessionRows.length === 0) {
     return {
@@ -287,18 +308,31 @@ const buildMinigameSummary = (
       completed_rounds: 0,
       players_hosted: 0,
       average_rounds_per_session: 0,
-      recent_sessions: []
+      recent_sessions: [],
     };
   }
 
   const roundMap = new Map(roundCounts.map((row) => [row.session_id, row]));
-  const playerMap = new Map(playerCounts.map((row) => [row.session_id, row.count]));
+  const playerMap = new Map(
+    playerCounts.map((row) => [row.session_id, row.count]),
+  );
 
-  const totalRounds = roundCounts.reduce((sum, row) => sum + (row.count ?? 0), 0);
-  const completedRounds = roundCounts.reduce((sum, row) => sum + (row.completed ?? 0), 0);
-  const totalPlayers = playerCounts.reduce((sum, row) => sum + (row.count ?? 0), 0);
+  const totalRounds = roundCounts.reduce(
+    (sum, row) => sum + (row.count ?? 0),
+    0,
+  );
+  const completedRounds = roundCounts.reduce(
+    (sum, row) => sum + (row.completed ?? 0),
+    0,
+  );
+  const totalPlayers = playerCounts.reduce(
+    (sum, row) => sum + (row.count ?? 0),
+    0,
+  );
 
-  const averageRounds = sessionRows.length ? totalRounds / sessionRows.length : 0;
+  const averageRounds = sessionRows.length
+    ? totalRounds / sessionRows.length
+    : 0;
 
   const recentSessions = [...sessionRows]
     .sort((a, b) => b.created_at - a.created_at)
@@ -307,7 +341,8 @@ const buildMinigameSummary = (
       const roundInfo = roundMap.get(session.id);
       const rounds = roundInfo?.count ?? 0;
       const players = playerMap.get(session.id) ?? 0;
-      const endedAt = session.ended_at ?? session.last_active_at ?? session.created_at;
+      const endedAt =
+        session.ended_at ?? session.last_active_at ?? session.created_at;
       const duration = Math.max(0, endedAt - session.created_at);
       return {
         session_id: session.id,
@@ -315,7 +350,7 @@ const buildMinigameSummary = (
         ended_at: endedAt,
         duration_minutes: Number((duration / 60000).toFixed(1)),
         rounds,
-        players
+        players,
       };
     });
 
@@ -325,11 +360,14 @@ const buildMinigameSummary = (
     completed_rounds: Number(completedRounds),
     players_hosted: Number(totalPlayers),
     average_rounds_per_session: Number(averageRounds.toFixed(1)),
-    recent_sessions: recentSessions
+    recent_sessions: recentSessions,
   };
 };
 
-export const fetchProfileInsights = async (db: ApiDatabase, userId: string): Promise<ProfileInsights> => {
+export const fetchProfileInsights = async (
+  db: ApiDatabase,
+  userId: string,
+): Promise<ProfileInsights> => {
   const attemptRows = await db
     .select({
       started_at: attempts.started_at,
@@ -338,7 +376,7 @@ export const fetchProfileInsights = async (db: ApiDatabase, userId: string): Pro
       session_id: attempts.session_id,
       skill_domain: tasks.skill_domain,
       tags: tasks.tags,
-      difficulty: taskExamples.difficulty
+      difficulty: taskExamples.difficulty,
     })
     .from(attempts)
     .innerJoin(tasks, eq(tasks.id, attempts.task_id))
@@ -348,7 +386,11 @@ export const fetchProfileInsights = async (db: ApiDatabase, userId: string): Pro
     .limit(2000);
 
   const practiceRows = await db
-    .select({ id: practiceSessions.id, created_at: practiceSessions.created_at, ended_at: practiceSessions.ended_at })
+    .select({
+      id: practiceSessions.id,
+      created_at: practiceSessions.created_at,
+      ended_at: practiceSessions.ended_at,
+    })
     .from(practiceSessions)
     .where(eq(practiceSessions.user_id, userId))
     .orderBy(desc(practiceSessions.created_at))
@@ -359,10 +401,15 @@ export const fetchProfileInsights = async (db: ApiDatabase, userId: string): Pro
       id: minigameSessions.id,
       created_at: minigameSessions.created_at,
       ended_at: minigameSessions.ended_at,
-      last_active_at: minigameSessions.last_active_at
+      last_active_at: minigameSessions.last_active_at,
     })
     .from(minigameSessions)
-    .where(and(eq(minigameSessions.user_id, userId), isNull(minigameSessions.deleted_at)))
+    .where(
+      and(
+        eq(minigameSessions.user_id, userId),
+        isNull(minigameSessions.deleted_at),
+      ),
+    )
     .orderBy(desc(minigameSessions.created_at))
     .limit(200);
 
@@ -373,9 +420,10 @@ export const fetchProfileInsights = async (db: ApiDatabase, userId: string): Pro
         .select({
           session_id: minigameRounds.session_id,
           count: sql<number>`count(*)`.as("count"),
-          completed: sql<number>`sum(case when ${minigameRounds.status} = 'completed' then 1 else 0 end)`.as(
-            "completed"
-          )
+          completed:
+            sql<number>`sum(case when ${minigameRounds.status} = 'completed' then 1 else 0 end)`.as(
+              "completed",
+            ),
         })
         .from(minigameRounds)
         .where(inArray(minigameRounds.session_id, sessionIds))
@@ -386,7 +434,7 @@ export const fetchProfileInsights = async (db: ApiDatabase, userId: string): Pro
     ? await db
         .select({
           session_id: minigamePlayers.session_id,
-          count: sql<number>`count(*)`.as("count")
+          count: sql<number>`count(*)`.as("count"),
         })
         .from(minigamePlayers)
         .where(inArray(minigamePlayers.session_id, sessionIds))
@@ -395,10 +443,17 @@ export const fetchProfileInsights = async (db: ApiDatabase, userId: string): Pro
 
   return {
     score_trend: buildScoreTrend(attemptRows),
-    skill_domain_breakdown: buildAverageBreakdown(attemptRows, (row) => row.skill_domain).slice(0, 6),
+    skill_domain_breakdown: buildAverageBreakdown(
+      attemptRows,
+      (row) => row.skill_domain,
+    ).slice(0, 6),
     tag_breakdown: buildTagBreakdown(attemptRows),
     difficulty_mix: buildDifficultyMix(attemptRows),
     practice_summary: buildPracticeSummary(attemptRows, practiceRows),
-    minigame_summary: buildMinigameSummary(minigameSessionsRows, roundCounts, playerCounts)
+    minigame_summary: buildMinigameSummary(
+      minigameSessionsRows,
+      roundCounts,
+      playerCounts,
+    ),
   };
 };

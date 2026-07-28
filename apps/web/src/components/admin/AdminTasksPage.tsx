@@ -5,7 +5,7 @@ import type {
   ParseMode,
   Task,
   TaskCriterion,
-  TaskExample
+  TaskExample,
 } from "@deliberate/shared";
 import { taskSchema } from "@deliberate/shared";
 import {
@@ -16,9 +16,18 @@ import {
   useGetAdminTasksQuery,
   useImportTaskMutation,
   useParseTaskMutation,
-  useUpdateTaskMutation
+  useUpdateTaskMutation,
 } from "../../store/api";
-import { Badge, Button, Card, Input, Label, SectionHeader, Select, Textarea } from "./AdminUi";
+import {
+  Badge,
+  Button,
+  Card,
+  Input,
+  Label,
+  SectionHeader,
+  Select,
+  Textarea,
+} from "./AdminUi";
 import { TaskListPanel } from "./TaskListPanel";
 import { TaskEditorPanel, type EditableTask } from "./TaskEditorPanel";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -26,16 +35,20 @@ import { ToastProvider, useToast } from "./ToastProvider";
 import { CreateTaskDialog, type CreateTaskPayload } from "./CreateTaskDialog";
 import { ImportTaskDialog } from "./ImportTaskDialog";
 
-const toEditableTask = (task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] }): EditableTask => ({
+const toEditableTask = (
+  task: Task & { criteria?: TaskCriterion[]; examples?: TaskExample[] },
+): EditableTask => ({
   ...task,
   general_objective: task.general_objective ?? "",
   authors: task.authors ?? [],
   criteria: task.criteria ?? [],
   examples: task.examples ?? [],
-  interaction_examples: task.interaction_examples ?? []
+  interaction_examples: task.interaction_examples ?? [],
 });
 
-const createDraftFromParsed = (parsed: DeliberatePracticeTaskV2): EditableTask => ({
+const createDraftFromParsed = (
+  parsed: DeliberatePracticeTaskV2,
+): EditableTask => ({
   id: `draft-${Date.now()}`,
   slug: "draft",
   title: parsed.task.title,
@@ -52,7 +65,7 @@ const createDraftFromParsed = (parsed: DeliberatePracticeTaskV2): EditableTask =
   updated_at: Date.now(),
   criteria: parsed.criteria ?? [],
   examples: parsed.examples ?? [],
-  interaction_examples: parsed.interaction_examples ?? []
+  interaction_examples: parsed.interaction_examples ?? [],
 });
 
 const toCreatePayload = (task: EditableTask): CreateTaskPayload => ({
@@ -67,10 +80,11 @@ const toCreatePayload = (task: EditableTask): CreateTaskPayload => ({
   is_published: task.is_published,
   criteria: task.criteria,
   examples: task.examples,
-  interaction_examples: task.interaction_examples
+  interaction_examples: task.interaction_examples,
 });
 
-const serializeTask = (task: EditableTask | null) => (task ? JSON.stringify(task) : "");
+const serializeTask = (task: EditableTask | null) =>
+  task ? JSON.stringify(task) : "";
 
 type TaskFilters = {
   search: string;
@@ -85,36 +99,59 @@ const defaultFilters: TaskFilters = {
   published: "all",
   skillDomain: "",
   sort: "updated",
-  tag: ""
+  tag: "",
 };
 
 type ValidationErrors = {
   task?: Record<string, string>;
-  criteria: Record<number, { id?: string; label?: string; description?: string }>;
-  examples: Record<number, { id?: string; difficulty?: string; patient_text?: string }>;
+  criteria: Record<
+    number,
+    { id?: string; label?: string; description?: string }
+  >;
+  examples: Record<
+    number,
+    { id?: string; difficulty?: string; patient_text?: string }
+  >;
   interaction_examples: Record<
     number,
-    { id?: string; difficulty?: string; patient_text?: string; therapist_text?: string }
+    {
+      id?: string;
+      difficulty?: string;
+      patient_text?: string;
+      therapist_text?: string;
+    }
   >;
 };
 
-const validateTask = (task: EditableTask | null, t: (key: string, options?: Record<string, unknown>) => string): ValidationErrors => {
-  const errors: ValidationErrors = { criteria: {}, examples: {}, interaction_examples: {} };
+const validateTask = (
+  task: EditableTask | null,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): ValidationErrors => {
+  const errors: ValidationErrors = {
+    criteria: {},
+    examples: {},
+    interaction_examples: {},
+  };
   if (!task) return errors;
 
   const taskErrors: Record<string, string> = {};
   if (!task.title.trim()) taskErrors.title = t("admin.validation.required");
-  if (!task.skill_domain.trim()) taskErrors.skill_domain = t("admin.validation.required");
-  if (!task.description.trim()) taskErrors.description = t("admin.validation.required");
-  if (!task.base_difficulty) taskErrors.base_difficulty = t("admin.validation.required");
+  if (!task.skill_domain.trim())
+    taskErrors.skill_domain = t("admin.validation.required");
+  if (!task.description.trim())
+    taskErrors.description = t("admin.validation.required");
+  if (!task.base_difficulty)
+    taskErrors.base_difficulty = t("admin.validation.required");
   if (Object.keys(taskErrors).length) errors.task = taskErrors;
 
   const criteriaIds = new Set<string>();
   task.criteria.forEach((criterion, index) => {
     const rowErrors: ValidationErrors["criteria"][number] = {};
     if (!criterion.id.trim()) rowErrors.id = t("admin.validation.required");
-    if (!criterion.label.trim()) rowErrors.label = t("admin.validation.required");
-    if (!criterion.description.trim()) rowErrors.description = t("admin.validation.required");
+    if (!criterion.label.trim())
+      rowErrors.label = t("admin.validation.required");
+    if (!criterion.description.trim())
+      rowErrors.description = t("admin.validation.required");
     if (criterion.id.trim()) {
       if (criteriaIds.has(criterion.id)) {
         rowErrors.id = t("admin.validation.duplicate");
@@ -131,7 +168,8 @@ const validateTask = (task: EditableTask | null, t: (key: string, options?: Reco
     if (example.difficulty < 1 || example.difficulty > 5) {
       rowErrors.difficulty = t("admin.validation.range", { min: 1, max: 5 });
     }
-    if (!example.patient_text.trim()) rowErrors.patient_text = t("admin.validation.required");
+    if (!example.patient_text.trim())
+      rowErrors.patient_text = t("admin.validation.required");
     if (example.id.trim()) {
       if (exampleIds.has(example.id)) {
         rowErrors.id = t("admin.validation.duplicate");
@@ -148,15 +186,18 @@ const validateTask = (task: EditableTask | null, t: (key: string, options?: Reco
     if (example.difficulty < 1 || example.difficulty > 5) {
       rowErrors.difficulty = t("admin.validation.range", { min: 1, max: 5 });
     }
-    if (!example.patient_text.trim()) rowErrors.patient_text = t("admin.validation.required");
-    if (!example.therapist_text.trim()) rowErrors.therapist_text = t("admin.validation.required");
+    if (!example.patient_text.trim())
+      rowErrors.patient_text = t("admin.validation.required");
+    if (!example.therapist_text.trim())
+      rowErrors.therapist_text = t("admin.validation.required");
     if (example.id.trim()) {
       if (interactionIds.has(example.id)) {
         rowErrors.id = t("admin.validation.duplicate");
       }
       interactionIds.add(example.id);
     }
-    if (Object.keys(rowErrors).length) errors.interaction_examples[index] = rowErrors;
+    if (Object.keys(rowErrors).length)
+      errors.interaction_examples[index] = rowErrors;
   });
 
   return errors;
@@ -164,13 +205,17 @@ const validateTask = (task: EditableTask | null, t: (key: string, options?: Reco
 
 const filterTasks = (tasks: Task[], filters: TaskFilters) => {
   return tasks
-    .filter((task) => task.title.toLowerCase().includes(filters.search.toLowerCase()))
+    .filter((task) =>
+      task.title.toLowerCase().includes(filters.search.toLowerCase()),
+    )
     .filter((task) => {
       if (filters.published === "published") return task.is_published;
       if (filters.published === "draft") return !task.is_published;
       return true;
     })
-    .filter((task) => (filters.skillDomain ? task.skill_domain === filters.skillDomain : true))
+    .filter((task) =>
+      filters.skillDomain ? task.skill_domain === filters.skillDomain : true,
+    )
     .filter((task) => (filters.tag ? task.tags.includes(filters.tag) : true))
     .sort((a, b) => {
       if (filters.sort === "alpha") return a.title.localeCompare(b.title);
@@ -215,7 +260,7 @@ const AdminLibraryHeader = ({
   onCreate,
   onImport,
   domainOptions,
-  tagOptions
+  tagOptions,
 }: AdminLibraryHeaderProps) => {
   const { t } = useTranslation();
 
@@ -234,7 +279,9 @@ const AdminLibraryHeader = ({
               aria-label={t("admin.searchPlaceholder")}
               placeholder={t("admin.searchPlaceholder")}
               value={filters.search}
-              onChange={(event) => onFiltersChange({ ...filters, search: event.target.value })}
+              onChange={(event) =>
+                onFiltersChange({ ...filters, search: event.target.value })
+              }
             />
             <Button
               variant="secondary"
@@ -242,7 +289,7 @@ const AdminLibraryHeader = ({
               className="justify-between gap-2"
               onClick={onToggleAdvanced}
             >
-              <span>Advanced</span>
+              <span>{t("admin.actions.advanced")}</span>
               <ChevronIcon open={advancedOpen} />
             </Button>
           </div>
@@ -272,17 +319,26 @@ const AdminLibraryHeader = ({
                 onChange={(event) =>
                   onFiltersChange({
                     ...filters,
-                    published: event.target.value as TaskFilters["published"]
+                    published: event.target.value as TaskFilters["published"],
                   })
                 }
               >
-                <option value="all">{t("admin.list.filters.publishedAll")}</option>
-                <option value="published">{t("admin.list.filters.published")}</option>
+                <option value="all">
+                  {t("admin.list.filters.publishedAll")}
+                </option>
+                <option value="published">
+                  {t("admin.list.filters.published")}
+                </option>
                 <option value="draft">{t("admin.list.filters.draft")}</option>
               </Select>
               <Select
                 value={filters.skillDomain}
-                onChange={(event) => onFiltersChange({ ...filters, skillDomain: event.target.value })}
+                onChange={(event) =>
+                  onFiltersChange({
+                    ...filters,
+                    skillDomain: event.target.value,
+                  })
+                }
               >
                 <option value="">{t("admin.list.filters.domainAll")}</option>
                 {domainOptions.map((domain) => (
@@ -293,7 +349,9 @@ const AdminLibraryHeader = ({
               </Select>
               <Select
                 value={filters.tag}
-                onChange={(event) => onFiltersChange({ ...filters, tag: event.target.value })}
+                onChange={(event) =>
+                  onFiltersChange({ ...filters, tag: event.target.value })
+                }
               >
                 <option value="">{t("admin.list.filters.tagAll")}</option>
                 {tagOptions.map((tag) => (
@@ -305,11 +363,18 @@ const AdminLibraryHeader = ({
               <Select
                 value={filters.sort}
                 onChange={(event) =>
-                  onFiltersChange({ ...filters, sort: event.target.value as TaskFilters["sort"] })
+                  onFiltersChange({
+                    ...filters,
+                    sort: event.target.value as TaskFilters["sort"],
+                  })
                 }
               >
-                <option value="updated">{t("admin.list.filters.sortUpdated")}</option>
-                <option value="alpha">{t("admin.list.filters.sortAlpha")}</option>
+                <option value="updated">
+                  {t("admin.list.filters.sortUpdated")}
+                </option>
+                <option value="alpha">
+                  {t("admin.list.filters.sortAlpha")}
+                </option>
               </Select>
             </div>
           </div>
@@ -330,7 +395,9 @@ const TaskSummaryCard = ({ task, onOpenInspector }: TaskSummaryCardProps) => {
   if (!task) {
     return (
       <Card className="p-6 text-sm text-slate-400">
-        <p className="font-semibold text-white">{t("admin.edit.selectPrompt")}</p>
+        <p className="font-semibold text-white">
+          {t("admin.edit.selectPrompt")}
+        </p>
         <p className="mt-2">{t("admin.list.empty")}</p>
       </Card>
     );
@@ -346,9 +413,19 @@ const TaskSummaryCard = ({ task, onOpenInspector }: TaskSummaryCardProps) => {
         <p className="text-sm text-slate-400">{task.skill_domain}</p>
       </div>
       <div className="flex flex-wrap gap-2">
-        <Badge>{t("admin.editor.difficulty", { difficulty: task.base_difficulty })}</Badge>
-        <Badge className={task.is_published ? "border-teal-400/40 text-teal-100" : "border-amber-400/40 text-amber-100"}>
-          {task.is_published ? t("admin.editor.published") : t("admin.editor.draft")}
+        <Badge>
+          {t("admin.editor.difficulty", { difficulty: task.base_difficulty })}
+        </Badge>
+        <Badge
+          className={
+            task.is_published
+              ? "border-teal-400/40 text-teal-100"
+              : "border-amber-400/40 text-amber-100"
+          }
+        >
+          {task.is_published
+            ? t("admin.editor.published")
+            : t("admin.editor.draft")}
         </Badge>
         {task.tags.slice(0, 3).map((tag) => (
           <Badge key={tag}>{tag}</Badge>
@@ -356,7 +433,7 @@ const TaskSummaryCard = ({ task, onOpenInspector }: TaskSummaryCardProps) => {
       </div>
       <p className="text-sm text-slate-300 line-clamp-3">{task.description}</p>
       <Button variant="primary" onClick={onOpenInspector}>
-        Open inspector
+        {t("admin.actions.openInspector")}
       </Button>
     </Card>
   );
@@ -364,10 +441,8 @@ const TaskSummaryCard = ({ task, onOpenInspector }: TaskSummaryCardProps) => {
 
 type ParseFromTextPanelProps = {
   freeText: string;
-  sourceUrl: string;
   parseMode: ParseMode;
   onFreeTextChange: (value: string) => void;
-  onSourceUrlChange: (value: string) => void;
   onParseModeChange: (value: ParseMode) => void;
   onParse: () => void;
   isParsing: boolean;
@@ -382,10 +457,8 @@ type ParseFromTextPanelProps = {
 
 const ParseFromTextPanel = ({
   freeText,
-  sourceUrl,
   parseMode,
   onFreeTextChange,
-  onSourceUrlChange,
   onParseModeChange,
   onParse,
   isParsing,
@@ -395,20 +468,27 @@ const ParseFromTextPanel = ({
   onTogglePreview,
   onApplyToEditor,
   onImport,
-  onReset
+  onReset,
 }: ParseFromTextPanelProps) => {
   const { t } = useTranslation();
-  const jsonPreview = useMemo(() => (result ? JSON.stringify(result, null, 2) : ""), [result]);
+  const jsonPreview = useMemo(
+    () => (result ? JSON.stringify(result, null, 2) : ""),
+    [result],
+  );
   const isPartialPrompt = parseMode === "partial_prompt";
   const freeTextLabel = isPartialPrompt
-    ? "Instruction prompt"
+    ? t("admin.parse.inputs.instructionPrompt")
     : t("admin.createFromText.placeholderText");
 
   return (
     <Card className="space-y-6 p-6">
       <div>
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">Parse</p>
-        <h3 className="text-lg font-semibold text-white">{t("admin.parse.title")}</h3>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
+          {t("admin.createFromText.parse")}
+        </p>
+        <h3 className="text-lg font-semibold text-white">
+          {t("admin.parse.title")}
+        </h3>
         <p className="text-sm text-slate-400">{t("admin.parse.subtitle")}</p>
       </div>
       <div className="space-y-3">
@@ -421,45 +501,57 @@ const ParseFromTextPanel = ({
         />
         {isPartialPrompt && (
           <p className="text-xs text-slate-400">
-            Provide instructions for the task you want generated (not source material to parse).
+            {t("admin.parse.inputs.instructionHint")}
           </p>
         )}
-        <p className="text-xs text-slate-400">{t("admin.parse.subtitle")}</p>
+        {!isPartialPrompt && (
+          <p className="text-xs text-slate-400">
+            {t("admin.parse.inputs.pasteOnlyHint")}
+          </p>
+        )}
       </div>
       <div className="space-y-2">
-        <Label>{t("admin.createFromText.placeholderUrl")}</Label>
-        <Input
-          value={sourceUrl}
-          onChange={(event) => onSourceUrlChange(event.target.value)}
-          placeholder="https://"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label>Parse mode</Label>
-        <Select value={parseMode} onChange={(event) => onParseModeChange(event.target.value as ParseMode)}>
-          <option value="original">Original Generation</option>
-          <option value="exact">Exact parsing</option>
-          <option value="partial_prompt">From partial prompt</option>
+        <Label>{t("admin.parse.inputs.parseMode")}</Label>
+        <Select
+          aria-label={t("admin.parse.inputs.parseMode")}
+          value={parseMode}
+          onChange={(event) =>
+            onParseModeChange(event.target.value as ParseMode)
+          }
+        >
+          <option value="original">{t("admin.parse.mode.original")}</option>
+          <option value="exact">{t("admin.parse.mode.exact")}</option>
+          <option value="partial_prompt">
+            {t("admin.parse.mode.partialPrompt")}
+          </option>
         </Select>
       </div>
       {error && <p className="text-xs text-rose-300">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={onParse} disabled={isParsing}>
-          {isParsing ? t("admin.createFromText.parsing") : t("admin.createFromText.parse")}
+          {isParsing
+            ? t("admin.createFromText.parsing")
+            : t("admin.createFromText.parse")}
         </Button>
         <Button variant="secondary" onClick={onReset}>
-          Reset
+          {t("admin.actions.reset")}
         </Button>
       </div>
       {result && (
         <div className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-white">Review draft</p>
-              <p className="text-xs text-slate-400">Confirm before importing or editing.</p>
+              <p className="text-sm font-semibold text-white">
+                {t("admin.parse.reviewTitle")}
+              </p>
+              <p className="text-xs text-slate-400">
+                {t("admin.parse.reviewSubtitle")}
+              </p>
             </div>
             <Button variant="secondary" onClick={onTogglePreview}>
-              {jsonPreviewOpen ? "Hide JSON" : "Show JSON"}
+              {jsonPreviewOpen
+                ? t("admin.parse.hideJson")
+                : t("admin.parse.showJson")}
             </Button>
           </div>
           {jsonPreviewOpen && (
@@ -468,17 +560,19 @@ const ParseFromTextPanel = ({
             </pre>
           )}
           <p className="mt-3 text-xs text-slate-400">
-            Language: {result.task.language ?? "en"}
+            {t("admin.task.languageValue", {
+              language: result.task.language ?? "en",
+            })}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Button variant="primary" onClick={onApplyToEditor}>
-              Apply to editor
+              {t("admin.actions.applyToEditor")}
             </Button>
             <Button variant="secondary" onClick={onImport}>
               {t("admin.task.import")}
             </Button>
             <Button variant="ghost" onClick={onReset}>
-              Reset
+              {t("admin.actions.reset")}
             </Button>
           </div>
         </div>
@@ -512,7 +606,7 @@ const ManualJsonPanel = ({
   onApplyJson,
   onFormatJson,
   onValidateJson,
-  disabled
+  disabled,
 }: ManualJsonPanelProps) => {
   const { t } = useTranslation();
 
@@ -520,11 +614,15 @@ const ManualJsonPanel = ({
     <Card className="space-y-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-sm font-semibold text-white">{t("admin.inspector.jsonTitle")}</p>
-          <p className="text-xs text-slate-400">{t("admin.inspector.jsonSubtitle")}</p>
+          <p className="text-sm font-semibold text-white">
+            {t("admin.inspector.jsonTitle")}
+          </p>
+          <p className="text-xs text-slate-400">
+            {t("admin.inspector.jsonSubtitle")}
+          </p>
         </div>
         <Button variant="secondary" onClick={onToggle}>
-          {open ? "Hide" : "Show"}
+          {open ? t("admin.inspector.hide") : t("admin.inspector.show")}
         </Button>
       </div>
       {open && (
@@ -546,19 +644,36 @@ const ManualJsonPanel = ({
           />
           {jsonError && <p className="text-xs text-rose-300">{jsonError}</p>}
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="secondary" onClick={onFormatJson} disabled={disabled}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onFormatJson}
+              disabled={disabled}
+            >
               {t("admin.inspector.format")}
             </Button>
-            <Button type="button" variant="secondary" onClick={onValidateJson} disabled={disabled}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={onValidateJson}
+              disabled={disabled}
+            >
               {t("admin.inspector.validate")}
             </Button>
-            <Button type="button" variant="primary" onClick={onApplyJson} disabled={disabled}>
+            <Button
+              type="button"
+              variant="primary"
+              onClick={onApplyJson}
+              disabled={disabled}
+            >
               {t("admin.inspector.apply")}
             </Button>
           </div>
         </div>
       )}
-      {disabled && <p className="text-xs text-slate-500">{t("admin.edit.selectPrompt")}</p>}
+      {disabled && (
+        <p className="text-xs text-slate-500">{t("admin.edit.selectPrompt")}</p>
+      )}
     </Card>
   );
 };
@@ -586,7 +701,7 @@ const TaskInspectorDrawer = ({
   isSaving,
   hasValidationErrors,
   errors,
-  onChange
+  onChange,
 }: TaskInspectorDrawerProps) => {
   const { t } = useTranslation();
 
@@ -618,8 +733,12 @@ const TaskInspectorDrawer = ({
             <div className="space-y-6">
               <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4 text-xs text-slate-400">
                 <div className="flex flex-wrap gap-3">
-                  <span>{t("admin.inspector.taskId")}: {task.id}</span>
-                  <span>{t("admin.inspector.slug")}: {task.slug}</span>
+                  <span>
+                    {t("admin.inspector.taskId")}: {task.id}
+                  </span>
+                  <span>
+                    {t("admin.inspector.slug")}: {task.slug}
+                  </span>
                 </div>
               </div>
               <TaskEditorPanel
@@ -636,7 +755,9 @@ const TaskInspectorDrawer = ({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               {hasValidationErrors && (
-                <p className="text-xs text-rose-300">{t("admin.save.validationError")}</p>
+                <p className="text-xs text-rose-300">
+                  {t("admin.save.validationError")}
+                </p>
               )}
             </div>
             <div className="flex items-center gap-2">
@@ -679,18 +800,16 @@ const AdminTasksPageContent = () => {
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [draftMode, setDraftMode] = useState<"existing" | "new">("existing");
   const [parseText, setParseText] = useState("");
-  const [parseSourceUrl, setParseSourceUrl] = useState("");
   const [parseMode, setParseMode] = useState<ParseMode>("original");
   const [parseError, setParseError] = useState<string | null>(null);
-  const [parseResult, setParseResult] = useState<DeliberatePracticeTaskV2 | null>(null);
+  const [parseResult, setParseResult] =
+    useState<DeliberatePracticeTaskV2 | null>(null);
   const [parsePreviewOpen, setParsePreviewOpen] = useState(false);
   const [manualJsonOpen, setManualJsonOpen] = useState(false);
 
   const { data: tasks = [], isLoading: tasksLoading } = useGetAdminTasksQuery();
-  const { data: selectedTask, isFetching: selectedLoading } = useGetAdminTaskQuery(
-    selectedTaskId ?? "",
-    { skip: !selectedTaskId }
-  );
+  const { data: selectedTask, isFetching: selectedLoading } =
+    useGetAdminTaskQuery(selectedTaskId ?? "", { skip: !selectedTaskId });
   const [updateTask, updateState] = useUpdateTaskMutation();
   const [createTask] = useCreateTaskMutation();
   const [deleteTask] = useDeleteTaskMutation();
@@ -733,15 +852,20 @@ const AdminTasksPageContent = () => {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
-  const validationErrors = useMemo(() => validateTask(draftTask, t), [draftTask, t]);
+  const validationErrors = useMemo(
+    () => validateTask(draftTask, t),
+    [draftTask, t],
+  );
   const hasValidationErrors =
-    Boolean(validationErrors.task && Object.keys(validationErrors.task).length) ||
+    Boolean(
+      validationErrors.task && Object.keys(validationErrors.task).length,
+    ) ||
     Object.keys(validationErrors.criteria).length > 0 ||
     Object.keys(validationErrors.examples).length > 0;
 
   const filteredTasks = useMemo(
     () => filterTasks(tasks, { ...filters, search: debouncedSearch }),
-    [tasks, filters, debouncedSearch]
+    [tasks, filters, debouncedSearch],
   );
   const domainOptions = useMemo(() => {
     const values = new Set<string>();
@@ -779,7 +903,7 @@ const AdminTasksPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: t("admin.save.validationError"),
-        tone: "error"
+        tone: "error",
       });
       return;
     }
@@ -809,7 +933,7 @@ const AdminTasksPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
       return false;
     }
@@ -824,7 +948,7 @@ const AdminTasksPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
@@ -839,7 +963,7 @@ const AdminTasksPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
@@ -867,7 +991,7 @@ const AdminTasksPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
@@ -877,8 +1001,7 @@ const AdminTasksPageContent = () => {
     try {
       const result = await parseTask({
         free_text: parseText || undefined,
-        source_url: parseSourceUrl || undefined,
-        parse_mode: parseMode
+        parse_mode: parseMode,
       }).unwrap();
       setParseResult(result);
       setParsePreviewOpen(true);
@@ -887,26 +1010,28 @@ const AdminTasksPageContent = () => {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
 
   const handleImport = async (payloads: DeliberatePracticeTaskV2[]) => {
     try {
-      await Promise.all(payloads.map((payload) => importTask({ task_v2: payload }).unwrap()));
+      await Promise.all(
+        payloads.map((payload) => importTask({ task_v2: payload }).unwrap()),
+      );
       pushToast({
         title:
           payloads.length > 1
             ? t("admin.toast.importedMany", { count: payloads.length })
             : t("admin.toast.imported"),
-        tone: "success"
+        tone: "success",
       });
     } catch (error) {
       pushToast({
         title: t("admin.toast.error"),
         message: (error as Error).message,
-        tone: "error"
+        tone: "error",
       });
     }
   };
@@ -959,7 +1084,6 @@ const AdminTasksPageContent = () => {
 
   const handleResetParse = () => {
     setParseText("");
-    setParseSourceUrl("");
     setParseMode("original");
     setParseError(null);
     setParseResult(null);
@@ -1000,7 +1124,9 @@ const AdminTasksPageContent = () => {
               {t("admin.list.open")}
             </Button>
             {draftTask && (
-              <Badge className="border-teal-400/40 text-teal-100">{draftTask.title}</Badge>
+              <Badge className="border-teal-400/40 text-teal-100">
+                {draftTask.title}
+              </Badge>
             )}
           </div>
 
@@ -1008,10 +1134,8 @@ const AdminTasksPageContent = () => {
             <div className="space-y-6">
               <ParseFromTextPanel
                 freeText={parseText}
-                sourceUrl={parseSourceUrl}
                 parseMode={parseMode}
                 onFreeTextChange={setParseText}
-                onSourceUrlChange={setParseSourceUrl}
                 onParseModeChange={setParseMode}
                 onParse={handleParse}
                 isParsing={parseState.isLoading}
@@ -1048,10 +1172,14 @@ const AdminTasksPageContent = () => {
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
                     {t("admin.list.kicker")}
                   </p>
-                  <h3 className="text-lg font-semibold text-white">{t("admin.list.title")}</h3>
+                  <h3 className="text-lg font-semibold text-white">
+                    {t("admin.list.title")}
+                  </h3>
                 </div>
                 <div className="space-y-2 text-sm text-slate-300">
-                  <p>{t("admin.list.count", { count: filteredTasks.length })}</p>
+                  <p>
+                    {t("admin.list.count", { count: filteredTasks.length })}
+                  </p>
                   <div className="flex flex-wrap gap-2">
                     {filteredTasks.slice(0, 3).map((task) => (
                       <Badge key={task.id}>{task.title}</Badge>
@@ -1074,13 +1202,20 @@ const AdminTasksPageContent = () => {
         <div className="fixed bottom-6 left-1/2 z-40 w-[min(720px,90vw)] -translate-x-1/2 rounded-full border border-white/10 bg-slate-950/90 px-6 py-3 shadow-[0_0_24px_rgba(15,23,42,0.5)] backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-semibold text-white">{t("admin.save.unsaved")}</p>
+              <p className="text-sm font-semibold text-white">
+                {t("admin.save.unsaved")}
+              </p>
               {hasValidationErrors && (
-                <p className="text-xs text-rose-300">{t("admin.save.validationError")}</p>
+                <p className="text-xs text-rose-300">
+                  {t("admin.save.validationError")}
+                </p>
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="secondary" onClick={() => setDraftTask(baseTask)}>
+              <Button
+                variant="secondary"
+                onClick={() => setDraftTask(baseTask)}
+              >
                 {t("admin.actions.discard")}
               </Button>
               <Button
@@ -1088,7 +1223,9 @@ const AdminTasksPageContent = () => {
                 onClick={handleSave}
                 disabled={updateState.isLoading || hasValidationErrors}
               >
-                {updateState.isLoading ? t("admin.edit.saving") : t("admin.edit.save")}
+                {updateState.isLoading
+                  ? t("admin.edit.saving")
+                  : t("admin.edit.save")}
               </Button>
             </div>
           </div>
@@ -1153,7 +1290,9 @@ const AdminTasksPageContent = () => {
       <ConfirmDialog
         open={confirmDelete}
         title={t("admin.confirm.deleteTitle")}
-        description={t("admin.confirm.deleteDescription", { title: draftTask?.title ?? "" })}
+        description={t("admin.confirm.deleteDescription", {
+          title: draftTask?.title ?? "",
+        })}
         confirmLabel={t("admin.actions.delete")}
         cancelLabel={t("admin.actions.cancel")}
         onConfirm={handleDeleteTask}

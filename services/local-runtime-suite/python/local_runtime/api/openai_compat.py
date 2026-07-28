@@ -3,14 +3,17 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from typing import Any, AsyncIterator, Iterable
+from collections.abc import AsyncIterator, Iterable
+from typing import Any
 
 from fastapi.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 
 from local_runtime.core.loader import LoadedModel
 
 
-def _build_response_payload(model: str, output_text: str, request_id: str | None = None, created_ts: int | None = None) -> dict:
+def _build_response_payload(
+    model: str, output_text: str, request_id: str | None = None, created_ts: int | None = None
+) -> dict:
     created = created_ts or int(time.time())
     response_id = f"resp_{uuid.uuid4().hex}"
     output_item_id = f"output_{uuid.uuid4().hex}"
@@ -40,7 +43,9 @@ def _build_response_payload(model: str, output_text: str, request_id: str | None
     }
 
 
-def format_responses_create(result: Any, model: str, request_id: str | None = None, created_ts: int | None = None) -> dict:
+def format_responses_create(
+    result: Any, model: str, request_id: str | None = None, created_ts: int | None = None
+) -> dict:
     """Normalize a model result into the OpenAI Responses API schema."""
     if isinstance(result, dict):
         payload = dict(result)
@@ -68,6 +73,7 @@ def format_audio_speech_response(data: Any, content_type: str, stream: bool) -> 
     """Ensure audio responses consistently match OpenAI expectations."""
     if stream:
         if isinstance(data, (bytes, bytearray)):
+
             async def _single_chunk(payload: bytes | bytearray):
                 yield bytes(payload)
 
@@ -115,7 +121,9 @@ def format_models_list(models: Iterable[LoadedModel], created_ts: int) -> dict:
     return {"object": "list", "data": data}
 
 
-def format_error(message: str, *, err_type: str = "server_error", code: str | None = None, status_code: int | None = None) -> JSONResponse:
+def format_error(
+    message: str, *, err_type: str = "server_error", code: str | None = None, status_code: int | None = None
+) -> JSONResponse:
     """Render an OpenAI-compatible error payload."""
     payload = {"error": {"message": message, "type": err_type, "param": None, "code": code}}
     if status_code is not None:

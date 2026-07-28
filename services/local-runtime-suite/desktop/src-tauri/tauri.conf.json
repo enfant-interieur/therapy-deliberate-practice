@@ -21,22 +21,19 @@
         "label": "main",
         "title": "Local Runtime Suite",
         "width": 1100,
-        "height": 720
+        "height": 720,
+        "minWidth": 360,
+        "minHeight": 600
       }
     ]
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "app",
-      "deb",
-      "rpm",
-      "appimage",
-      "dmg",
-      "msi",
-      "nsis"
-    ],
+    "targets": ["app", "deb", "rpm", "appimage", "dmg", "msi", "nsis"],
     "category": "Utility",
+    "macOS": {
+      "minimumSystemVersion": "14.0"
+    },
     "icon": [
       "icons/icon.ico",
       "icons/icon.icns",

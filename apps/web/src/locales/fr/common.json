@@ -1,4 +1,29 @@
 {
+  "route": {
+    "loading": "Chargement…"
+  },
+  "drawer": {
+    "close": "Fermer le panneau",
+    "navigation": "Panneau de navigation"
+  },
+  "localRuntimeErrors": {
+    "loopbackUrl": "L’URL de l’environnement local doit utiliser http://localhost ou http://127.0.0.1.",
+    "originOnly": "L’URL de l’environnement local ne peut contenir ni identifiants, ni chemin, ni requête, ni fragment.",
+    "urlMissing": "L’URL de l’environnement local est absente.",
+    "sameGateway": "La reconnaissance vocale et l’évaluation doivent utiliser la même URL de passerelle locale.",
+    "pairingIncomplete": "La clé d’appairage est incomplète.",
+    "wrongService": "Un autre service utilise ce port.",
+    "incompatibleVersion": "Cette version de l’environnement local n’est pas compatible avec le site.",
+    "invalidHealth": "L’environnement local a renvoyé une réponse d’état invalide.",
+    "incompatibleDetails": "L’environnement local a renvoyé des informations de connexion incompatibles.",
+    "emptyTranscript": "Le modèle vocal local a renvoyé une transcription vide.",
+    "emptyEvaluation": "Le modèle de langage local a renvoyé une évaluation vide.",
+    "invalidEvaluationJson": "Le modèle de langage local a renvoyé un JSON invalide.",
+    "invalidEvaluationSchema": "L’évaluation locale ne respecte pas le schéma requis.",
+    "pairAgain": "Associez à nouveau ce navigateur à l’environnement local.",
+    "cancelled": "La requête au modèle local a été annulée. Le travail déjà terminé a été conservé.",
+    "timeout": "L’environnement local a dépassé le délai. Une annulation a été demandée ; réessayez lorsque le modèle sera prêt."
+  },
   "appShell": {
     "brand": "Pratique délibérée",
     "title": "Studio de thérapie",
@@ -116,6 +141,11 @@
       "subtitle": "Essayez de réduire vos filtres ou d'ajuster votre recherche.",
       "clear": "Effacer les filtres"
     },
+    "errorState": {
+      "title": "Impossible de charger la bibliothèque des tâches.",
+      "subtitle": "Vérifiez votre connexion, puis réessayez.",
+      "retry": "Réessayer"
+    },
     "loading": "Chargement des tâches...",
     "difficulty": "Difficulté {{difficulty}}",
     "viewDetails": "Voir les détails",
@@ -126,11 +156,15 @@
     "title": "Historique de pratique",
     "subtitle": "Suivez vos progrès à travers les tâches et revisitez les points forts des coachings passés.",
     "loading": "Chargement des tentatives...",
+    "error": "Impossible de charger votre historique de pratique.",
+    "retry": "Réessayer",
+    "retrying": "Nouvelle tentative...",
     "empty": "Aucune tentative pour l'instant. Commencez une session de pratique.",
     "completedLabel": "Terminé {{date}}",
     "scoreLabel": "Score {{score}}",
     "statusPassed": "Réussi",
     "statusNeedsWork": "À améliorer",
+    "localUnverified": "Local · non vérifié",
     "exampleDifficulty": "Difficulté de l'exemple {{difficulty}}",
     "viewTask": "Voir la tâche",
     "viewSession": "Voir la session"
@@ -142,6 +176,10 @@
     "updated": "Mis à jour {{time}}",
     "tooltip": "Classement",
     "loading": "Chargement du classement...",
+    "error": "Impossible de charger le classement.",
+    "errorHint": "Vérifiez votre connexion, puis réessayez.",
+    "retry": "Réessayer",
+    "retrying": "Nouvelle tentative...",
     "empty": "Aucun joueur ne correspond à ces filtres.",
     "emptyHint": "Essayez d'ajuster vos filtres pour voir plus d'activité.",
     "filters": {
@@ -212,6 +250,7 @@
       "title": "Analyse de performance",
       "subtitle": "Vos tendances personnalisées entre pratique guidée et minijeux hébergés.",
       "empty": "Terminez une séance de pratique pour débloquer les analyses.",
+      "dataBadge": "Données",
       "summary": {
         "averageScore": "Score moyen",
         "averageScoreHelper": "Dernières tentatives",
@@ -380,11 +419,20 @@
       "overrideSttHelper": "Optionnel : diriger le STT vers une URL différente.",
       "overrideActive": "Remplacements enregistrés — ouvrez les options avancées pour les modifier."
     },
-    "storeAudio": {
-      "label": "Enregistrer les enregistrements audio",
-      "helper": "Sauvegardez les clips audio avec les tentatives pour une consultation ultérieure.",
-      "enabled": "Activé",
-      "disabled": "Désactivé"
+    "localPairing": {
+      "label": "Clé d’appairage locale",
+      "helper": "Copiez cette clé depuis l’application Local Runtime. Le navigateur l’utilise uniquement pour les requêtes directes vers votre ordinateur.",
+      "placeholder": "Collez la clé d’appairage",
+      "reveal": "Afficher",
+      "hide": "Masquer",
+      "security": "La clé est stockée uniquement dans ce navigateur pour cette URL locale. Elle n’est jamais envoyée à l’API Therapy hébergée.",
+      "missingUrl": "Ajoutez une URL locale valide avant d’enregistrer.",
+      "saved": "Clé d’appairage enregistrée dans ce navigateur.",
+      "pairAgain": "La clé d’appairage est absente ou n’est plus valide. Copiez la clé actuelle depuis l’application de bureau et associez à nouveau ce navigateur."
+    },
+    "retention": {
+      "title": "Données de la tentative",
+      "description": "Les enregistrements audio ne sont pas conservés. La transcription de votre réponse et son évaluation sont enregistrées avec la tentative pour vous permettre de suivre vos progrès."
     },
     "actions": {
       "save": "Enregistrer les paramètres",
@@ -429,6 +477,8 @@
     },
     "localDiagnostics": {
       "title": "Diagnostics locaux",
+      "missingUrl": "L’URL de l’environnement local est absente.",
+      "invalidUrl": "URL de l’environnement local invalide : {{url}}",
       "subtitle": "Vérifiez votre Local Runtime Suite sans quitter les paramètres.",
       "missingConfig": "Ajoutez une URL d’IA locale (ou des remplacements d’endpoints) ci-dessus pour lancer les diagnostics.",
       "waiting": "En attente d’un premier test.",
@@ -479,6 +529,11 @@
     }
   },
   "help": {
+    "callout": {
+      "tip": "Conseil",
+      "note": "Remarque",
+      "warning": "Attention"
+    },
     "nav": {
       "gettingStarted": {
         "title": "Bien démarrer",
@@ -515,7 +570,7 @@
       "sidebar": {
         "kicker": "Besoin de plus ?",
         "title": "Contactez votre responsable administrateur.",
-        "subtitle": "Nous maintenons le centre d'aide à jour pour les flux principaux. Les politiques spécifiques à l'équipe se trouvent dans vos docs internes."
+        "subtitle": "Nous maintenons le centre d'aide à jour pour les parcours principaux. Les politiques propres à votre équipe se trouvent dans votre documentation interne."
       },
       "dialog": {
         "ariaLabel": "Navigation d'aide",
@@ -668,7 +723,7 @@
         "title": "Données + confidentialité",
         "subtitle": "Positionnement général et transparence.",
         "items": {
-          "audio": "L'audio et les transcriptions ne sont stockés que si vous activez l'enregistrement des sessions dans Paramètres.",
+          "audio": "Les enregistrements audio ne sont pas conservés. La transcription de votre réponse et son évaluation sont enregistrées avec la tentative pour vous permettre de suivre vos progrès.",
           "apiKeys": "Les clés API sont stockées de manière sécurisée et ne sont jamais renvoyées au navigateur après enregistrement.",
           "localInference": "L'inférence locale garde le traitement sur votre machine lorsque vous choisissez la pile locale."
         }
@@ -681,64 +736,65 @@
     "localSuite": {
       "kicker": "Exécution locale",
       "title": "Suite locale",
-      "subtitle": "Exécutez des modèles locaux avec une application de bureau multiplateforme qui expose une passerelle compatible OpenAI.",
+      "subtitle": "Associez ce navigateur à la passerelle de bureau pour exécuter les modèles vocaux et linguistiques compatibles sur votre ordinateur.",
       "overview": {
         "title": "Comment fonctionne la Suite locale",
-        "subtitle": "Une app de bureau exécute la passerelle sur votre machine et rend la couche modèle observable, fiable et hors ligne.",
+        "subtitle": "L'application de bureau démarre une passerelle locale protégée, charge les modèles compatibles et explique comment résoudre les erreurs.",
         "cards": [
           {
-            "title": "Launcher multiplateforme",
-            "description": "Installez la Suite locale sur macOS, Windows ou Linux pour démarrer, arrêter et surveiller l'inférence locale.",
+            "title": "Lanceur multiplateforme",
+            "description": "Utilisez l'application de bureau pour démarrer, arrêter et surveiller la passerelle sur un ordinateur compatible.",
             "bullets": [
-              "Démarrage en un clic avec checks de santé.",
+              "Démarrage en un clic avec contrôles de bon fonctionnement.",
               "Diagnostics intégrés.",
-              "Aucun appel cloud requis."
+              "Les requêtes et enregistrements locaux restent sur votre ordinateur."
             ]
           },
           {
             "title": "Passerelle compatible OpenAI",
-            "description": "Une Base URL expose des endpoints type OpenAI pour l'évaluation et la voix.",
+            "description": "Une seule URL locale fournit les points de terminaison de langage et de reconnaissance vocale utilisés par le navigateur.",
             "bullets": [
-              "POST /v1/responses pour l'évaluation LLM.",
-              "POST /v1/audio/speech pour la TTS.",
-              "POST /v1/audio/transcriptions pour le STT."
+              "POST /v1/responses pour l'évaluation par le modèle de langage.",
+              "POST /v1/audio/transcriptions pour la reconnaissance vocale.",
+              "Une clé d'appairage protège les modèles et les diagnostics."
             ]
           },
           {
             "title": "Catalogue de modèles",
-            "description": "Parcourez des modèles validés avec contraintes matérielles, endpoints et recommandations.",
+            "description": "Parcourez des modèles exécutables avec leurs véritables contraintes de plateforme et de matériel.",
             "bullets": [
-              "Filtrer par endpoint, fournisseur et matériel.",
-              "Copier les IDs dans Paramètres.",
-              "Voir RAM/VRAM requises."
+              "Filtrer par point de terminaison, fournisseur et matériel.",
+              "L'application de bureau masque les modèles incompatibles.",
+              "Consultez les besoins en mémoire et en disque avant le téléchargement."
             ]
           }
         ]
       },
       "paths": {
-        "title": "Choisissez votre parcours",
-        "subtitle": "La plupart des équipes utilisent la Suite locale. Les utilisateurs avancés peuvent apporter leurs modèles.",
+        "title": "Connectez-vous en quatre étapes",
+        "subtitle": "L'URL locale et la clé d'appairage doivent provenir de la même passerelle de bureau.",
         "recommended": {
           "kicker": "Recommandé",
           "title": "Utiliser la Suite locale (recommandé)",
-          "body": "Téléchargez l'app, choisissez les modèles, puis collez la Base URL dans Paramètres.",
+          "body": "Utilisez une version de bureau vérifiée, préparez les modèles compatibles et associez ce navigateur à la passerelle.",
           "stepsTitle": "Étapes Suite locale",
           "steps": [
-            "Installez l'app Suite locale et connectez-vous si nécessaire.",
-            "Choisissez un pack de modèles adapté à votre matériel, puis démarrez la passerelle.",
-            "Copiez la Base URL depuis l'app dans Paramètres → Fournisseurs d'IA."
+            "Installez une version de bureau vérifiée pour votre système lorsqu'elle est disponible.",
+            "Démarrez la passerelle, choisissez les modèles compatibles et attendez leur chargement.",
+            "Copiez l'URL locale et la clé d'appairage depuis l'application de bureau.",
+            "Collez-les dans les paramètres de Therapy Studio et testez la connexion."
           ],
           "cta": "Aller aux téléchargements"
         },
         "advanced": {
-          "kicker": "Avancé",
-          "title": "Avancé : utiliser vos propres modèles",
-          "body": "Vous avez déjà votre stack ? Il suffit d'exposer les mêmes endpoints. Pour une option plus légère, lancez scripts/start_local_ai.py au lieu de la Suite locale.",
-          "stepsTitle": "Étapes serveur personnalisé",
+          "kicker": "Confidentialité",
+          "title": "Comprendre ce qui reste local",
+          "body": "L'inférence locale garde les entrées et sorties des modèles sur cet ordinateur. Le compte, les tâches et les métadonnées de résultats autorisées utilisent toujours l'application hébergée.",
+          "stepsTitle": "Limite des données",
           "steps": [
-            "Lancez scripts/start_local_ai.py (ou votre serveur) pour exposer les endpoints de type OpenAI ci-dessous.",
-            "Vérifiez que votre serveur implémente /v1/responses, /v1/audio/speech et /v1/audio/transcriptions.",
-            "Collez votre Base URL dans Paramètres → Fournisseurs d'IA et sélectionnez les IDs de modèle annoncés."
+            "La clé d'appairage reste dans ce navigateur pour l'origine exacte de la passerelle locale.",
+            "Les résultats locaux sont signalés comme non vérifiés et exclus des classements publics.",
+            "La synthèse vocale du patient reste une fonction hébergée distincte lorsque le mode temps réel l'utilise."
           ],
           "callout": {
             "kicker": "Alternative script",
@@ -751,30 +807,43 @@
           },
           "codeTitle": "Exemple de passerelle",
           "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import JSONResponse, Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}\n\n@app.post(\"/v1/audio/translations\")\nasync def audio_translations(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}",
-          "cta": "Voir les endpoints"
+          "cta": "Lire la limite de confidentialité"
         }
       },
       "downloads": {
         "title": "Téléchargements bureau",
-        "subtitle": "Chaque release GitHub publie des installateurs signés. Sur macOS, récupérez le DMG directement ou passez par le Mac App Store.",
+        "subtitle": "Seuls les fichiers vérifiés d'une GitHub Release apparaissent ici. Les artefacts de build ne sont pas des versions publiques.",
         "labels": {
           "windows": "Windows",
-          "macosDirect": "DMG macOS",
-          "macosAppStore": "Mac App Store",
+          "macosAppleSilicon": "macOS — puce Apple",
+          "macosIntel": "macOS — Intel",
           "linux": "Linux"
         },
-        "appStoreUrl": "https://apps.apple.com",
-        "appStoreAction": "Voir sur l'App Store",
         "ready": "Télécharger",
-        "pending": "Bientôt disponible",
-        "error": "Impossible de charger GitHub Releases. Affichage du cache."
+        "pending": "Aucune version vérifiée",
+        "empty": "Aucune version de bureau vérifiée n'a encore été publiée.",
+        "error": "Impossible de vérifier les GitHub Releases. Réessayez plus tard.",
+        "staleCache": "Impossible de vérifier la dernière GitHub Release. Affichage de la dernière version vérifiée trouvée sur cet appareil.",
+        "requestFailed": "La requête de vérification de la GitHub Release a échoué avec le statut {{status}}."
       },
       "catalog": {
         "title": "Modèles disponibles",
-        "subtitle": "Recherchez parmi les modèles locaux ou proxy validés par la passerelle.",
-        "searchPlaceholder": "Rechercher par nom, endpoint ou fournisseur",
+        "subtitle": "Recherchez les modèles locaux exécutables du catalogue généré par la passerelle.",
+        "platformNote": "Sur macOS Intel, seule la reconnaissance vocale Faster Whisper est actuellement prise en charge. L'interface ne proposera pas de modèle linguistique incompatible.",
+        "searchPlaceholder": "Rechercher par nom, point de terminaison ou fournisseur",
         "copy": "Copier l'identifiant",
-        "empty": "Aucun modèle ne correspond à cette recherche."
+        "empty": "Aucun modèle ne correspond à cette recherche.",
+        "endpoint": "Point de terminaison",
+        "backend": "Moteur",
+        "platform": "Plateforme",
+        "acceleration": "Accélération",
+        "resources": "Ressources",
+        "ram": "{{value}} Go de RAM",
+        "vram": "{{value}} Go de VRAM",
+        "disk": "{{value}} Go sur le disque",
+        "constraints": "Limites",
+        "inputLimit": "{{value}} Mo en entrée",
+        "tokenLimit": "{{value}} jetons"
       }
     }
   },
@@ -796,7 +865,7 @@
     "side": {
       "title": "Checklist rapide",
       "subtitle": "Ce qui alimente l'expérience",
-      "description": "Les évaluations reposent sur un LLM. La voix du patient utilise la TTS. Vous pouvez tout garder en local ou laisser OpenAI gérer le tout en sécurité.",
+      "description": "Les évaluations utilisent un modèle linguistique, les réponses enregistrées utilisent la reconnaissance vocale et l'audio patient facultatif utilise une synthèse vocale hébergée. Choisissez le fournisseur pour chaque parcours compatible.",
       "tipTitle": "Astuce",
       "tipBody": "Vous pourrez changer plus tard dans les paramètres. Si vous ignorez pour l'instant, la pratique reste hors ligne jusqu'à configuration."
     },
@@ -805,7 +874,7 @@
       "description": "Sélectionnez la configuration qui vous convient aujourd'hui.",
       "local": {
         "title": "Utiliser mes modèles (local)",
-        "body": "Lancez les serveurs LLM + TTS sur votre machine."
+        "body": "Exécutez l'évaluation linguistique et la reconnaissance vocale avec la passerelle de bureau protégée."
       },
       "openai": {
         "title": "Utiliser OpenAI",
@@ -826,20 +895,20 @@
         },
         {
           "title": "Ce qu'il faut pour lancer les évaluations",
-          "description": "Les évaluations nécessitent un LLM et un fournisseur TTS. Vous pouvez rester en local ou connecter OpenAI.",
+          "description": "Les évaluations nécessitent un modèle linguistique. Les réponses enregistrées demandent aussi une reconnaissance vocale ; l'audio patient du mode temps réel utilise une synthèse vocale hébergée distincte.",
           "bullets": [
-            "Mode local : exécutez le script Python fourni.",
+            "Mode local : démarrez la passerelle de bureau et associez ce navigateur.",
             "Mode OpenAI : ajoutez votre clé API une fois.",
-            "Vous pourrez ajuster plus tard."
+            "Vous pourrez changer de fournisseur plus tard."
           ]
         },
         {
           "title": "Choisissez comment continuer",
           "description": "Sélectionnez une option à droite pour obtenir des étapes guidées et des liens.",
           "bullets": [
-            "Local = aucune requête externe.",
+            "Les requêtes et enregistrements des modèles locaux restent sur cet ordinateur.",
             "OpenAI = le démarrage le plus rapide.",
-            "Ignorer = pratique hors ligne."
+            "Le compte et les tâches utilisent toujours l'application hébergée."
           ]
         }
       ]
@@ -858,22 +927,21 @@
         },
         {
           "title": "Connectez Therapy Studio à la passerelle",
-          "description": "Démarrez la Suite locale, copiez la Base URL et collez-la dans Paramètres.",
+          "description": "Démarrez la Suite locale, copiez son URL locale et sa clé d'appairage, puis collez les deux dans Paramètres.",
           "bullets": [
             "Vérifiez l'état de santé et la liste des modèles.",
-            "Utilisez la même Base URL pour les endpoints LLM et audio.",
+            "Chargez un modèle linguistique et un modèle vocal compatibles.",
             "Passez en mode IA Local only ou Local preferred."
           ]
         },
         {
-          "title": "Avancé : exécuter vos propres modèles",
-          "description": "Si vous hébergez déjà vos modèles, exposez des endpoints compatibles OpenAI.",
+          "title": "Tester et rétablir la connexion",
+          "description": "Les paramètres vérifient l'identité de la passerelle et l'appairage avant d'envoyer du contenu local.",
           "bullets": [
-            "Endpoints requis : /v1/responses, /v1/audio/speech, /v1/audio/transcriptions.",
-            "Optionnel : /v1/audio/translations pour l'audio multilingue.",
-            "Renvoyez les formats de réponse OpenAI."
-          ],
-          "code": "from fastapi import FastAPI, UploadFile, File\nfrom fastapi.responses import Response\n\napp = FastAPI()\n\n@app.post(\"/v1/responses\")\nasync def responses(payload: dict):\n    return {\"id\": \"resp_001\", \"output\": [{\"type\": \"message\", \"content\": [{\"type\": \"output_text\", \"text\": \"...\"}]}]}\n\n@app.post(\"/v1/audio/speech\")\nasync def audio_speech(payload: dict):\n    return Response(content=b\"\", media_type=\"audio/mpeg\")\n\n@app.post(\"/v1/audio/transcriptions\")\nasync def audio_transcriptions(file: UploadFile = File(...)):\n    return {\"text\": \"...\"}"
+            "Si la clé change, copiez la nouvelle valeur depuis l'application de bureau et recommencez l'appairage.",
+            "La clé d'appairage n'a jamais besoin d'être envoyée à l'API hébergée.",
+            "Les évaluations locales sont signalées comme non vérifiées et exclues des classements publics."
+          ]
         }
       ]
     },
@@ -931,13 +999,94 @@
   },
   "practice": {
     "title": "Session de pratique",
+    "loadingExercise": "Chargement de l’exercice…",
+    "baseDifficulty": "Difficulté de base : {{difficulty}}",
+    "taskCriteria": "Critères de la tâche",
+    "noCriteria": "Aucun critère disponible.",
+    "overallScore": "Score global",
+    "overallScoreValue": "Score global {{score}}/4",
+    "onTrack": "Sur la bonne voie.",
+    "needsRefinement": "À améliorer.",
+    "presentationMode": {
+      "title": "Mode de pratique",
+      "text": "Texte",
+      "audio": "Audio",
+      "autoPlay": "Lire automatiquement l’audio du patient",
+      "hideText": "Masquer le texte du patient (audio uniquement)"
+    },
+    "sessions": {
+      "title": "Historique des sessions",
+      "label": "Session {{id}}",
+      "needsReset": "Réinitialisation requise",
+      "completed": "Terminée",
+      "inProgress": "En cours",
+      "progress": "{{completed}}/{{total}} exemples",
+      "loading": "Chargement des sessions…",
+      "empty": "Aucune session pour le moment.",
+      "corrupted": "Certaines sessions n’ont pas d’exemples. Supprimez-les pour générer une nouvelle session.",
+      "helper": "Parcourez vos sessions ou démarrez-en une nouvelle.",
+      "new": "Nouvelle session",
+      "missingExamples": "Exemples manquants. Démarrez une nouvelle session pour continuer à vous entraîner.",
+      "delete": "Supprimer"
+    },
+    "patientPrompt": "Réplique du patient",
+    "patientAudio": "Audio du patient",
+    "previousExample": "Exemple précédent",
+    "previousPatientTurn": "Tour précédent du patient",
+    "nextPatientTurn": "Tour suivant du patient",
+    "showTranscript": "Afficher la transcription",
+    "hideTranscript": "Masquer la transcription",
+    "listening": "Écoute en cours…",
+    "patientSpeaking": "Le patient parle…",
+    "warmingAudio": "Préparation du lot audio",
+    "audioProgress": "{{ready}}/{{total}} prêts · {{percent}} %",
+    "listenBeforeRecording": "Écoutez le patient avant d’enregistrer.",
     "loadingScenario": "Chargement du scénario...",
     "authors": "Auteurs",
     "responseLabel": "Votre réponse",
+    "inputMode": {
+      "legend": "Comment souhaitez-vous répondre ?",
+      "spoken": {
+        "label": "Parler",
+        "helper": "Enregistrez votre réponse, puis relisez la transcription."
+      },
+      "typed": {
+        "label": "Écrire",
+        "helper": "Rédigez votre réponse sans enregistrer d’audio."
+      }
+    },
+    "typed": {
+      "label": "Réponse écrite",
+      "placeholder": "Écrivez ce que vous diriez au patient…",
+      "helper": "Si l’évaluation échoue, un brouillon temporaire reste sur cet appareil pour vous permettre de réessayer. Il est effacé après une réussite ou la suppression de la session et expire sous 24 heures.",
+      "submit": "Évaluer la réponse écrite",
+      "required": "Rédigez une réponse avant de demander une évaluation.",
+      "localUnavailable": "L’évaluation locale est indisponible : {{detail}}",
+      "localFallback": "L’évaluateur local était indisponible ; OpenAI a donc évalué cette réponse écrite."
+    },
+    "microphone": {
+      "allow": "Autorisez l’accès au microphone dans votre navigateur ou dans les réglages de votre appareil.",
+      "connect": "Connectez un microphone, puis réessayez.",
+      "closeOtherApps": "Fermez les autres applications qui utilisent le microphone, puis réessayez.",
+      "retryAvailable": "Réessayez lorsque le microphone sera disponible.",
+      "differentBrowser": "Essayez un autre navigateur ou appareil.",
+      "checkSettings": "Réessayez ou vérifiez les réglages de votre navigateur.",
+      "secureContext": "L’accès au microphone nécessite HTTPS ou localhost.",
+      "openSecurely": "Ouvrez le site avec HTTPS ou localhost.",
+      "unavailable": "L’accès au microphone est indisponible dans ce navigateur.",
+      "blocked": "Le microphone est bloqué. Ouvrez les réglages du site et autorisez son accès. Sur iOS, vous devrez peut-être aussi l’autoriser dans les réglages de Safari.",
+      "generic": "Erreur de microphone. Veuillez réessayer."
+    },
     "startRecording": "Démarrer l'enregistrement",
     "stopRecording": "Arrêter l'enregistrement",
     "runEvaluation": "Lancer l'évaluation",
     "evaluating": "Évaluation...",
+    "status": {
+      "transcribing": "Transcription en cours",
+      "evaluationRunning": "Évaluation en cours",
+      "evaluationIssue": "Problème d’évaluation",
+      "issue": "Problème"
+    },
     "transcriptTitle": "Transcription",
     "copyTranscript": "Copier la transcription",
     "transcriptPlaceholder": "Votre transcription apparaîtra ici après l'évaluation.",
@@ -945,6 +1094,13 @@
     "snagTitle": "Nous avons rencontré un problème",
     "coachFeedback": "Retour du coach",
     "scoringTitle": "Matrice de score",
+    "localScoreBadge": "Local · non vérifié",
+    "localScoreNotice": "Ce score a été produit par votre environnement local. Il reste dans votre historique personnel et n'est pas inclus dans les classements publics.",
+    "localRuntime": {
+      "pairAgain": "Votre clé d’appairage locale est absente ou n’est plus valide. Ouvrez les paramètres et associez à nouveau ce navigateur à l’environnement de bureau.",
+      "cloudFallback": "L’environnement local était indisponible ; cette tentative a donc utilisé OpenAI.",
+      "spokenCloudFallback": "L’évaluateur local était indisponible ; OpenAI a donc évalué cette tentative transcrite localement."
+    },
     "criterionLabel": "Critère {{id}}",
     "scoreLabel": "Score {{score}} / 4",
     "patientReady": "Prêt",
@@ -955,7 +1111,19 @@
       "readAudio": "Impossible de lire les données audio.",
       "noAudio": "Aucun audio capturé. Veuillez enregistrer à nouveau.",
       "evaluateFailed": "Impossible d'évaluer la réponse. Veuillez réessayer.",
-      "sessionFailed": "Impossible de démarrer la session de pratique. Veuillez actualiser."
+      "sessionFailed": "Impossible de démarrer la session de pratique. Veuillez actualiser.",
+      "deleteSession": "Impossible de supprimer cette session. Veuillez réessayer.",
+      "waitForPatient": "Attendez la fin de l’audio du patient avant d’enregistrer.",
+      "recordingUnsupported": "L’enregistrement audio n’est pas pris en charge dans ce navigateur.",
+      "transcriptionMissing": "La transcription est absente. Veuillez réessayer.",
+      "localRuntimeStatus": "L’environnement local est {{status}}.",
+      "localRuntimeUnavailable": "L’environnement local est indisponible : {{detail}}",
+      "localTranscriptionFailed": "Échec de la transcription locale : {{detail}}",
+      "localEvaluationFailed": "Échec de l’évaluation locale : {{detail}}",
+      "microphoneAccess": "L’accès au microphone a échoué. Veuillez réessayer.",
+      "transcriptionFailed": "La transcription a échoué. Veuillez réessayer.",
+      "localContextExpired": "Cette tentative locale doit être enregistrée à nouveau, car son contexte privé n’est plus disponible.",
+      "patientAudioFetch": "Échec du chargement de l’audio du patient."
     }
   },
   "exercise": {
@@ -968,7 +1136,270 @@
     "generalObjective": "Objectif général",
     "generalObjectiveEmpty": "Aucun objectif général défini pour le moment.",
     "criteria": "Critères",
-    "exampleCounts": "Exemples par difficulté"
+    "exampleCounts": "Exemples par difficulté",
+    "answersTitle": "Exemples de réponses du thérapeute",
+    "answersSubtitle": "Ces exemples montrent à quoi peut ressembler une réponse solide.",
+    "patient": "Patient",
+    "therapist": "Thérapeute",
+    "noInteractionExamples": "Aucun exemple d’interaction pour le moment. Revenez bientôt pour consulter des réponses modèles."
+  },
+  "minigameHub": {
+    "kicker": "Mini-jeux",
+    "title": "Centre des mini-jeux",
+    "subtitle": "Reprenez une partie en cours, consultez les résultats passés ou lancez une nouvelle session guidée.",
+    "newGame": "Nouvelle partie",
+    "retry": "Réessayer",
+    "loadError": "Impossible de charger vos sessions de mini-jeu. Vérifiez votre connexion, puis réessayez.",
+    "emptyTitle": "Aucune session de mini-jeu",
+    "emptyDescription": "Démarrez une session pour construire votre historique et suivre l’évolution de vos parties.",
+    "startGame": "Démarrer une partie",
+    "deleteError": "Impossible de supprimer cette session. Réessayez."
+  },
+  "minigameDetail": {
+    "notFound": "Session introuvable",
+    "loadError": "Impossible de charger cette session. Elle a peut-être été supprimée.",
+    "back": "Retour au centre",
+    "retry": "Réessayer",
+    "kicker": "Détail de la session",
+    "title": "Résultats du mini-jeu",
+    "subtitle": "Consultez le résultat final, le classement et chaque manche.",
+    "delete": "Supprimer la session",
+    "winner": "Vainqueur",
+    "score": "Score {{score}}",
+    "tabs": {
+      "overview": "Vue d’ensemble",
+      "leaderboard": "Classement",
+      "rounds": "Manches"
+    },
+    "summary": "Résumé",
+    "summaryValue": "{{rounds}} manches terminées avec {{players}} joueurs.",
+    "deleteError": "Impossible de supprimer cette session. Réessayez."
+  },
+  "minigameUi": {
+    "close": "Fermer",
+    "cancel": "Annuler",
+    "delete": "Supprimer",
+    "created": "Créée",
+    "ended": "Terminée",
+    "progress": "Progression",
+    "players": "Joueurs",
+    "teams": "Équipes",
+    "winner": "Vainqueur",
+    "leaderboard": "Classement",
+    "transcript": "Transcription",
+    "evaluation": "Évaluation",
+    "score": "Score",
+    "status": "Statut",
+    "prompt": "Réplique",
+    "player": "Joueur",
+    "round": "Manche",
+    "rounds": "Manches",
+    "nextTurn": "Tour suivant",
+    "playerTurn": "Tour du joueur",
+    "upNext": "À suivre",
+    "done": "Terminé",
+    "queued": "En attente",
+    "active": "Active",
+    "all": "Toutes",
+    "newest": "Plus récentes",
+    "oldest": "Plus anciennes",
+    "recentlyActive": "Activité récente",
+    "sortSessions": "Trier les sessions",
+    "resume": "Reprendre",
+    "view": "Voir",
+    "promptUnavailable": "Réplique indisponible",
+    "noTranscript": "Aucune transcription enregistrée.",
+    "noEvaluation": "Aucune évaluation enregistrée.",
+    "teamDeathmatch": "Match à mort par équipes",
+    "freeForAll": "Chacun pour soi",
+    "roundsRemaining": "{{count}} manches restantes",
+    "switchBlocked": "Terminez l’action en cours avant de changer de joueur.",
+    "switchTitle": "Changer de tour ?",
+    "switchDescription": "Cette action arrêtera la manche en cours et donnera le tour à {{player}}. Aucun point ne sera attribué pour le tour interrompu.",
+    "switch": "Changer",
+    "newPlayer": "Nouveau joueur",
+    "newPlayerDescription": "Ajoutez un participant en cours de session.",
+    "name": "Nom",
+    "playerName": "Nom du joueur",
+    "avatar": "Avatar",
+    "create": "Créer",
+    "taskBrief": "Présentation de la tâche",
+    "criteria": "Critères",
+    "criteriaPending": "Les détails des critères apparaîtront bientôt.",
+    "hide": "Masquer",
+    "hideTranscript": "Masquer la transcription",
+    "escape": "Échap.",
+    "versus": "CONTRE",
+    "dismissVersus": "Continuer vers le match",
+    "reviewEvaluations": "Consulter les évaluations",
+    "locked": "Verrouillé",
+    "sessionOverview": "Vue d’ensemble de la session",
+    "localUnverified": "Local · non vérifié",
+    "confirmDelete": "Confirmer la suppression",
+    "removeSession": "Supprimer cette session ?",
+    "removeSessionDescription": "Cette action supprimera {{session}} de votre historique. Elle est irréversible.",
+    "sessionModeLabel": "la session {{mode}}",
+    "sessionCode": "session {{code}}",
+    "thisSession": "cette session",
+    "sessionProgress_one": "{{completed}} / {{total}} manche",
+    "sessionProgress_other": "{{completed}} / {{total}} manches",
+    "deleteSession": "Supprimer la session",
+    "endingLabel": "Fin de la partie",
+    "endingKicker": "Partie terminée",
+    "endingTitle": "Finalisation de votre session",
+    "endingDescription": "Nous enregistrons les résultats et préparons le récapitulatif final. Vous pouvez revenir au centre à tout moment.",
+    "backToHub": "Retour au centre des parties",
+    "teamDeathmatchDescription": "Duels en équipes organisés selon un calendrier de tournoi intelligent.",
+    "freeForAllDescription": "Jouez avec n’importe quel participant, à tout moment, et arrêtez quand vous le souhaitez.",
+    "chooseMode": "Choisissez votre mode",
+    "chooseModeDescription": "Lancez une expérience par manches fondée sur le parcours de pratique.",
+    "startSetup": "Commencer la configuration",
+    "teamsDescription": "Créez des équipes et attribuez les joueurs.",
+    "playersDescription": "Ajoutez les participants à cette partie.",
+    "addTeam": "Ajouter une équipe",
+    "addPlayer": "Ajouter un joueur",
+    "numberedTeam": "Équipe {{number}}",
+    "numberedPlayer": "Joueur {{number}}",
+    "roundsPerPlayer": "Manches par joueur",
+    "taskStrategy": "Stratégie de sélection",
+    "strategy": {
+      "manual": "Manuelle",
+      "random": "Aléatoire",
+      "filtered_random": "Aléatoire filtrée"
+    },
+    "pickTasks": "Choisir les tâches",
+    "tags": "Tags",
+    "skillDomain": "Domaine de compétence",
+    "shuffleEachRound": "Mélanger à chaque manche",
+    "shuffleDescription": "Choisissez de nouvelles tâches de façon aléatoire entre les tours.",
+    "gameMode": "Mode de jeu",
+    "visibilityValue": "Visibilité : {{value}}",
+    "roundsPerPlayerValue": "Manches par joueur : {{count}}",
+    "taskSelection": "Sélection des tâches",
+    "strategyValue": "Stratégie : {{value}}",
+    "manualTasksValue": "Tâches manuelles : {{count}}",
+    "tagsValue": "Tags : {{value}}",
+    "domainsValue": "Domaines : {{value}}",
+    "solo": "Solo",
+    "nowPlaying": "Lecture en cours",
+    "nowUp": "À présent",
+    "waitSeconds": "ATTENDEZ {{seconds}} s",
+    "lateSeconds": "RETARD {{seconds}} s",
+    "selectMode": "Choisissez un mode pour commencer.",
+    "teamA": "Équipe A",
+    "teamB": "Équipe B",
+    "playerA": "Joueur A",
+    "playerB": "Joueur B",
+    "turn": "Tour",
+    "playerTurnValue": "Tour de {{player}}",
+    "noCompletedRounds": "Aucune manche terminée pour le moment.",
+    "numberedRound": "Manche {{number}}",
+    "transcriptValue": "Transcription : {{value}}",
+    "evaluationDetails": "Détails de l’évaluation",
+    "localScoreNotice": "Les scores locaux comptent dans cette partie privée, mais jamais dans le classement public.",
+    "roundCount_one": "{{count}} manche",
+    "roundCount_other": "{{count}} manches",
+    "performanceRecap": "Récapitulatif des performances",
+    "roundAverage": "Moyenne de la manche : {{score}}/4",
+    "totalScore": "Total : {{score}}",
+    "comparedWithLastRound": "{{delta}} par rapport à la manche précédente",
+    "criterionValue": "Critère {{id}}",
+    "addNewPlayer": "Ajouter un joueur",
+    "nextRound": "Manche suivante",
+    "finalResults": "Résultats finaux",
+    "finalScoreboardLocked": "Classement final verrouillé",
+    "matchBreakdown": "Résumé de la partie",
+    "gameAnalysis": "Analyse de la partie",
+    "finalLeaderboard": "Classement final",
+    "final": "Final",
+    "nextSteps": "Étapes suivantes",
+    "nextStepsDescription": "Terminez la session, consultez les points forts et revenez au tableau de bord lorsque vous êtes prêt.",
+    "exitResults": "Quitter les résultats",
+    "launchMinigame": "Lancer une partie",
+    "endGame": "Terminer la partie",
+    "newGame": "Nouvelle partie",
+    "redraw": "Nouveau tirage",
+    "allPromptsUsed": "Toutes les répliques ont été utilisées",
+    "promptExhausted": "Vous avez utilisé toutes les répliques patient uniques disponibles pour cette session. Démarrez une nouvelle partie ou élargissez la sélection de tâches.",
+    "submissionFailed": "L’envoi a échoué. Veuillez réessayer.",
+    "roundActivationFailed": "Impossible de démarrer cette manche. Vérifiez votre connexion et réessayez.",
+    "endSessionFailed": "Impossible de terminer la partie ; votre session reste active. Vérifiez votre connexion et réessayez.",
+    "retryEndSession": "Réessayer de terminer",
+    "timeout": {
+      "transcript": "Aucune réponse enregistrée.",
+      "summaryFeedback": "Aucune réponse n’a été enregistrée avant la fin du délai de réponse.",
+      "improveNext": "Répondez dans le délai imparti.",
+      "patientReaction": "Aucune réponse enregistrée."
+    },
+    "winner": {
+      "conjunction": "et",
+      "teamTie": "Égalité entre les équipes {{names}} !",
+      "playerTie": "Égalité entre les joueurs {{names}} !",
+      "topScore": "Meilleur score : {{score}}",
+      "scoreComparison": "{{top}} contre {{next}}",
+      "teamWins": "L’équipe {{name}} gagne !",
+      "playerWins": "{{name}} gagne !"
+    },
+    "task": "Tâche",
+    "selectGameToPreview": "Choisissez une partie pour afficher les tâches.",
+    "roundComplete": "Manche terminée",
+    "timingPenalty": "Pénalité de temps −{{score}}",
+    "viewDetails": "Voir les détails",
+    "stopAudio": "Arrêter l’audio",
+    "replayPatientAudio": "Réécouter l’audio du patient",
+    "playPatientAudio": "Lire l’audio du patient",
+    "visibilityMode": "Mode de visibilité",
+    "timing": "Temps",
+    "playersAndTeams": "Joueurs et équipes",
+    "reviewAndStart": "Vérifier et commencer",
+    "setup": "Configuration",
+    "setupDescription": "Configurez les tâches, la visibilité et les joueurs avant de commencer.",
+    "responseTimer": "Minuteur de réponse",
+    "responseTimerDescription": "Imposez un délai minimal après la fin de la réplique du patient.",
+    "seconds": "secondes",
+    "secondsRange": "Saisissez une valeur de 0,1 à 60 secondes",
+    "maxResponseDuration": "Durée maximale de réponse",
+    "maxResponseDescription": "Limitez la durée de l’enregistrement.",
+    "back": "Retour",
+    "next": "Suivant",
+    "startGame": "Commencer la partie",
+    "startingGame": "Démarrage de la partie…",
+    "setupFailed": "Impossible de démarrer la partie. Vérifiez votre connexion et réessayez ; votre configuration a été conservée.",
+    "record": "Enregistrer",
+    "stopRecording": "Arrêter",
+    "fullscreen": "Plein écran",
+    "exitFullscreen": "Quitter le plein écran",
+    "replayPatientVoice": "Réécouter la voix du patient",
+    "playPatientVoice": "Lire la voix du patient",
+    "stopVoice": "Arrêter la voix",
+    "audioStatus": {
+      "idle": "Audio en attente",
+      "generating": "Préparation de la voix…",
+      "downloading": "Téléchargement de la voix…",
+      "ready": "Prêt à lire",
+      "playing": "Le patient parle",
+      "blocked": "Touchez pour lire",
+      "error": "Audio indisponible"
+    },
+    "currentTurn": "Tour actuel",
+    "visibility": {
+      "normal": {
+        "title": "Normal",
+        "description": "Le nom de la tâche et les critères restent visibles pendant la partie."
+      },
+      "hard": {
+        "title": "Difficile",
+        "description": "Le nom de la tâche reste visible ; les critères sont masqués jusqu’à la revue."
+      },
+      "extreme": {
+        "title": "Extrême",
+        "description": "Le nom de la tâche et les critères sont masqués jusqu’à la revue."
+      }
+    },
+    "collapse": "Réduire",
+    "expand": "Développer",
+    "noResultsYet": "Aucun résultat pour le moment",
+    "listening": "Écoute…"
   },
   "admin": {
     "title": "Bibliothèque admin",
@@ -993,7 +1424,7 @@
       "manualAction": "Créer manuellement",
       "parsedKicker": "Texte analysé",
       "parsedTitle": "Commencer à partir d'un texte analysé",
-      "parsedDescription": "Collez un texte libre ou une URL source et examinez le brouillon.",
+      "parsedDescription": "Collez le texte source et examinez le brouillon.",
       "parsedAction": "Analyser le texte"
     },
     "library": {
@@ -1006,15 +1437,34 @@
       "hideAdvanced": "Masquer les filtres avancés",
       "results": "{{count}} résultats",
       "selectAction": "Sélectionner",
-      "exitSelectAction": "Terminer la sélection"
+      "exitSelectAction": "Terminer la sélection",
+      "selectTask": "Sélectionner {{title}}",
+      "bulk": {
+        "kicker": "Actions groupées",
+        "title": "Gérer la sélection",
+        "subtitle": "{{count}} sélectionnées",
+        "selectAll": "Sélectionner tous les résultats",
+        "clear": "Effacer la sélection",
+        "exportLabel": "Exporter le JSON",
+        "exportHint": "Téléchargez un tableau JSON formaté pour la boîte de dialogue d’importation.",
+        "exportAction": "Exporter la sélection",
+        "deleteAction": "Supprimer la sélection",
+        "deleteTitle": "Supprimer les tâches sélectionnées",
+        "deleteDescription": "Supprimer les {{count}} tâches sélectionnées ? Cette action est irréversible.",
+        "deleteConfirm": "Supprimer",
+        "deleteCancel": "Annuler",
+        "tagLabel": "Ajouter un tag à toute la sélection",
+        "tagHint": "Appliquez un tag commun sans remplacer les tags existants.",
+        "tagPlaceholder": "p. ex. supervision, intégration",
+        "tagAction": "Appliquer le tag"
+      }
     },
     "searchPlaceholder": "Rechercher des tâches",
     "tasksTitle": "Tâches",
     "createFromText": {
       "title": "Créer à partir d'un texte libre",
-      "subtitle": "Collez le texte source ou fournissez une URL à analyser.",
+      "subtitle": "Collez le texte source à analyser.",
       "placeholderText": "Collez le texte de la tâche ici",
-      "placeholderUrl": "URL source (facultatif)",
       "parse": "Analyser avec OpenAI",
       "parsing": "Analyse...",
       "errorFallback": "Échec de l'analyse"
@@ -1040,7 +1490,9 @@
       "descriptionLabel": "Description",
       "generalObjectiveLabel": "Objectif général",
       "tagsLabel": "Tags",
-      "authorsLabel": "Auteurs"
+      "authorsLabel": "Auteurs",
+      "languageLabel": "Langue",
+      "languageValue": "Langue : {{language}}"
     },
     "edit": {
       "title": "Modifier une tâche existante",
@@ -1080,6 +1532,7 @@
       "moveDown": "Descendre",
       "duplicate": "Dupliquer",
       "remove": "Supprimer",
+      "removeTag": "Supprimer {{tag}}",
       "emptyCriteria": "Aucun critère pour l'instant.",
       "examplesHint": "Ajoutez des exemples et ajustez la difficulté.",
       "filterDifficulty": "Difficulté",
@@ -1126,7 +1579,10 @@
       "backToLibrary": "Retour à la bibliothèque",
       "backToPortal": "Retour au portail",
       "reset": "Réinitialiser",
-      "copyCode": "Copier le code"
+      "copyCode": "Copier le code",
+      "advanced": "Options avancées",
+      "openInspector": "Ouvrir l’inspecteur",
+      "applyToEditor": "Appliquer dans l’éditeur"
     },
     "status": {
       "loading": "Chargement",
@@ -1194,6 +1650,9 @@
       "duplicated": "Tâche dupliquée",
       "translated": "Tâche traduite",
       "imported": "Tâche importée",
+      "importedMany": "{{count}} tâches importées",
+      "bulkDeleted": "{{count}} tâches supprimées",
+      "bulkTagsApplied": "Tag ajouté à {{count}} tâches",
       "jsonApplied": "JSON appliqué",
       "jsonValid": "JSON valide",
       "jsonCopied": "JSON de la tâche copié"
@@ -1213,12 +1672,17 @@
       "pageSubtitle": "Vérifiez attentivement le brouillon avant de créer la tâche.",
       "inputs": {
         "freeText": "Texte libre",
-        "sourceUrl": "URL source (facultatif)",
-        "parseMode": "Mode d'analyse"
+        "instructionPrompt": "Consigne",
+        "instructionHint": "Décrivez la tâche à générer. Il s’agit d’une consigne, et non d’un texte source à analyser.",
+        "pasteOnlyHint": "Collez le texte source ici.",
+        "sourceChoiceHint": "Collez le texte source ou fournissez une URL HTTPS publique. Saisir l’un efface l’autre.",
+        "parseMode": "Mode d'analyse",
+        "sourceUrl": "URL source"
       },
       "mode": {
         "original": "Génération originale",
-        "exact": "Analyse exacte"
+        "exact": "Analyse exacte",
+        "partialPrompt": "À partir d’une consigne partielle"
       },
       "reviewKicker": "Revue",
       "reviewTitle": "Résultat analysé",
@@ -1238,7 +1702,52 @@
       "validationValid": "Validation du schéma réussie.",
       "validationInvalid": "Échec de la validation du schéma.",
       "validationEmpty": "Lancez l'analyse pour valider le schéma.",
-      "createdToast": "Tâche créée à partir du texte analysé"
+      "createdToast": "Tâche créée à partir du texte analysé",
+      "batch": {
+        "modeLabel": "Mode",
+        "singleMode": "Unique",
+        "batchMode": "Lot",
+        "sourceLabel": "Texte source du lot",
+        "sourceRequired": "Ajoutez un texte source avant de lancer l’analyse par lot.",
+        "sourceHint": "Le mode par lot utilise uniquement le texte ci-dessus. Chaque segment détecté est analysé puis enregistré automatiquement comme brouillon.",
+        "startedTitle": "Analyse par lot lancée",
+        "startedMessage": "La progression apparaîtra dans la fenêtre.",
+        "starting": "Démarrage…",
+        "startAction": "Lancer l’analyse par lot",
+        "panelKicker": "Mode par lot",
+        "panelTitle": "Automatiser la création de brouillons",
+        "panelDescription": "Les limites des tâches sont détectées, chaque segment est analysé et les brouillons sont importés automatiquement. La progression apparaît dans la fenêtre après le démarrage.",
+        "draftItem": "Les tâches sont enregistrées comme brouillons non publiés.",
+        "schemaItem": "Les exemples et les critères utilisent le même schéma que l’analyse unique.",
+        "resumeItem": "Vous pouvez fermer la fenêtre à tout moment ; l’interrogation reprend lorsqu’elle est rouverte.",
+        "progressTitle": "Analyse par lot",
+        "progress": "{{completed}} segments traités sur {{total}}",
+        "detecting": "Détection des segments…",
+        "close": "Fermer",
+        "waiting": "En attente de mises à jour…",
+        "createdTitle": "Brouillons créés",
+        "openTask": "Ouvrir {{taskId}}",
+        "refreshed": "La bibliothèque de tâches a été actualisée avec ces brouillons.",
+        "unknownError": "Une erreur inconnue est survenue.",
+        "status": {
+          "loading": "Chargement…",
+          "failed": "Échec",
+          "completed": "Terminé",
+          "running": "En cours"
+        },
+        "steps": {
+          "queued": "En attente",
+          "planning": "Planification",
+          "parsing": "Analyse",
+          "saving": "Enregistrement des brouillons",
+          "done": "Terminé"
+        },
+        "levels": {
+          "info": "Info",
+          "warn": "Avertissement",
+          "error": "Erreur"
+        }
+      }
     },
     "import": {
       "title": "Importer JSON",
@@ -1272,6 +1781,8 @@
       "empty": "Sélectionnez une tâche.",
       "jsonTitle": "JSON de la tâche",
       "jsonSubtitle": "Relire ou appliquer des modifications.",
+      "show": "Afficher",
+      "hide": "Masquer",
       "editable": "Éditable",
       "format": "Formater",
       "apply": "Appliquer",

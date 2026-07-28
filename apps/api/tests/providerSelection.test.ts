@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, test } from "node:test";
+import { test } from "node:test";
 import { selectSttProvider } from "../src/providers";
 import type { EffectiveAiConfig } from "../src/providers/config";
 import { ProviderConfigError } from "../src/providers/providerErrors";
@@ -7,57 +7,55 @@ import { ProviderConfigError } from "../src/providers/providerErrors";
 const baseConfig: EffectiveAiConfig = {
   mode: "local_prefer",
   openai: { apiKey: "server-key" },
-  local: { baseUrl: "http://local-ai", sttUrl: null, llmUrl: null, apiPrefix: "/v1" },
-  resolvedFrom: { openaiKey: "env", localBaseUrl: "user" }
+  local: {
+    baseUrl: "http://local-ai",
+    sttUrl: null,
+    llmUrl: null,
+    apiPrefix: "/v1",
+  },
+  resolvedFrom: { openaiKey: "env", localBaseUrl: "user" },
 };
 
-const originalFetch = globalThis.fetch;
-
-beforeEach(() => {
-  globalThis.fetch = async () => ({ ok: true }) as Response;
+test("selectSttProvider never resolves a user local URL from the hosted API", async () => {
+  let fetchCalls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    fetchCalls += 1;
+    throw new Error("Hosted API must not fetch a local URL.");
+  };
+  try {
+    await assert.rejects(
+      () => selectSttProvider(baseConfig),
+      (error) =>
+        error instanceof ProviderConfigError &&
+        error.code === "LOCAL_BROWSER_REQUIRED",
+    );
+    assert.equal(fetchCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
-afterEach(() => {
-  globalThis.fetch = originalFetch;
-});
-
-test("selectSttProvider prefers local when healthy", async () => {
-  const selection = await selectSttProvider(baseConfig);
-  assert.equal(selection.provider.kind, "local");
-});
-
-test("selectSttProvider falls back to OpenAI when local unhealthy", async () => {
-  globalThis.fetch = async () => ({ ok: false }) as Response;
-  const selection = await selectSttProvider(baseConfig);
+test("selectSttProvider selects OpenAI without probing local URLs", async () => {
+  const config: EffectiveAiConfig = {
+    ...baseConfig,
+    mode: "openai_only",
+  };
+  const selection = await selectSttProvider(config);
   assert.equal(selection.provider.kind, "openai");
+  assert.deepEqual(selection.health, { local: false, openai: true });
 });
 
-test("selectSttProvider throws when local_only missing base URL", async () => {
+test("selectSttProvider makes local-only execution explicitly browser-owned", async () => {
   const config: EffectiveAiConfig = {
     ...baseConfig,
     mode: "local_only",
-    local: { baseUrl: null, sttUrl: null, llmUrl: null, apiPrefix: "/v1" }
   };
 
   await assert.rejects(
     () => selectSttProvider(config),
     (error) =>
       error instanceof ProviderConfigError &&
-      error.code === "LOCAL_BASE_URL_MISSING"
-  );
-});
-
-test("selectSttProvider throws when local_only is unreachable", async () => {
-  const config: EffectiveAiConfig = {
-    ...baseConfig,
-    mode: "local_only"
-  };
-  globalThis.fetch = async () => ({ ok: false }) as Response;
-
-  await assert.rejects(
-    () => selectSttProvider(config),
-    (error) =>
-      error instanceof ProviderConfigError &&
-      error.code === "LOCAL_UNREACHABLE"
+      error.code === "LOCAL_BROWSER_REQUIRED",
   );
 });

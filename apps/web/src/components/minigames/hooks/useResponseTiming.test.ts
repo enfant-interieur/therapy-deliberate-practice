@@ -9,7 +9,7 @@ describe("calculateTimingPenalty", () => {
       maxResponseEnabled: true,
       maxResponseSeconds: 10,
       responseDelayMs: 2100,
-      responseDurationMs: 9000
+      responseDurationMs: 9000,
     });
 
     expect(result.penalty).toBe(0);
@@ -21,7 +21,7 @@ describe("calculateTimingPenalty", () => {
       responseTimerSeconds: 2,
       maxResponseEnabled: false,
       responseDelayMs: 1900,
-      responseDurationMs: null
+      responseDurationMs: null,
     });
 
     expect(result.penalty).toBeGreaterThan(0.5);
@@ -34,7 +34,7 @@ describe("calculateTimingPenalty", () => {
       maxResponseEnabled: true,
       maxResponseSeconds: 10,
       responseDelayMs: null,
-      responseDurationMs: 20000
+      responseDurationMs: 20000,
     });
 
     expect(result.penalty).toBeCloseTo(1, 2);

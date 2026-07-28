@@ -10,7 +10,7 @@ const formatToContentType: Record<TtsFormat, string> = {
   aac: "audio/aac",
   flac: "audio/flac",
   wav: "audio/wav",
-  pcm: "audio/pcm"
+  pcm: "audio/pcm",
 };
 
 export type OpenAiTtsResult = {
@@ -28,7 +28,7 @@ export const synthesizeWithOpenAI = async (
     text: string;
     instructions?: string;
   },
-  client?: OpenAI
+  client?: OpenAI,
 ): Promise<OpenAiTtsResult> => {
   const openai = client ?? getOpenAIClient({ apiKey: input.apiKey });
   try {
@@ -37,13 +37,15 @@ export const synthesizeWithOpenAI = async (
       voice: input.voice,
       input: input.text,
       response_format: input.format,
-      ...(input.instructions ? { instructions: input.instructions } : {})
+      ...(input.instructions ? { instructions: input.instructions } : {}),
     });
 
     const buffer = new Uint8Array(await response.arrayBuffer());
     const headers = response.headers;
     const contentType =
-      headers?.get("content-type") ?? formatToContentType[input.format] ?? "audio/mpeg";
+      headers?.get("content-type") ??
+      formatToContentType[input.format] ??
+      "audio/mpeg";
     const requestId =
       response.headers?.get("x-request-id") ??
       response.headers?.get("openai-request-id") ??
@@ -57,15 +59,17 @@ export const synthesizeWithOpenAI = async (
         ? (error as { status?: number }).status
         : undefined;
     const message =
-      error instanceof Error ? safeTruncate(error.message, 200) : safeTruncate(String(error), 200);
+      error instanceof Error
+        ? safeTruncate(error.message, 200)
+        : safeTruncate(String(error), 200);
     throw createProviderError(
       `OpenAI TTS failed${status ? ` (${status})` : ""}${
         requestId ? ` [${requestId}]` : ""
       }: ${message}`,
       {
         requestId,
-        logFields: status ? { status } : undefined
-      }
+        logFields: status ? { status } : undefined,
+      },
     );
   }
 };

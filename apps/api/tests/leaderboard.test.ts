@@ -3,7 +3,10 @@ import { test } from "node:test";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { attempts, tasks, users } from "../src/db/schema";
-import { fetchLeaderboardEntries } from "../src/services/leaderboardService";
+import {
+  fetchLeaderboardEntries,
+  fetchUserProfileStats,
+} from "../src/services/leaderboardService";
 
 const setupDb = () => {
   const sqlite = new Database(":memory:");
@@ -46,6 +49,7 @@ const setupDb = () => {
       evaluation TEXT NOT NULL,
       overall_pass INTEGER NOT NULL,
       overall_score REAL NOT NULL,
+      score_trust TEXT NOT NULL DEFAULT 'cloud_trusted',
       model_info TEXT
     );
   `);
@@ -61,16 +65,18 @@ const seedBaseData = async () => {
       id: "user-1",
       email: "alpha@example.com",
       display_name: "alpha",
+      bio: null,
       is_profile_public: 1,
-      created_at: now
+      created_at: now,
     },
     {
       id: "user-2",
       email: "beta@example.com",
       display_name: "beta",
+      bio: null,
       is_profile_public: 1,
-      created_at: now
-    }
+      created_at: now,
+    },
   ]);
   await db.insert(tasks).values([
     {
@@ -86,7 +92,7 @@ const seedBaseData = async () => {
       is_published: true,
       parent_task_id: null,
       created_at: now,
-      updated_at: now
+      updated_at: now,
     },
     {
       id: "task-2",
@@ -101,7 +107,7 @@ const seedBaseData = async () => {
       is_published: true,
       parent_task_id: null,
       created_at: now,
-      updated_at: now
+      updated_at: now,
     },
     {
       id: "task-3",
@@ -116,8 +122,8 @@ const seedBaseData = async () => {
       is_published: true,
       parent_task_id: null,
       created_at: now,
-      updated_at: now
-    }
+      updated_at: now,
+    },
   ]);
 
   await db.insert(attempts).values([
@@ -135,7 +141,8 @@ const seedBaseData = async () => {
       evaluation: { overall_score: 2 },
       overall_pass: true,
       overall_score: 2,
-      model_info: null
+      score_trust: "cloud_trusted",
+      model_info: null,
     },
     {
       id: "attempt-2",
@@ -151,7 +158,8 @@ const seedBaseData = async () => {
       evaluation: { overall_score: 4 },
       overall_pass: true,
       overall_score: 4,
-      model_info: null
+      score_trust: "cloud_trusted",
+      model_info: null,
     },
     {
       id: "attempt-3",
@@ -167,7 +175,8 @@ const seedBaseData = async () => {
       evaluation: { overall_score: 3 },
       overall_pass: true,
       overall_score: 3,
-      model_info: null
+      score_trust: "cloud_trusted",
+      model_info: null,
     },
     {
       id: "attempt-4",
@@ -183,7 +192,8 @@ const seedBaseData = async () => {
       evaluation: { overall_score: 5 },
       overall_pass: true,
       overall_score: 5,
-      model_info: null
+      score_trust: "cloud_trusted",
+      model_info: null,
     },
     {
       id: "attempt-5",
@@ -199,20 +209,38 @@ const seedBaseData = async () => {
       evaluation: { overall_score: 1 },
       overall_pass: false,
       overall_score: 1,
-      model_info: null
-    }
+      score_trust: "cloud_trusted",
+      model_info: null,
+    },
+    {
+      id: "attempt-local",
+      user_id: "user-2",
+      session_id: null,
+      session_item_id: null,
+      task_id: "task-1",
+      example_id: "example-local",
+      started_at: 170,
+      completed_at: 180,
+      audio_ref: null,
+      transcript: "local test",
+      evaluation: { overall_score: 100 },
+      overall_pass: true,
+      overall_score: 100,
+      score_trust: "local_unverified",
+      model_info: null,
+    },
   ]);
 
   return db;
 };
 
-test("fetchLeaderboardEntries aggregates latest attempts per task", async () => {
+test("fetchLeaderboardEntries aggregates trusted latest attempts and ignores a same-time local score", async () => {
   const db = await seedBaseData();
   const entries = await fetchLeaderboardEntries(db, {
     tags: ["b"],
     skillDomain: "cbt",
     language: "en",
-    limit: 50
+    limit: 50,
   });
 
   assert.equal(entries.length, 2);
@@ -234,8 +262,17 @@ test("fetchLeaderboardEntries returns empty when no tasks match", async () => {
     tags: ["missing"],
     skillDomain: "cbt",
     language: "en",
-    limit: 50
+    limit: 50,
   });
 
   assert.equal(entries.length, 0);
+});
+
+test("fetchUserProfileStats ignores local scores that share a trusted completion time", async () => {
+  const db = await seedBaseData();
+  const stats = await fetchUserProfileStats(db, "user-2");
+
+  assert.equal(stats.average_score, 3);
+  assert.equal(stats.tasks_played, 2);
+  assert.equal(stats.last_active_at, 220);
 });

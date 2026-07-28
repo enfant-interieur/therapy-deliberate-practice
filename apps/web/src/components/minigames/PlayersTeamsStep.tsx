@@ -1,4 +1,5 @@
 import { nanoid } from "nanoid";
+import { useTranslation } from "react-i18next";
 
 export type PlayerDraft = {
   id: string;
@@ -33,16 +34,17 @@ export const PlayersTeamsStep = ({
   onChangePlayers,
   onChangeTeams,
   roundsPerPlayer,
-  onRoundsPerPlayerChange
+  onRoundsPerPlayerChange,
 }: PlayersTeamsStepProps) => {
+  const { t } = useTranslation();
   const addTeam = () => {
     const next = [
       ...teams,
       {
         id: nanoid(),
-        name: `Team ${teams.length + 1}`,
-        color: teamColors[teams.length % teamColors.length]
-      }
+        name: t("minigameUi.numberedTeam", { number: teams.length + 1 }),
+        color: teamColors[teams.length % teamColors.length],
+      },
     ];
     onChangeTeams(next);
   };
@@ -52,10 +54,10 @@ export const PlayersTeamsStep = ({
       ...players,
       {
         id: nanoid(),
-        name: `Player ${players.length + 1}`,
+        name: t("minigameUi.numberedPlayer", { number: players.length + 1 }),
         avatar: avatarOptions[players.length % avatarOptions.length],
-        team_id: mode === "tdm" ? teams[0]?.id ?? null : null
-      }
+        team_id: mode === "tdm" ? (teams[0]?.id ?? null) : null,
+      },
     ]);
   };
 
@@ -65,14 +67,18 @@ export const PlayersTeamsStep = ({
         <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-white">Teams</p>
-              <p className="text-xs text-slate-300">Create teams and assign players.</p>
+              <p className="text-sm font-semibold text-white">
+                {t("minigameUi.teams")}
+              </p>
+              <p className="text-xs text-slate-300">
+                {t("minigameUi.teamsDescription")}
+              </p>
             </div>
             <button
               onClick={addTeam}
               className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-white/40"
             >
-              Add team
+              {t("minigameUi.addTeam")}
             </button>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -82,7 +88,7 @@ export const PlayersTeamsStep = ({
                 className="rounded-xl border border-white/10 bg-slate-950/60 p-3"
               >
                 <label className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                  Team {index + 1}
+                  {t("minigameUi.numberedTeam", { number: index + 1 })}
                 </label>
                 <input
                   value={team.name}
@@ -120,14 +126,18 @@ export const PlayersTeamsStep = ({
       <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-semibold text-white">Players</p>
-            <p className="text-xs text-slate-300">Add the participants for this match.</p>
+            <p className="text-sm font-semibold text-white">
+              {t("minigameUi.players")}
+            </p>
+            <p className="text-xs text-slate-300">
+              {t("minigameUi.playersDescription")}
+            </p>
           </div>
           <button
             onClick={addPlayer}
             className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white/70 hover:border-white/40"
           >
-            Add player
+            {t("minigameUi.addPlayer")}
           </button>
         </div>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -137,7 +147,7 @@ export const PlayersTeamsStep = ({
               className="rounded-xl border border-white/10 bg-slate-950/60 p-3"
             >
               <label className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                Player {index + 1}
+                {t("minigameUi.numberedPlayer", { number: index + 1 })}
               </label>
               <input
                 value={player.name}
@@ -192,19 +202,22 @@ export const PlayersTeamsStep = ({
           ))}
         </div>
       </div>
-      <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
-        <p className="text-sm font-semibold text-white">Rounds per player</p>
-        <p className="mt-1 text-xs text-slate-300">
-          Each player will complete this many turns across the match.
-        </p>
-        <input
-          type="number"
-          min={1}
-          value={roundsPerPlayer}
-          onChange={(event) => onRoundsPerPlayerChange(Number(event.target.value))}
-          className="mt-2 w-24 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white"
-        />
-      </div>
+      {mode === "tdm" && (
+        <div className="rounded-2xl border border-white/10 bg-slate-900/40 p-4">
+          <p className="text-sm font-semibold text-white">
+            {t("minigameUi.roundsPerPlayer")}
+          </p>
+          <input
+            type="number"
+            min={1}
+            value={roundsPerPlayer}
+            onChange={(event) =>
+              onRoundsPerPlayerChange(Number(event.target.value))
+            }
+            className="mt-2 w-24 rounded-lg border border-white/10 bg-slate-900/60 px-3 py-2 text-sm text-white"
+          />
+        </div>
+      )}
     </div>
   );
 };
