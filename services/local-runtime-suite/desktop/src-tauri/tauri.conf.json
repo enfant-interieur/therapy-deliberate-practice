@@ -31,6 +31,14 @@
     "active": true,
     "targets": ["app", "deb", "rpm", "appimage", "dmg", "msi", "nsis"],
     "category": "Utility",
+    "linux": {
+      "rpm": {
+        "compression": {
+          "type": "zstd",
+          "level": 3
+        }
+      }
+    },
     "macOS": {
       "minimumSystemVersion": "14.0"
     },

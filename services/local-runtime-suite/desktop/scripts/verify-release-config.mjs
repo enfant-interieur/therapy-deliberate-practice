@@ -121,6 +121,13 @@ if (minimumMacVersion !== "14.0") {
   );
 }
 
+const rpmCompression = tauriConfig.bundle?.linux?.rpm?.compression;
+if (rpmCompression?.type !== "zstd" || rpmCompression?.level !== 3) {
+  throw new Error(
+    "Linux RPM packaging must use Zstandard level 3 so the portable runtime bundles within the native-build time budget.",
+  );
+}
+
 const uvLock = readFileSync(path.resolve(pythonDir, "uv.lock"), "utf8");
 const requiredNativeWheels = [
   "torch-2.13.0-cp312-cp312-macosx_14_0_arm64.whl",
