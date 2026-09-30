@@ -307,7 +307,7 @@ async def test_qwen_mlx_streaming_generation_holds_the_model_lock(monkeypatch) -
         assert lock.held
         yield SimpleNamespace(text="safe")
         assert lock.held
-        yield SimpleNamespace(text="safe response")
+        yield SimpleNamespace(text=" response")
 
     monkeypatch.setitem(sys.modules, "mlx_lm", SimpleNamespace(stream_generate=stream_generate))
     monkeypatch.setattr(

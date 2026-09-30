@@ -29,7 +29,12 @@ MINIMUM_MACOS_PLATFORM = {
     "x86_64-apple-darwin": "macosx_14_0_x86_64",
 }
 SOURCE_ROOTS = ("local_runtime", "tools", "pyinstaller-hooks")
-SOURCE_FILES = ("pyproject.toml", "uv.lock", "pyinstaller.local_runtime_gateway.spec")
+SOURCE_FILES = (
+    "pyproject.toml",
+    "uv.lock",
+    "pyinstaller.local_runtime_gateway.spec",
+    "local_runtime/catalog-assets.json",
+)
 EMBEDDED_ENVIRONMENT_BLOCKLIST = {
     "PYTHONHOME",
     "PYTHONPATH",

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const AUDITED_SOURCES = [
   new URL("../App.tsx", import.meta.url),
+  new URL("../components/ModelLibrary.tsx", import.meta.url),
   new URL("../components/GatewayLaunchButton.tsx", import.meta.url),
   new URL("../hooks/useGatewayBoot.ts", import.meta.url)
 ];

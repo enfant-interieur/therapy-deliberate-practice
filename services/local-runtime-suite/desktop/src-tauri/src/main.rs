@@ -133,6 +133,11 @@ struct LoadJobCommandPayload {
     job_id: String,
 }
 
+#[derive(serde::Deserialize)]
+struct ModelCommandPayload {
+    model: String,
+}
+
 #[derive(Serialize)]
 struct LogsResponse {
     logs: Vec<String>,
@@ -742,11 +747,65 @@ fn gateway_model_load_status(
 }
 
 #[tauri::command]
+async fn gateway_model_inventory(app: tauri::AppHandle) -> Result<serde_json::Value, GatewayError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let config = build_launch_config(&app)?;
+        gateway_health(config.port)?;
+        let response =
+            http_get_localhost(config.port, "/runtime/models", Some(&config.access_token))?;
+        parse_gateway_json(response, "model inventory")
+    })
+    .await
+    .map_err(|error| GatewayError::Io(error.to_string()))?
+}
+
+#[tauri::command]
+async fn gateway_unload_model(
+    app: tauri::AppHandle,
+    payload: ModelCommandPayload,
+) -> Result<serde_json::Value, GatewayError> {
+    validate_model_ids(vec![payload.model.clone()])?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let config = build_launch_config(&app)?;
+        gateway_health(config.port)?;
+        let body = serde_json::to_string(&serde_json::json!({"model": payload.model}))
+            .map_err(|error| GatewayError::Config(error.to_string()))?;
+        let response = http_post_json_localhost(
+            config.port,
+            "/runtime/models/unload",
+            &config.access_token,
+            &body,
+        )?;
+        parse_gateway_json(response, "model unload")
+    })
+    .await
+    .map_err(|error| GatewayError::Io(error.to_string()))?
+}
+
+#[tauri::command]
+async fn gateway_cancel_model_load(
+    app: tauri::AppHandle,
+    payload: LoadJobCommandPayload,
+) -> Result<serde_json::Value, GatewayError> {
+    validate_load_job_id(&payload.job_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let config = build_launch_config(&app)?;
+        gateway_health(config.port)?;
+        let path = format!("/load_models/{}/cancel", payload.job_id);
+        let response = http_post_json_localhost(config.port, &path, &config.access_token, "{}")?;
+        parse_gateway_json(response, "model cancellation")
+    })
+    .await
+    .map_err(|error| GatewayError::Io(error.to_string()))?
+}
+
+#[tauri::command]
 fn save_gateway_config(app: tauri::AppHandle, payload: ConfigPayload) -> Result<(), GatewayError> {
     let config_path = resolve_config_path(&app)?;
     let existing = read_gateway_config(&app)?;
-    let has_complete_defaults = payload.default_models.contains_key("responses")
-        && payload.default_models.contains_key("audio.transcriptions");
+    let has_complete_defaults = payload.default_models.contains_key("audio.transcriptions")
+        && (cfg!(all(target_os = "macos", target_arch = "x86_64"))
+            || payload.default_models.contains_key("responses"));
     if has_complete_defaults && gateway_health(existing.port).is_ok() {
         let body = serde_json::to_string(&serde_json::json!({
             "port": payload.port,
@@ -852,6 +911,11 @@ fn default_python_binary() -> String {
 }
 
 fn resolve_config_path(app: &tauri::AppHandle) -> Result<PathBuf, GatewayError> {
+    // Keep developer and packaged smoke runs isolated from the user's settings.
+    // The gateway accepts this same explicit configuration override.
+    if let Some(path) = std::env::var_os("LOCAL_RUNTIME_CONFIG").filter(|value| !value.is_empty()) {
+        return Ok(PathBuf::from(path));
+    }
     let config_dir = app
         .path()
         .app_config_dir()
@@ -1766,6 +1830,9 @@ fn main() {
             gateway_doctor,
             gateway_models,
             gateway_runtime_state,
+            gateway_model_inventory,
+            gateway_unload_model,
+            gateway_cancel_model_load,
             gateway_load_models,
             gateway_model_load_status,
             save_gateway_config,

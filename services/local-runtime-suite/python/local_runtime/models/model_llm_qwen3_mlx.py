@@ -83,30 +83,9 @@ DEFAULT_REPETITION_PENALTY = float(os.getenv("LOCAL_RUNTIME_QWEN_REPETITION_PENA
 
 
 def _prepare_prompt(payload: dict | None, tokenizer: Any | None = None) -> str:
-    if not payload:
-        return "You are a helpful assistant."
-    if payload.get("messages"):
-        messages = payload["messages"]
-        if tokenizer and getattr(tokenizer, "chat_template", None):
-            return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        return "\n".join(f"{msg.get('role', 'user')}: {msg.get('content', '')}" for msg in messages)
-    if isinstance(payload.get("input"), list):
-        fragments: list[str] = []
-        for entry in payload["input"]:
-            if isinstance(entry, str):
-                fragments.append(entry)
-            elif isinstance(entry, dict):
-                if entry.get("type") == "text" and "text" in entry:
-                    fragments.append(str(entry["text"]))
-                elif entry.get("content"):
-                    fragments.extend(
-                        str(chunk.get("text", "")) for chunk in entry["content"] if isinstance(chunk, dict)
-                    )
-        if fragments:
-            return "\n".join(fragments)
-    if isinstance(payload.get("input"), str):
-        return payload["input"]
-    return str(payload.get("prompt") or "You are a helpful assistant.")
+    from local_runtime.helpers.chat_prompt import prepare_chat_prompt
+
+    return prepare_chat_prompt(payload, tokenizer)
 
 
 def _generation_params(payload: dict | None) -> dict[str, Any]:
@@ -179,7 +158,6 @@ def _iterate_generation(
     if token is not None:
         token.raise_if_cancelled()
     sampler, logits_processors = _build_sampling_components(params)
-    previous_text = ""
     with acquire_model_lock(instance["lock"], token):
         if on_lock_acquired is not None:
             on_lock_acquired()
@@ -194,10 +172,8 @@ def _iterate_generation(
             if token is not None:
                 token.raise_if_cancelled()
             text = _extract_response_text(response)
-            delta = text.removeprefix(previous_text)
-            previous_text = text
-            if delta:
-                yield delta
+            if text:
+                yield text
     if token is not None:
         token.raise_if_cancelled()
 
@@ -269,17 +245,22 @@ async def _generate_stream(
     return _events()
 
 
-def load(ctx: RunContext) -> dict[str, Any]:
+def load(ctx: RunContext, spec: dict | None = None) -> dict[str, Any]:
+    spec = spec or SPEC
     try:
         from mlx_lm import load as mlx_load  # type: ignore
     except ImportError as exc:
         raise RuntimeError("mlx-lm is required for Qwen3 MLX. Install with `pip install mlx-lm`.") from exc
     from huggingface_hub import snapshot_download
 
-    model_ref = os.getenv("LOCAL_RUNTIME_QWEN3_MLX_MODEL", SPEC["backend"]["model_ref"])
-    revision = os.getenv("LOCAL_RUNTIME_QWEN3_MLX_REVISION") or SPEC["backend"]["revision"]
+    model_ref = spec["backend"]["model_ref"]
+    if spec["id"] == SPEC["id"]:
+        model_ref = os.getenv("LOCAL_RUNTIME_QWEN3_MLX_MODEL", model_ref)
+    revision = spec["backend"]["revision"]
+    if spec["id"] == SPEC["id"]:
+        revision = os.getenv("LOCAL_RUNTIME_QWEN3_MLX_REVISION") or revision
     local_path = Path(model_ref).expanduser()
-    resolved_model_ref = (
+    resolved_model_ref = getattr(ctx, "model_path", None) or (
         str(local_path.resolve())
         if local_path.exists()
         else snapshot_download(
@@ -290,7 +271,7 @@ def load(ctx: RunContext) -> dict[str, Any]:
     )
     ctx.logger.info(
         "qwen3_mlx.load",
-        extra={"model_id": SPEC["id"], "model_ref": model_ref, "revision": revision},
+        extra={"model_id": spec["id"], "model_ref": model_ref, "revision": revision},
     )
     model, tokenizer = mlx_load(resolved_model_ref, revision=revision)
     return {

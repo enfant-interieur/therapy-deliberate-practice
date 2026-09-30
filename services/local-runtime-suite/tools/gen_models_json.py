@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import argparse
 import sys
 from pathlib import Path
 
@@ -15,12 +16,15 @@ from local_runtime.core.loader import load_models
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate the executable model catalog")
+    parser.add_argument("--output", type=Path, default=WEB_PUBLIC / "models.json")
+    args = parser.parse_args()
     models = load_models()
     output = []
     for model in models:
         output.append(model.spec.model_dump())
-    WEB_PUBLIC.mkdir(parents=True, exist_ok=True)
-    path = WEB_PUBLIC / "models.json"
+    path = args.output
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"{json.dumps({'models': output}, indent=2)}\n")
     print(f"Wrote {path}")
 

@@ -31,6 +31,7 @@ from local_runtime.cancellation import (
     RequestIdInUseError,
     validate_client_request_id,
 )
+from local_runtime.core.assets import inventory
 from local_runtime.core.config import RuntimeConfig
 from local_runtime.core.doctor import run_doctor
 from local_runtime.core.errors import ModelNotFoundError
@@ -235,6 +236,7 @@ def _build_context(
         registry=app.state.registry,
         http_client=app.state.http_client,
         cancellation_token=cancellation_token,
+        model_id=model_id,
     )
 
 
@@ -276,7 +278,7 @@ def _is_allowed_origin(origin: str | None) -> bool:
 
 
 def _requires_access_token(path: str) -> bool:
-    return path.startswith(("/v1/", "/logs", "/doctor", "/load_models", "/health/details", "/runtime/config"))
+    return path.startswith(("/v1/", "/logs", "/doctor", "/load_models", "/health/details", "/runtime/"))
 
 
 def _access_denied(status_code: int, message: str) -> JSONResponse:
@@ -388,7 +390,16 @@ async def request_context_middleware(request: Request, call_next: Callable):
             "request.error",
             extra={"request_id": request_id, "endpoint": str(request.url.path), "duration_ms": duration_ms},
         )
-        raise
+        # Avoid a server traceback containing arbitrary backend content.
+        response = format_error(
+            "The local model request failed. Retry or check model readiness.", status_code=500
+        )
+        response.headers["x-request-id"] = request_id
+        response.headers["Cache-Control"] = "no-store"
+        if origin and _is_allowed_origin(origin):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+        return response
     finally:
         pop_log_context(token)
 
@@ -405,10 +416,13 @@ def _begin_inference(
     request: Request,
     *,
     timeout_seconds: float,
+    model_id: str | None = None,
 ) -> tuple[str, CancellationToken, asyncio.Task[None]]:
     request_id = getattr(request.state, "request_id", f"req_{uuid.uuid4().hex}")
     registry: ActiveRequestRegistry = app.state.active_requests
     token = registry.register(request_id, timeout_seconds=timeout_seconds)
+    if model_id:
+        app.state.registry.active_models[request_id] = model_id
     watcher = asyncio.create_task(_watch_request_disconnect(request, token))
     return request_id, token, watcher
 
@@ -432,6 +446,7 @@ async def _finish_inference(
         pass
     registry: ActiveRequestRegistry = app.state.active_requests
     registry.finish(request_id)
+    app.state.registry.active_models.pop(request_id, None)
 
 
 async def _finalize_inference_stream(
@@ -465,6 +480,22 @@ async def _finalize_inference_stream(
                     "code": "inference_cancelled",
                     "message": str(exc),
                     "status": 499,
+                },
+                "request_id": request_id,
+            },
+        }
+    except Exception as exc:  # noqa: BLE001 - return a safe terminal event for any backend failure
+        getattr(app.state, "logger", LOGGER).error(
+            "inference.stream.failed", extra={"request_id": request_id, "error_type": type(exc).__name__}
+        )
+        yield {
+            "event": "error",
+            "data": {
+                "error": {
+                    "type": "server_error",
+                    "code": "model_request_failed",
+                    "message": "The local model request failed. Retry or check model readiness.",
+                    "status": 500,
                 },
                 "request_id": request_id,
             },
@@ -547,14 +578,21 @@ async def update_runtime_config(request: Request) -> JSONResponse:
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Configuration must be valid JSON") from exc
 
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Configuration must be an object")
     raw_defaults = payload.get("default_models")
     if not isinstance(raw_defaults, dict):
         raise HTTPException(status_code=400, detail="default_models must be an object")
-    allowed_endpoints = {"responses", "audio.transcriptions"}
+    allowed_endpoints = {"audio.transcriptions"}
+    if any(
+        is_platform_supported(m.spec, registry.platform_id)
+        for m in registry.models_by_endpoint.get("responses", [])
+    ):
+        allowed_endpoints.add("responses")
     if set(raw_defaults) != allowed_endpoints:
         raise HTTPException(
             status_code=400,
-            detail="Choose exactly one responses model and one audio.transcriptions model",
+            detail="Choose one compatible model for each available endpoint",
         )
     defaults: dict[str, str] = {}
     for endpoint in sorted(allowed_endpoints):
@@ -599,11 +637,12 @@ async def update_runtime_config(request: Request) -> JSONResponse:
 async def trigger_model_load(request: Request) -> JSONResponse:
     load_manager: ModelLoadManager = app.state.load_manager
     registry: ModelRegistry = app.state.registry
-    logger = getattr(app.state, "logger", LOGGER)
     try:
         payload = await request.json()
     except ValueError:
         payload = {}
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="Model preparation must be an object")
     requested_models = payload.get("models")
     scope = str(payload.get("scope") or "selected").lower()
     targets: list[str]
@@ -629,18 +668,53 @@ async def trigger_model_load(request: Request) -> JSONResponse:
     for model_id in dict.fromkeys(targets):
         if not model_id:
             continue
-        if registry.get_loaded(model_id):
+        loaded = registry.get_loaded(model_id)
+        if loaded and is_platform_supported(loaded.spec, registry.platform_id):
             filtered.append(model_id)
         else:
             missing.append(model_id)
     if missing:
-        logger.warning("load_models.unknown_models", extra={"models": missing, "scope": scope})
+        raise HTTPException(
+            status_code=400, detail="A selected model is unknown or unavailable on this platform"
+        )
     targets = filtered
     if not targets:
         raise HTTPException(status_code=400, detail="No models specified for loading")
+    if len(targets) > 8:
+        raise HTTPException(status_code=400, detail="Prepare at most eight models in one job")
 
     job = load_manager.create_job(targets)
     return JSONResponse({"job_id": job.id, "status": job.to_dict()})
+
+
+@app.get("/runtime/models")
+async def runtime_models() -> JSONResponse:
+    return JSONResponse(await asyncio.to_thread(inventory, app.state.registry, app.state.config.cache_dir))
+
+
+@app.post("/runtime/models/unload")
+async def unload_model(request: Request) -> JSONResponse:
+    try:
+        payload = await request.json()
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Model selection must be JSON") from exc
+    model_id = payload.get("model") if isinstance(payload, dict) else None
+    if not isinstance(model_id, str) or not app.state.registry.get_loaded(model_id):
+        raise HTTPException(status_code=400, detail="Choose a catalog model")
+    try:
+        released = await app.state.registry.unload(model_id)
+    except ModelBusyError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    app.state.readiness.loaded_models = sorted(app.state.registry.model_instances)
+    return JSONResponse({"model": model_id, "released": released, "cache_preserved": True})
+
+
+@app.post("/load_models/{job_id}/cancel")
+async def cancel_model_preparation(job_id: str) -> JSONResponse:
+    job = app.state.load_manager.request_cancel(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Load job not found")
+    return JSONResponse(job.to_dict())
 
 
 @app.get("/load_models/{job_id}")
@@ -716,6 +790,7 @@ async def responses(request: Request) -> Response:
         request_id, cancellation_token, disconnect_watcher = _begin_inference(
             request,
             timeout_seconds=_inference_timeout_seconds(selected),
+            model_id=model_id,
         )
     except RequestIdInUseError as exc:
         return format_error(
@@ -838,6 +913,7 @@ async def audio_transcriptions(request: Request) -> Response:
         request_id, cancellation_token, disconnect_watcher = _begin_inference(
             request,
             timeout_seconds=_inference_timeout_seconds(selected),
+            model_id=model_id,
         )
     except RequestIdInUseError as exc:
         return format_error(
@@ -908,6 +984,7 @@ async def audio_translations(request: Request) -> Response:
         request_id, cancellation_token, disconnect_watcher = _begin_inference(
             request,
             timeout_seconds=_inference_timeout_seconds(selected),
+            model_id=model_id,
         )
     except RequestIdInUseError as exc:
         return format_error(

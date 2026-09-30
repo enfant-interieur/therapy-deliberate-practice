@@ -20,6 +20,8 @@ MODEL_CATALOG = ROOT / "apps" / "web" / "public" / "local-suite" / "models.json"
 FAMILY_BY_MODEL_ID = {
     "local//llm/qwen3-hf": "qwen-transformers",
     "local//llm/qwen3-mlx": "qwen-mlx",
+    "local//llm/qwen35-2b-mlx": "qwen-mlx",
+    "local//llm/qwen35-9b-mlx": "qwen-mlx",
     "local//stt/faster-whisper": "faster-whisper",
     "local//stt/parakeet-mlx": "parakeet-mlx",
 }

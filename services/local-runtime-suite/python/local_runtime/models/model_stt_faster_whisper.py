@@ -27,7 +27,7 @@ SPEC = {
         "priority": 120,
         "requires_ram_gb": 6,
         "requires_vram_gb": 0,
-        "disk_gb": 4,
+        "disk_gb": 1,
     },
     "api": {
         "endpoint": "audio.transcriptions",
@@ -100,7 +100,7 @@ def load(ctx: RunContext) -> dict[str, Any]:
     )
     try:
         model = WhisperModel(
-            model_ref,
+            getattr(ctx, "model_path", None) or model_ref,
             device=device,
             compute_type=compute_type,
             revision=revision,

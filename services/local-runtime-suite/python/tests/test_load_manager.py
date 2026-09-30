@@ -44,7 +44,8 @@ async def test_explicit_load_job_reports_backend_failure() -> None:
 
     assert job.status == "failed"
     assert job.statuses[model_id].status == "error"
-    assert job.statuses[model_id].error == "model weights are unavailable"
+    assert "Check storage, network" in job.statuses[model_id].error
+    assert "model weights are unavailable" not in job.statuses[model_id].error
     assert readiness.loaded_models == []
 
 

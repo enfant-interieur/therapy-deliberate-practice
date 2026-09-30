@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { ModelLibrary } from "./components/ModelLibrary";
+import { confirmModelPreparation } from "./lib/modelPreparation";
 import { GatewayLaunchButton } from "./components/GatewayLaunchButton";
 import { useGatewayBoot } from "./hooks/useGatewayBoot";
 import {
@@ -25,20 +27,24 @@ type ModelSummary = {
 
 type ModelLoadStatus = {
   model_id: string;
-  status: "pending" | "loading" | "loaded" | "skipped" | "error";
+  status: "pending" | "loading" | "loaded" | "skipped" | "error" | "cancelled";
   started_at: number | null;
   finished_at: number | null;
   duration_ms: number | null;
   error: string | null;
+  stage?: string;
+  completed_bytes?: number;
+  total_bytes?: number;
 };
 
 type ModelLoadJob = {
   id: string;
-  status: "pending" | "running" | "completed" | "failed";
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
   created_at: number;
   started_at: number | null;
   finished_at: number | null;
   models: ModelLoadStatus[];
+  cancellation_requested?: boolean;
 };
 
 type ModelLoadView = {
@@ -189,7 +195,7 @@ const describeGatewayStatus = (status: string, t: Translator) => {
 };
 
 const describeModelStatus = (status: ModelLoadStatus["status"], t: Translator) =>
-  t(`model.status.${status}`);
+  t(status === "cancelled" ? "library.cancelled" : `model.status.${status}`);
 
 const formatErrorMessage = (error: unknown, t: Translator) => {
   if (error instanceof DOMException && error.name === "AbortError") {
@@ -330,7 +336,7 @@ export const App = () => {
       if (!isCurrentRun()) return;
       job = latestJob;
       setModelLoad({
-        phase: job.status === "pending" ? "starting" : job.status,
+        phase: job.status === "pending" ? "starting" : job.status === "cancelled" ? "failed" : job.status,
         job
       });
     }
@@ -376,11 +382,16 @@ export const App = () => {
     setModelLoad({ phase: "starting" });
     logEvent(t("events.modelLoadStarting", { count: selectedModels.length }));
     try {
+      if (!await confirmModelPreparation(selectedModels, t)) {
+        if (runId === modelLoadRunRef.current) setModelLoad({ phase: "idle" });
+        return;
+      }
+      if (runId !== modelLoadRunRef.current) return;
       await invoke("save_gateway_config", {
         payload: {
           port,
           default_models: {
-            responses: defaults.llm,
+            ...(defaults.llm ? { responses: defaults.llm } : {}),
             "audio.transcriptions": defaults.stt
           },
           prefer_local: preferLocal
@@ -483,7 +494,7 @@ export const App = () => {
         payload: {
           port,
           default_models: {
-            responses: defaults.llm,
+            ...(defaults.llm ? { responses: defaults.llm } : {}),
             "audio.transcriptions": defaults.stt
           },
           prefer_local: preferLocal
@@ -528,7 +539,7 @@ export const App = () => {
         payload: {
           port: parsed,
           default_models: {
-            responses: defaults.llm,
+            ...(defaults.llm ? { responses: defaults.llm } : {}),
             "audio.transcriptions": defaults.stt
           },
           prefer_local: preferLocal
@@ -713,6 +724,9 @@ export const App = () => {
     const llmStart = performance.now();
     let llmResult: QuickTestResult;
     try {
+      if (!defaults.llm) {
+        llmResult = { status: "idle", preview: t("library.speechOnly") };
+      } else {
       const response = await fetchInferenceWithTimeout(
         `${baseUrl}/v1/responses`,
         pairing.token,
@@ -723,6 +737,7 @@ export const App = () => {
             "Content-Type": "application/json"
           },
           body: JSON.stringify({
+            model: defaults.llm,
             input: "Self-test: reply with exactly the single word 'pong'.",
             max_output_tokens: 32,
             temperature: 0
@@ -743,6 +758,7 @@ export const App = () => {
       }
       llmResult = { status: "ok", durationMs, preview: text.trim() };
       logEvent(t("events.llmTestOk", { duration: durationMs }));
+      }
     } catch (error) {
       const durationMs = Math.round(performance.now() - llmStart);
       const message = formatErrorMessage(error, t);
@@ -758,6 +774,7 @@ export const App = () => {
     try {
       const formData = new FormData();
       formData.append("file", makeSilentWavBlob(), "selftest.wav");
+      formData.append("model", defaults.stt);
       formData.append("response_format", "json");
       formData.append("language", "en");
       const response = await fetchInferenceWithTimeout(
@@ -797,7 +814,7 @@ export const App = () => {
 
     const finishedAt = new Date().toISOString();
     const overallStatus =
-      llmResult.status === "ok" && sttResult.status === "ok" ? "ok" : "error";
+      (llmResult.status === "ok" || !defaults.llm) && sttResult.status === "ok" ? "ok" : "error";
     setQuickTests((prev) => ({
       ...prev,
       status: overallStatus,
@@ -994,7 +1011,7 @@ export const App = () => {
       setDefaults(nextDefaults);
       logEvent(
         t("events.defaultsSelected", {
-          platform: runtimePlatformId ?? t("hero.detectedMachine")
+          platform: runtimePlatformId === "darwin-arm64" ? t("library.platformApple") : runtimePlatformId === "darwin-x64" ? t("library.platformIntel") : runtimePlatformId === "windows-x64" ? t("library.platformWindows") : runtimePlatformId === "linux-x64" ? t("library.platformLinux") : t("hero.detectedMachine")
         })
       );
     }
@@ -1031,7 +1048,7 @@ export const App = () => {
   const canLoadModels = isGatewayRunning;
   const hasModels = models.length > 0;
   const canChooseDefaults = hasModels;
-  const defaultsComplete = Boolean(defaults.llm && defaults.stt);
+  const defaultsComplete = hasModels && Boolean(defaults.stt && (runtimePlatformId === "darwin-x64" || defaults.llm));
   const selectedModelIds = [...new Set([defaults.llm, defaults.stt].filter(Boolean))];
   const runtimeLoadedModels = new Set(runtimeState?.loaded_models ?? []);
   const selectedModelsLoaded =
@@ -1041,7 +1058,7 @@ export const App = () => {
     modelLoad.phase === "starting" ||
     modelLoad.phase === "running" ||
     modelLoad.phase === "timed_out";
-  const canSave = defaultsComplete && selectedModelsLoaded;
+  const canSave = defaultsComplete;
   const isSaved = saveState === "saved";
   const simpleStep1Complete = gatewayReady;
   const simpleStep2Complete = selectedModelsLoaded;
@@ -1202,8 +1219,9 @@ export const App = () => {
           </button>
         </div>
       ) : null}
+      {modelLoadBusy && modelLoad.job ? <button className="btn ghost" disabled={modelLoad.job.cancellation_requested} onClick={() => void invoke<ModelLoadJob>("gateway_cancel_model_load", { payload: { job_id: modelLoad.job!.id } }).then((job) => setModelLoad((previous) => ({ ...previous, job }))).catch(() => logEvent(t("library.prepareError")))}>{t(modelLoad.job.cancellation_requested ? "library.cancelRequested" : "library.cancel")}</button> : null}
       {modelLoadBusy ? (
-        <div className="helper-text">{t("model.firstRun")}</div>
+        <div className="helper-text">{t("library.cancelBoundary")}</div>
       ) : null}
     </div>
   );
@@ -1228,7 +1246,7 @@ export const App = () => {
             <div className="title">{t("hero.title")}</div>
             <div className="hero-subtitle">
               {t("hero.subtitle", {
-                platform: runtimePlatformId ?? t("hero.detectedMachine")
+                platform: runtimePlatformId === "darwin-arm64" ? t("library.platformApple") : runtimePlatformId === "darwin-x64" ? t("library.platformIntel") : runtimePlatformId === "windows-x64" ? t("library.platformWindows") : runtimePlatformId === "linux-x64" ? t("library.platformLinux") : t("hero.detectedMachine")
               })}
             </div>
           </div>
@@ -1252,6 +1270,7 @@ export const App = () => {
             </button>
           </div>
         </div>
+        <ModelLibrary enabled={isGatewayRunning} selected={defaults} onChoose={setDefaults} onChanged={refreshRuntimeState} busy={modelLoadBusy} t={t} />
         <div className="hero-steps">
           <div className={`simple-step ${simpleStep1Complete ? "complete" : ""} ${simpleActiveStep === 1 ? "active" : ""}`}>
             <div className="simple-step-index">{simpleStep1Complete ? "✓" : "1"}</div>
@@ -1290,7 +1309,7 @@ export const App = () => {
             <div className="simple-step-index">{simpleStep2Complete ? "✓" : "2"}</div>
             <div className="simple-step-content">
               <div className="simple-step-title">{t("hero.prepareTitle")}</div>
-              <div className="simple-step-description">{t("hero.prepareDescription")}</div>
+              <div className="simple-step-description">{t(runtimePlatformId === "darwin-x64" ? "library.speechOnly" : "hero.prepareDescription")}</div>
               <div className="grid">
                 <div>
                   <div className="label">{t("model.language")}</div>
@@ -1860,7 +1879,7 @@ export const App = () => {
                   {describeModelLoadPhase(effectiveModelLoadPhase, t)}
                 </span>
               </div>
-              <p className="step-description">{t("model.prepareDescription")}</p>
+              <p className="step-description">{t(runtimePlatformId === "darwin-x64" ? "library.speechOnly" : "model.prepareDescription")}</p>
               <div className="button-row">
                 <button
                   className="btn primary"

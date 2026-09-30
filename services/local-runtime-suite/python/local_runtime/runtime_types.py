@@ -33,6 +33,10 @@ class RunContext:
     registry: ModelRegistry
     http_client: Any
     cancellation_token: Any | None = None
+    model_id: str | None = None
+    model_path: str | None = None
+    load_progress: Any | None = None
+    preparation_cancel: Any | None = None
 
 
 RunResult = dict | bytes | str | AsyncIterator[dict] | AsyncIterator[bytes]

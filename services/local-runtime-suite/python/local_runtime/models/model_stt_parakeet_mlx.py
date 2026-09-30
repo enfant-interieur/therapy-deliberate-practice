@@ -10,6 +10,7 @@ import threading
 import time
 import wave
 from collections.abc import AsyncIterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,7 @@ SPEC = {
         "priority": 130,
         "requires_ram_gb": 8,
         "requires_vram_gb": 0,
-        "disk_gb": 6,
+        "disk_gb": 3,
     },
     "api": {
         "endpoint": "audio.transcriptions",
@@ -153,7 +154,16 @@ def _ensure_ffmpeg_available(cache_dir: str) -> str:
         return resolved
 
 
+_PARAKEET_WORKER = ThreadPoolExecutor(max_workers=1, thread_name_prefix="parakeet-mlx")
+
+
 def load(ctx: RunContext) -> dict[str, Any]:
+    # MLX CPU streams belong to the thread that created them. Keep model
+    # construction and all transcription on the same persistent worker.
+    return _PARAKEET_WORKER.submit(_load_on_worker, ctx).result()
+
+
+def _load_on_worker(ctx: RunContext) -> dict[str, Any]:
     try:
         from parakeet_mlx import from_pretrained  # type: ignore
     except ImportError as exc:
@@ -163,7 +173,7 @@ def load(ctx: RunContext) -> dict[str, Any]:
     model_name = os.getenv("LOCAL_RUNTIME_STT_MODEL", SPEC["backend"]["model_ref"])
     revision = os.getenv("LOCAL_RUNTIME_STT_REVISION") or SPEC["backend"]["revision"]
     ffmpeg_path = _ensure_ffmpeg_available(ctx.cache_dir)
-    model_path = _resolve_model_path(model_name, revision, ctx.cache_dir)
+    model_path = getattr(ctx, "model_path", None) or _resolve_model_path(model_name, revision, ctx.cache_dir)
     ctx.logger.info(
         "parakeet_mlx.load",
         extra={"model_id": SPEC["id"], "model_ref": model_name, "revision": revision},
@@ -313,17 +323,31 @@ async def _run_transcribe(
     token: CancellationToken | None = None,
 ) -> Any:
     kwargs = _build_transcribe_kwargs(chunk_duration, overlap_duration, decoding_config)
+    guard = acquire_model_lock(instance["lock"], token)
+    guard.__enter__()
 
     def _invoke():
-        if token is not None:
-            token.raise_if_cancelled()
-        with acquire_model_lock(instance["lock"], token):
+        try:
+            if token is not None:
+                token.raise_if_cancelled()
             result = instance["model"].transcribe(audio_path, **kwargs)
-        if token is not None:
-            token.raise_if_cancelled()
-        return result
+            if token is not None:
+                token.raise_if_cancelled()
+            return result
+        finally:
+            guard.__exit__(None, None, None)
 
-    return await asyncio.to_thread(_invoke)
+    try:
+        future = _PARAKEET_WORKER.submit(_invoke)
+    except Exception:
+        guard.__exit__(None, None, None)
+        raise
+    # A queued job can be cancelled before it starts. A running native call
+    # retains its lock until _invoke actually finishes, even after disconnect.
+    future.add_done_callback(
+        lambda completed: guard.__exit__(None, None, None) if completed.cancelled() else None
+    )
+    return await asyncio.wrap_future(future)
 
 
 def _normalise_transcribe_window(

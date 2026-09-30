@@ -25,7 +25,7 @@ SPEC = {
         "platforms": ["darwin-arm64", "windows-x64", "linux-x64"],
         "acceleration": ["cpu", "metal"],
         "priority": 90,
-        "requires_ram_gb": 8,
+        "requires_ram_gb": 16,
         "requires_vram_gb": 0,
         "disk_gb": 10,
     },
@@ -96,27 +96,9 @@ def _load_backend() -> tuple[Any, Any, Any, Any]:
 
 
 def _prepare_prompt(payload: dict | None, tokenizer: Any | None = None) -> str:
-    if not payload:
-        return "You are a helpful assistant."
-    messages = payload.get("messages")
-    if messages:
-        if tokenizer and getattr(tokenizer, "chat_template", None):
-            return tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-        return "\n".join(f"{m.get('role', 'user')}: {m.get('content', '')}" for m in messages)
-    if isinstance(payload.get("input"), list):
-        parts: list[str] = []
-        for entry in payload["input"]:
-            if isinstance(entry, str):
-                parts.append(entry)
-            elif isinstance(entry, dict) and entry.get("type") == "text" and "text" in entry:
-                parts.append(str(entry["text"]))
-        if parts:
-            return "\n".join(parts)
-    if isinstance(payload.get("input"), str):
-        return payload["input"]
-    if payload.get("prompt"):
-        return str(payload["prompt"])
-    return "You are a helpful assistant."
+    from local_runtime.helpers.chat_prompt import prepare_chat_prompt
+
+    return prepare_chat_prompt(payload, tokenizer)
 
 
 def _generation_params(payload: dict | None) -> dict[str, Any]:
@@ -200,13 +182,13 @@ def load(ctx: RunContext) -> dict[str, Any]:
     )
     try:
         tokenizer = AutoTokenizer.from_pretrained(
-            model_ref,
+            getattr(ctx, "model_path", None) or model_ref,
             revision=revision,
             trust_remote_code=False,
             cache_dir=ctx.cache_dir,
         )
         model = AutoModelForCausalLM.from_pretrained(
-            model_ref,
+            getattr(ctx, "model_path", None) or model_ref,
             revision=revision,
             trust_remote_code=False,
             torch_dtype="auto",

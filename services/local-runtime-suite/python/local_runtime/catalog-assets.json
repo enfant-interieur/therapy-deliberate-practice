@@ -1,0 +1,299 @@
+{
+  "schema_version": 1,
+  "models": {
+    "local//llm/qwen3-mlx": {
+      "repo": "mlx-community/Qwen3-4B-Instruct-2507-4bit",
+      "revision": "50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+      "license": "apache-2.0",
+      "languages": [
+        "fr",
+        "en"
+      ],
+      "verified_at": "2026-09-30",
+      "source": "https://huggingface.co/mlx-community/Qwen3-4B-Instruct-2507-4bit/tree/50d427756c6b1b2fe0c0a10f67fbda1fc8e82c1b",
+      "files": [
+        {
+          "name": "added_tokens.json",
+          "bytes": 707,
+          "sha256": null
+        },
+        {
+          "name": "chat_template.jinja",
+          "bytes": 4040,
+          "sha256": null
+        },
+        {
+          "name": "config.json",
+          "bytes": 938,
+          "sha256": null
+        },
+        {
+          "name": "generation_config.json",
+          "bytes": 238,
+          "sha256": null
+        },
+        {
+          "name": "merges.txt",
+          "bytes": 1671853,
+          "sha256": null
+        },
+        {
+          "name": "model.safetensors",
+          "bytes": 2263022417,
+          "sha256": "2a73c6c248601ab904e035548abd8e6abb65ea27dcb5f342fb0a8910eb44173f"
+        },
+        {
+          "name": "model.safetensors.index.json",
+          "bytes": 63964,
+          "sha256": null
+        },
+        {
+          "name": "special_tokens_map.json",
+          "bytes": 613,
+          "sha256": null
+        },
+        {
+          "name": "tokenizer.json",
+          "bytes": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "bytes": 5440,
+          "sha256": null
+        },
+        {
+          "name": "vocab.json",
+          "bytes": 2776833,
+          "sha256": null
+        }
+      ],
+      "download_bytes": 2278969697
+    },
+    "local//llm/qwen3-hf": {
+      "repo": "Qwen/Qwen3-4B-Instruct-2507",
+      "revision": "cdbee75f17c01a7cc42f958dc650907174af0554",
+      "license": "apache-2.0",
+      "languages": [
+        "fr",
+        "en"
+      ],
+      "verified_at": "2026-09-30",
+      "source": "https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507/tree/cdbee75f17c01a7cc42f958dc650907174af0554",
+      "files": [
+        {
+          "name": "config.json",
+          "bytes": 727,
+          "sha256": null
+        },
+        {
+          "name": "generation_config.json",
+          "bytes": 238,
+          "sha256": null
+        },
+        {
+          "name": "merges.txt",
+          "bytes": 1671839,
+          "sha256": null
+        },
+        {
+          "name": "model-00001-of-00003.safetensors",
+          "bytes": 3957900840,
+          "sha256": "75311d91bb08cf0b882913da464a1e722a31fb44db35208663487efb7a3d8ed6"
+        },
+        {
+          "name": "model-00002-of-00003.safetensors",
+          "bytes": 3987450520,
+          "sha256": "0b48adbb1f60e901153d91907ba11ce63bd4b8b584482e730f48808d055dfba1"
+        },
+        {
+          "name": "model-00003-of-00003.safetensors",
+          "bytes": 99630640,
+          "sha256": "7dd39ccca5e4de123c74c14af44c9bf2eb75df33b4614382af0134528e060d5d"
+        },
+        {
+          "name": "model.safetensors.index.json",
+          "bytes": 32819,
+          "sha256": null
+        },
+        {
+          "name": "tokenizer.json",
+          "bytes": 11422654,
+          "sha256": "aeb13307a71acd8fe81861d94ad54ab689df773318809eed3cbe794b4492dae4"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "bytes": 9377,
+          "sha256": null
+        },
+        {
+          "name": "vocab.json",
+          "bytes": 2776833,
+          "sha256": null
+        }
+      ],
+      "download_bytes": 8060896487
+    },
+    "local//stt/faster-whisper": {
+      "repo": "Systran/faster-whisper-base",
+      "revision": "ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66",
+      "license": "mit",
+      "languages": [
+        "fr",
+        "en"
+      ],
+      "verified_at": "2026-09-30",
+      "source": "https://huggingface.co/Systran/faster-whisper-base/tree/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66",
+      "files": [
+        {
+          "name": "config.json",
+          "bytes": 2309,
+          "sha256": null
+        },
+        {
+          "name": "model.bin",
+          "bytes": 145217532,
+          "sha256": "d01c3014881c9c6f3133c182f3d2887eb6ca1c789a7538c5c007196857a0a6a9"
+        },
+        {
+          "name": "tokenizer.json",
+          "bytes": 2203239,
+          "sha256": null
+        },
+        {
+          "name": "vocabulary.txt",
+          "bytes": 459861,
+          "sha256": null
+        }
+      ],
+      "download_bytes": 147882941
+    },
+    "local//stt/parakeet-mlx": {
+      "repo": "mlx-community/parakeet-tdt-0.6b-v3",
+      "revision": "ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15",
+      "license": "cc-by-4.0",
+      "languages": [
+        "fr",
+        "en"
+      ],
+      "verified_at": "2026-09-30",
+      "source": "https://huggingface.co/mlx-community/parakeet-tdt-0.6b-v3/tree/ed2b7e8c15f9aaa0b5772e2efb986255eaef7e15",
+      "files": [
+        {
+          "name": "config.json",
+          "bytes": 244093,
+          "sha256": null
+        },
+        {
+          "name": "model.safetensors",
+          "bytes": 2508288736,
+          "sha256": "05e01c7f396c298cf7d23f61da7b504adeab698f0aaeafd9c82d198625464592"
+        }
+      ],
+      "download_bytes": 2508532829
+    },
+    "local//llm/qwen35-2b-mlx": {
+      "repo": "mlx-community/Qwen3.5-2B-4bit",
+      "revision": "674aaa7240b91e8012fcad5d791b7dfe5ba90207",
+      "license": "apache-2.0",
+      "languages": [
+        "fr",
+        "en"
+      ],
+      "verified_at": "2026-09-30",
+      "source": "https://huggingface.co/mlx-community/Qwen3.5-2B-4bit/tree/674aaa7240b91e8012fcad5d791b7dfe5ba90207",
+      "files": [
+        {
+          "name": "chat_template.jinja",
+          "bytes": 7755,
+          "sha256": null
+        },
+        {
+          "name": "config.json",
+          "bytes": 3113,
+          "sha256": null
+        },
+        {
+          "name": "model.safetensors",
+          "bytes": 1722271785,
+          "sha256": "713fe7e5d3c3965f7106b0d0ee17615f7869c23c8d327996df8c1196fbcf07d5"
+        },
+        {
+          "name": "model.safetensors.index.json",
+          "bytes": 81722,
+          "sha256": null
+        },
+        {
+          "name": "tokenizer.json",
+          "bytes": 19989343,
+          "sha256": "87a7830d63fcf43bf241c3c5242e96e62dd3fdc29224ca26fed8ea333db72de4"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "bytes": 1139,
+          "sha256": null
+        },
+        {
+          "name": "vocab.json",
+          "bytes": 6722759,
+          "sha256": null
+        }
+      ],
+      "download_bytes": 1749077616
+    },
+    "local//llm/qwen35-9b-mlx": {
+      "repo": "mlx-community/Qwen3.5-9B-4bit",
+      "revision": "8b2b98c00a6b4d291155e4890773ca8f769aee53",
+      "license": "apache-2.0",
+      "languages": [
+        "fr",
+        "en"
+      ],
+      "verified_at": "2026-09-30",
+      "source": "https://huggingface.co/mlx-community/Qwen3.5-9B-4bit/tree/8b2b98c00a6b4d291155e4890773ca8f769aee53",
+      "files": [
+        {
+          "name": "chat_template.jinja",
+          "bytes": 7756,
+          "sha256": null
+        },
+        {
+          "name": "config.json",
+          "bytes": 3331,
+          "sha256": null
+        },
+        {
+          "name": "model-00001-of-00002.safetensors",
+          "bytes": 5349771222,
+          "sha256": "a68b87558c6ef43f74c2bd63ce7e9092ceddc3101f3def0030774bae5f42aadd"
+        },
+        {
+          "name": "model-00002-of-00002.safetensors",
+          "bytes": 600449850,
+          "sha256": "b0a770bf8469c7f3f18756a0e0283f1c1174344a83e059a4e483f6af4907352d"
+        },
+        {
+          "name": "model.safetensors.index.json",
+          "bytes": 123592,
+          "sha256": null
+        },
+        {
+          "name": "tokenizer.json",
+          "bytes": 19989343,
+          "sha256": "87a7830d63fcf43bf241c3c5242e96e62dd3fdc29224ca26fed8ea333db72de4"
+        },
+        {
+          "name": "tokenizer_config.json",
+          "bytes": 1139,
+          "sha256": null
+        },
+        {
+          "name": "vocab.json",
+          "bytes": 6722759,
+          "sha256": null
+        }
+      ],
+      "download_bytes": 5977068992
+    }
+  }
+}

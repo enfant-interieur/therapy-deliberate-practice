@@ -108,7 +108,7 @@ def test_runtime_digest_changes_for_source_and_lock_edits(tmp_path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"{relative}\n")
     source = tmp_path / "local_runtime" / "main.py"
-    source.parent.mkdir()
+    source.parent.mkdir(exist_ok=True)
     source.write_text("VERSION = 1\n")
     before = build_portable_sidecar.runtime_source_digest(tmp_path)
 
@@ -127,7 +127,7 @@ def test_runtime_digest_ignores_generated_python_cache_files(tmp_path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(f"{relative}\n")
     source = tmp_path / "local_runtime" / "main.py"
-    source.parent.mkdir()
+    source.parent.mkdir(exist_ok=True)
     source.write_text("VERSION = 1\n")
     before = build_portable_sidecar.runtime_source_digest(tmp_path)
 

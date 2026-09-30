@@ -1,6 +1,6 @@
 [package]
 name = "local-runtime-desktop"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2021"
 default-run = "local-runtime-desktop"
 autobins = false

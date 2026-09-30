@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import gc
 import inspect
 import logging
 import time
@@ -8,6 +9,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
+from local_runtime.cancellation import ModelBusyError
+from local_runtime.core.assets import prepare_assets
 from local_runtime.core.loader import LoadedModel
 
 
@@ -44,6 +47,7 @@ class ModelRegistry:
             model_id: asyncio.Lock() for model_id in self._models_by_id
         }
         self._load_tasks: dict[str, asyncio.Task[Any]] = {}
+        self.active_models: dict[str, str] = {}
 
     def _build_indexes(self) -> None:
         for loaded in self._models:
@@ -161,6 +165,15 @@ class ModelRegistry:
         warmup_ctx: Any | None,
         run_warmup: bool,
     ) -> Any:
+        if ctx is not None:
+            ctx.model_id = model_id
+            ctx.model_path = await asyncio.to_thread(
+                prepare_assets,
+                model_id,
+                ctx.cache_dir,
+                getattr(ctx, "load_progress", None),
+                getattr(ctx, "preparation_cancel", None),
+            )
         instance = await self._call_hook(hooks.load, ctx, model_id=model_id, phase=phase)
         if run_warmup and hooks.warmup is not None:
             await self._call_hook(
@@ -172,6 +185,32 @@ class ModelRegistry:
             )
         self.model_instances[model_id] = instance
         return instance
+
+    async def unload(self, model_id: str) -> bool:
+        if model_id not in self._models_by_id:
+            raise KeyError(model_id)
+        async with self._load_locks[model_id]:
+            if model_id in self._load_tasks or model_id in self.active_models.values():
+                raise ModelBusyError("This model is preparing or serving a request. Retry after it finishes.")
+            instance = self.model_instances.get(model_id)
+            if instance is None:
+                return False
+            lock = instance.get("lock") if isinstance(instance, dict) else None
+            if lock is not None and not lock.acquire(blocking=False):
+                raise ModelBusyError("The model is finishing a request. Retry in a moment.")
+            try:
+                self.model_instances.pop(model_id)
+            finally:
+                if lock is not None:
+                    lock.release()
+            del instance
+            gc.collect()
+            if self._models_by_id[model_id].spec.backend.provider == "mlx":
+                import mlx.core as mx
+
+                mx.clear_cache()
+            self.logger.info("model.unloaded", extra={"model_id": model_id})
+            return True
 
     def _clear_load_task(self, model_id: str, completed: asyncio.Task[Any]) -> None:
         if self._load_tasks.get(model_id) is completed:
@@ -257,6 +296,9 @@ class ModelRegistry:
                 extra={"model_id": model_id, "phase": phase, "duration_ms": duration_ms},
             )
             return result
-        except Exception:
-            self.logger.exception("model.lifecycle.error", extra={"model_id": model_id, "phase": phase})
+        except Exception as exc:
+            self.logger.error(
+                "model.lifecycle.error",
+                extra={"model_id": model_id, "phase": phase, "error_type": type(exc).__name__},
+            )
             raise

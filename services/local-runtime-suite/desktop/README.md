@@ -13,7 +13,7 @@ The Local Runtime Desktop app starts and stops one managed local gateway, guides
 - metadata-only logs and doctor checks; there is no content-logging toggle;
 - safe recovery after a crashed or stale child process.
 
-The English and French control centre supports persisted locale selection, long translated text, widths down to 360 pixels, keyboard focus management, visible status text, and reduced-motion preferences. Stopping the desktop app's wait or closing the interface does not cancel a model load that is already running in the gateway; reopen the status view and recheck the existing job instead of starting a duplicate.
+The English and French control centre supports persisted locale selection, long translated text, widths down to 360 pixels, keyboard focus management, visible status text, and reduced-motion preferences. Model preparation can now be cancelled at a safe file boundary. An in-flight transfer or native load finishes its current operation, and existing files are retained. Closing a status view alone does not cancel preparation. Reopen the status view and inspect the existing job before retrying. Models can be released individually from memory while their cache files remain intact. Valid defaults can be saved before loading; Intel Mac accepts transcription-only settings. See the [model profiles and privacy guide](../README.md).
 
 ## Development
 

@@ -68,13 +68,16 @@ class StructuredFormatter(logging.Formatter):
                 key in _RESERVED_LOG_RECORD_ATTRS
                 or key == "exc_info"
                 or key == "exc_text"
+                or key
+                in {"error", "prompt", "text", "response", "transcript", "access_token", "authorization"}
                 or key in payload
                 or value is None
             ):
                 continue
             payload[key] = self._normalize(value)
         if record.exc_info:
-            payload["exception"] = self.formatException(record.exc_info)
+            # Backend exception messages can contain prompts, paths or tokens.
+            payload["exception_type"] = record.exc_info[0].__name__
         return json.dumps(payload, ensure_ascii=False)
 
 

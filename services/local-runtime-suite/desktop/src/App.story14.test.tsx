@@ -141,6 +141,8 @@ const baseInvoke = async (command: string) => {
       return { checks: [] };
     case "gateway_models":
       return { data: structuredClone(models) };
+    case "gateway_model_inventory":
+      return { resources: { memory_bytes: 64 * 1024 ** 3, cache_free_bytes: 50 * 1024 ** 3 }, models: models.map((model) => ({ id: model.id, title: model.metadata.display.title, kind: model.metadata.api.endpoint === "responses" ? "llm" : "stt", endpoint: model.metadata.api.endpoint, ram_gb: 8, provider: "fixture", languages: ["fr", "en"], license: "mit", revision: "f".repeat(40), source: "https://example.com", active_requests: 0, loading: false, compatible: true, memory_suitable: true, loaded: false, assets: { state: "cached", total_bytes: 100, completed_bytes: 100 } })) };
     case "gateway_runtime_state":
       return {
         platform_id: "darwin-arm64",
@@ -651,7 +653,7 @@ describe("Story 14 desktop UI evidence", () => {
       const shell = container.querySelector<HTMLElement>(".app-shell");
       expect(shell?.dataset.locale).toBe("fr");
       expect(shell?.textContent).toContain(
-        fr.hero.subtitle.replace("{platform}", "darwin-arm64"),
+        fr.hero.subtitle.replace("{platform}", fr.library.platformApple),
       );
       const languageSelect = shell?.querySelector<HTMLSelectElement>(
         ".locale-control select",
