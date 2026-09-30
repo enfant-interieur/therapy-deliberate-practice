@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test, mock } from "node:test";
+import { getOpenAIClient } from "../src/providers/openaiClient";
 import { mkdtemp, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -561,4 +562,114 @@ Line`;
   assert.match(prompts[1], /language/i);
 
   await rm(dir, { recursive: true, force: true });
+});
+
+test("real batch call sites log actual model and request metadata without source content or invented injected identities", async () => {
+  const { db, dir } = await createTempDb();
+  const apiKey = "synthetic-batch-routing-key";
+  const env = resolveEnv({ ENV: "test", OPENAI_API_KEY: apiKey });
+  const sourceText = "Source content sentinel\nA fictional example.";
+  const generated: DeliberatePracticeTaskV2 = {
+    version: "2.1",
+    task: {
+      title: "Generated content sentinel",
+      description: "Fictional task",
+      skill_domain: "demo",
+      base_difficulty: 1,
+      general_objective: null,
+      tags: [],
+      language: "en",
+    },
+    criteria: [],
+    examples: [
+      {
+        id: "example",
+        difficulty: 1,
+        severity_label: null,
+        patient_text: "Patient content sentinel",
+        language: "en",
+        meta: null,
+      },
+    ],
+    interaction_examples: [],
+  };
+  const plan = {
+    tasks: [
+      {
+        start_line: 1,
+        end_line: 2,
+        title_hint: "Title hint sentinel",
+        confidence: 1,
+        reason: "Single block",
+        context_blocks: [],
+      },
+    ],
+  };
+  const requests: string[] = [];
+  const client = getOpenAIClient({ apiKey });
+  const mocked = mock.method(
+    client.responses,
+    "create",
+    async (body: Record<string, unknown>) => {
+      requests.push(String(body.model));
+      return {
+        status: "completed",
+        output_text: JSON.stringify(requests.length === 1 ? plan : generated),
+        _request_id: `req_batch_${requests.length}`,
+      };
+    },
+  );
+  const events: Array<{ event: string; fields: Record<string, unknown> }> = [];
+  const logger = (
+    _level: unknown,
+    event: string,
+    fields?: Record<string, unknown>,
+  ) => events.push({ event, fields: fields ?? {} });
+  try {
+    const jobId = await createBatchParseJob(db, sourceText);
+    await runBatchParseJob(db, env, jobId, {}, { logger });
+    assert.equal(
+      (await getBatchParseStatus(db, jobId, 0))?.job.status,
+      "completed",
+    );
+    assert.deepEqual(requests, ["gpt-6-luna", "gpt-6.1-sol"]);
+    const segmentation = events.find(
+      ({ event }) => event === "batch_parse.plan_segments.ok",
+    )?.fields;
+    assert.deepEqual(segmentation?.provider, {
+      kind: "openai",
+      model: "gpt-6-luna",
+    });
+    assert.equal(segmentation?.reasoning_effort, "none");
+    assert.equal(segmentation?.request_id, "req_batch_1");
+    const generation = events.find(
+      ({ event }) => event === "llm.parse.http_ok",
+    )?.fields;
+    assert.deepEqual(generation?.provider, {
+      kind: "openai",
+      model: "gpt-6.1-sol",
+    });
+    assert.equal(generation?.reasoning_effort, "xhigh");
+    assert.equal(generation?.request_id, "req_batch_2");
+    assert.ok(!JSON.stringify(events).includes("sentinel"));
+    const injectedEvents: typeof events = [];
+    const injectedJob = await createBatchParseJob(db, "Injected source");
+    await runBatchParseJob(
+      db,
+      env,
+      injectedJob,
+      {},
+      {
+        planSegments: async () => plan,
+        parseSegment: async () => generated,
+        logger: (_level, event, fields) =>
+          injectedEvents.push({ event, fields: fields ?? {} }),
+      },
+    );
+    assert.ok(!JSON.stringify(injectedEvents).includes("gpt-6"));
+    assert.deepEqual(requests, ["gpt-6-luna", "gpt-6.1-sol"]);
+  } finally {
+    mocked.mock.restore();
+    await rm(dir, { recursive: true, force: true });
+  }
 });

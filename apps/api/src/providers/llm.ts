@@ -15,27 +15,22 @@ import {
   evaluationResultSchema,
   llmParseSchema,
   taskCriterionSchema,
+  rubricSchema,
   taskInteractionExampleSchema,
 } from "@deliberate/shared";
 import { createStructuredResponse } from "./openaiResponses";
-import { OPENAI_LLM_MODEL } from "./models";
+import { OPENAI_LLM_MODEL, CLOUD_LLM_POLICIES } from "./models";
+import {
+  assertTranslationStructure,
+  requiresClinicalTranslation,
+} from "./translationPolicy";
 import { BaseLlmProvider } from "./base";
+import {
+  createProviderError,
+  getErrorLogFields,
+  getErrorRequestId,
+} from "./providerErrors";
 import { z } from "zod";
-
-const sanitizeExampleMeta = (
-  meta: Record<string, unknown> | null | undefined,
-) => {
-  if (!meta) return null;
-  return Object.fromEntries(
-    Object.entries(meta).filter(
-      (entry): entry is [string, string | number | boolean | null] =>
-        entry[1] === null ||
-        typeof entry[1] === "string" ||
-        typeof entry[1] === "number" ||
-        typeof entry[1] === "boolean",
-    ),
-  );
-};
 
 const sanitizeExample = (example: TaskExample, targetLanguage: string) => ({
   id: example.id,
@@ -43,7 +38,6 @@ const sanitizeExample = (example: TaskExample, targetLanguage: string) => ({
   severity_label: example.severity_label ?? null,
   patient_text: example.patient_text,
   language: targetLanguage,
-  meta: sanitizeExampleMeta(example.meta),
 });
 
 const sanitizeInteractionExample = (example: TaskInteractionExample) => ({
@@ -60,13 +54,6 @@ const translationExampleSchema = z.object({
   severity_label: z.string().nullable().optional(),
   patient_text: z.string(),
   language: z.string().optional(),
-  meta: z
-    .record(
-      z.string(),
-      z.union([z.string(), z.number(), z.boolean(), z.null()]),
-    )
-    .nullable()
-    .optional(),
 });
 
 const translationTaskSchema = z.object({
@@ -80,7 +67,9 @@ const translationTaskSchema = z.object({
     tags: z.array(z.string()),
     language: z.string(),
   }),
-  criteria: z.array(taskCriterionSchema),
+  criteria: z.array(
+    taskCriterionSchema.extend({ rubric: rubricSchema.nullable() }),
+  ),
   examples: z.array(translationExampleSchema),
   interaction_examples: z.array(taskInteractionExampleSchema).optional(),
 });
@@ -120,7 +109,7 @@ class OpenAILlmProviderImpl extends BaseLlmProvider {
         id: criterion.id,
         label: criterion.label,
         description: criterion.description,
-        rubric: criterion.rubric,
+        rubric: criterion.rubric ?? null,
       })),
       examples: normalizedExamples,
       ...(normalizedInteractions
@@ -133,15 +122,21 @@ class OpenAILlmProviderImpl extends BaseLlmProvider {
     return Promise.resolve(Boolean(this.apiKey));
   }
 
+  protected translationProvider(source: DeliberatePracticeTaskV2) {
+    const policy = requiresClinicalTranslation(source)
+      ? CLOUD_LLM_POLICIES.clinicalTranslation
+      : CLOUD_LLM_POLICIES.translation;
+    return { kind: "openai" as const, model: policy.model };
+  }
+
   protected async doEvaluateDeliberatePractice(input: EvaluationInput) {
     const result = await createStructuredResponse<EvaluationResult>({
       apiKey: this.apiKey,
-      model: OPENAI_LLM_MODEL,
-      temperature: 0.2,
+      ...CLOUD_LLM_POLICIES.evaluation,
       instructions: deliberatePracticeEvaluationPrompt,
       input: JSON.stringify(input),
       schemaName: "EvaluationResult",
-      schema: evaluationResultSchema,
+      schema: evaluationResultSchema.omit({ diagnostics: true }),
     });
     return {
       value: result.value,
@@ -152,7 +147,11 @@ class OpenAILlmProviderImpl extends BaseLlmProvider {
   protected async doParseExercise(input: {
     sourceText: string;
     parseMode?: ParseMode;
-  }): Promise<{ value: LlmParseResult; requestId?: string }> {
+  }): Promise<{
+    value: LlmParseResult;
+    requestId?: string;
+    log?: Record<string, unknown>;
+  }> {
     const exactPrompt = `You are a meticulous content-to-JSON extractor for a psychotherapy deliberate-practice platform.
 Your ONLY job is to transform the provided free text into a single JSON object that matches the schema.
 Return STRICT JSON ONLY. No markdown. No commentary. No trailing commas. No extra keys.
@@ -326,14 +325,17 @@ The following is an example of valid output structure. Do not copy its content u
           : exactPrompt;
     const result = await createStructuredResponse<LlmParseResult>({
       apiKey: this.apiKey,
-      model: OPENAI_LLM_MODEL,
-      temperature: 0.2,
+      ...CLOUD_LLM_POLICIES.generation,
       instructions: systemPrompt,
       input: input.sourceText,
       schemaName: "DeliberatePracticeTask",
       schema: llmParseSchema,
     });
-    return { value: result.value, requestId: result.responseId };
+    return {
+      value: result.value,
+      requestId: result.responseId,
+      log: { reasoning_effort: CLOUD_LLM_POLICIES.generation.reasoningEffort },
+    };
   }
 
   protected async doTranslateTask({
@@ -342,7 +344,11 @@ The following is an example of valid output structure. Do not copy its content u
   }: {
     source: DeliberatePracticeTaskV2;
     targetLanguage: string;
-  }): Promise<{ value: DeliberatePracticeTaskV2; requestId?: string }> {
+  }): Promise<{
+    value: DeliberatePracticeTaskV2;
+    requestId?: string;
+    log?: Record<string, unknown>;
+  }> {
     const systemPrompt = `You are a meticulous translation engine for psychotherapy deliberate-practice tasks.
 Translate the provided JSON into ${targetLanguage}.
 Return STRICT JSON ONLY that matches the DeliberatePracticeTaskV2 schema. No markdown. No commentary. No trailing commas. No extra keys.
@@ -353,18 +359,67 @@ Translation rules:
 - Do NOT reorder arrays.
 - Set task.language and each example.language to "${targetLanguage}".`;
     const payload = this.prepareTranslationPayload(source, targetLanguage);
-    const result = await createStructuredResponse<TranslationTaskPayload>({
-      apiKey: this.apiKey,
-      model: OPENAI_LLM_MODEL,
-      temperature: 0.2,
-      instructions: systemPrompt,
-      input: JSON.stringify(payload),
-      schemaName: "DeliberatePracticeTaskV2",
-      schema: translationTaskSchema,
+    const clinical = requiresClinicalTranslation(source);
+    const policy = clinical
+      ? CLOUD_LLM_POLICIES.clinicalTranslation
+      : CLOUD_LLM_POLICIES.translation;
+    const responseSchema = z.object({
+      translation: translationTaskSchema,
+      requires_clinical_review: z.boolean(),
     });
+    const request = async (selected: typeof policy) => {
+      try {
+        return await createStructuredResponse({
+          apiKey: this.apiKey,
+          ...selected,
+          instructions: `${systemPrompt}
+Return an envelope with translation and requires_clinical_review. Set requires_clinical_review true when wording is ambiguous or has clinical meaning, including therapeutic boundaries, risk, grading guidance or clinical instructions. Never guess a clinically significant meaning.`,
+          input: JSON.stringify(payload),
+          schemaName: "TaskTranslationReview",
+          schema: responseSchema,
+        });
+      } catch (error) {
+        throw createProviderError(
+          error instanceof Error
+            ? error.message
+            : "Cloud translation failed. Your source is preserved.",
+          {
+            requestId: getErrorRequestId(error),
+            logFields: {
+              ...getErrorLogFields(error),
+              provider: { kind: "openai", model: selected.model },
+            },
+          },
+        );
+      }
+    };
+    let result = await request(policy);
+    let usedPolicy = policy;
+    if (!clinical && result.value.requires_clinical_review) {
+      usedPolicy = CLOUD_LLM_POLICIES.clinicalTranslation;
+      result = await request(usedPolicy);
+    }
+    // Metadata is not translated or entrusted to a generative model.
+    const translated = deliberatePracticeTaskV2Schema.parse({
+      ...result.value.translation,
+      criteria: result.value.translation.criteria.map((criterion) => ({
+        ...criterion,
+        rubric: criterion.rubric ?? undefined,
+      })),
+      examples: result.value.translation.examples.map((example, index) => ({
+        ...example,
+        meta: source.examples[index]?.meta ?? null,
+      })),
+    });
+    assertTranslationStructure(source, translated, targetLanguage);
     return {
-      value: deliberatePracticeTaskV2Schema.parse(result.value),
+      value: translated,
       requestId: result.responseId,
+      log: {
+        provider: { kind: "openai", model: usedPolicy.model },
+        reasoning_effort: usedPolicy.reasoningEffort,
+        clinical_review: clinical || usedPolicy.model === OPENAI_LLM_MODEL,
+      },
     };
   }
 }

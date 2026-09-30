@@ -26,11 +26,11 @@ A **model catalog entry** is an executable contract. It identifies a real adapte
 
 ## Current and canonical stack
 
-The authoritative production lineage currently resolves React 18.3.1, React Router 6.30.3, TypeScript 5.9.3, Vite 5.4.21, Redux Toolkit 2.11.2, Zod 3.25.76, PixiJS 8.14.3, Supabase 2.89.0, Vitest 2.1.9, Playwright 1.57.0, Hono 4.11.1, and Drizzle ORM 0.33.0. Its local gateway declares Python 3.10 or newer, PyTorch 2.6.0, and unpinned broad Python dependencies; its desktop package is version 0.1.0 on Tauri 2 and Rust 2021.
+The production source uses Node.js 24 LTS and npm 11; React 19.2.8; React Router 7.18.1; TypeScript 6.0.3; Vite 8.1.5; Redux Toolkit 2.12; Zod 4.4.3; PixiJS 8.19; Supabase 2.110.8; Vitest 4.1.10; Playwright; Hono 4.12.32; and Drizzle ORM 0.45.2. These versions are declared by the production manifests and resolved through the root lockfile. The browser uses semantic HTML, Tailwind CSS and a shared studio visual system. The hosted runtime is Cloudflare Workers with static assets, D1, R2 and Queues. Development and deterministic API tests use SQLite.
 
-The canonical integrated target uses Node.js 24 LTS and npm 11; React 19.2.8; React Router 7.18.1; TypeScript 6.0.3; Vite 8.1.5; Redux Toolkit 2.12; Zod 4.4.3; PixiJS 8.19; Supabase 2.110.8; Vitest 4.1.10; current Playwright; Hono 4.12.32; and Drizzle ORM 0.45.2. The local gateway uses the pinned Python 3.12.13 standalone runtime, FastAPI, Uvicorn, Pydantic 2, PyTorch 2.13, Transformers 5.14.1, MLX on Apple silicon, Faster Whisper 1.2.1, and Parakeet MLX 0.5.2. The desktop launcher uses Tauri 2, stable Rust 2021, React 19.2.8, Vite 8.1.5, and a packaged target-specific Python sidecar.
+The local gateway uses the pinned Python 3.12.13 standalone runtime, FastAPI, Uvicorn, Pydantic 2, PyTorch, Transformers, MLX on Apple silicon, Faster Whisper and Parakeet MLX. Its desktop launcher uses Tauri 2, Rust 2021, React 19, Vite 8 and a packaged target-specific Python sidecar. Native support and packaging have their own executable acceptance requirements.
 
-The target stack is not considered integrated merely because it exists in a donor repository. It becomes the authoritative stack only after production-only behavior is reconciled, the combined source passes the complete user-story matrix, and the resulting commit advances production `main` by fast-forward.
+Cloud educational ratings, rubric design, original learning content and complex parsing use GPT-6.1 Sol with extra-high reasoning. Bounded extraction and ordinary translation use GPT-6 Luna without reasoning. Translation of grading criteria, rubrics and therapeutic responses requires Sol; ambiguity and clinical-risk wording also trigger stronger review. Speech-to-text and text-to-speech remain separate modality decisions. Provider identity and trust describe the execution path; they do not establish clinical validity.
 
 ## Architectural and release boundaries
 

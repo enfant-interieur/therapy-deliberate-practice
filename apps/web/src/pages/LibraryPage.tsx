@@ -1,3 +1,4 @@
+import { PracticeJourney } from "../components/PracticeJourney";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -129,8 +130,20 @@ export const LibraryPage = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-6 sm:p-8">
+    <div className="space-y-6">
+      <section className="studio-hero">
+        <p className="studio-eyebrow">{t("studio.library.kicker")}</p>
+        <h1 className="studio-heading mt-4 max-w-3xl text-4xl sm:text-5xl lg:text-6xl">
+          {t("studio.library.title")}
+        </h1>
+        <p className="mt-5 max-w-xl text-base text-slate-200">
+          {t("studio.library.body")}
+        </p>
+        <div className="mt-8">
+          <PracticeJourney />
+        </div>
+      </section>
+      <section className="studio-card p-5 sm:p-7">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
             <h2 className="text-2xl font-semibold">{t("library.title")}</h2>
@@ -182,7 +195,7 @@ export const LibraryPage = () => {
           />
         </div>
       </section>
-      <section className="grid gap-6 md:grid-cols-2">
+      <section className="grid gap-5 md:grid-cols-2">
         {isLoading &&
           Array.from({ length: 4 }).map((_, index) => (
             <div
@@ -208,7 +221,7 @@ export const LibraryPage = () => {
           data.map((task) => (
             <article
               key={task.id}
-              className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/40 p-6 shadow-lg"
+              className="studio-card studio-task min-w-0 p-5 sm:p-7"
             >
               <div className="flex min-w-0 items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -238,18 +251,18 @@ export const LibraryPage = () => {
                   </span>
                 ))}
               </div>
-              <div className="mt-6 flex flex-wrap gap-3">
+              <div className="studio-task-actions flex flex-wrap gap-3">
                 <Link
                   to={`/tasks/${task.id}`}
                   state={{ libraryReturnTo }}
-                  className="rounded-full bg-white px-4 py-2 text-center text-sm font-semibold text-slate-950"
+                  className="studio-secondary"
                 >
                   {t("library.viewDetails")}
                 </Link>
                 <Link
                   to={`/practice/${task.id}`}
                   state={{ libraryReturnTo }}
-                  className="rounded-full border border-white/20 px-4 py-2 text-center text-sm"
+                  className="studio-primary"
                 >
                   {t("library.startPractice")}
                 </Link>

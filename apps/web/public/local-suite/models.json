@@ -1,30 +1,139 @@
 {
   "models": [
     {
+      "id": "local//llm/qwen35-2b-mlx",
+      "kind": "llm",
+      "display": {
+        "title": "Qwen3.5 2B \u00b7 compact",
+        "description": "4-bit text inference for short French and English training responses.",
+        "tags": ["qwen", "mlx", "local"],
+        "icon": "cpu"
+      },
+      "compat": {
+        "platforms": ["darwin-arm64"],
+        "acceleration": ["metal"],
+        "priority": 100,
+        "requires_ram_gb": 8,
+        "requires_vram_gb": 0,
+        "disk_gb": 2
+      },
+      "api": {
+        "endpoint": "responses",
+        "advertised_model_name": "qwen35-2b-mlx",
+        "supports_stream": true
+      },
+      "limits": {
+        "timeout_sec": 300,
+        "concurrency": 1,
+        "max_input_mb": 25,
+        "max_output_tokens_default": 2048
+      },
+      "backend": {
+        "provider": "mlx",
+        "model_ref": "mlx-community/Qwen3.5-2B-4bit",
+        "revision": "674aaa7240b91e8012fcad5d791b7dfe5ba90207",
+        "device_hint": "metal",
+        "extra": {}
+      },
+      "execution": {
+        "mode": "inprocess",
+        "warmup_on_start": false
+      },
+      "launch": {
+        "enabled": false,
+        "type": "command",
+        "explain": "MLX runs in-process.",
+        "env": {},
+        "cmd": ["python", "-m", "local_runtime"],
+        "ready": {
+          "kind": "http",
+          "timeout_sec": 60,
+          "http_url": "http://127.0.0.1:{port}/health",
+          "log_regex": "READY"
+        }
+      },
+      "ui_params": [],
+      "deps": {
+        "python_extras": ["mlx"],
+        "pip": ["mlx-lm==0.31.3"],
+        "system": [],
+        "notes": "Requires Apple Silicon with MLX support."
+      }
+    },
+    {
+      "id": "local//llm/qwen35-9b-mlx",
+      "kind": "llm",
+      "display": {
+        "title": "Qwen3.5 9B \u00b7 quality",
+        "description": "4-bit text inference with more capacity for detailed training feedback; requires more memory.",
+        "tags": ["qwen", "mlx", "local"],
+        "icon": "cpu"
+      },
+      "compat": {
+        "platforms": ["darwin-arm64"],
+        "acceleration": ["metal"],
+        "priority": 95,
+        "requires_ram_gb": 16,
+        "requires_vram_gb": 0,
+        "disk_gb": 6
+      },
+      "api": {
+        "endpoint": "responses",
+        "advertised_model_name": "qwen35-9b-mlx",
+        "supports_stream": true
+      },
+      "limits": {
+        "timeout_sec": 300,
+        "concurrency": 1,
+        "max_input_mb": 25,
+        "max_output_tokens_default": 2048
+      },
+      "backend": {
+        "provider": "mlx",
+        "model_ref": "mlx-community/Qwen3.5-9B-4bit",
+        "revision": "8b2b98c00a6b4d291155e4890773ca8f769aee53",
+        "device_hint": "metal",
+        "extra": {}
+      },
+      "execution": {
+        "mode": "inprocess",
+        "warmup_on_start": false
+      },
+      "launch": {
+        "enabled": false,
+        "type": "command",
+        "explain": "MLX runs in-process.",
+        "env": {},
+        "cmd": ["python", "-m", "local_runtime"],
+        "ready": {
+          "kind": "http",
+          "timeout_sec": 60,
+          "http_url": "http://127.0.0.1:{port}/health",
+          "log_regex": "READY"
+        }
+      },
+      "ui_params": [],
+      "deps": {
+        "python_extras": ["mlx"],
+        "pip": ["mlx-lm==0.31.3"],
+        "system": [],
+        "notes": "Requires Apple Silicon with MLX support."
+      }
+    },
+    {
       "id": "local//llm/qwen3-hf",
       "kind": "llm",
       "display": {
         "title": "Qwen3 HF",
         "description": "Qwen3-4B Instruct inference via Transformers.",
-        "tags": [
-          "qwen",
-          "hf",
-          "local"
-        ],
+        "tags": ["qwen", "hf", "local"],
         "icon": "bolt"
       },
       "compat": {
-        "platforms": [
-          "darwin-arm64",
-          "windows-x64",
-          "linux-x64"
-        ],
-        "acceleration": [
-          "cpu",
-          "metal"
-        ],
+        "platforms": ["darwin-arm64", "windows-x64", "linux-x64"],
+        "acceleration": ["cpu", "metal"],
         "priority": 90,
-        "requires_ram_gb": 8,
+        "requires_ram_gb": 16,
         "requires_vram_gb": 0,
         "disk_gb": 10
       },
@@ -55,11 +164,7 @@
         "type": "command",
         "explain": "Runs in-process via transformers.",
         "env": {},
-        "cmd": [
-          "python",
-          "-m",
-          "local_runtime"
-        ],
+        "cmd": ["python", "-m", "local_runtime"],
         "ready": {
           "kind": "http",
           "timeout_sec": 60,
@@ -69,13 +174,8 @@
       },
       "ui_params": [],
       "deps": {
-        "python_extras": [
-          "hf"
-        ],
-        "pip": [
-          "transformers>=5.14.1,<6",
-          "torch==2.13.0"
-        ],
+        "python_extras": ["hf"],
+        "pip": ["transformers>=5.14.1,<6", "torch==2.13.0"],
         "system": [],
         "notes": "Requires Transformers causal-language-model support for Qwen3. The packaged Windows and Linux runtime uses the official PyTorch CPU wheel. PyTorch 2.13 does not publish an Intel macOS wheel."
       }
@@ -86,20 +186,12 @@
       "display": {
         "title": "Qwen3 4B Instruct MLX",
         "description": "Qwen3 4B Instruct 2507, quantized for fast local MLX inference.",
-        "tags": [
-          "qwen",
-          "mlx",
-          "local"
-        ],
+        "tags": ["qwen", "mlx", "local"],
         "icon": "cpu"
       },
       "compat": {
-        "platforms": [
-          "darwin-arm64"
-        ],
-        "acceleration": [
-          "metal"
-        ],
+        "platforms": ["darwin-arm64"],
+        "acceleration": ["metal"],
         "priority": 120,
         "requires_ram_gb": 8,
         "requires_vram_gb": 0,
@@ -132,11 +224,7 @@
         "type": "command",
         "explain": "MLX runs in-process.",
         "env": {},
-        "cmd": [
-          "python",
-          "-m",
-          "local_runtime"
-        ],
+        "cmd": ["python", "-m", "local_runtime"],
         "ready": {
           "kind": "http",
           "timeout_sec": 60,
@@ -146,12 +234,8 @@
       },
       "ui_params": [],
       "deps": {
-        "python_extras": [
-          "mlx"
-        ],
-        "pip": [
-          "mlx-lm==0.31.3"
-        ],
+        "python_extras": ["mlx"],
+        "pip": ["mlx-lm==0.31.3"],
         "system": [],
         "notes": "Requires Apple Silicon with MLX support."
       }
@@ -162,27 +246,16 @@
       "display": {
         "title": "Faster Whisper",
         "description": "Local Whisper transcription for quick offline audio-to-text.",
-        "tags": [
-          "stt",
-          "whisper",
-          "local"
-        ],
+        "tags": ["stt", "whisper", "local"],
         "icon": "mic"
       },
       "compat": {
-        "platforms": [
-          "darwin-arm64",
-          "darwin-x64",
-          "windows-x64",
-          "linux-x64"
-        ],
-        "acceleration": [
-          "cpu"
-        ],
+        "platforms": ["darwin-arm64", "darwin-x64", "windows-x64", "linux-x64"],
+        "acceleration": ["cpu"],
         "priority": 120,
         "requires_ram_gb": 6,
         "requires_vram_gb": 0,
-        "disk_gb": 4
+        "disk_gb": 1
       },
       "api": {
         "endpoint": "audio.transcriptions",
@@ -211,11 +284,7 @@
         "type": "command",
         "explain": "Runs in-process with serialized access to the local transcription model.",
         "env": {},
-        "cmd": [
-          "python",
-          "-m",
-          "local_runtime"
-        ],
+        "cmd": ["python", "-m", "local_runtime"],
         "ready": {
           "kind": "http",
           "timeout_sec": 60,
@@ -225,13 +294,8 @@
       },
       "ui_params": [],
       "deps": {
-        "python_extras": [
-          "stt"
-        ],
-        "pip": [
-          "faster-whisper==1.2.1",
-          "onnxruntime==1.23.2"
-        ],
+        "python_extras": ["stt"],
+        "pip": ["faster-whisper==1.2.1", "onnxruntime==1.23.2"],
         "system": [],
         "notes": "The packaged desktop runtime uses CPU inference and PyAV for audio decoding. ONNX Runtime 1.23.2 retains Python 3.12 wheels for every packaged desktop target."
       }
@@ -242,24 +306,16 @@
       "display": {
         "title": "Parakeet MLX",
         "description": "Local MLX speech-to-text via the Parakeet TDT model.",
-        "tags": [
-          "stt",
-          "mlx",
-          "local"
-        ],
+        "tags": ["stt", "mlx", "local"],
         "icon": "mic"
       },
       "compat": {
-        "platforms": [
-          "darwin-arm64"
-        ],
-        "acceleration": [
-          "metal"
-        ],
+        "platforms": ["darwin-arm64"],
+        "acceleration": ["metal"],
         "priority": 130,
         "requires_ram_gb": 8,
         "requires_vram_gb": 0,
-        "disk_gb": 6
+        "disk_gb": 3
       },
       "api": {
         "endpoint": "audio.transcriptions",
@@ -288,11 +344,7 @@
         "type": "command",
         "explain": "MLX runs in-process.",
         "env": {},
-        "cmd": [
-          "python",
-          "-m",
-          "local_runtime"
-        ],
+        "cmd": ["python", "-m", "local_runtime"],
         "ready": {
           "kind": "http",
           "timeout_sec": 60,
@@ -302,14 +354,8 @@
       },
       "ui_params": [],
       "deps": {
-        "python_extras": [
-          "mlx",
-          "stt"
-        ],
-        "pip": [
-          "parakeet-mlx==0.5.2",
-          "imageio-ffmpeg==0.6.0"
-        ],
+        "python_extras": ["mlx", "stt"],
+        "pip": ["parakeet-mlx==0.5.2", "imageio-ffmpeg==0.6.0"],
         "system": [],
         "notes": "Includes a platform-specific FFmpeg binary for reliable audio decoding."
       }

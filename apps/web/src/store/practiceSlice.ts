@@ -9,6 +9,7 @@ type AttemptHistoryEntry = {
   evaluation?: EvaluationResult;
   attemptId?: string;
   scoreTrust?: ScoreTrust;
+  scoringProvider?: { kind: "local" | "openai"; model: string };
 };
 
 type PracticeState = {
@@ -29,6 +30,7 @@ type PracticeState = {
   transcript?: string;
   evaluation?: EvaluationResult;
   scoreTrust?: ScoreTrust;
+  scoringProvider?: { kind: "local" | "openai"; model: string };
   patientReaction?: EvaluationResult["patient_reaction"];
   attemptHistory: Record<string, AttemptHistoryEntry>;
   ui: {
@@ -64,6 +66,7 @@ const practiceSlice = createSlice({
       state.transcript = undefined;
       state.evaluation = undefined;
       state.scoreTrust = undefined;
+      state.scoringProvider = undefined;
       state.patientReaction = undefined;
       state.attemptHistory = {};
     },
@@ -85,6 +88,7 @@ const practiceSlice = createSlice({
       state.transcript = undefined;
       state.evaluation = undefined;
       state.scoreTrust = undefined;
+      state.scoringProvider = undefined;
       state.patientReaction = undefined;
       state.attemptHistory = {};
     },
@@ -98,12 +102,14 @@ const practiceSlice = createSlice({
         state.transcript = attempt.transcript;
         state.evaluation = attempt.evaluation;
         state.scoreTrust = attempt.scoreTrust;
+        state.scoringProvider = attempt.scoringProvider;
         state.currentAttemptId = attempt.attemptId;
         state.patientReaction = attempt.evaluation?.patient_reaction;
       } else {
         state.transcript = undefined;
         state.evaluation = undefined;
         state.scoreTrust = undefined;
+        state.scoringProvider = undefined;
         state.currentAttemptId = undefined;
         state.patientReaction = undefined;
       }
@@ -146,6 +152,7 @@ const practiceSlice = createSlice({
         state.transcript = attempt.transcript;
         state.evaluation = attempt.evaluation;
         state.scoreTrust = attempt.scoreTrust;
+        state.scoringProvider = attempt.scoringProvider;
         state.currentAttemptId = attempt.attemptId;
         state.patientReaction = attempt.evaluation?.patient_reaction;
       }
@@ -158,6 +165,7 @@ const practiceSlice = createSlice({
         evaluation?: EvaluationResult;
         attemptId?: string;
         scoreTrust?: ScoreTrust;
+        scoringProvider?: { kind: "local" | "openai"; model: string };
       }>,
     ) {
       state.attemptHistory[action.payload.sessionItemId] = {
@@ -165,11 +173,13 @@ const practiceSlice = createSlice({
         evaluation: action.payload.evaluation,
         attemptId: action.payload.attemptId,
         scoreTrust: action.payload.scoreTrust,
+        scoringProvider: action.payload.scoringProvider,
       };
       if (state.currentSessionItemId === action.payload.sessionItemId) {
         state.transcript = action.payload.transcript;
         state.evaluation = action.payload.evaluation;
         state.scoreTrust = action.payload.scoreTrust;
+        state.scoringProvider = action.payload.scoringProvider;
         state.currentAttemptId = action.payload.attemptId;
         state.patientReaction = action.payload.evaluation?.patient_reaction;
         if (action.payload.evaluation) {

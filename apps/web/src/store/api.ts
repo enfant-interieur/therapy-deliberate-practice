@@ -150,6 +150,7 @@ export type PracticeSessionSummary = {
 };
 
 export type PracticeSessionAttempt = {
+  scoring_provider?: { kind: "local" | "openai"; model: string } | null;
   id: string;
   session_item_id: string;
   completed_at: number | null;

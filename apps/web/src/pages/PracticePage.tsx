@@ -14,6 +14,7 @@ import {
   usePrepareLocalPracticeMutation,
   useStartSessionMutation,
 } from "../store/api";
+import { PracticeJourney } from "../components/PracticeJourney";
 import { StatusPill } from "../components/StatusPill";
 import { Spinner } from "../components/Spinner";
 import { DeleteSessionConfirmDialog } from "../components/minigames/history/DeleteSessionConfirmDialog";
@@ -245,6 +246,7 @@ export const PracticePage = () => {
             evaluation: attempt.evaluation ?? undefined,
             attemptId: attempt.id,
             scoreTrust: attempt.score_trust,
+            scoringProvider: attempt.scoring_provider ?? undefined,
           },
         ]),
     );
@@ -1061,6 +1063,7 @@ export const PracticePage = () => {
             sessionItemId: currentItem.session_item_id,
             transcript: transcriptText,
             evaluation: evaluationResult.scoring?.evaluation,
+            scoringProvider: evaluationResult.scoring?.provider,
             attemptId: evaluationResult.attemptId ?? attemptId,
             scoreTrust: evaluationResult.score_trust ?? "cloud_trusted",
           }),
@@ -1358,6 +1361,7 @@ export const PracticePage = () => {
           sessionItemId: currentItem.session_item_id,
           transcript: transcriptText,
           evaluation: result.scoring?.evaluation,
+          scoringProvider: result.scoring?.provider,
           attemptId: result.attemptId,
           scoreTrust: result.score_trust ?? "cloud_trusted",
         }),
@@ -1434,6 +1438,15 @@ export const PracticePage = () => {
 
   return (
     <div className="space-y-8">
+      <div className="studio-hero">
+        <p className="studio-eyebrow">{t("studio.practice.kicker")}</p>
+        <h1 className="studio-heading mt-3 text-3xl sm:text-4xl">
+          {task?.title ?? t("practice.loadingExercise")}
+        </h1>
+        <div className="mt-6">
+          <PracticeJourney active={practice.evaluation ? 2 : 1} />
+        </div>
+      </div>
       <section className="grid gap-8 lg:grid-cols-[1fr_1.2fr]">
         <div className="space-y-6">
           <details className="group rounded-3xl border border-white/10 bg-slate-900/60 p-6">
@@ -2190,6 +2203,11 @@ export const PracticePage = () => {
                 </button>
               </div>
             )}
+            {evaluationStatus === "evaluating" && (
+              <p className="studio-guidance" role="status">
+                {t("studio.practice.wait")}
+              </p>
+            )}
             {(transcriptionStatus === "transcribing" ||
               evaluationStatus === "evaluating" ||
               evaluationStatus === "error") && (
@@ -2301,7 +2319,7 @@ export const PracticePage = () => {
             )}
           </div>
           {practice.evaluation && (
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-900/60 to-slate-950/80 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
+            <div className="studio-card studio-feedback p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="text-lg font-semibold">
                   {t("practice.coachFeedback")}
@@ -2319,15 +2337,27 @@ export const PracticePage = () => {
               <p className="mt-3 text-sm text-slate-300">
                 {practice.evaluation.overall.summary_feedback}
               </p>
-              <div className="mt-4 flex flex-wrap gap-2">
+              <p className="mt-5 text-sm font-semibold text-teal-100">
+                {t("studio.practice.next")}
+              </p>
+              <ol className="studio-next">
                 {practice.evaluation.overall.what_to_improve_next.map((tip) => (
-                  <span
-                    key={tip}
-                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-200"
-                  >
-                    {tip}
-                  </span>
+                  <li key={tip}>{tip}</li>
                 ))}
+              </ol>
+              <div className="mt-5 border-t border-white/10 pt-4 text-xs text-slate-300">
+                <p>
+                  {scoreTrust === "local_unverified"
+                    ? t("studio.practice.local")
+                    : t("studio.practice.cloud")}
+                </p>
+                {practice.scoringProvider && (
+                  <p className="mt-1 break-all">
+                    {t("studio.practice.evaluator", {
+                      model: practice.scoringProvider.model,
+                    })}
+                  </p>
+                )}
               </div>
               {typeof nextDifficulty === "number" && (
                 <p className="mt-3 text-xs text-slate-400">

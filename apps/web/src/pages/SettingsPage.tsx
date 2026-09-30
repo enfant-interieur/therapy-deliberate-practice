@@ -1,3 +1,4 @@
+import { CloudModelGuide } from "../components/CloudModelGuide";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -636,15 +637,18 @@ export const SettingsPage = () => {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
+      <section className="studio-hero">
         <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
           {t("settings.tagline")}
         </p>
-        <h2 className="mt-3 text-3xl font-semibold">{t("settings.title")}</h2>
+        <h2 className="studio-heading mt-3 text-4xl sm:text-5xl">
+          {t("settings.title")}
+        </h2>
         <p className="mt-3 text-sm text-slate-300">{t("settings.subtitle")}</p>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-8">
+      <CloudModelGuide />
+      <section className="studio-card p-5 sm:p-8">
         {isLoading && (
           <p className="text-sm text-slate-400">{t("settings.loading")}</p>
         )}

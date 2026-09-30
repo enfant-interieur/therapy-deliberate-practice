@@ -180,9 +180,16 @@ export abstract class BaseLlmProvider
       "llm.translate",
       () => this.doTranslateTask(input),
       {
+        provider: this.translationProvider(input.source),
         startFields: { target_language: input.targetLanguage },
       },
     );
+  }
+
+  protected translationProvider(
+    _source: DeliberatePracticeTaskV2,
+  ): { kind: ProviderKind; model?: string } | undefined {
+    return undefined;
   }
 
   protected abstract doEvaluateDeliberatePractice(

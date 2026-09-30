@@ -15,10 +15,7 @@ export const Card = ({
   className = "",
   ...props
 }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) => (
-  <div
-    className={`rounded-2xl border border-white/10 bg-gradient-to-br from-slate-950/60 via-slate-950/40 to-slate-950/70 shadow-[0_0_30px_rgba(15,23,42,0.35)] ${className}`}
-    {...props}
-  >
+  <div className={`studio-card ${className}`} {...props}>
     {children}
   </div>
 );
@@ -32,13 +29,13 @@ export const SectionHeader = ({
   title: string;
   subtitle?: string;
 }) => (
-  <div className="space-y-1">
+  <div className="studio-hero space-y-3">
     {kicker && (
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-300/70">
         {kicker}
       </p>
     )}
-    <h2 className="text-xl font-semibold text-white md:text-2xl">{title}</h2>
+    <h2 className="studio-heading text-3xl text-white md:text-4xl">{title}</h2>
     {subtitle && <p className="text-sm text-slate-400">{subtitle}</p>}
   </div>
 );

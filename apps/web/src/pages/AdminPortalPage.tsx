@@ -83,6 +83,7 @@ const AdminPortalPageContent = () => {
           title={t("admin.portal.title")}
           subtitle={t("admin.portal.subtitle")}
         />
+        <p className="studio-guidance">{t("studio.admin.guidance")}</p>
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
           <Card className="p-6">
             <div className="space-y-4">

@@ -10,11 +10,37 @@ export const HistoryPage = () => {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <h2 className="text-2xl font-semibold">{t("history.title")}</h2>
+      <section className="studio-hero">
+        <h2 className="studio-heading text-4xl sm:text-5xl">
+          {t("history.title")}
+        </h2>
         <p className="mt-2 text-sm text-slate-300">{t("history.subtitle")}</p>
       </section>
-      <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-6">
+      {!isLoading && !isError && data && data.length > 0 && (
+        <section
+          className="grid gap-3 sm:grid-cols-3"
+          aria-label={t("studio.progress.label")}
+        >
+          <div className="studio-metric">
+            <strong>{data.length}</strong>
+            <span>{t("studio.progress.attempts")}</span>
+          </div>
+          <div className="studio-metric">
+            <strong>
+              {new Set(data.map((attempt) => attempt.task_id)).size}
+            </strong>
+            <span>{t("studio.progress.skills")}</span>
+          </div>
+          <div className="studio-metric">
+            <strong>
+              {data.filter((attempt) => attempt.overall_pass).length}
+            </strong>
+            <span>{t("studio.progress.passed")}</span>
+          </div>
+        </section>
+      )}
+      <p className="studio-guidance">{t("studio.progress.guidance")}</p>
+      <section className="studio-card p-5 sm:p-6">
         {isLoading && (
           <p className="text-sm text-slate-400">{t("history.loading")}</p>
         )}
@@ -43,7 +69,7 @@ export const HistoryPage = () => {
           {data?.map((attempt) => (
             <div
               key={attempt.id}
-              className="flex items-center justify-between rounded-2xl border border-white/10 p-4"
+              className="flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-white/10 p-5"
             >
               <div className="space-y-2">
                 <div>

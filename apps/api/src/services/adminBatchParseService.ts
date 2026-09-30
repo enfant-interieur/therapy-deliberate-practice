@@ -20,6 +20,8 @@ import {
   type ParseMode,
 } from "@deliberate/shared";
 import { createStructuredResponse } from "../providers/openaiResponses";
+import { CLOUD_LLM_POLICIES } from "../providers/models";
+import { getErrorRequestId } from "../providers/providerErrors";
 import { buildEnvAiConfig } from "../providers/config";
 import { selectLlmProvider } from "../providers";
 import { remapIdReferences, remapUniqueUuids } from "../utils/remap";
@@ -239,7 +241,7 @@ const describeSegments = (
       index: index + 1,
       start_line: segment.start,
       end_line: segment.end,
-      title_hint: segment.titleHint,
+      has_title_hint: Boolean(segment.titleHint),
       context_block_count: segment.contextBlocks.length,
     }));
   return {
@@ -633,6 +635,17 @@ export const runBatchParseJob = async (
       source_hash: sourceHash,
     });
 
+    const plannerFields: LogFields = deps.planSegments
+      ? { execution: "injected" }
+      : {
+          provider: {
+            kind: "openai",
+            model: CLOUD_LLM_POLICIES.segmentation.model,
+          },
+          reasoning_effort: CLOUD_LLM_POLICIES.segmentation.reasoningEffort,
+        };
+    let segmentationRequestId: string | undefined;
+
     const planSegments: SegmentPlanner =
       deps.planSegments ??
       (async ({ numberedText: text }) => {
@@ -641,13 +654,13 @@ export const runBatchParseJob = async (
         }
         const structured = await createStructuredResponse({
           apiKey: env.openaiApiKey,
-          model: "gpt-5.1",
-          temperature: 0.1,
+          ...CLOUD_LLM_POLICIES.segmentation,
           instructions: batchSegmentationInstructions,
           input: text,
           schemaName: "BatchParsePlan",
           schema: batchParsePlanSchema,
         });
+        segmentationRequestId = structured.responseId;
         return structured.value;
       });
 
@@ -655,16 +668,25 @@ export const runBatchParseJob = async (
     let parsedPlan: BatchParsePlan;
     try {
       jobLog("info", "batch_parse.plan_segments.request", {
-        numbered_preview: numberedText.slice(0, 500),
+        ...plannerFields,
+        numbered_char_count: numberedText.length,
       });
       parsedPlan = await planSegments({ numberedText });
       jobLog("info", "batch_parse.plan_segments.ok", {
         duration_ms: now() - planStart,
         planned_segments: parsedPlan.tasks.length,
+        ...plannerFields,
+        ...(segmentationRequestId ? { request_id: segmentationRequestId } : {}),
       });
     } catch (error) {
       const safe = safeError(error);
-      jobLog("error", "batch_parse.plan_segments.error", safe);
+      jobLog("error", "batch_parse.plan_segments.error", {
+        ...safe,
+        ...plannerFields,
+        ...(getErrorRequestId(error)
+          ? { request_id: getErrorRequestId(error) }
+          : {}),
+      });
       await appendEvent(db, jobId, {
         level: "error",
         step: "planning_segments",
@@ -731,7 +753,7 @@ export const runBatchParseJob = async (
         return async (payload) => {
           if (!providerPromise) {
             const config = buildEnvAiConfig(env, "openai_only");
-            providerPromise = selectLlmProvider(config);
+            providerPromise = selectLlmProvider(config, jobLog);
           }
           const provider = (await providerPromise).provider;
           return provider.parseExercise(payload);
@@ -927,7 +949,6 @@ export const runBatchParseJob = async (
       jobLog("info", "batch_parse.segment.persist_ok", {
         segment_index: index + 1,
         task_id: created.taskId,
-        slug: created.slug,
       });
       createdTaskResults[index] = created;
       completedSegments += 1;

@@ -1184,7 +1184,15 @@
     "progress": "Progress",
     "players": "Players",
     "teams": "Teams",
-    "winner": "Winner",
+    "winner": {
+      "conjunction": "and",
+      "teamTie": "Teams {{names}} tie!",
+      "playerTie": "Players {{names}} tie!",
+      "topScore": "Top score {{score}}",
+      "scoreComparison": "{{top}} vs {{next}}",
+      "teamWins": "Team {{name}} wins!",
+      "playerWins": "Player {{name}} wins!"
+    },
     "leaderboard": "Leaderboard",
     "transcript": "Transcript",
     "evaluation": "Evaluation",
@@ -1330,15 +1338,6 @@
       "summaryFeedback": "No response was recorded before the response window closed.",
       "improveNext": "Respond within the response window.",
       "patientReaction": "No response recorded."
-    },
-    "winner": {
-      "conjunction": "and",
-      "teamTie": "Teams {{names}} tie!",
-      "playerTie": "Players {{names}} tie!",
-      "topScore": "Top score {{score}}",
-      "scoreComparison": "{{top}} vs {{next}}",
-      "teamWins": "Team {{name}} wins!",
-      "playerWins": "Player {{name}} wins!"
     },
     "task": "Task",
     "selectGameToPreview": "Select a game to preview tasks.",
@@ -1797,6 +1796,64 @@
       "validate": "Validate",
       "copyId": "Copy ID",
       "copyJson": "Copy JSON"
+    }
+  },
+  "studio": {
+    "skip": "Skip to practice content",
+    "navigation": "Main navigation",
+    "workspace": "Your workspace",
+    "practiceNote": "A focused space for deliberate practice.",
+    "journey": {
+      "label": "The practice cycle",
+      "choose": {
+        "title": "Choose a skill",
+        "body": "Read the goal and what a good response does."
+      },
+      "rehearse": {
+        "title": "Rehearse a response",
+        "body": "Speak or write in your own words."
+      },
+      "reflect": {
+        "title": "Try one improvement",
+        "body": "Use the feedback to guide your next attempt."
+      }
+    },
+    "library": {
+      "kicker": "Your practice studio",
+      "title": "Build confidence, one response at a time.",
+      "body": "Work on the moments that matter in therapy. Choose a skill, rehearse a patient interaction, and turn specific feedback into your next step."
+    },
+    "practice": {
+      "kicker": "Focused rehearsal",
+      "next": "Focus on your next attempt",
+      "local": "Local evaluation · unverified. Use this feedback for personal practice; it is excluded from public comparisons.",
+      "cloud": "Cloud evaluation. This is automated educational feedback; use your judgement and supervision to interpret it.",
+      "evaluator": "Evaluator: {{model}}",
+      "wait": "The evaluator is reviewing your response against each criterion. Cloud reasoning can take up to three minutes. Your transcript remains available if evaluation fails."
+    },
+    "models": {
+      "kicker": "Cloud models",
+      "title": "The model follows the work.",
+      "reasoning": "Extra-high reasoning for ratings, rubric design, original training content and clinically meaningful translations. These tasks may take longer.",
+      "routine": "No reasoning for bounded extraction and ordinary translation. Ambiguity or clinical meaning requires stronger review.",
+      "limit": "Cloud requests use your connected OpenAI key. Local mode uses your paired computer. A model upgrade does not establish clinical validity."
+    },
+    "progress": {
+      "label": "This history view",
+      "attempts": "Attempts in this view",
+      "skills": "Tasks practised",
+      "passed": "Attempts meeting the rubric",
+      "guidance": "Your personal history can include local, unverified results. Public comparisons include only eligible cloud results. Use repeated practice and specific feedback to judge progress."
+    },
+    "admin": {
+      "guidance": "Review the objective, grading anchors, patient examples and authors before publishing. Generated or translated content is a draft for your clinical judgement."
+    },
+    "games": {
+      "guidance": "Practise together, then review what each response did well and what to try next. Local evaluations remain labelled and excluded from public rankings."
+    },
+    "detail": {
+      "error": "This task could not be loaded. Your library filters are preserved.",
+      "retry": "Try loading again"
     }
   }
 }

@@ -18,7 +18,9 @@ import { safeInternalReturnTo } from "../utils/safeReturnTo";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `rounded-full px-4 py-2 text-sm font-semibold transition ${
-    isActive ? "bg-white text-slate-950" : "text-slate-300 hover:text-white"
+    isActive
+      ? "bg-teal-300/15 text-teal-100"
+      : "text-slate-300 hover:bg-white/5 hover:text-white"
   }`;
 
 export const AppShell = () => {
@@ -270,7 +272,10 @@ export const AppShell = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
+    <div className="studio-shell min-h-screen">
+      <a className="studio-skip" href="#studio-main">
+        {t("studio.skip")}
+      </a>
       <AiSetupModal
         open={showAiSetup}
         onClose={(reason) => {
@@ -283,14 +288,19 @@ export const AppShell = () => {
       />
       {!isAppShellHidden && (
         <header className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-teal-400">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-teal-300">
                 {t("appShell.brand")}
               </p>
-              <h1 className="text-lg font-semibold">{t("appShell.title")}</h1>
+              <p className="studio-brand text-base font-semibold sm:text-lg">
+                {t("appShell.title")}
+              </p>
             </div>
-            <nav className="flex items-center gap-2">
+            <nav
+              className="flex items-center gap-1"
+              aria-label={t("studio.navigation")}
+            >
               {isMobile ? (
                 <button
                   type="button"
@@ -481,6 +491,18 @@ export const AppShell = () => {
               )}
             </nav>
           </div>
+          {isAuthenticated && (
+            <nav
+              className="studio-toolbar mx-auto max-w-6xl border-t border-white/5 px-4 pb-2 pt-1 sm:px-6"
+              aria-label={t("studio.workspace")}
+            >
+              <NavLink to="/history">{t("appShell.nav.history")}</NavLink>
+              <NavLink to="/settings">{t("appShell.nav.settings")}</NavLink>
+              <span className="ml-auto hidden text-xs text-slate-400 sm:block">
+                {t("studio.practiceNote")}
+              </span>
+            </nav>
+          )}
         </header>
       )}
       <Drawer
@@ -595,8 +617,12 @@ export const AppShell = () => {
         </div>
       </Drawer>
       <main
+        id="studio-main"
+        tabIndex={-1}
         className={
-          isAppShellHidden ? "w-full p-0" : "mx-auto max-w-6xl px-6 pb-10 pt-24"
+          isAppShellHidden
+            ? "w-full p-0"
+            : "studio-main mx-auto max-w-6xl px-6 pb-16"
         }
       >
         <Outlet context={{ openAiSetup }} />

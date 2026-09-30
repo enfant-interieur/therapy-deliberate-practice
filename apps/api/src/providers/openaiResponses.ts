@@ -1,7 +1,6 @@
 import OpenAI from "openai";
 import { z } from "zod";
 import { attemptJsonRepair } from "../utils/jsonRepair";
-import { safeTruncate } from "../utils/logger";
 import { getOpenAIClient } from "./openaiClient";
 import { createProviderError, getErrorRequestId } from "./providerErrors";
 
@@ -11,6 +10,10 @@ type OpenAIResponseInput = {
   instructions?: string;
   input: string;
   temperature?: number;
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh" | "max";
+  maxOutputTokens?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
   client?: OpenAI;
 };
 
@@ -56,9 +59,27 @@ const getResponseObjectId = (response: unknown) => {
 const extractOutputText = (payload: unknown): string | null => {
   if (!payload || typeof payload !== "object") return null;
   const record = payload as {
+    status?: string;
     output_text?: string;
     output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
   };
+  if (record.status && record.status !== "completed") {
+    throw createProviderError(
+      "OpenAI response did not complete. Retry with your saved input.",
+      { requestId: getResponseRequestId(payload) },
+    );
+  }
+  const items =
+    (payload as { output?: Array<{ content?: Array<{ type?: string }> }> })
+      .output ?? [];
+  if (
+    items.some((item) => item.content?.some((part) => part.type === "refusal"))
+  ) {
+    throw createProviderError(
+      "OpenAI declined this request. Review the input before retrying.",
+      { requestId: getResponseRequestId(payload) },
+    );
+  }
   if (typeof record.output_text === "string" && record.output_text.trim()) {
     return record.output_text;
   }
@@ -146,13 +167,9 @@ const toSdkError = (error: unknown, fallback: string) => {
     error && typeof error === "object" && "status" in error
       ? (error as { status?: number }).status
       : undefined;
-  const message =
-    error instanceof Error
-      ? safeTruncate(error.message, 200)
-      : safeTruncate(String(error), 200);
   const prefix = status ? `${fallback} (${status})` : fallback;
   return createProviderError(
-    `${prefix}${requestId ? ` [${requestId}]` : ""}: ${message}`,
+    `${prefix}${requestId ? ` [${requestId}]` : ""}. Your input is preserved; retry or check provider settings.`,
     {
       requestId,
       logFields: status ? { status } : undefined,
@@ -166,17 +183,29 @@ export const createTextResponse = async ({
   instructions,
   input,
   temperature,
+  reasoningEffort,
+  maxOutputTokens = 16_384,
+  timeoutMs = 180_000,
+  signal,
   client,
 }: OpenAIResponseInput): Promise<OpenAITextResult> => {
   const openai = client ?? getOpenAIClient({ apiKey });
   let response: unknown;
   try {
-    response = await openai.responses.create({
-      model,
-      input,
-      instructions,
-      temperature,
-    });
+    response = await openai.responses.create(
+      {
+        model,
+        input,
+        instructions,
+        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
+        ...(!reasoningEffort || reasoningEffort === "none"
+          ? { temperature }
+          : {}),
+        max_output_tokens: maxOutputTokens,
+        store: false,
+      },
+      { timeout: timeoutMs, maxRetries: 0, signal },
+    );
   } catch (error) {
     throw toSdkError(error, "OpenAI Responses failed");
   }
@@ -199,6 +228,10 @@ export const createStructuredResponse = async <T>({
   instructions,
   input,
   temperature,
+  reasoningEffort,
+  maxOutputTokens = 16_384,
+  timeoutMs = 180_000,
+  signal,
   schemaName,
   schema,
   client,
@@ -207,20 +240,28 @@ export const createStructuredResponse = async <T>({
   const openai = client ?? getOpenAIClient({ apiKey });
   let response: unknown;
   try {
-    response = await openai.responses.create({
-      model,
-      input,
-      instructions,
-      temperature,
-      text: {
-        format: {
-          type: "json_schema",
-          name: schemaName,
-          schema: jsonSchema,
-          strict: true,
+    response = await openai.responses.create(
+      {
+        model,
+        input,
+        instructions,
+        ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
+        ...(!reasoningEffort || reasoningEffort === "none"
+          ? { temperature }
+          : {}),
+        max_output_tokens: maxOutputTokens,
+        store: false,
+        text: {
+          format: {
+            type: "json_schema",
+            name: schemaName,
+            schema: jsonSchema,
+            strict: true,
+          },
         },
       },
-    });
+      { timeout: timeoutMs, maxRetries: 0, signal },
+    );
   } catch (error) {
     throw toSdkError(error, "OpenAI Responses failed");
   }
@@ -246,7 +287,7 @@ export const createStructuredResponse = async <T>({
       throw createProviderError(
         `OpenAI Responses returned invalid JSON${
           responseId ? ` [${responseId}]` : ""
-        }: ${safeTruncate(String(error), 120)}`,
+        }. Review the input before retrying.`,
         { requestId: responseId },
       );
     }
@@ -257,8 +298,16 @@ export const createStructuredResponse = async <T>({
     throw createProviderError(
       `OpenAI Responses schema validation failed${
         responseId ? ` [${responseId}]` : ""
-      }: ${safeTruncate(validated.error.message, 200)}`,
-      { requestId: responseId },
+      }. Review the input before retrying.`,
+      {
+        requestId: responseId,
+        logFields: {
+          validation_issues: validated.error.issues.map((issue) => ({
+            code: issue.code,
+            path: issue.path,
+          })),
+        },
+      },
     );
   }
 

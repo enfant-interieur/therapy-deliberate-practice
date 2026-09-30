@@ -14,7 +14,7 @@ export const PageHeader = ({
   actions,
 }: PageHeaderProps) => {
   return (
-    <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-950/80 p-6 shadow-2xl shadow-black/30">
+    <div className="studio-hero">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-2">
           {kicker ? (
@@ -22,7 +22,7 @@ export const PageHeader = ({
               {kicker}
             </p>
           ) : null}
-          <h1 className="text-2xl font-semibold text-white sm:text-3xl">
+          <h1 className="studio-heading text-4xl text-white sm:text-5xl">
             {title}
           </h1>
           <p className="max-w-2xl text-sm text-slate-300 sm:text-base">

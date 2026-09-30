@@ -67,6 +67,7 @@ export const MinigameHubPage = () => {
         }
       />
 
+      <p className="studio-guidance">{t("studio.games.guidance")}</p>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <SessionFilters
           status={status}

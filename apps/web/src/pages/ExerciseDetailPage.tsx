@@ -1,3 +1,4 @@
+import { PracticeJourney } from "../components/PracticeJourney";
 import { useLocation, useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useGetTaskQuery } from "../store/api";
@@ -6,7 +7,7 @@ export const ExerciseDetailPage = () => {
   const { t } = useTranslation();
   const location = useLocation();
   const { id } = useParams();
-  const { data, isLoading } = useGetTaskQuery({
+  const { data, isLoading, isError, error, refetch } = useGetTaskQuery({
     id: id ?? "",
     includeInteractions: true,
   });
@@ -15,6 +16,19 @@ export const ExerciseDetailPage = () => {
     return <p className="text-sm text-slate-400">{t("exercise.loading")}</p>;
   }
 
+  if (error && "status" in error && error.status === 404) {
+    return <p className="text-sm text-slate-400">{t("exercise.notFound")}</p>;
+  }
+  if (isError) {
+    return (
+      <div role="alert" className="studio-card p-6">
+        <p>{t("studio.detail.error")}</p>
+        <button className="studio-primary mt-4" onClick={() => void refetch()}>
+          {t("studio.detail.retry")}
+        </button>
+      </div>
+    );
+  }
   if (!data) {
     return <p className="text-sm text-slate-400">{t("exercise.notFound")}</p>;
   }
@@ -33,11 +47,11 @@ export const ExerciseDetailPage = () => {
 
   return (
     <div className="space-y-8">
-      <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-5 sm:p-8">
+      <section className="studio-hero">
         <p className="break-words text-xs uppercase tracking-[0.3em] text-teal-300">
           {data.skill_domain}
         </p>
-        <h2 className="mt-2 break-words text-3xl font-semibold">
+        <h2 className="studio-heading mt-3 break-words text-4xl sm:text-5xl">
           {data.title}
         </h2>
         <p className="mt-4 break-words text-sm text-slate-300">
@@ -77,19 +91,17 @@ export const ExerciseDetailPage = () => {
           <Link
             to={`/practice/${data.id}`}
             state={{ libraryReturnTo }}
-            className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
+            className="studio-primary"
           >
             {t("exercise.startPractice")}
           </Link>
-          <Link
-            to={libraryReturnTo}
-            className="rounded-full border border-white/20 px-4 py-2 text-sm"
-          >
+          <Link to={libraryReturnTo} className="studio-secondary">
             {t("exercise.backToLibrary")}
           </Link>
         </div>
       </section>
 
+      <PracticeJourney active={0} />
       <section className="grid gap-6 md:grid-cols-2">
         <div className="min-w-0 rounded-3xl border border-white/10 bg-slate-900/40 p-6">
           <h3 className="text-lg font-semibold">

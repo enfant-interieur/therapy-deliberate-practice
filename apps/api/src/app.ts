@@ -1566,6 +1566,7 @@ export const createApiApp = ({
         overall_score: attempts.overall_score,
         overall_pass: attempts.overall_pass,
         score_trust: attempts.score_trust,
+        model_info: attempts.model_info,
       })
       .from(attempts)
       .where(
@@ -1588,6 +1589,7 @@ export const createApiApp = ({
         overall_score: number;
         overall_pass: boolean;
         score_trust: string;
+        scoring_provider?: { kind: "local" | "openai"; model: string } | null;
       }
     >();
 
@@ -1599,8 +1601,14 @@ export const createApiApp = ({
           evaluationResultSchema.safeParse(attempt.evaluation).success
             ? attempt.evaluation
             : null;
+        const { model_info, ...publicAttempt } = attempt;
+        const llm = readAttemptModelInfo(model_info).provider?.llm;
         latestByItem.set(attempt.session_item_id, {
-          ...attempt,
+          ...publicAttempt,
+          scoring_provider:
+            llm?.model && (llm.kind === "openai" || llm.kind === "local")
+              ? { kind: llm.kind, model: llm.model }
+              : null,
           session_item_id: attempt.session_item_id,
           evaluation,
         });

@@ -6,6 +6,13 @@ import type {
 } from "./types";
 import type { LlmParseResult } from "./schemas";
 
+export const CLOUD_MODEL_ROLES = {
+  reasoning: "gpt-6.1-sol",
+  routine: "gpt-6-luna",
+  transcription: "gpt-4o-mini-transcribe",
+  speech: "gpt-4o-mini-tts",
+} as const;
+
 export type TranscriptSegment = {
   text: string;
   [key: string]: unknown;

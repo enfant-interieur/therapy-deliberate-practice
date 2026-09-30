@@ -182,14 +182,17 @@ test("practice-session writes roll back atomically and preserve cross-user owner
         task_id: "task-1",
         example_id: "example-1",
         started_at: now + 1,
-        completed_at: null,
+        completed_at: now + 3,
         audio_ref: null,
         transcript: "",
         evaluation: {},
         overall_pass: false,
         overall_score: 0,
         score_trust: "local_unverified",
-        model_info: null,
+        model_info: {
+          provider: { llm: { kind: "openai", model: "historical-evaluator" } },
+          timing_ms: { llm: 123 },
+        },
       },
       {
         id: "other-attempt",
@@ -209,6 +212,44 @@ test("practice-session writes roll back atomically and preserve cross-user owner
         model_info: null,
       },
     ]);
+
+    const resumed = await app.request(
+      "/api/v1/sessions/owned-session/attempts",
+      {
+        headers: userOneHeaders,
+      },
+    );
+    assert.equal(resumed.status, 200);
+    const resumedAttempts = (await resumed.json()) as Array<
+      Record<string, unknown>
+    >;
+    assert.equal(resumedAttempts.length, 1);
+    assert.deepEqual(resumedAttempts[0]?.scoring_provider, {
+      kind: "openai",
+      model: "historical-evaluator",
+    });
+    assert.equal("model_info" in resumedAttempts[0]!, false);
+    const otherUserResume = await app.request(
+      "/api/v1/sessions/owned-session/attempts",
+      {
+        headers: await authHeaders("user-2"),
+      },
+    );
+    assert.equal(otherUserResume.status, 404);
+    await db
+      .update(attempts)
+      .set({ model_info: null })
+      .where(eq(attempts.id, "owned-attempt"));
+    const legacyResume = await app.request(
+      "/api/v1/sessions/owned-session/attempts",
+      {
+        headers: userOneHeaders,
+      },
+    );
+    const legacyAttempts = (await legacyResume.json()) as Array<
+      Record<string, unknown>
+    >;
+    assert.equal(legacyAttempts[0]?.scoring_provider, null);
 
     const sqliteBeforeDelete = new Database(dbPath);
     sqliteBeforeDelete.exec(`

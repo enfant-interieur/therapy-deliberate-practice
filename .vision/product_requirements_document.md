@@ -8,7 +8,7 @@ Therapy Deliberate Practice Studio must support published-task discovery, spoken
 
 Authenticated learners must be able to find and open published tasks, understand their criteria and examples, record or type a response, inspect the transcript, request evaluation, and review criterion-level feedback. Recording, upload, transcription, evaluation, and persistence are separate visible states. Retrying a failed later phase must not needlessly discard successful earlier work.
 
-The server must validate user, task, example, session, publication, and ownership relationships before persistence. Evaluator output must match the expected schema, and overall totals must be recomputed from accepted criterion values. Persisted attempts must record provider/model identity and either `cloud_trusted` or `local_unverified` provenance.
+The server must validate user, task, example, session, publication, and ownership relationships before persistence. Cloud evaluation uses GPT-6.1 Sol with extra-high reasoning. Ordinary formatting and bounded extraction use GPT-6 Luna. Clinically meaningful translations require Sol. Requests have explicit output budgets and timeouts, reject refused or incomplete output, and preserve recoverable work when a provider fails. Evaluator output must match the expected schema, and overall totals must be recomputed from accepted criterion values. Persisted attempts must record provider/model identity and either `cloud_trusted` or `local_unverified` provenance.
 
 Personal history and adaptive practice may use visibly labeled local-unverified results. Public leaderboards, cross-user rankings, trusted comparative statistics, and claims about evaluator equivalence must exclude local-unverified and ambiguously classified legacy results.
 

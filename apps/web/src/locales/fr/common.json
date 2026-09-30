@@ -1184,7 +1184,15 @@
     "progress": "Progression",
     "players": "Joueurs",
     "teams": "Équipes",
-    "winner": "Vainqueur",
+    "winner": {
+      "conjunction": "et",
+      "teamTie": "Égalité entre les équipes {{names}} !",
+      "playerTie": "Égalité entre les joueurs {{names}} !",
+      "topScore": "Meilleur score : {{score}}",
+      "scoreComparison": "{{top}} contre {{next}}",
+      "teamWins": "L’équipe {{name}} gagne !",
+      "playerWins": "{{name}} gagne !"
+    },
     "leaderboard": "Classement",
     "transcript": "Transcription",
     "evaluation": "Évaluation",
@@ -1330,15 +1338,6 @@
       "summaryFeedback": "Aucune réponse n’a été enregistrée avant la fin du délai de réponse.",
       "improveNext": "Répondez dans le délai imparti.",
       "patientReaction": "Aucune réponse enregistrée."
-    },
-    "winner": {
-      "conjunction": "et",
-      "teamTie": "Égalité entre les équipes {{names}} !",
-      "playerTie": "Égalité entre les joueurs {{names}} !",
-      "topScore": "Meilleur score : {{score}}",
-      "scoreComparison": "{{top}} contre {{next}}",
-      "teamWins": "L’équipe {{name}} gagne !",
-      "playerWins": "{{name}} gagne !"
     },
     "task": "Tâche",
     "selectGameToPreview": "Choisissez une partie pour afficher les tâches.",
@@ -1797,6 +1796,64 @@
       "validate": "Valider",
       "copyId": "Copier l'ID",
       "copyJson": "Copier le JSON"
+    }
+  },
+  "studio": {
+    "skip": "Aller au contenu de la pratique",
+    "navigation": "Navigation principale",
+    "workspace": "Votre espace",
+    "practiceNote": "Un espace pour la pratique délibérée.",
+    "journey": {
+      "label": "Le cycle de pratique",
+      "choose": {
+        "title": "Choisir une compétence",
+        "body": "Lire l’objectif et les critères d’une bonne réponse."
+      },
+      "rehearse": {
+        "title": "Répéter une réponse",
+        "body": "Parler ou écrire avec vos propres mots."
+      },
+      "reflect": {
+        "title": "Essayer une amélioration",
+        "body": "Utiliser le retour pour guider votre prochain essai."
+      }
+    },
+    "library": {
+      "kicker": "Votre atelier de pratique",
+      "title": "Gagner en confiance, une réponse à la fois.",
+      "body": "Travaillez les moments qui comptent en thérapie. Choisissez une compétence, répétez une interaction avec un patient et transformez un retour précis en prochaine étape."
+    },
+    "practice": {
+      "kicker": "Répétition ciblée",
+      "next": "Pour votre prochain essai",
+      "local": "Évaluation locale · non vérifiée. Utilisez ce retour pour votre pratique personnelle ; il est exclu des comparaisons publiques.",
+      "cloud": "Évaluation dans le cloud. Ce retour pédagogique est automatisé ; interprétez-le avec votre jugement et votre supervision.",
+      "evaluator": "Modèle d’évaluation : {{model}}",
+      "wait": "Le modèle examine votre réponse pour chaque critère. Le raisonnement dans le cloud peut prendre jusqu’à trois minutes. Votre transcription reste disponible si l’évaluation échoue."
+    },
+    "models": {
+      "kicker": "Modèles dans le cloud",
+      "title": "Le modèle dépend du travail.",
+      "reasoning": "Raisonnement très approfondi pour les évaluations, les grilles de critères, les contenus originaux et les traductions à portée clinique. Ces tâches peuvent prendre plus de temps.",
+      "routine": "Sans raisonnement pour l’extraction délimitée et la traduction courante. Une ambiguïté ou une portée clinique exige un examen plus approfondi.",
+      "limit": "Les requêtes dans le cloud utilisent votre clé OpenAI connectée. Le mode local utilise votre ordinateur associé. Un changement de modèle ne démontre pas une validité clinique."
+    },
+    "progress": {
+      "label": "Cette vue de l’historique",
+      "attempts": "Essais dans cette vue",
+      "skills": "Exercices pratiqués",
+      "passed": "Essais répondant aux critères",
+      "guidance": "Votre historique personnel peut inclure des résultats locaux non vérifiés. Les comparaisons publiques utilisent seulement les résultats admissibles du cloud. Évaluez vos progrès avec la répétition et des retours précis."
+    },
+    "admin": {
+      "guidance": "Vérifiez l’objectif, les repères de notation, les exemples de patients et les auteurs avant de publier. Tout contenu généré ou traduit est un brouillon soumis à votre jugement clinique."
+    },
+    "games": {
+      "guidance": "Pratiquez ensemble, puis examinez les points forts de chaque réponse et le prochain objectif. Les évaluations locales restent signalées et exclues des classements publics."
+    },
+    "detail": {
+      "error": "Cet exercice n’a pas pu être chargé. Vos filtres de bibliothèque sont conservés.",
+      "retry": "Réessayer le chargement"
     }
   }
 }
