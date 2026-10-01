@@ -12,6 +12,12 @@ The server must validate user, task, example, session, publication, and ownershi
 
 Personal history and adaptive practice may use visibly labeled local-unverified results. Public leaderboards, cross-user rankings, trusted comparative statistics, and claims about evaluator equivalence must exclude local-unverified and ambiguously classified legacy results.
 
+## Authentication
+
+Learner login is managed by Better Auth in the application backend with D1 in production and SQLite locally. Google, GitHub, Apple and verified email/password sign-in are supported when their delivery and provider credentials are configured. Registration, confirmation resend, complete password reset, persistent sessions, sign-out, password change and revocation of other sessions must have recoverable English/French interfaces. Authentication uses server-validated HttpOnly cookies, durable rate limiting and origin protection for cookie-authenticated mutations. OAuth access and refresh token storage is encrypted; implicit email-based account linking is disabled. Sensitive account changes require fresh verified authentication. Administrator authorization remains Cloudflare Access.
+
+Account migration must retain the original user identifiers and application-owned data. Export validation rejects identity collisions and unsupported security states before generating private import artifacts. Live transfer requires verified backups, provider subjects, email delivery, account reconciliation and a tested cutover/rollback procedure. Old sessions require reauthentication. Preparation does not authorize live migration or publication.
+
 ## Sessions, profiles, and administration
 
 Practice and minigame sessions must restore partial progress safely, handle stale or corrupt state without trapping the learner, reject cross-user access, prevent duplicate completion, preserve recoverable drafts after failures, and delete only the selected owned session after confirmation.

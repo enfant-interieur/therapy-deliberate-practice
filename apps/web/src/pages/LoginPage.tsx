@@ -1,11 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { supabase } from "../supabase/client";
+import { authClient, authErrorKey } from "../auth/client";
+import { useAuthCapabilities } from "../auth/useAuthCapabilities";
 import { useAppSelector } from "../store/hooks";
 import { safeInternalReturnTo } from "../utils/safeReturnTo";
+import { StudioArtwork } from "../components/StudioArtwork";
 
 type Mode = "signin" | "signup";
+type Provider = "google" | "github" | "apple";
 
 export const LoginPage = () => {
   const { t } = useTranslation();
@@ -14,355 +17,310 @@ export const LoginPage = () => {
   const { isAuthenticated, authChecked } = useAppSelector(
     (state) => state.auth,
   );
-
+  const capabilities = useAuthCapabilities();
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
-
-  const [loadingProvider, setLoadingProvider] = useState<
-    "google" | "github" | null
-  >(null);
-  const [loadingEmail, setLoadingEmail] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<"reset" | "resend" | null>(
-    null,
+  const [busy, setBusy] = useState<string | null>(null);
+  const params = useMemo(
+    () => new URLSearchParams(location.search),
+    [location.search],
+  );
+  const returnTo = safeInternalReturnTo(params.get("returnTo")) ?? "/";
+  const verified = params.get("verified") === "1";
+  const callbackError = params.get("authError");
+  const loginURL = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
+  const verificationURL = `${loginURL}&verified=1`;
+  const canSubmit = Boolean(
+    capabilities?.emailPassword &&
+    (mode === "signin" || capabilities.emailDelivery),
   );
 
-  const returnTo = useMemo(() => {
-    const params = new URLSearchParams(location.search);
-    const value = params.get("returnTo");
-    return safeInternalReturnTo(value) ?? "/";
-  }, [location.search]);
-
   useEffect(() => {
-    const storedError = window.localStorage.getItem("authError");
-    if (storedError) {
-      window.localStorage.removeItem("authError");
-      setError(storedError);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (authChecked && isAuthenticated) {
-      if (returnTo.startsWith("/login")) {
-        navigate("/", { replace: true });
-      } else {
-        navigate(returnTo, { replace: true });
-      }
-    }
+    if (authChecked && isAuthenticated)
+      navigate(returnTo.startsWith("/login") ? "/" : returnTo, {
+        replace: true,
+      });
   }, [authChecked, isAuthenticated, navigate, returnTo]);
 
-  const handleOAuth = async (provider: "google" | "github") => {
+  const perform = async (
+    action: string,
+    operation: () => Promise<{ error: { code?: string } | null }>,
+    success?: string,
+  ) => {
     setError(null);
     setInfo(null);
-    setLoadingProvider(provider);
-
-    window.localStorage.setItem("authReturnTo", returnTo);
-
-    const redirectTo = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
-
-    const { error: authError } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo },
-    });
-
-    if (authError) {
-      setError(authError.message);
-      setLoadingProvider(null);
+    setBusy(action);
+    try {
+      const result = await operation();
+      if (result.error) setError(t(authErrorKey(result.error.code)));
+      else if (success) setInfo(t(success));
+    } catch {
+      setError(t("auth.errors.unavailable"));
+    } finally {
+      setBusy(null);
     }
   };
 
-  const handleEmailSubmit = async () => {
-    setError(null);
-    setInfo(null);
-
+  const handleEmailSubmit = (event: FormEvent) => {
+    event.preventDefault();
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !password) {
       setError(t("login.errors.missingEmailPassword"));
       return;
     }
-
-    if (mode === "signup") {
-      if (password.length < 6) {
-        setError(t("login.errors.passwordShort"));
-        return;
-      }
-      if (password !== confirm) {
-        setError(t("login.errors.passwordMismatch"));
-        return;
-      }
-    }
-
-    setLoadingEmail(true);
-    try {
-      window.localStorage.setItem("authReturnTo", returnTo);
-
-      if (mode === "signin") {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password,
-        });
-        if (signInError) {
-          setError(signInError.message);
-          return;
-        }
-        return;
-      }
-
-      const emailRedirectTo = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
-
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: cleanEmail,
-        password,
-        options: { emailRedirectTo },
-      });
-
-      if (signUpError) {
-        setError(signUpError.message);
-        return;
-      }
-
-      if (!data.session) {
-        setInfo(t("login.info.checkEmail"));
-      } else {
-        setInfo(t("login.info.accountCreated"));
-      }
-    } finally {
-      setLoadingEmail(false);
-    }
-  };
-
-  const handlePasswordReset = async () => {
-    setError(null);
-    setInfo(null);
-
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) {
-      setError(t("login.errors.missingEmailReset"));
+    if (mode === "signup" && password.length < 12) {
+      setError(t("login.errors.passwordShort"));
       return;
     }
+    if (mode === "signup" && password !== confirm) {
+      setError(t("login.errors.passwordMismatch"));
+      return;
+    }
+    void perform(
+      mode,
+      () =>
+        mode === "signin"
+          ? authClient.signIn.email({ email: cleanEmail, password })
+          : authClient.signUp.email({
+              email: cleanEmail,
+              password,
+              name: cleanEmail.split("@")[0],
+              callbackURL: verificationURL,
+            }),
+      mode === "signup" ? "login.info.checkEmail" : undefined,
+    );
+  };
 
-    setLoadingAction("reset");
-    try {
-      const redirectTo = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-        cleanEmail,
-        { redirectTo },
+  const handleRecovery = (action: "reset" | "resend") => {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
+      setError(
+        t(
+          action === "reset"
+            ? "login.errors.missingEmailReset"
+            : "login.errors.missingEmailResend",
+        ),
       );
-
-      if (resetError) {
-        setError(resetError.message);
-        return;
-      }
-
-      setInfo(t("login.info.resetEmailSent"));
-    } finally {
-      setLoadingAction(null);
-    }
-  };
-
-  const handleResendConfirmation = async () => {
-    setError(null);
-    setInfo(null);
-
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) {
-      setError(t("login.errors.missingEmailResend"));
       return;
     }
+    void perform(
+      action,
+      () =>
+        action === "reset"
+          ? authClient.requestPasswordReset({
+              email: cleanEmail,
+              redirectTo: `${window.location.origin}/reset-password`,
+            })
+          : authClient.sendVerificationEmail({
+              email: cleanEmail,
+              callbackURL: verificationURL,
+            }),
+      action === "reset"
+        ? "login.info.resetEmailSent"
+        : "login.info.confirmationResent",
+    );
+  };
 
-    setLoadingAction("resend");
-    try {
-      const emailRedirectTo = `${window.location.origin}/login?returnTo=${encodeURIComponent(returnTo)}`;
-      const { error: resendError } = await supabase.auth.resend({
-        type: "signup",
-        email: cleanEmail,
-        options: { emailRedirectTo },
-      });
-
-      if (resendError) {
-        setError(resendError.message);
-        return;
-      }
-
-      setInfo(t("login.info.confirmationResent"));
-    } finally {
-      setLoadingAction(null);
-    }
+  const handleOAuth = (provider: Provider) => {
+    void perform(provider, () =>
+      authClient.signIn.social({
+        provider,
+        callbackURL: loginURL,
+        errorCallbackURL: `${loginURL}&authError=failed`,
+      }),
+    );
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-8">
-      <section className="rounded-3xl border border-white/10 bg-slate-900/60 p-8">
-        <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
-          {t("login.welcome")}
-        </p>
-        <h2 className="mt-3 text-3xl font-semibold">
-          {mode === "signin" ? t("login.signInTitle") : t("login.signUpTitle")}
-        </h2>
-        <p className="mt-3 text-sm text-slate-300">
-          {t("login.redirectNote", { returnTo })}
-        </p>
-      </section>
-
-      <section className="rounded-3xl border border-white/10 bg-slate-900/40 p-8">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              mode === "signin"
-                ? "bg-white text-slate-950"
-                : "border border-white/10 text-white"
-            }`}
-            onClick={() => {
-              setMode("signin");
-              setError(null);
-              setInfo(null);
-            }}
-            disabled={loadingEmail || loadingProvider !== null}
-          >
-            {t("login.mode.signIn")}
-          </button>
-          <button
-            type="button"
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              mode === "signup"
-                ? "bg-white text-slate-950"
-                : "border border-white/10 text-white"
-            }`}
-            onClick={() => {
-              setMode("signup");
-              setError(null);
-              setInfo(null);
-            }}
-            disabled={loadingEmail || loadingProvider !== null}
-          >
-            {t("login.mode.signUp")}
-          </button>
-        </div>
-
-        <div className="mt-6 space-y-3">
-          <input
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-            placeholder={t("login.placeholders.email")}
-            type="email"
-            autoComplete="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={
-              loadingEmail || loadingProvider !== null || loadingAction !== null
-            }
-          />
-          <input
-            className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-            placeholder={t("login.placeholders.password")}
-            type="password"
-            autoComplete={
-              mode === "signin" ? "current-password" : "new-password"
-            }
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={
-              loadingEmail || loadingProvider !== null || loadingAction !== null
-            }
-          />
-          {mode === "signup" && (
-            <input
-              className="w-full rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
-              placeholder={t("login.placeholders.confirmPassword")}
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              disabled={
-                loadingEmail ||
-                loadingProvider !== null ||
-                loadingAction !== null
-              }
-            />
-          )}
-
-          <button
-            className="mt-2 w-full rounded-full bg-teal-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-teal-300"
-            onClick={handleEmailSubmit}
-            disabled={
-              loadingEmail || loadingProvider !== null || loadingAction !== null
-            }
-          >
-            {loadingEmail
-              ? mode === "signin"
-                ? t("login.actions.signingIn")
-                : t("login.actions.creatingAccount")
-              : mode === "signin"
-                ? t("login.actions.primarySignIn")
-                : t("login.actions.primarySignUp")}
-          </button>
-
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-            <button
-              type="button"
-              className="underline decoration-white/40 underline-offset-4 transition hover:text-white"
-              onClick={handlePasswordReset}
-              disabled={
-                loadingEmail ||
-                loadingProvider !== null ||
-                loadingAction !== null
-              }
-            >
-              {loadingAction === "reset"
-                ? t("login.actions.resettingPassword")
-                : t("login.actions.resetPassword")}
-            </button>
-            <button
-              type="button"
-              className="underline decoration-white/40 underline-offset-4 transition hover:text-white"
-              onClick={handleResendConfirmation}
-              disabled={
-                loadingEmail ||
-                loadingProvider !== null ||
-                loadingAction !== null
-              }
-            >
-              {loadingAction === "resend"
-                ? t("login.actions.resendingConfirmation")
-                : t("login.actions.resendConfirmation")}
-            </button>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <section className="studio-hero studio-hero--split">
+        <div className="studio-hero-intro">
+          <div className="studio-hero-copy">
+            <p className="studio-eyebrow">{t("login.welcome")}</p>
+            <h1 className="studio-heading mt-3 text-3xl sm:text-4xl">
+              {mode === "signin"
+                ? t("login.signInTitle")
+                : t("login.signUpTitle")}
+            </h1>
+            <p className="mt-4 text-sm text-slate-300">
+              {t("auth.introduction")}
+            </p>
           </div>
-
-          {error && <p className="text-sm text-rose-300">{error}</p>}
-          {info && <p className="text-sm text-slate-300">{info}</p>}
+          <StudioArtwork
+            scene="shelter"
+            className="studio-library-art"
+            priority
+            sizes="(max-width: 767px) calc(100vw - 80px), 480px"
+          />
         </div>
-
-        <div className="my-8 flex items-center gap-4">
-          <div className="h-px flex-1 bg-white/10" />
-          <span className="text-xs text-slate-400">
-            {t("login.actions.or")}
-          </span>
-          <div className="h-px flex-1 bg-white/10" />
+      </section>
+      <section
+        className="studio-card mx-auto max-w-xl rounded-3xl p-6 sm:p-8"
+        aria-label={t("login.signInTitle")}
+      >
+        <div className="flex flex-wrap gap-2">
+          {(["signin", "signup"] as const).map((value) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={mode === value}
+              disabled={Boolean(busy)}
+              className={mode === value ? "studio-primary" : "studio-secondary"}
+              onClick={() => {
+                setMode(value);
+                setError(null);
+                setInfo(null);
+              }}
+            >
+              {t(
+                value === "signin" ? "login.mode.signIn" : "login.mode.signUp",
+              )}
+            </button>
+          ))}
         </div>
-
-        <div className="space-y-4">
+        {(error || callbackError) && (
+          <p role="alert" className="mt-5 text-sm text-rose-300">
+            {error ??
+              t(
+                callbackError === "denied"
+                  ? "auth.errors.denied"
+                  : "auth.errors.callback",
+              )}
+          </p>
+        )}
+        {(info || verified) && (
+          <p role="status" className="mt-5 text-sm text-teal-200">
+            {info ?? t("auth.verified")}
+          </p>
+        )}
+        {!capabilities?.ready && (
+          <p role="status" className="mt-5 text-sm text-slate-300">
+            {t("auth.availability")}
+          </p>
+        )}
+        {capabilities?.ready && !capabilities.emailDelivery && (
+          <p className="mt-5 text-sm text-slate-300">
+            {t("auth.emailUnavailable")}
+          </p>
+        )}
+        <form className="mt-6 space-y-4" onSubmit={handleEmailSubmit}>
+          <label className="block text-sm font-medium text-slate-200">
+            {t("login.placeholders.email")}
+            <input
+              className="rounded-xl border border-slate-500 bg-slate-950 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-300 mt-2 w-full"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              maxLength={254}
+              required
+            />
+          </label>
+          <label className="block text-sm font-medium text-slate-200">
+            {t("login.placeholders.password")}
+            <input
+              className="rounded-xl border border-slate-500 bg-slate-950 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-300 mt-2 w-full"
+              type="password"
+              autoComplete={
+                mode === "signin" ? "current-password" : "new-password"
+              }
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={mode === "signup" ? 12 : undefined}
+              maxLength={128}
+              required
+            />
+          </label>
+          {mode === "signup" && (
+            <>
+              <p className="text-xs text-slate-400">{t("auth.passwordHint")}</p>
+              <label className="block text-sm font-medium text-slate-200">
+                {t("login.placeholders.confirmPassword")}
+                <input
+                  className="rounded-xl border border-slate-500 bg-slate-950 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-300 mt-2 w-full"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(event) => setConfirm(event.target.value)}
+                  minLength={12}
+                  maxLength={128}
+                  required
+                />
+              </label>
+            </>
+          )}
           <button
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
-            onClick={() => handleOAuth("google")}
-            disabled={loadingEmail || loadingProvider !== null}
+            className="studio-primary w-full"
+            disabled={!canSubmit || Boolean(busy)}
+            type="submit"
           >
-            {loadingProvider === "google"
-              ? t("login.oauth.googleLoading")
-              : t("login.oauth.google")}
+            {t(
+              busy === mode
+                ? mode === "signin"
+                  ? "login.actions.signingIn"
+                  : "login.actions.creatingAccount"
+                : mode === "signin"
+                  ? "login.actions.primarySignIn"
+                  : "login.actions.primarySignUp",
+            )}
+          </button>
+        </form>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            className="studio-secondary text-sm"
+            type="button"
+            disabled={!capabilities?.emailDelivery || Boolean(busy)}
+            onClick={() => handleRecovery("reset")}
+          >
+            {t(
+              busy === "reset"
+                ? "login.actions.resettingPassword"
+                : "login.actions.resetPassword",
+            )}
           </button>
           <button
-            className="flex w-full items-center justify-center gap-2 rounded-full border border-white/10 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/20"
-            onClick={() => handleOAuth("github")}
-            disabled={loadingEmail || loadingProvider !== null}
+            className="studio-secondary text-sm"
+            type="button"
+            disabled={!capabilities?.emailDelivery || Boolean(busy)}
+            onClick={() => handleRecovery("resend")}
           >
-            {loadingProvider === "github"
-              ? t("login.oauth.githubLoading")
-              : t("login.oauth.github")}
+            {t(
+              busy === "resend"
+                ? "login.actions.resendingConfirmation"
+                : "login.actions.resendConfirmation",
+            )}
           </button>
+        </div>
+        <p className="my-6 text-center text-sm text-slate-400">
+          {t("login.actions.or")}
+        </p>
+        <div className="grid gap-3">
+          {(["google", "github", "apple"] as const).map((provider) => (
+            <button
+              className="studio-secondary w-full"
+              key={provider}
+              type="button"
+              disabled={
+                !capabilities?.ready ||
+                !capabilities.providers[provider] ||
+                Boolean(busy)
+              }
+              onClick={() => handleOAuth(provider)}
+            >
+              {t(
+                `login.oauth.${provider}${busy === provider ? "Loading" : ""}`,
+              )}
+              {capabilities?.ready && !capabilities.providers[provider] && (
+                <span className="ml-2 text-xs font-normal">
+                  {t("auth.notConfigured")}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       </section>
     </div>

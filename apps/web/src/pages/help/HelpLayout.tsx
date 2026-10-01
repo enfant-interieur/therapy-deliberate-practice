@@ -8,6 +8,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAccessibleDialog } from "../../hooks/useAccessibleDialog";
+import { StudioArtwork } from "../../components/StudioArtwork";
 
 type HelpContext = {
   openAiSetup?: () => void;
@@ -221,6 +222,11 @@ export const HelpLayout = () => {
 
   return (
     <div className="space-y-6">
+      <StudioArtwork
+        scene="horizon"
+        className="studio-help-mobile-art lg:hidden"
+        sizes="calc(100vw - 32px)"
+      />
       <div className="flex items-center justify-between rounded-3xl border border-white/10 bg-slate-950/60 px-4 py-4 lg:hidden">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
@@ -257,16 +263,23 @@ export const HelpLayout = () => {
         <aside className="hidden w-80 shrink-0 lg:block">
           <div className="sticky top-24 space-y-6">
             {renderNav()}
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-teal-500/10 via-slate-900/60 to-slate-950/80 p-5 text-sm text-slate-200">
-              <p className="text-xs uppercase tracking-[0.3em] text-teal-300">
-                {t("help.layout.sidebar.kicker")}
-              </p>
-              <p className="mt-2 font-semibold text-white">
-                {t("help.layout.sidebar.title")}
-              </p>
-              <p className="mt-2 text-xs text-slate-400">
-                {t("help.layout.sidebar.subtitle")}
-              </p>
+            <div className="studio-help-guidance text-sm text-slate-200">
+              <StudioArtwork
+                scene="horizon"
+                className="studio-help-sidebar-art"
+                sizes="320px"
+              />
+              <div className="p-5">
+                <p className="studio-eyebrow">
+                  {t("help.layout.sidebar.kicker")}
+                </p>
+                <p className="mt-2 font-semibold text-white">
+                  {t("help.layout.sidebar.title")}
+                </p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {t("help.layout.sidebar.subtitle")}
+                </p>
+              </div>
             </div>
           </div>
         </aside>

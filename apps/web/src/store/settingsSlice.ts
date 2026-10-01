@@ -30,6 +30,7 @@ const settingsSlice = createSlice({
   name: "settings",
   initialState,
   reducers: {
+    resetSettings: () => initialState,
     hydrateSettings(
       state,
       action: PayloadAction<{
@@ -67,6 +68,7 @@ const settingsSlice = createSlice({
 });
 
 export const {
+  resetSettings,
   hydrateSettings,
   setAiMode,
   setLocalEndpoint,

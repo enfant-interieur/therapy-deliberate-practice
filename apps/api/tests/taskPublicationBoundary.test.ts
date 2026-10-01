@@ -1,9 +1,13 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { test } from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { SignJWT } from "jose";
 import { eq } from "drizzle-orm";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
@@ -23,20 +27,14 @@ import {
 } from "../src/db/schema";
 import { resolveEnv } from "../src/env";
 
-const jwtSecret = "publication-boundary-secret";
-
-const authHeaders = async () => {
-  const token = await new SignJWT({ email: "learner@example.com" })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject("learner-1")
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(jwtSecret));
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+const authHeaders = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+) => ({
+  ...(await createManagedSessionHeaders(db, createAuthTestEnv(), "learner-1", {
+    email: "learner@example.com",
+  })),
+  "Content-Type": "application/json",
+});
 
 test("learner task and session routes hide drafts while administrator detail retains access", async () => {
   const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -51,7 +49,8 @@ test("learner task and session routes hide drafts while administrator detail ret
     env: resolveEnv({
       ENV: "development",
       BYPASS_ADMIN_AUTH: "true",
-      SUPABASE_JWT_SECRET: jwtSecret,
+      AUTH_SECRET: TEST_AUTH_SECRET,
+      AUTH_BASE_URL: "http://localhost",
     }),
     db,
     tts: {
@@ -181,7 +180,7 @@ test("learner task and session routes hide drafts while administrator detail ret
     const adminDraft = await app.request("/api/v1/admin/tasks/draft-task");
     assert.equal(adminDraft.status, 200);
 
-    const headers = await authHeaders();
+    const headers = await authHeaders(db);
     const draftPrefetch = await app.request(
       "/api/v1/practice/patient-audio/prefetch",
       {

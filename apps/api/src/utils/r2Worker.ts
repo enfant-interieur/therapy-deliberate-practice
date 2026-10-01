@@ -1,7 +1,23 @@
-import type { R2Bucket } from "@cloudflare/workers-types";
 import type { TtsStorage } from "../services/ttsService";
 
-export const createR2BucketStorage = (bucket: R2Bucket): TtsStorage => {
+type AudioBucket = {
+  head(key: string): Promise<{ etag: string; size: number } | null>;
+  put(
+    key: string,
+    value: ArrayBuffer,
+    options: { httpMetadata: { contentType: string } },
+  ): Promise<{ etag: string } | null>;
+  get(
+    key: string,
+  ): Promise<{
+    arrayBuffer(): Promise<ArrayBuffer>;
+    etag: string;
+    size: number;
+    httpMetadata?: { contentType?: string };
+  } | null>;
+};
+
+export const createR2BucketStorage = (bucket: AudioBucket): TtsStorage => {
   const headObject = async (_bucketName: string, key: string) => {
     const result = await bucket.head(key);
     if (!result) {
@@ -20,7 +36,7 @@ export const createR2BucketStorage = (bucket: R2Bucket): TtsStorage => {
     bytes: Uint8Array,
     contentType: string,
   ) => {
-    const result = await bucket.put(key, bytes, {
+    const result = await bucket.put(key, Uint8Array.from(bytes).buffer, {
       httpMetadata: { contentType },
     });
     return { etag: result?.etag ?? undefined };

@@ -2,6 +2,7 @@ import type { Page, Route } from "@playwright/test";
 import {
   expect,
   expectNoSeriousAccessibilityViolations,
+  installManagedBrowser,
   test,
 } from "./fixtures";
 
@@ -93,20 +94,9 @@ const installBrowserState = async (
     deferMicrophone?: boolean;
   } = {},
 ) => {
-  const supabaseUrl =
-    process.env.VITE_SUPABASE_URL ?? "https://test.supabase.co";
-  const projectRef = supabaseUrl.split("//")[1]?.split(".")[0] ?? "test";
+  await installManagedBrowser(page);
   await page.addInitScript(
-    ({ authKey, runtimeKey, token, injectToken, shouldDeferMicrophone }) => {
-      const session = {
-        access_token: "test-token",
-        token_type: "bearer",
-        expires_in: 3600,
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-        refresh_token: "refresh-token",
-        user: { id: "user-1", email: "dev@example.com" },
-      };
-      window.localStorage.setItem(authKey, JSON.stringify(session));
+    ({ runtimeKey, token, injectToken, shouldDeferMicrophone }) => {
       if (injectToken) {
         window.localStorage.setItem(runtimeKey, token);
       }
@@ -208,7 +198,6 @@ const installBrowserState = async (
       });
     },
     {
-      authKey: `sb-${projectRef}-auth-token`,
       runtimeKey: `therapy.localRuntimePairingKey:${gatewayOrigin}`,
       token: pairingKey,
       injectToken: injectPairingKey,

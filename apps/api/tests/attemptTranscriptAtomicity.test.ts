@@ -1,3 +1,8 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { test } from "node:test";
@@ -6,7 +11,6 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { eq } from "drizzle-orm";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
 import { resolveEnv } from "../src/env";
@@ -23,20 +27,14 @@ import {
   users,
 } from "../src/db/schema";
 
-const jwtSecret = "attempt-transcript-atomicity-secret";
-
-const createAuthHeader = async () => {
-  const token = await new SignJWT({ email: "learner@example.com" })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject("learner")
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(jwtSecret));
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+const createAuthHeader = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+) => ({
+  ...(await createManagedSessionHeaders(db, createAuthTestEnv(), "learner", {
+    email: "learner@example.com",
+  })),
+  "Content-Type": "application/json",
+});
 
 test("the winning claimed-attempt completion atomically binds its transcript and evaluation", async () => {
   const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -118,7 +116,8 @@ test("the winning claimed-attempt completion atomically binds its transcript and
     const app = createApiApp({
       env: resolveEnv({
         ENV: "test",
-        SUPABASE_JWT_SECRET: jwtSecret,
+        AUTH_SECRET: TEST_AUTH_SECRET,
+        AUTH_BASE_URL: "http://localhost",
         OPENAI_API_KEY: `attempt-transcript-${path.basename(tempDirectory)}`,
       }),
       db,
@@ -225,7 +224,7 @@ test("the winning claimed-attempt completion atomically binds its transcript and
       completed_at: null,
     });
 
-    const headers = await createAuthHeader();
+    const headers = await createAuthHeader(db);
     const claimResponse = await app.request(
       "/api/v1/minigames/sessions/game/rounds/round/submit",
       {

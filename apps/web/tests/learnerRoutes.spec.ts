@@ -3,6 +3,7 @@ import {
   expect,
   expectNoSeriousAccessibilityViolations,
   fulfillJson,
+  installAnonymousBrowser,
   test,
 } from "./fixtures";
 
@@ -122,6 +123,7 @@ test.describe("requirements-mapped learner routes", () => {
     baseURL,
   }) => {
     const unauthenticatedPage = await browser.newPage();
+    await installAnonymousBrowser(unauthenticatedPage);
     await unauthenticatedPage.route("**/api/v1/admin/whoami", (route) =>
       fulfillJson(route, {
         isAuthenticated: false,

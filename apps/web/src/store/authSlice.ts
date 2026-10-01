@@ -3,7 +3,6 @@ import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 type AuthState = {
   userId: string | null;
   email: string | null;
-  accessToken: string | null;
   isAuthenticated: boolean;
   authChecked: boolean;
   isAdmin: boolean;
@@ -15,7 +14,6 @@ type AuthState = {
 const initialState: AuthState = {
   userId: null,
   email: null,
-  accessToken: null,
   isAuthenticated: false,
   authChecked: false,
   isAdmin: false,
@@ -33,14 +31,12 @@ const authSlice = createSlice({
       action: PayloadAction<{
         userId: string | null;
         email: string | null;
-        accessToken: string | null;
         isAuthenticated: boolean;
         authChecked: boolean;
       }>,
     ) {
       state.userId = action.payload.userId;
       state.email = action.payload.email;
-      state.accessToken = action.payload.accessToken;
       state.isAuthenticated = action.payload.isAuthenticated;
       state.authChecked = action.payload.authChecked;
     },

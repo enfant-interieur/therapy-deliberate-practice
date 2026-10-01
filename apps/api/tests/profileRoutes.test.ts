@@ -1,30 +1,27 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { test } from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
 import { users } from "../src/db/schema";
 import { createSqliteDb } from "../src/db/sqlite";
 import { resolveEnv } from "../src/env";
 
-const jwtSecret = "profile-route-contract-secret";
-
-const authHeaders = async (userId: string) => {
-  const token = await new SignJWT({ email: `${userId}@example.com` })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(userId)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(jwtSecret));
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+const authHeaders = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+  userId: string,
+) => ({
+  ...(await createManagedSessionHeaders(db, createAuthTestEnv(), userId)),
+  "Content-Type": "application/json",
+});
 
 test("profile routes enforce ownership and validation and persist a save across reload", async () => {
   const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -37,7 +34,8 @@ test("profile routes enforce ownership and validation and persist a save across 
   const app = createApiApp({
     env: resolveEnv({
       ENV: "test",
-      SUPABASE_JWT_SECRET: jwtSecret,
+      AUTH_SECRET: TEST_AUTH_SECRET,
+      AUTH_BASE_URL: "http://localhost",
     }),
     db,
     tts: {
@@ -73,7 +71,10 @@ test("profile routes enforce ownership and validation and persist a save across 
 
     const unauthenticated = await app.request("/api/v1/me/profile", {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "http://localhost",
+      },
       body: JSON.stringify({
         displayName: "Unauthorized edit",
         bio: null,
@@ -81,7 +82,7 @@ test("profile routes enforce ownership and validation and persist a save across 
     });
     assert.equal(unauthenticated.status, 401);
 
-    const ownerHeaders = await authHeaders("profile-owner");
+    const ownerHeaders = await authHeaders(db, "profile-owner");
     const invalidDisplayName = await app.request("/api/v1/me/profile", {
       method: "PUT",
       headers: ownerHeaders,

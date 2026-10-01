@@ -25,6 +25,87 @@ export const fulfillJson = async (
   });
 };
 
+export const createManagedSession = () => {
+  const createdAt = new Date().toISOString();
+  return {
+    user: {
+      id: "user-1",
+      email: "dev@example.com",
+      emailVerified: true,
+      name: "Dev User",
+      image: null,
+      createdAt,
+      updatedAt: createdAt,
+    },
+    session: {
+      id: "browser-test-session",
+      token: "synthetic-browser-session-token",
+      userId: "user-1",
+      createdAt,
+      updatedAt: createdAt,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      ipAddress: null,
+      userAgent: null,
+    },
+  };
+};
+
+export type ManagedSession = ReturnType<typeof createManagedSession>;
+
+export const installManagedBrowser = async (
+  page: Page,
+  { authenticated = true }: { authenticated?: boolean } = {},
+) => {
+  let currentSession: ManagedSession | null = authenticated
+    ? createManagedSession()
+    : null;
+
+  await page.route(/\/api\/auth\/get-session(?:\?.*)?$/, (route) =>
+    fulfillJson(route, currentSession),
+  );
+  await page.route(/\/api\/auth\/sign-out(?:\?.*)?$/, (route) => {
+    currentSession = null;
+    return fulfillJson(route, { success: true });
+  });
+  await page.route(/\/api\/auth\/list-accounts(?:\?.*)?$/, (route) =>
+    fulfillJson(
+      route,
+      currentSession
+        ? [{ id: "synthetic-credential", providerId: "credential" }]
+        : [],
+      currentSession ? 200 : 401,
+    ),
+  );
+  await page.route(/\/api\/auth\/list-sessions(?:\?.*)?$/, (route) =>
+    fulfillJson(
+      route,
+      currentSession ? [currentSession.session] : [],
+      currentSession ? 200 : 401,
+    ),
+  );
+  await page.route(/\/api\/auth\/config(?:\?.*)?$/, (route) =>
+    fulfillJson(route, {
+      ready: true,
+      emailPassword: true,
+      emailDelivery: true,
+      providers: { google: true, github: true, apple: true },
+    }),
+  );
+
+  return {
+    getSession: () => currentSession,
+    setSession: (session: ManagedSession | null) => {
+      currentSession = session;
+    },
+    setAuthenticated: (isAuthenticated: boolean) => {
+      currentSession = isAuthenticated ? createManagedSession() : null;
+    },
+  };
+};
+
+export const installAnonymousBrowser = (page: Page) =>
+  installManagedBrowser(page, { authenticated: false });
+
 export const installAuthenticatedBrowser = async (
   page: Page,
   {
@@ -33,21 +114,10 @@ export const installAuthenticatedBrowser = async (
     dismissAiSetup = true,
   }: AuthenticatedBrowserOptions = {},
 ) => {
-  const supabaseUrl =
-    process.env.VITE_SUPABASE_URL ?? "https://test.supabase.co";
-  const projectRef = supabaseUrl.split("//")[1]?.split(".")[0] ?? "test";
+  const managedBrowser = await installManagedBrowser(page);
 
   await page.addInitScript(
-    ({ authKey, shouldDismissAiSetup }) => {
-      const session = {
-        access_token: "test-token",
-        token_type: "bearer",
-        expires_in: 3600,
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-        refresh_token: "refresh-token",
-        user: { id: "user-1", email: "dev@example.com" },
-      };
-      window.localStorage.setItem(authKey, JSON.stringify(session));
+    ({ shouldDismissAiSetup }) => {
       if (shouldDismissAiSetup) {
         window.sessionStorage.setItem("aiSetupDismissed", "1");
       } else {
@@ -55,7 +125,6 @@ export const installAuthenticatedBrowser = async (
       }
     },
     {
-      authKey: `sb-${projectRef}-auth-token`,
       shouldDismissAiSetup: dismissAiSetup,
     },
   );
@@ -87,6 +156,8 @@ export const installAuthenticatedBrowser = async (
       email: "dev@example.com",
     }),
   );
+
+  return managedBrowser;
 };
 
 export const dismissAiSetupWizard = async (page: Page) => {

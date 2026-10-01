@@ -1,3 +1,4 @@
+import { createAuthTestEnv } from "./authFixture";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { RuntimeEnv } from "../src/env";
@@ -9,6 +10,7 @@ import {
 import { ProviderConfigError } from "../src/providers/providerErrors";
 
 const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
+  ...createAuthTestEnv(),
   aiMode: "local_prefer",
   openaiApiKey: "",
   openaiKeyEncryptionSecret: "",
@@ -30,9 +32,6 @@ const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
   openaiTtsVoice: "marin",
   openaiTtsFormat: "mp3",
   openaiTtsInstructions: "Speak like a patient.",
-  supabaseUrl: "",
-  supabaseAnonKey: "",
-  supabaseJwtSecret: "test-secret",
   r2Bucket: "tts-bucket",
   r2PublicBaseUrl: "",
   ...overrides,

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { PageHeader } from "./help/components/PageHeader";
+import { StudioArtwork } from "../components/StudioArtwork";
 import {
   useDeleteMinigameSessionMutation,
   useListMinigameSessionsQuery,
@@ -51,21 +51,28 @@ export const MinigameHubPage = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      <PageHeader
-        kicker={t("minigameHub.kicker")}
-        title={t("minigameHub.title")}
-        subtitle={t("minigameHub.subtitle")}
-        actions={
-          <button
-            onClick={() =>
-              navigate("/minigames/play", { state: { fromHub: true } })
-            }
-            className="rounded-full border border-teal-300/40 bg-teal-500/20 px-5 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-teal-100"
-          >
-            {t("minigameHub.newGame")}
-          </button>
-        }
-      />
+      <section className="studio-hero studio-hero--split">
+        <div className="studio-hero-intro">
+          <div className="studio-hero-copy">
+            <p className="studio-eyebrow">{t("minigameHub.kicker")}</p>
+            <h1 className="studio-heading studio-hero-title mt-4">
+              {t("minigameHub.title")}
+            </h1>
+            <p className="mt-4 max-w-xl text-sm text-slate-300 sm:text-base">
+              {t("minigameHub.subtitle")}
+            </p>
+            <button
+              onClick={() =>
+                navigate("/minigames/play", { state: { fromHub: true } })
+              }
+              className="studio-primary mt-6"
+            >
+              {t("minigameHub.newGame")}
+            </button>
+          </div>
+          <StudioArtwork scene="rhythm" className="studio-game-art" priority />
+        </div>
+      </section>
 
       <p className="studio-guidance">{t("studio.games.guidance")}</p>
       <div className="flex flex-wrap items-center justify-between gap-4">

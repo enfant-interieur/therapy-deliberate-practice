@@ -25,11 +25,5 @@ export default defineConfig({
         url: localBaseUrl,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
-        env: {
-          VITE_SUPABASE_URL:
-            process.env.VITE_SUPABASE_URL ?? "https://test.supabase.co",
-          VITE_SUPABASE_ANON_KEY:
-            process.env.VITE_SUPABASE_ANON_KEY ?? "test-anon-key",
-        },
       },
 });

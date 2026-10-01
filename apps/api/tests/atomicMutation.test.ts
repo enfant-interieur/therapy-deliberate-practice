@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { drizzle as drizzleBetterSqlite } from "drizzle-orm/better-sqlite3";
 import { drizzle as drizzleD1 } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
-import { Miniflare } from "miniflare";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { runAtomicMutation } from "../src/db/atomic";
 import { tasks } from "../src/db/schema";
 import type { ApiDatabase } from "../src/db/types";
@@ -81,11 +81,13 @@ test("atomic mutation uses the real better-sqlite3 transaction boundary", async 
 });
 
 test("atomic mutation uses the real workerd D1 batch transaction boundary", async () => {
-  const miniflare = new Miniflare({
-    modules: true,
-    script: "export default { fetch() { return new Response('ok'); } }",
-    d1Databases: { DB: "atomic-contract-test" },
-  });
+  const miniflare = new Miniflare(
+    convertV4MiniflareOptions({
+      modules: true,
+      script: "export default { fetch() { return new Response('ok'); } }",
+      d1Databases: { DB: "atomic-contract-test" },
+    }),
+  );
   try {
     const binding = await miniflare.getD1Database("DB");
     await binding.prepare(taskTableSql).run();

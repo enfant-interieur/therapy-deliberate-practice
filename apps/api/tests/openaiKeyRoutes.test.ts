@@ -1,10 +1,14 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { after, test } from "node:test";
 import path from "node:path";
 import { eq } from "drizzle-orm";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
 import { userSettings } from "../src/db/schema";
@@ -12,7 +16,6 @@ import { createSqliteDb } from "../src/db/sqlite";
 import { resolveEnv } from "../src/env";
 import { decryptOpenAiKey } from "../src/utils/crypto";
 
-const jwtSecret = "openai-key-route-test-secret";
 const encryptionSecret = "openai-key-encryption-test-secret";
 const fakeOpenAiKey = (label: string) => `sk-${label}-${"test-only".repeat(4)}`;
 const ownerKey = fakeOpenAiKey("owner");
@@ -47,7 +50,8 @@ const createHarness = async (secret = encryptionSecret) => {
   const db = createSqliteDb(dbPath);
   const env = resolveEnv({
     ENV: "test",
-    SUPABASE_JWT_SECRET: jwtSecret,
+    AUTH_SECRET: TEST_AUTH_SECRET,
+    AUTH_BASE_URL: "http://localhost",
     OPENAI_KEY_ENCRYPTION_SECRET: secret,
   });
   const app = createApiApp({ env, db, tts: { storage: testStorage } });
@@ -66,40 +70,36 @@ const createHarness = async (secret = encryptionSecret) => {
   };
 };
 
-const authHeaders = async (userId: string) => {
-  const token = await new SignJWT({ email: `${userId}@example.com` })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(userId)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(jwtSecret));
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+const authHeaders = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+  userId: string,
+) => ({
+  ...(await createManagedSessionHeaders(db, createAuthTestEnv(), userId)),
+  "Content-Type": "application/json",
+});
 
 const saveKey = async (
   app: ReturnType<typeof createApiApp>,
+  db: Parameters<typeof createManagedSessionHeaders>[0],
   userId: string,
   openaiApiKey: string,
 ) =>
   app.request("/api/v1/me/openai-key", {
     method: "PUT",
-    headers: await authHeaders(userId),
+    headers: await authHeaders(db, userId),
     body: JSON.stringify({ openaiApiKey }),
   });
 
 test("OpenAI keys are encrypted, owner-scoped, omitted from reads, and removable", async () => {
   const { app, db, cleanup } = await createHarness();
   try {
-    const ownerSave = await saveKey(app, "key-owner", ownerKey);
+    const ownerSave = await saveKey(app, db, "key-owner", ownerKey);
     assert.equal(ownerSave.status, 200);
     const ownerSavePayload = await ownerSave.json();
     assert.deepEqual(ownerSavePayload, { ok: true, hasOpenAiKey: true });
     assert.equal(JSON.stringify(ownerSavePayload).includes(ownerKey), false);
 
-    const otherSave = await saveKey(app, "key-other", otherKey);
+    const otherSave = await saveKey(app, db, "key-other", otherKey);
     assert.equal(otherSave.status, 200);
 
     const [ownerSettings] = await db
@@ -126,7 +126,7 @@ test("OpenAI keys are encrypted, owner-scoped, omitted from reads, and removable
 
     for (const endpoint of ["/api/v1/me", "/api/v1/me/settings"]) {
       const response = await app.request(endpoint, {
-        headers: await authHeaders("key-owner"),
+        headers: await authHeaders(db, "key-owner"),
       });
       assert.equal(response.status, 200);
       const serialized = JSON.stringify(await response.json());
@@ -137,7 +137,7 @@ test("OpenAI keys are encrypted, owner-scoped, omitted from reads, and removable
 
     const removeResponse = await app.request("/api/v1/me/openai-key", {
       method: "DELETE",
-      headers: await authHeaders("key-owner"),
+      headers: await authHeaders(db, "key-owner"),
     });
     assert.equal(removeResponse.status, 200);
     assert.deepEqual(await removeResponse.json(), {
@@ -168,7 +168,10 @@ test("OpenAI keys are encrypted, owner-scoped, omitted from reads, and removable
 test("invalid or unencryptable key updates fail closed without replacing the stored key", async () => {
   const { app, db, env, cleanup } = await createHarness();
   try {
-    assert.equal((await saveKey(app, "rollback-owner", ownerKey)).status, 200);
+    assert.equal(
+      (await saveKey(app, db, "rollback-owner", ownerKey)).status,
+      200,
+    );
     const readStored = async () =>
       (
         await db
@@ -178,14 +181,14 @@ test("invalid or unencryptable key updates fail closed without replacing the sto
       )[0];
     const before = await readStored();
 
-    const invalidKey = await saveKey(app, "rollback-owner", "not-a-key");
+    const invalidKey = await saveKey(app, db, "rollback-owner", "not-a-key");
     assert.equal(invalidKey.status, 400);
     assert.deepEqual(await invalidKey.json(), { error: "Invalid OpenAI key" });
     assert.deepEqual(await readStored(), before);
 
     const invalidJson = await app.request("/api/v1/me/openai-key", {
       method: "PUT",
-      headers: await authHeaders("rollback-owner"),
+      headers: await authHeaders(db, "rollback-owner"),
       body: "{",
     });
     assert.equal(invalidJson.status, 400);
@@ -194,6 +197,7 @@ test("invalid or unencryptable key updates fail closed without replacing the sto
 
     const oversized = await saveKey(
       app,
+      db,
       "rollback-owner",
       `sk-${"x".repeat(20_000)}`,
     );
@@ -210,6 +214,7 @@ test("invalid or unencryptable key updates fail closed without replacing the sto
     });
     const missingSecret = await saveKey(
       misconfiguredApp,
+      db,
       "rollback-owner",
       otherKey,
     );
@@ -229,7 +234,7 @@ test("OpenAI validation is destination-bound, failure-safe, and rate limited bef
   const originalFetch = globalThis.fetch;
   try {
     assert.equal(
-      (await saveKey(app, "validation-owner", ownerKey)).status,
+      (await saveKey(app, db, "validation-owner", ownerKey)).status,
       200,
     );
     const [storedBefore] = await db
@@ -261,7 +266,7 @@ test("OpenAI validation is destination-bound, failure-safe, and rate limited bef
       "/api/v1/me/openai-key/validate",
       {
         method: "POST",
-        headers: await authHeaders("validation-owner"),
+        headers: await authHeaders(db, "validation-owner"),
         body: JSON.stringify({}),
       },
     );
@@ -282,7 +287,7 @@ test("OpenAI validation is destination-bound, failure-safe, and rate limited bef
       "/api/v1/me/openai-key/validate",
       {
         method: "POST",
-        headers: await authHeaders("validation-owner"),
+        headers: await authHeaders(db, "validation-owner"),
         body: "{",
       },
     );
@@ -297,7 +302,7 @@ test("OpenAI validation is destination-bound, failure-safe, and rate limited bef
       "/api/v1/me/openai-key/validate",
       {
         method: "POST",
-        headers: await authHeaders("validation-owner"),
+        headers: await authHeaders(db, "validation-owner"),
         body: JSON.stringify({ openaiApiKey: 42 }),
       },
     );
@@ -313,7 +318,7 @@ test("OpenAI validation is destination-bound, failure-safe, and rate limited bef
       "/api/v1/me/openai-key/validate",
       {
         method: "POST",
-        headers: await authHeaders("validation-owner"),
+        headers: await authHeaders(db, "validation-owner"),
         body: JSON.stringify({ openaiApiKey: rejectedKey }),
       },
     );
@@ -331,7 +336,7 @@ test("OpenAI validation is destination-bound, failure-safe, and rate limited bef
     assert.deepEqual(storedAfter, storedBefore);
 
     const rateLimitUser = "key-rate-limit-user";
-    const rateLimitHeaders = await authHeaders(rateLimitUser);
+    const rateLimitHeaders = await authHeaders(db, rateLimitUser);
     const rateLimitKey = fakeOpenAiKey("rate-limit");
     const outboundBeforeRateLimit = outbound.length;
     for (let index = 0; index < 10; index += 1) {

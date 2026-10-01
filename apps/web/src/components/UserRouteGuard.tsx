@@ -1,11 +1,11 @@
-import { PropsWithChildren } from "react";
+import { Fragment, type PropsWithChildren } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAppSelector } from "../store/hooks";
 
 export const UserRouteGuard = ({ children }: PropsWithChildren) => {
   const { t } = useTranslation();
-  const { isAuthenticated, authChecked } = useAppSelector(
+  const { isAuthenticated, authChecked, userId } = useAppSelector(
     (state) => state.auth,
   );
   const location = useLocation();
@@ -28,5 +28,5 @@ export const UserRouteGuard = ({ children }: PropsWithChildren) => {
     );
   }
 
-  return <>{children}</>;
+  return <Fragment key={userId}>{children}</Fragment>;
 };

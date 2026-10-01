@@ -1,11 +1,14 @@
 {
   "name": "therapy-deliberate-practice",
   "main": "src/index.ts",
-  "compatibility_date": "2025-04-01",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "send_email": [{ "name": "AUTH_EMAIL", "allowed_sender_addresses": ["login@auth.therapy-deliberate-practice.com"] }],
   "assets": {
     "directory": "../../apps/web/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
+    "run_worker_first": true,
   },
   "d1_databases": [
     {
@@ -54,15 +57,19 @@
       }
     ]
   },
-  // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, SUPABASE_JWT_SECRET,
+  // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, AUTH_SECRET,
+  //   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET,
+  //   APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID, APPLE_PRIVATE_KEY,
   //   CF_ACCESS_AUD, CF_ACCESS_ISSUER,
   //    "ADMIN_EMAILS": "",
   //    "ADMIN_GROUPS": "",
   // Local model URLs belong to the learner's browser settings. A hosted Worker cannot reach them.
   "vars": {
-    "SUPABASE_URL": "https://swwnxedbhwfhfoogghqs.supabase.co",
-    "SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3d254ZWRiaHdmaGZvb2dnaHFzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcxODQ3NzAsImV4cCI6MjA4Mjc2MDc3MH0.GxWdmheN1dp3ZunMxfSec4gkNUJXalO00BDOJ4l7_-4",
     "ENV": "production",
+    "AUTH_BASE_URL": "https://therapy-deliberate-practice.com",
+    "AUTH_TRUSTED_ORIGINS": "https://www.therapy-deliberate-practice.com",
+    "AUTH_EMAIL_FROM": "login@auth.therapy-deliberate-practice.com",
+    "AUTH_EMAIL_ENABLED": "false",
     "R2_BUCKET": "deliberate-practice-audio",
     "BYPASS_ADMIN_AUTH": "false",
     "DEV_ADMIN_TOKEN": "",

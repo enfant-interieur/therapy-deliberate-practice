@@ -7,6 +7,14 @@ import {
   uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+export {
+  authUsers,
+  authSessions,
+  authAccounts,
+  authVerifications,
+  authRateLimits,
+} from "../auth/schema";
+
 export const users = sqliteTable("users", {
   id: text("id").primaryKey(),
   email: text("email").notNull().unique(),

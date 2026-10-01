@@ -1,8 +1,12 @@
+import {
+  applyAuthTestMigration,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { afterEach, test } from "node:test";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { taskExamples, tasks, ttsAssets } from "../src/db/schema";
 import type { RuntimeEnv } from "../src/env";
@@ -21,6 +25,7 @@ afterEach(() => {
 });
 
 const createEnv = (): RuntimeEnv => ({
+  ...createAuthTestEnv(),
   aiMode: "local_prefer",
   openaiApiKey: "test-openai",
   openaiKeyEncryptionSecret: "",
@@ -42,9 +47,6 @@ const createEnv = (): RuntimeEnv => ({
   openaiTtsVoice: "marin",
   openaiTtsFormat: "mp3",
   openaiTtsInstructions: "Speak like a patient.",
-  supabaseUrl: "",
-  supabaseAnonKey: "",
-  supabaseJwtSecret: "test-secret",
   r2Bucket: "tts-bucket",
   r2PublicBaseUrl: "",
 });
@@ -119,6 +121,7 @@ const setupDb = () => {
       updated_at INTEGER NOT NULL
     );
   `);
+  applyAuthTestMigration(sqlite);
   const db = drizzle(sqlite);
   return { db, sqlite };
 };
@@ -368,12 +371,9 @@ test("tts route serves shared ready audio when at least one associated task is p
     }),
   };
   const app = createApiApp({ env, db, tts: { storage } });
-  const token = await new SignJWT({ email: "user@example.com" })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject("user-1")
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(env.supabaseJwtSecret));
+  const headers = await createManagedSessionHeaders(db, env, "user-1", {
+    email: "user@example.com",
+  });
 
   await db.insert(ttsAssets).values({
     id: "asset-1",
@@ -393,7 +393,7 @@ test("tts route serves shared ready audio when at least one associated task is p
   });
 
   const notReady = await app.request("/api/v1/tts/cache-missing", {
-    headers: { Authorization: `Bearer ${token}` },
+    headers,
   });
   assert.equal(notReady.status, 404);
 

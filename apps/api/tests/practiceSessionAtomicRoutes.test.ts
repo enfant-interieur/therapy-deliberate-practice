@@ -1,3 +1,8 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { test } from "node:test";
@@ -5,7 +10,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { and, eq } from "drizzle-orm";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
 import {
@@ -19,20 +23,13 @@ import {
 import { createSqliteDb } from "../src/db/sqlite";
 import { resolveEnv } from "../src/env";
 
-const jwtSecret = "practice-session-atomic-route-secret";
-
-const authHeaders = async (userId: string) => {
-  const token = await new SignJWT({ email: `${userId}@example.com` })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(userId)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(jwtSecret));
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+const authHeaders = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+  userId: string,
+) => ({
+  ...(await createManagedSessionHeaders(db, createAuthTestEnv(), userId)),
+  "Content-Type": "application/json",
+});
 
 test("practice-session writes roll back atomically and preserve cross-user ownership", async () => {
   const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -45,7 +42,8 @@ test("practice-session writes roll back atomically and preserve cross-user owner
   const app = createApiApp({
     env: resolveEnv({
       ENV: "test",
-      SUPABASE_JWT_SECRET: jwtSecret,
+      AUTH_SECRET: TEST_AUTH_SECRET,
+      AUTH_BASE_URL: "http://localhost",
     }),
     db,
     tts: {
@@ -115,7 +113,7 @@ test("practice-session writes roll back atomically and preserve cross-user owner
     `);
     sqlite.close();
 
-    const userOneHeaders = await authHeaders("user-1");
+    const userOneHeaders = await authHeaders(db, "user-1");
     const failedStart = await app.request("/api/v1/sessions/start", {
       method: "POST",
       headers: userOneHeaders,
@@ -232,7 +230,7 @@ test("practice-session writes roll back atomically and preserve cross-user owner
     const otherUserResume = await app.request(
       "/api/v1/sessions/owned-session/attempts",
       {
-        headers: await authHeaders("user-2"),
+        headers: await authHeaders(db, "user-2"),
       },
     );
     assert.equal(otherUserResume.status, 404);

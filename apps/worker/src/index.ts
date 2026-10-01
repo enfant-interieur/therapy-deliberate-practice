@@ -1,62 +1,81 @@
-import type { D1Database, MessageBatch, Queue, R2Bucket } from "@cloudflare/workers-types";
+import type { MessageBatch } from "@cloudflare/workers-types";
 import { createApiApp } from "../../api/src/app";
 import { createD1Db } from "../../api/src/db/d1";
 import { resolveEnv, type EnvBindings } from "../../api/src/env";
 import { createR2BucketStorage } from "../../api/src/utils/r2Worker";
 import {
   handleBatchParseQueueMessage,
-  type BatchParseQueueMessage
+  type BatchParseQueueMessage,
 } from "../../api/src/services/adminBatchParseService";
 import {
   handlePatientAudioQueueMessage,
-  type PatientAudioQueueMessage
+  type PatientAudioQueueMessage,
 } from "../../api/src/services/patientAudioQueueService";
 
-export type WorkerEnv = EnvBindings & {
-  DB: D1Database;
-  ASSETS: Fetcher;
-  deliberate_practice_audio: R2Bucket;
-  ADMIN_BATCH_PARSE_QUEUE?: Queue;
-  PATIENT_AUDIO_QUEUE?: Queue;
-};
-
-let cachedApp: ReturnType<typeof createApiApp> | null = null;
+export type WorkerEnv = CloudflareBindings & EnvBindings;
 
 export default {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext) {
-    if (!cachedApp) {
+    const url = new URL(request.url);
+    // OAuth callbacks and host-only session cookies share one production origin.
+    if (
+      env.ENV === "production" &&
+      url.hostname === "www.therapy-deliberate-practice.com"
+    ) {
+      url.hostname = "therapy-deliberate-practice.com";
+      return Response.redirect(url.href, 308);
+    }
+    if (url.pathname.startsWith("/api/")) {
       const queueProducer = env.ADMIN_BATCH_PARSE_QUEUE
         ? {
-            send: (message: BatchParseQueueMessage) => env.ADMIN_BATCH_PARSE_QUEUE!.send(message)
+            send: async (message: BatchParseQueueMessage) => {
+              await env.ADMIN_BATCH_PARSE_QUEUE!.send(message);
+            },
           }
         : undefined;
       const patientAudioQueueProducer = env.PATIENT_AUDIO_QUEUE
         ? {
-            send: (message: PatientAudioQueueMessage) => env.PATIENT_AUDIO_QUEUE!.send(message)
+            send: async (message: PatientAudioQueueMessage) => {
+              await env.PATIENT_AUDIO_QUEUE!.send(message);
+            },
           }
         : undefined;
-      cachedApp = createApiApp({
-        env: resolveEnv(env),
+      const runtimeEnv = resolveEnv(env);
+      const app = createApiApp({
+        env: runtimeEnv,
         db: createD1Db(env.DB),
+        sendAuthEmail:
+          runtimeEnv.authEmailEnabled &&
+          runtimeEnv.authEmailFrom &&
+          env.AUTH_EMAIL
+            ? async (message) => {
+                await env.AUTH_EMAIL.send({
+                  ...message,
+                  from: {
+                    email: runtimeEnv.authEmailFrom,
+                    name: "Therapy Studio",
+                  },
+                });
+              }
+            : undefined,
         tts: { storage: createR2BucketStorage(env.deliberate_practice_audio) },
         queues:
           queueProducer || patientAudioQueueProducer
             ? {
                 adminBatchParse: queueProducer,
-                patientAudio: patientAudioQueueProducer
+                patientAudio: patientAudioQueueProducer,
               }
-            : undefined
+            : undefined,
       });
-    }
-
-    const url = new URL(request.url);
-    if (url.pathname.startsWith("/api/")) {
-      return cachedApp.fetch(request, env, ctx);
+      return app.fetch(request, env, ctx);
     }
 
     return env.ASSETS.fetch(request);
   },
-  async queue(batch: MessageBatch<BatchParseQueueMessage | PatientAudioQueueMessage>, env: WorkerEnv) {
+  async queue(
+    batch: MessageBatch<BatchParseQueueMessage | PatientAudioQueueMessage>,
+    env: WorkerEnv,
+  ) {
     const runtimeEnv = resolveEnv(env);
     const db = createD1Db(env.DB);
     const storage = createR2BucketStorage(env.deliberate_practice_audio);
@@ -69,7 +88,12 @@ export default {
           continue;
         }
         if (payload && "statementId" in payload && "exerciseId" in payload) {
-          await handlePatientAudioQueueMessage(db, runtimeEnv, storage, payload);
+          await handlePatientAudioQueueMessage(
+            db,
+            runtimeEnv,
+            storage,
+            payload,
+          );
           message.ack();
           continue;
         }
@@ -79,5 +103,5 @@ export default {
         message.retry();
       }
     }
-  }
+  },
 };

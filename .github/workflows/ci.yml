@@ -30,6 +30,8 @@ jobs:
           npm run lint -w services/local-runtime-suite/desktop
       - name: Type-check browser code
         run: |
+          npm run typecheck -w apps/api
+          npm run typecheck -w apps/worker
           npm run typecheck -w apps/web
           npm run typecheck -w services/local-runtime-suite/desktop
       - name: Run JavaScript and TypeScript tests
@@ -38,18 +40,12 @@ jobs:
           npm test -w apps/web
           npm test -w services/local-runtime-suite/desktop
       - name: Build application surfaces
-        env:
-          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
-          VITE_SUPABASE_ANON_KEY: ci-placeholder
         run: |
           npm run build
           npm run build -w services/local-runtime-suite/desktop
       - name: Install browser for maintained web flows
         run: npx playwright install --with-deps chromium
       - name: Run all maintained browser flows
-        env:
-          VITE_SUPABASE_URL: https://ci-placeholder.supabase.co
-          VITE_SUPABASE_ANON_KEY: ci-placeholder
         run: |
           (
             cd apps/web

@@ -10,7 +10,6 @@ import type {
   TaskInteractionExample,
   EvaluationResult,
 } from "@deliberate/shared";
-import type { RootState } from ".";
 
 export type AdminWhoami = {
   isAuthenticated: boolean;
@@ -297,17 +296,11 @@ export const api = createApi({
   reducerPath: "api",
   baseQuery: fetchBaseQuery({
     baseUrl: "/api/v1",
-    prepareHeaders: (headers, { getState }) => {
-      const state = getState() as RootState;
-      const token = state.auth.accessToken;
-      if (token) {
-        headers.set("Authorization", `Bearer ${token}`);
-      }
+    credentials: "same-origin",
+    prepareHeaders: (headers) => {
       if (import.meta.env.DEV) {
-        const devToken = window.localStorage.getItem("devAdminToken");
-        if (devToken) {
-          headers.set("x-dev-admin-token", devToken);
-        }
+        const devAdminToken = window.localStorage.getItem("devAdminToken");
+        if (devAdminToken) headers.set("x-dev-admin-token", devAdminToken);
       }
       return headers;
     },

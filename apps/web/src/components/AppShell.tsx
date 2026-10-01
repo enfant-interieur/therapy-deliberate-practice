@@ -7,8 +7,9 @@ import {
   useGetMeQuery,
   useGetMeSettingsQuery,
 } from "../store/api";
-import { setAdminStatus, setUser } from "../store/authSlice";
-import { supabase } from "../supabase/client";
+import { setAdminStatus } from "../store/authSlice";
+import { signOut } from "../auth/client";
+import { useAuthSync } from "../auth/useAuthSync";
 import { hydrateSettings } from "../store/settingsSlice";
 import { AiSetupModal } from "./AiSetupModal";
 import { Tooltip } from "./Tooltip";
@@ -26,7 +27,7 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export const AppShell = () => {
   const { t, i18n } = useTranslation();
   const dispatch = useAppDispatch();
-  const { isAdmin, isAuthenticated, authChecked, email } = useAppSelector(
+  const { isAdmin, isAuthenticated, authChecked, email, userId } = useAppSelector(
     (state) => state.auth,
   );
   const isAppShellHidden = useAppSelector(
@@ -47,7 +48,8 @@ export const AppShell = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showAiSetup, setShowAiSetup] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
-  const handledAuthSignatureRef = useRef<string>("");
+  useAuthSync();
+  const [logoutFailed, setLogoutFailed] = useState(false);
   const isMobile = useMediaQuery("(max-width: 768px)");
 
   const handleLanguageChange = (event: ChangeEvent<HTMLSelectElement>) => {
@@ -55,120 +57,17 @@ export const AppShell = () => {
   };
 
   useEffect(() => {
-    const run = async () => {
-      const url = new URL(window.location.href);
-
-      const code = url.searchParams.get("code");
-      const urlError =
-        url.searchParams.get("error_description") ||
-        url.searchParams.get("error") ||
-        null;
-
-      const hashParams = new URLSearchParams(
-        window.location.hash.startsWith("#")
-          ? window.location.hash.slice(1)
-          : window.location.hash,
-      );
-      const hashHasTokens =
-        hashParams.has("access_token") || hashParams.has("refresh_token");
-      const hashError =
-        hashParams.get("error_description") || hashParams.get("error") || null;
-
-      const hasAuthCallback = Boolean(
-        code || hashHasTokens || urlError || hashError,
-      );
-      if (!hasAuthCallback) return;
-
-      const signature = [
-        code ?? "",
-        hashHasTokens ? "tokens" : "",
-        urlError ?? "",
-        hashError ?? "",
-      ].join("|");
-      if (handledAuthSignatureRef.current === signature) return;
-      handledAuthSignatureRef.current = signature;
-
-      let errorMessage = urlError || hashError;
-
-      try {
-        if (code) {
-          await supabase.auth.exchangeCodeForSession(code);
-        } else if (hashHasTokens) {
-          const authAny = supabase.auth as {
-            getSessionFromUrl?: (options: {
-              storeSession: boolean;
-            }) => Promise<unknown>;
-          };
-          if (typeof authAny.getSessionFromUrl === "function") {
-            await authAny.getSessionFromUrl({ storeSession: true });
-          } else {
-            await supabase.auth.getSession();
-          }
-        }
-        await supabase.auth.getSession();
-      } catch (error) {
-        errorMessage =
-          error instanceof Error
-            ? error.message
-            : "Authentication callback failed.";
-      }
-
-      const returnToFromUrl = url.searchParams.get("returnTo");
-      const storedReturnTo = window.localStorage.getItem("authReturnTo");
-
-      const returnTo =
-        safeInternalReturnTo(returnToFromUrl) ??
-        safeInternalReturnTo(storedReturnTo) ??
-        "/";
-
-      window.localStorage.removeItem("authReturnTo");
-
-      if (errorMessage) {
-        window.localStorage.setItem("authError", errorMessage);
-        navigate(`/login?returnTo=${encodeURIComponent(returnTo)}`, {
-          replace: true,
-        });
-      } else {
-        navigate(returnTo, { replace: true });
-      }
-    };
-
-    void run();
-  }, [navigate, location.key]);
-
-  useEffect(() => {
-    let mounted = true;
-    const init = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!mounted) return;
-      const session = sessionData.session;
-      dispatch(
-        setUser({
-          userId: session?.user?.id ?? null,
-          email: session?.user?.email ?? null,
-          accessToken: session?.access_token ?? null,
-          isAuthenticated: Boolean(session?.user?.id),
-          authChecked: true,
-        }),
-      );
-    };
-    void init();
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      dispatch(
-        setUser({
-          userId: session?.user?.id ?? null,
-          email: session?.user?.email ?? null,
-          accessToken: session?.access_token ?? null,
-          isAuthenticated: Boolean(session?.user?.id),
-          authChecked: true,
-        }),
-      );
-    });
-    return () => {
-      mounted = false;
-      data.subscription.unsubscribe();
-    };
-  }, [dispatch]);
+    if (location.pathname === "/reset-password") return;
+    const url = new URL(window.location.href);
+    const error = url.searchParams.get("error");
+    if (!error && !url.searchParams.has("error_description")) return;
+    const returnTo =
+      safeInternalReturnTo(url.searchParams.get("returnTo")) ?? "/";
+    navigate(
+      `/login?returnTo=${encodeURIComponent(returnTo)}&authError=${error === "access_denied" ? "denied" : "failed"}`,
+      { replace: true },
+    );
+  }, [navigate, location.key, location.pathname]);
 
   useEffect(() => {
     if (settingsData) {
@@ -245,7 +144,12 @@ export const AppShell = () => {
   }, [isMobile]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    setLogoutFailed(false);
+    try {
+      await signOut();
+    } catch {
+      setLogoutFailed(true);
+    }
   };
 
   const openAiSetup = () => {
@@ -277,6 +181,7 @@ export const AppShell = () => {
         {t("studio.skip")}
       </a>
       <AiSetupModal
+        key={userId ?? "anonymous"}
         open={showAiSetup}
         onClose={(reason) => {
           window.sessionStorage.setItem("aiSetupDismissed", "1");
@@ -287,15 +192,24 @@ export const AppShell = () => {
         }}
       />
       {!isAppShellHidden && (
-        <header className="sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur">
+        <header className="studio-header sticky top-0 z-20 border-b border-white/5 bg-slate-950/80 backdrop-blur">
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-            <div>
-              <p className="text-[10px] uppercase tracking-[0.2em] text-teal-300">
-                {t("appShell.brand")}
-              </p>
-              <p className="studio-brand text-base font-semibold sm:text-lg">
-                {t("appShell.title")}
-              </p>
+            <div className="studio-brand-lockup">
+              <img
+                src="/brand/studio-mark.svg"
+                alt=""
+                aria-hidden="true"
+                width="40"
+                height="40"
+              />
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-teal-300">
+                  {t("appShell.brand")}
+                </p>
+                <p className="studio-brand text-base font-semibold sm:text-lg">
+                  {t("appShell.title")}
+                </p>
+              </div>
             </div>
             <nav
               className="flex items-center gap-1"
@@ -625,6 +539,11 @@ export const AppShell = () => {
             : "studio-main mx-auto max-w-6xl px-6 pb-16"
         }
       >
+        {logoutFailed && (
+          <p role="alert" className="mb-4 text-rose-200">
+            {t("auth.errors.signOut")}
+          </p>
+        )}
         <Outlet context={{ openAiSetup }} />
       </main>
     </div>

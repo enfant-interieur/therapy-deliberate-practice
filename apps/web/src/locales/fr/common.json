@@ -79,11 +79,13 @@
       "google": "Continuer avec Google",
       "googleLoading": "Connexion à Google...",
       "github": "Continuer avec GitHub",
-      "githubLoading": "Connexion à GitHub..."
+      "githubLoading": "Connexion à GitHub...",
+      "apple": "Continuer avec Apple",
+      "appleLoading": "Connexion à Apple…"
     },
     "errors": {
       "missingEmailPassword": "Saisissez votre e-mail et votre mot de passe.",
-      "passwordShort": "Le mot de passe doit contenir au moins 6 caractères.",
+      "passwordShort": "Le mot de passe doit contenir au moins 12 caractères.",
       "passwordMismatch": "Les mots de passe ne correspondent pas.",
       "missingEmailReset": "Saisissez votre e-mail pour réinitialiser le mot de passe.",
       "missingEmailResend": "Saisissez votre e-mail pour renvoyer la confirmation."
@@ -91,8 +93,8 @@
     "info": {
       "checkEmail": "Vérifiez votre e-mail pour confirmer votre compte, puis revenez vous connecter.",
       "accountCreated": "Compte créé. Connexion en cours...",
-      "resetEmailSent": "E-mail de réinitialisation envoyé. Suivez le lien pour créer un nouveau mot de passe.",
-      "confirmationResent": "E-mail de confirmation renvoyé. Vérifiez votre boîte de réception pour terminer l'inscription."
+      "resetEmailSent": "Si un compte utilise cet e-mail, vous recevrez un lien pour choisir un nouveau mot de passe.",
+      "confirmationResent": "Si une confirmation est nécessaire pour cet e-mail, vous recevrez un nouveau lien."
     }
   },
   "library": {
@@ -1854,6 +1856,56 @@
     "detail": {
       "error": "Cet exercice n’a pas pu être chargé. Vos filtres de bibliothèque sont conservés.",
       "retry": "Réessayer le chargement"
+    }
+  },
+  "auth": {
+    "introduction": "Un espace pour apprendre, pratiquer et revenir à ce qui compte.",
+    "passwordHint": "Utilisez 12 à 128 caractères. Choisissez une phrase longue et unique.",
+    "availability": "La connexion est temporairement indisponible. Réessayez dans un instant.",
+    "emailUnavailable": "L’inscription et la récupération par e-mail sont temporairement indisponibles. Les comptes existants peuvent toujours se connecter.",
+    "notConfigured": "Indisponible",
+    "verified": "E-mail confirmé. Vous pouvez maintenant vous connecter.",
+    "currentPassword": "Mot de passe actuel",
+    "newPassword": "Nouveau mot de passe",
+    "saving": "Enregistrement…",
+    "backToLogin": "Retour à la connexion",
+    "errors": {
+      "verifyEmail": "Confirmez votre e-mail avant de vous connecter. Vous pouvez demander une nouvelle confirmation ci-dessous.",
+      "credentials": "L’e-mail ou le mot de passe est incorrect.",
+      "freshSession": "Déconnectez-vous puis reconnectez-vous avant de modifier ce compte.",
+      "expiredLink": "Ce lien n’est plus valide. Demandez une nouvelle réinitialisation depuis la page de connexion.",
+      "existingMethod": "Utilisez votre méthode de connexion habituelle avant d’associer un autre compte.",
+      "unavailable": "Ce service est temporairement indisponible. Réessayez dans un instant.",
+      "tryAgain": "La demande n’a pas abouti. Veuillez réessayer.",
+      "signOut": "La déconnexion n’a pas abouti. Veuillez réessayer.",
+      "denied": "La connexion a été annulée. Réessayez ou choisissez une autre méthode.",
+      "callback": "La connexion n’a pas abouti. Réessayez avec votre méthode habituelle."
+    },
+    "recovery": {
+      "eyebrow": "Récupération du compte",
+      "title": "Choisissez un nouveau mot de passe",
+      "save": "Enregistrer le nouveau mot de passe",
+      "complete": "Votre mot de passe a été modifié et les sessions précédentes ont été fermées. Connectez-vous avec votre nouveau mot de passe."
+    },
+    "security": {
+      "title": "Sécurité du compte",
+      "subtitle": "Gérez vos méthodes de connexion et les sessions ouvertes.",
+      "methods": "Méthodes de connexion",
+      "method": "Compte associé",
+      "unlink": "Dissocier",
+      "link": "Associer {{provider}}",
+      "freshHint": "Les modifications nécessitent une connexion récente. Conservez au moins une méthode de connexion.",
+      "sessions": "Sessions actives",
+      "sessionCount_one": "Votre compte est ouvert dans {{count}} session.",
+      "sessionCount_other": "Votre compte est ouvert dans {{count}} sessions.",
+      "signOutAll": "Fermer toutes les sessions",
+      "changePassword": "Modifier le mot de passe",
+      "passwordChanged": "Mot de passe modifié. Les autres sessions ont été fermées."
+    },
+    "providers": {
+      "google": "Google",
+      "github": "GitHub",
+      "apple": "Apple"
     }
   }
 }

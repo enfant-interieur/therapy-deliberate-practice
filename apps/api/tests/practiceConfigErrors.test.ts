@@ -1,13 +1,18 @@
+import {
+  applyAuthTestMigration,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import type { RuntimeEnv } from "../src/env";
 import { taskExamples, tasks, userSettings, users } from "../src/db/schema";
 
 const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
+  ...createAuthTestEnv(),
   aiMode: "local_prefer",
   openaiApiKey: "",
   openaiKeyEncryptionSecret: "",
@@ -29,9 +34,6 @@ const createEnv = (overrides: Partial<RuntimeEnv> = {}): RuntimeEnv => ({
   openaiTtsVoice: "marin",
   openaiTtsFormat: "mp3",
   openaiTtsInstructions: "Speak like a patient.",
-  supabaseUrl: "",
-  supabaseAnonKey: "",
-  supabaseJwtSecret: "test-secret",
   r2Bucket: "tts-bucket",
   r2PublicBaseUrl: "",
   ...overrides,
@@ -106,19 +108,17 @@ const setupDb = () => {
       updated_at INTEGER NOT NULL
     );
   `);
+  applyAuthTestMigration(sqlite);
   const db = drizzle(sqlite);
   return { db, sqlite };
 };
 
-const createAuthHeader = async (env: RuntimeEnv, userId: string) => {
-  const token = await new SignJWT({ email: "user@example.com" })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(userId)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(env.supabaseJwtSecret));
-  return { Authorization: `Bearer ${token}` };
-};
+const createAuthHeader = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+  env: RuntimeEnv,
+  userId: string,
+) =>
+  createManagedSessionHeaders(db, env, userId, { email: "user@example.com" });
 
 test("practice run returns 400 when openai_only has no key", async () => {
   const { db } = setupDb();
@@ -184,7 +184,7 @@ test("practice run returns 400 when openai_only has no key", async () => {
     updated_at: now,
   });
 
-  const headers = await createAuthHeader(env, userId);
+  const headers = await createAuthHeader(db, env, userId);
   const response = await app.request("/api/v1/practice/run", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...headers },

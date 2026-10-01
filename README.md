@@ -25,7 +25,7 @@ The production web path uses a Cloudflare Worker with D1 and R2. The desktop app
 - Python 3.12 and `uv` for Local Runtime development
 - Rust stable and the Tauri platform prerequisites for desktop development
 - Wrangler for Cloudflare Worker development
-- A Supabase project for authentication
+- Application-owned Better Auth authentication; provider credentials and a verified email sender for those login methods
 - A Cloudflare account for production D1, R2, and Worker resources
 
 The root `package.json` pins the supported Node.js and npm ranges.
@@ -46,14 +46,7 @@ cp .env.example .env
 
 Set the values required by the surface you are running. Keep all secret values out of source control.
 
-For the web client, create `apps/web/.env`:
-
-```dotenv
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
-```
-
-The Vite variables are public browser configuration. Never put service-role keys or other secrets in a `VITE_` variable.
+The browser requires no authentication environment variables. Configure the server-owned login as described in [the migration and configuration guide](docs/auth/migration.md). Keep protected values in the secure runtime environment.
 
 ## Run the web application
 
@@ -113,14 +106,7 @@ Intel macOS does not advertise a packaged language model because PyTorch 2.13 ha
 
 ## Configure authentication
 
-In Supabase:
-
-1. Enable the required Google and GitHub authentication providers.
-2. Add `http://localhost:5173/login` for local development.
-3. Add the production `/login` URL for the deployed application.
-4. Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, and `SUPABASE_JWT_SECRET` for the relevant runtime.
-
-The anonymous key is browser-visible by design. The JWT secret is sensitive and must remain a server-side secret.
+The local source candidate uses Better Auth with D1 in Workers and SQLite in development. Google, GitHub, Apple, and email login are configured by the application. See [docs/auth/migration.md](docs/auth/migration.md) for the complete configuration, private account import, and cutover/rollback gates. The currently deployed Supabase login stays in service until that cutover is explicitly authorized.
 
 ## Configure text-to-speech and R2
 
@@ -236,9 +222,12 @@ Common server-side variables are:
 
 - `OPENAI_API_KEY`
 - `OPENAI_KEY_ENCRYPTION_SECRET`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_JWT_SECRET`
+- `AUTH_SECRET`
+- `AUTH_BASE_URL`
+- `AUTH_TRUSTED_ORIGINS`
+- `AUTH_EMAIL_FROM`
+- `AUTH_EMAIL_ENABLED`
+- Provider credentials listed in [the authentication guide](docs/auth/migration.md)
 - `R2_BUCKET`
 - `R2_PUBLIC_BASE_URL`
 - `ADMIN_EMAILS`

@@ -63,6 +63,11 @@ const AdminParseTaskPage = lazy(() =>
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((module) => ({ default: module.LoginPage })),
 );
+const ResetPasswordPage = lazy(() =>
+  import("./pages/ResetPasswordPage").then((module) => ({
+    default: module.ResetPasswordPage,
+  })),
+);
 const ProfilePage = lazy(() =>
   import("./pages/ProfilePage").then((module) => ({
     default: module.ProfilePage,
@@ -139,6 +144,7 @@ export const router = createBrowserRouter([
       { index: true, element: loadRoute(<LibraryPage />) },
       { path: "tasks/:id", element: loadRoute(<ExerciseDetailPage />) },
       { path: "login", element: loadRoute(<LoginPage />) },
+      { path: "reset-password", element: loadRoute(<ResetPasswordPage />) },
       {
         path: "practice/:taskId",
         element: loadRoute(

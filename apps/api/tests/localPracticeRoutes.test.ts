@@ -1,3 +1,8 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -6,7 +11,6 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { eq } from "drizzle-orm";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
 import { resolveEnv } from "../src/env";
@@ -25,20 +29,13 @@ import {
   users,
 } from "../src/db/schema";
 
-const jwtSecret = "local-practice-route-test-secret";
-
-const createAuthHeader = async (userId: string) => {
-  const token = await new SignJWT({ email: `${userId}@example.com` })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(userId)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(jwtSecret));
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+const createAuthHeader = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+  userId: string,
+) => ({
+  ...(await createManagedSessionHeaders(db, createAuthTestEnv(), userId)),
+  "Content-Type": "application/json",
+});
 
 const installOpenAiEvaluationMock = (attemptId: string) => {
   const evaluation = {
@@ -98,7 +95,8 @@ test("local practice is validated, private in history, and safely committed to a
   try {
     const env = resolveEnv({
       ENV: "test",
-      SUPABASE_JWT_SECRET: jwtSecret,
+      AUTH_SECRET: TEST_AUTH_SECRET,
+      AUTH_BASE_URL: "http://localhost",
       OPENAI_API_KEY: "test-openai-key",
     });
     const app = createApiApp({
@@ -205,7 +203,7 @@ test("local practice is validated, private in history, and safely committed to a
       updated_at: now,
     });
 
-    const userOneHeaders = await createAuthHeader("user-1");
+    const userOneHeaders = await createAuthHeader(db, "user-1");
     const removedServerHealth = await app.request("/api/v1/health/local-ai", {
       headers: userOneHeaders,
     });
@@ -712,7 +710,7 @@ test("local practice is validated, private in history, and safely committed to a
     );
     assert.equal(unassignedResponse.status, 404);
 
-    const userTwoHeaders = await createAuthHeader("user-2");
+    const userTwoHeaders = await createAuthHeader(db, "user-2");
     const otherUserResponse = await app.request(
       "/api/v1/minigames/sessions/game-1/rounds/round-1/commit-local",
       {

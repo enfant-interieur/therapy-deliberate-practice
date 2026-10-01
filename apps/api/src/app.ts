@@ -59,6 +59,8 @@ import type { RuntimeEnv } from "./env";
 import type { ApiDatabase } from "./db/types";
 import { createAdminAuth, resolveAdminStatus } from "./middleware/adminAuth";
 import { createUserAuth } from "./middleware/userAuth";
+import { createApplicationAuth, getProviderAvailability } from "./auth/service";
+import type { AuthEmailSender } from "./auth/email";
 import { decryptOpenAiKey, encryptOpenAiKey } from "./utils/crypto";
 import { generateUuid } from "./utils/uuid";
 import {
@@ -149,6 +151,7 @@ export type ApiDependencies = {
     selectSttProvider?: typeof selectSttProvider;
   };
   adminSourceFetch?: AdminSourceFetchDependencies;
+  sendAuthEmail?: AuthEmailSender;
 };
 
 const stripHtml = (html: string) =>
@@ -467,10 +470,12 @@ export const createApiApp = ({
   queues,
   providerOverrides,
   adminSourceFetch,
+  sendAuthEmail,
 }: ApiDependencies) => {
   const app = new Hono<ApiHonoEnv>();
   const adminAuth = createAdminAuth(env);
-  const userAuth = createUserAuth(env, db);
+  const auth = createApplicationAuth(env, db, sendAuthEmail);
+  const userAuth = createUserAuth(env, db, auth);
   const logger = createLogger({ service: "api" });
   const ttsStorage = tts?.storage;
   if (!ttsStorage) {
@@ -811,7 +816,9 @@ export const createApiApp = ({
     log("info", "request.start", {
       requestId,
       method: c.req.method,
-      path: c.req.path,
+      path: c.req.path.startsWith("/api/auth/reset-password/")
+        ? "/api/auth/reset-password/[redacted]"
+        : c.req.path,
       userId: c.get("user")?.id ?? null,
       content_length: contentLength ? Number(contentLength) : null,
     });
@@ -835,6 +842,95 @@ export const createApiApp = ({
         duration_ms: duration,
         userId: c.get("user")?.id ?? null,
       });
+    }
+  });
+
+  app.get("/api/auth/config", (c) => {
+    c.header("Cache-Control", "no-store");
+    return c.json({
+      ready: Boolean(auth),
+      emailPassword: Boolean(auth),
+      emailDelivery: Boolean(auth && sendAuthEmail),
+      providers: auth
+        ? getProviderAvailability(env)
+        : { google: false, github: false, apple: false },
+    });
+  });
+  app.all("/api/auth/*", async (c) => {
+    c.header("Cache-Control", "no-store");
+    c.header("Referrer-Policy", "no-referrer");
+    if (!auth)
+      return c.json(
+        {
+          code: "AUTH_UNAVAILABLE",
+          message: "Sign-in is temporarily unavailable.",
+        },
+        503,
+      );
+    if (
+      !sendAuthEmail &&
+      [
+        "/api/auth/sign-up/email",
+        "/api/auth/send-verification-email",
+        "/api/auth/request-password-reset",
+      ].includes(c.req.path)
+    ) {
+      return c.json(
+        {
+          code: "EMAIL_DELIVERY_UNAVAILABLE",
+          message: "Email delivery is temporarily unavailable.",
+        },
+        503,
+      );
+    }
+    try {
+      // Bound streamed auth input before passing it to the framework.
+      const request = c.req.raw;
+      let forwarded = request;
+      if (request.body) {
+        const reader = request.body.getReader();
+        const chunks: Uint8Array[] = [];
+        let total = 0;
+        while (true) {
+          const result = await reader.read();
+          if (result.done) break;
+          total += result.value.byteLength;
+          if (total > 16 * 1024) {
+            await reader.cancel();
+            return c.json(
+              { code: "BODY_TOO_LARGE", message: "Request is too large." },
+              413,
+            );
+          }
+          chunks.push(result.value);
+        }
+        const body = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) {
+          body.set(chunk, offset);
+          offset += chunk.length;
+        }
+        forwarded = new Request(request.url, {
+          method: request.method,
+          headers: request.headers,
+          body,
+        });
+      }
+      const response = await auth.handler(forwarded);
+      response.headers.set("Cache-Control", "no-store");
+      response.headers.set("Referrer-Policy", "no-referrer");
+      return response;
+    } catch {
+      log("error", "auth.request.unavailable", {
+        requestId: c.get("requestId"),
+      });
+      return c.json(
+        {
+          code: "AUTH_UNAVAILABLE",
+          message: "Sign-in is temporarily unavailable.",
+        },
+        503,
+      );
     }
   });
 
@@ -4391,7 +4487,7 @@ export const createApiApp = ({
             completionUpdate && typeof completionUpdate === "object"
               ? typeof (completionUpdate as { changes?: number }).changes ===
                 "number"
-                ? (completionUpdate as { changes: number }).changes
+                ? (completionUpdate as unknown as { changes: number }).changes
                 : typeof (completionUpdate as { meta?: { changes?: number } })
                       .meta?.changes === "number"
                   ? (completionUpdate as { meta: { changes: number } }).meta
@@ -6594,7 +6690,7 @@ export const createApiApp = ({
     const completionChanges =
       completion && typeof completion === "object"
         ? typeof (completion as { changes?: number }).changes === "number"
-          ? (completion as { changes: number }).changes
+          ? (completion as unknown as { changes: number }).changes
           : typeof (completion as { meta?: { changes?: number } }).meta
                 ?.changes === "number"
             ? (completion as { meta: { changes: number } }).meta.changes

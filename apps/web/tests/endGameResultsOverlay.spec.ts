@@ -5,9 +5,6 @@ test.describe("end game results overlay", () => {
     page,
     baseURL,
   }) => {
-    const supabaseUrl =
-      process.env.VITE_SUPABASE_URL ?? "https://test.supabase.co";
-    const projectRef = supabaseUrl.split("//")[1]?.split(".")[0] ?? "test";
     const sessionId = "session-1";
     let endSessionCalls = 0;
     let stateCalls = 0;
@@ -213,21 +210,6 @@ test.describe("end game results overlay", () => {
     await page.route(
       `**/api/v1/minigames/sessions/${sessionId}/resume`,
       (route) => fulfillJson(route, { ok: true }),
-    );
-
-    await page.addInitScript(
-      ({ key }) => {
-        const session = {
-          access_token: "test-token",
-          token_type: "bearer",
-          expires_in: 3600,
-          expires_at: Math.floor(Date.now() / 1000) + 3600,
-          refresh_token: "refresh-token",
-          user: { id: "user-1", email: "dev@example.com" },
-        };
-        window.localStorage.setItem(key, JSON.stringify(session));
-      },
-      { key: `sb-${projectRef}-auth-token` },
     );
 
     await page.goto(

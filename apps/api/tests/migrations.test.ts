@@ -37,6 +37,7 @@ const portMigrations = [
   "0016_atomic_attempt_progress.sql",
   "0017_release_story_invariants.sql",
   "0018_minigame_submission_claims.sql",
+  "0019_application_auth.sql",
 ] as const;
 
 test("the data-bearing production schema upgrades through every port migration", () => {

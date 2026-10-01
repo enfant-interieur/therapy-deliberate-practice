@@ -279,7 +279,9 @@ const readBoundedText = async (
     bytes.set(chunk, offset);
     offset += chunk.byteLength;
   }
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  return new TextDecoder("utf-8", { fatal: false, ignoreBOM: false }).decode(
+    bytes,
+  );
 };
 
 const withDeadline = async <T>(

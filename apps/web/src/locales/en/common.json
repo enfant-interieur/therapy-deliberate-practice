@@ -79,11 +79,13 @@
       "google": "Continue with Google",
       "googleLoading": "Connecting to Google...",
       "github": "Continue with GitHub",
-      "githubLoading": "Connecting to GitHub..."
+      "githubLoading": "Connecting to GitHub...",
+      "apple": "Continue with Apple",
+      "appleLoading": "Connecting to Apple…"
     },
     "errors": {
       "missingEmailPassword": "Enter your email and password.",
-      "passwordShort": "Password must be at least 6 characters.",
+      "passwordShort": "Password must contain at least 12 characters.",
       "passwordMismatch": "Passwords do not match.",
       "missingEmailReset": "Enter your email to reset your password.",
       "missingEmailResend": "Enter your email to resend the confirmation email."
@@ -91,8 +93,8 @@
     "info": {
       "checkEmail": "Check your email to confirm your account, then come back to sign in.",
       "accountCreated": "Account created. Signing you in...",
-      "resetEmailSent": "Password reset email sent. Follow the link to create a new password.",
-      "confirmationResent": "Confirmation email resent. Check your inbox to finish signing up."
+      "resetEmailSent": "If an account uses this email, you’ll receive a link to choose a new password.",
+      "confirmationResent": "If confirmation is needed for this email, you’ll receive a new link."
     }
   },
   "library": {
@@ -1854,6 +1856,56 @@
     "detail": {
       "error": "This task could not be loaded. Your library filters are preserved.",
       "retry": "Try loading again"
+    }
+  },
+  "auth": {
+    "introduction": "A little space to learn, practise, and return to what matters.",
+    "passwordHint": "Use 12–128 characters. A long, unique passphrase works well.",
+    "availability": "Sign-in is temporarily unavailable. Please try again shortly.",
+    "emailUnavailable": "Email registration and recovery are temporarily unavailable. Existing accounts can still sign in.",
+    "notConfigured": "Unavailable",
+    "verified": "Email confirmed. You can now sign in.",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "saving": "Saving…",
+    "backToLogin": "Back to sign in",
+    "errors": {
+      "verifyEmail": "Confirm your email before signing in. You can request a new confirmation below.",
+      "credentials": "The email or password is incorrect.",
+      "freshSession": "Sign out and sign in again before making this account change.",
+      "expiredLink": "This link is no longer valid. Request a new password reset from the sign-in page.",
+      "existingMethod": "Use your existing sign-in method before linking another account.",
+      "unavailable": "This service is temporarily unavailable. Please try again shortly.",
+      "tryAgain": "We could not complete this request. Please try again.",
+      "signOut": "We could not sign you out. Please try again.",
+      "denied": "Sign-in was cancelled. You can try again or choose another method.",
+      "callback": "We could not complete sign-in. Please try again with your existing method."
+    },
+    "recovery": {
+      "eyebrow": "Account recovery",
+      "title": "Choose a new password",
+      "save": "Save new password",
+      "complete": "Your password has been updated and previous sessions have been signed out. Sign in with your new password."
+    },
+    "security": {
+      "title": "Account security",
+      "subtitle": "Manage how you sign in and where your account is open.",
+      "methods": "Sign-in methods",
+      "method": "Connected account",
+      "unlink": "Disconnect",
+      "link": "Connect {{provider}}",
+      "freshHint": "Account changes require a recent sign-in. Keep at least one sign-in method connected.",
+      "sessions": "Active sessions",
+      "sessionCount_one": "Your account is open in {{count}} session.",
+      "sessionCount_other": "Your account is open in {{count}} sessions.",
+      "signOutAll": "Sign out everywhere",
+      "changePassword": "Change password",
+      "passwordChanged": "Password updated. Other sessions have been signed out."
+    },
+    "providers": {
+      "google": "Google",
+      "github": "GitHub",
+      "apple": "Apple"
     }
   }
 }

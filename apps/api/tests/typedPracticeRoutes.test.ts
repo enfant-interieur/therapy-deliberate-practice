@@ -1,10 +1,14 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { test } from "node:test";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
 import { createSqliteDb } from "../src/db/sqlite";
@@ -18,22 +22,16 @@ import {
 } from "../src/db/schema";
 import { resolveEnv } from "../src/env";
 
-const jwtSecret = "typed-practice-secret";
 const typedText =
   "It sounds like this has been exhausting, and I wonder what support would help most.";
 
-const authHeaders = async (userId = "typed-user") => {
-  const token = await new SignJWT({ email: `${userId}@example.com` })
-    .setProtectedHeader({ alg: "HS256" })
-    .setSubject(userId)
-    .setIssuedAt()
-    .setExpirationTime("2h")
-    .sign(new TextEncoder().encode(jwtSecret));
-  return {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-};
+const authHeaders = async (
+  db: Parameters<typeof createManagedSessionHeaders>[0],
+  userId = "typed-user",
+) => ({
+  ...(await createManagedSessionHeaders(db, createAuthTestEnv(), userId)),
+  "Content-Type": "application/json",
+});
 
 const evaluationFor = (attemptId: string, transcript = typedText) => ({
   version: "2.0",
@@ -80,7 +78,8 @@ test("typed cloud and local attempts persist transcript/evaluation without audio
   const app = createApiApp({
     env: resolveEnv({
       ENV: "test",
-      SUPABASE_JWT_SECRET: jwtSecret,
+      AUTH_SECRET: TEST_AUTH_SECRET,
+      AUTH_BASE_URL: "http://localhost",
       OPENAI_API_KEY: "test-openai-key",
     }),
     db,
@@ -211,7 +210,7 @@ test("typed cloud and local attempts persist transcript/evaluation without audio
       },
     ]);
 
-    const headers = await authHeaders();
+    const headers = await authHeaders(db);
     const settingsResponse = await app.request("/api/v1/me/settings", {
       headers,
     });

@@ -1,4 +1,5 @@
 import { PracticeJourney } from "../components/PracticeJourney";
+import { StudioArtwork } from "../components/StudioArtwork";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -131,15 +132,24 @@ export const LibraryPage = () => {
 
   return (
     <div className="space-y-6">
-      <section className="studio-hero">
-        <p className="studio-eyebrow">{t("studio.library.kicker")}</p>
-        <h1 className="studio-heading mt-4 max-w-3xl text-4xl sm:text-5xl lg:text-6xl">
-          {t("studio.library.title")}
-        </h1>
-        <p className="mt-5 max-w-xl text-base text-slate-200">
-          {t("studio.library.body")}
-        </p>
-        <div className="mt-8">
+      <section className="studio-hero studio-hero--split">
+        <div className="studio-hero-intro">
+          <div className="studio-hero-copy">
+            <p className="studio-eyebrow">{t("studio.library.kicker")}</p>
+            <h1 className="studio-heading studio-hero-title mt-4">
+              {t("studio.library.title")}
+            </h1>
+            <p className="mt-5 max-w-xl text-base text-slate-300">
+              {t("studio.library.body")}
+            </p>
+          </div>
+          <StudioArtwork
+            scene="shelter"
+            priority
+            className="studio-library-art"
+          />
+        </div>
+        <div className="studio-hero-journey">
           <PracticeJourney />
         </div>
       </section>
@@ -149,7 +159,7 @@ export const LibraryPage = () => {
             <h2 className="text-2xl font-semibold">{t("library.title")}</h2>
             <p className="text-sm text-slate-300">{t("library.subtitle")}</p>
           </div>
-          <div className="min-w-0 w-full lg:max-w-xl">
+          <div className="studio-library-search min-w-0 w-full lg:max-w-xl">
             <LibrarySearchBar
               ref={inputRef}
               query={searchState.q}

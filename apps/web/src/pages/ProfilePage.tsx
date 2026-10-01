@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { supabase } from "../supabase/client";
+import { signOut } from "../auth/client";
+import { AccountSecurity } from "../components/profile/AccountSecurity";
 import {
   useGetMeQuery,
   useGetPublicProfileQuery,
@@ -41,8 +42,14 @@ export const ProfilePage = () => {
     [],
   );
 
+  const [logoutFailed, setLogoutFailed] = useState(false);
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    setLogoutFailed(false);
+    try {
+      await signOut();
+    } catch {
+      setLogoutFailed(true);
+    }
   };
 
   const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -345,6 +352,7 @@ export const ProfilePage = () => {
           </div>
         </form>
       </section>
+      <AccountSecurity />
       <ProfileInsightsSection
         heading={t("profile.insights.title")}
         description={t("profile.insights.subtitle")}
@@ -358,6 +366,11 @@ export const ProfilePage = () => {
         <p className="mt-2 text-sm text-slate-300">
           {t("profile.actionsSubtitle")}
         </p>
+        {logoutFailed && (
+          <p role="alert" className="mt-3 text-sm text-rose-300">
+            {t("auth.errors.signOut")}
+          </p>
+        )}
         <button
           className="mt-4 rounded-full border border-white/10 px-6 py-2 text-sm font-semibold text-slate-200 transition hover:border-white/20"
           onClick={handleLogout}

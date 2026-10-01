@@ -1,3 +1,8 @@
+import {
+  TEST_AUTH_SECRET,
+  createAuthTestEnv,
+  createManagedSessionHeaders,
+} from "./authFixture";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { test } from "node:test";
@@ -5,7 +10,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
-import { SignJWT } from "jose";
 import { createApiApp } from "../src/app";
 import { ensureSchema } from "../src/db/init";
 import { resolveEnv } from "../src/env";
@@ -16,8 +20,6 @@ import {
   tasks,
   users,
 } from "../src/db/schema";
-
-const jwtSecret = "minigame-resume-route-secret";
 
 test("resume rejects unassigned FFA and TDM players as invalid round-player pairs", async () => {
   const testDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +34,8 @@ test("resume rejects unassigned FFA and TDM players as invalid round-player pair
     const app = createApiApp({
       env: resolveEnv({
         ENV: "test",
-        SUPABASE_JWT_SECRET: jwtSecret,
+        AUTH_SECRET: TEST_AUTH_SECRET,
+        AUTH_BASE_URL: "http://localhost",
       }),
       db,
       tts: {
@@ -171,14 +174,13 @@ test("resume rejects unassigned FFA and TDM players as invalid round-player pair
         completed_at: null,
       },
     ]);
-    const token = await new SignJWT({ email: "learner@example.com" })
-      .setProtectedHeader({ alg: "HS256" })
-      .setSubject("learner")
-      .setIssuedAt()
-      .setExpirationTime("2h")
-      .sign(new TextEncoder().encode(jwtSecret));
     const headers = {
-      Authorization: `Bearer ${token}`,
+      ...(await createManagedSessionHeaders(
+        db,
+        createAuthTestEnv(),
+        "learner",
+        { email: "learner@example.com" },
+      )),
       "Content-Type": "application/json",
     };
     const resume = (sessionId: string, body: Record<string, unknown>) =>

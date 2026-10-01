@@ -19,7 +19,6 @@
     "@nivo/line": "^0.99.0",
     "@nivo/pie": "^0.99.0",
     "@reduxjs/toolkit": "^2.12.0",
-    "@supabase/supabase-js": "^2.110.8",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "i18next": "^23.16.8",
@@ -29,8 +28,9 @@
     "react-dom": "^19.2.8",
     "react-i18next": "^14.1.3",
     "react-redux": "^9.3.0",
-    "react-router-dom": "7.18.1",
-    "zod": "^4.4.3"
+    "react-router-dom": "7.18.4",
+    "zod": "^4.4.3",
+    "better-auth": "1.7.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",

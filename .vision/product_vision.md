@@ -30,9 +30,9 @@ For local speech, the browser sends captured audio directly to the gateway. For 
 
 ## Visual and interaction direction
 
-The visual system should feel steady and humane: deep spruce backgrounds, warm high-contrast text, sage accents, editorial headings, consistent cards and controls, clear hierarchy, and enough spacing for therapy content to breathe. A learner can see the progression from choosing a skill, through rehearsal, to reflection. Status uses words and iconography as well as colour. Primary actions are obvious, while destructive actions are separated and confirmed.
+The visual system should feel steady and humane: deep petrol backgrounds, warm pearl high-contrast text, sea-glass actions, restrained clay accents and open geometric artwork, editorial headings, consistent cards and controls, clear hierarchy, and enough spacing for therapy content to breathe. A learner can see the progression from choosing a skill, through rehearsal, to reflection. Status uses words and iconography as well as colour. Primary actions are obvious, while destructive actions are separated and confirmed.
 
-Motion explains state rather than decorating delay and respects reduced-motion preferences. Responsive layouts are designed for touch and narrow screens in the same pass as desktop layouts. Long model names, translations, logs, queue states, and error messages wrap without breaking the interface.
+Decorative artwork may use subtle progressive scroll parallax on supported desktop browsers. It remains static for reduced motion, touch devices and unsupported browsers. Motion explains state rather than decorating delay and respects reduced-motion preferences. Responsive layouts are designed for touch and narrow screens in the same pass as desktop layouts. Long model names, translations, logs, queue states, and error messages wrap without breaking the interface.
 
 ## Quality definition
 

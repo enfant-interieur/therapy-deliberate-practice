@@ -22,9 +22,19 @@ export type EnvBindings = {
   OPENAI_TTS_VOICE?: string;
   OPENAI_TTS_FORMAT?: string;
   OPENAI_TTS_INSTRUCTIONS?: string;
-  SUPABASE_URL?: string;
-  SUPABASE_ANON_KEY?: string;
-  SUPABASE_JWT_SECRET?: string;
+  AUTH_SECRET?: string;
+  AUTH_BASE_URL?: string;
+  AUTH_TRUSTED_ORIGINS?: string;
+  AUTH_EMAIL_FROM?: string;
+  AUTH_EMAIL_ENABLED?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  APPLE_CLIENT_ID?: string;
+  APPLE_TEAM_ID?: string;
+  APPLE_KEY_ID?: string;
+  APPLE_PRIVATE_KEY?: string;
   R2_BUCKET?: string;
   R2_PUBLIC_BASE_URL?: string;
 };
@@ -51,9 +61,19 @@ export type RuntimeEnv = {
   openaiTtsVoice: string;
   openaiTtsFormat: "mp3" | "opus" | "aac" | "flac" | "wav" | "pcm";
   openaiTtsInstructions: string;
-  supabaseUrl: string;
-  supabaseAnonKey: string;
-  supabaseJwtSecret: string;
+  authSecret: string;
+  authBaseUrl: string;
+  authTrustedOrigins: string[];
+  authEmailFrom: string;
+  authEmailEnabled: boolean;
+  googleClientId: string;
+  googleClientSecret: string;
+  githubClientId: string;
+  githubClientSecret: string;
+  appleClientId: string;
+  appleTeamId: string;
+  appleKeyId: string;
+  applePrivateKey: string;
   r2Bucket: string;
   r2PublicBaseUrl: string;
 };
@@ -104,9 +124,23 @@ export const resolveEnv = (bindings: EnvBindings): RuntimeEnv => ({
   openaiTtsFormat: normalizeTtsFormat(bindings.OPENAI_TTS_FORMAT, "mp3"),
   openaiTtsInstructions:
     bindings.OPENAI_TTS_INSTRUCTIONS ?? "Speaking to a friend.",
-  supabaseUrl: bindings.SUPABASE_URL ?? "",
-  supabaseAnonKey: bindings.SUPABASE_ANON_KEY ?? "",
-  supabaseJwtSecret: bindings.SUPABASE_JWT_SECRET ?? "",
+  authSecret: bindings.AUTH_SECRET ?? "",
+  authBaseUrl:
+    bindings.AUTH_BASE_URL ??
+    (bindings.ENV === "test"
+      ? "http://localhost"
+      : "https://therapy-deliberate-practice.com"),
+  authTrustedOrigins: parseCsv(bindings.AUTH_TRUSTED_ORIGINS),
+  authEmailFrom: bindings.AUTH_EMAIL_FROM ?? "",
+  authEmailEnabled: bindings.AUTH_EMAIL_ENABLED === "true",
+  googleClientId: bindings.GOOGLE_CLIENT_ID ?? "",
+  googleClientSecret: bindings.GOOGLE_CLIENT_SECRET ?? "",
+  githubClientId: bindings.GITHUB_CLIENT_ID ?? "",
+  githubClientSecret: bindings.GITHUB_CLIENT_SECRET ?? "",
+  appleClientId: bindings.APPLE_CLIENT_ID ?? "",
+  appleTeamId: bindings.APPLE_TEAM_ID ?? "",
+  appleKeyId: bindings.APPLE_KEY_ID ?? "",
+  applePrivateKey: bindings.APPLE_PRIVATE_KEY ?? "",
   r2Bucket: bindings.R2_BUCKET ?? "",
   r2PublicBaseUrl: bindings.R2_PUBLIC_BASE_URL ?? "",
 });
