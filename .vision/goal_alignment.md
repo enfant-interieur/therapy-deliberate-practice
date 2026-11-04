@@ -26,7 +26,7 @@ A **model catalog entry** is an executable contract. It identifies a real adapte
 
 ## Current and canonical stack
 
-The production source uses Node.js 24 LTS and npm 11; React 19.2.8; React Router 7.18.4; TypeScript 6.0.3; Vite 8.1.5; Redux Toolkit 2.12; Zod 4.5.4; PixiJS 8.19; Better Auth 1.7.7; Vitest 4.1.10; Playwright; Hono 4.13.12; and Drizzle ORM 0.45.2. These versions are declared by the production manifests and resolved through the root lockfile. The browser uses semantic HTML, Tailwind CSS and a shared studio visual system. The hosted runtime is Cloudflare Workers with static assets, D1, R2 and Queues. Development and deterministic API tests use SQLite.
+The production source uses Node.js 24 LTS and npm 11; React 19.2.8; React Router 7.18.4; TypeScript 6.0.3; Vite 8.3.5; Redux Toolkit 2.12; Zod 4.6.7; PixiJS 8.19; Three.js 0.186.0; Better Auth 1.7.7; Vitest 4.1.10; Playwright; Hono 4.13.12; and Drizzle ORM 0.45.2. These versions are declared by the production manifests and resolved through the root lockfile. The browser uses semantic HTML, Tailwind CSS and a shared studio visual system. The hosted runtime is Cloudflare Workers with static assets, D1, R2 and Queues. Development and deterministic API tests use SQLite.
 
 The local gateway uses the pinned Python 3.12.13 standalone runtime, FastAPI, Uvicorn, Pydantic 2, PyTorch, Transformers, MLX on Apple silicon, Faster Whisper and Parakeet MLX. Its desktop launcher uses Tauri 2, Rust 2021, React 19, Vite 8 and a packaged target-specific Python sidecar. Native support and packaging have their own executable acceptance requirements.
 

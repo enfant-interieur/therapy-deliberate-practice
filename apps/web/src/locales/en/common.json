@@ -1009,6 +1009,18 @@
     "overallScoreValue": "Overall {{score}}/4",
     "onTrack": "On track.",
     "needsRefinement": "Needs refinement.",
+    "avatar": {
+      "label": "Patient view",
+      "character": "Simulated patient",
+      "description": "Bring the scenario into view with an optional 3D character.",
+      "show": "Show 3D patient",
+      "hide": "Hide 3D patient",
+      "loading": "Preparing the 3D view…",
+      "ready": "3D view ready",
+      "speaking": "Patient speaking",
+      "portrait": "Still portrait · reduced motion",
+      "unavailable": "3D unavailable · text and audio still work"
+    },
     "presentationMode": {
       "title": "Practice mode",
       "text": "Text",

@@ -12,6 +12,8 @@ The **library and task detail views** help learners find published tasks by skil
 
 The **standard practice view** presents one patient context, supports spoken or typed responses, separates transcription from evaluation, preserves recoverable work after failure, and explains whether feedback is trusted cloud evaluation or unverified local evaluation.
 
+In standard practice, learners can optionally show a single fictional female patient in 3D alongside the existing text or audio. The visual scene does not generate dialogue or collect audio. It follows the existing prompt playback state and offers a still portrait when motion is reduced or graphics are unavailable.
+
 The **minigame hub and live game views** provide faster free-for-all and team practice while retaining the same input, evaluation, trust, ownership, and recovery semantics. Desktop and mobile layouts are equally supported. A result must bind to the correct round and player exactly once.
 
 The **history, profile, public profile, and leaderboard views** help learners review progress without blurring private feedback and public comparison. Public rankings use only eligible trusted data and explain exclusions clearly.
@@ -30,7 +32,7 @@ For local speech, the browser sends captured audio directly to the gateway. For 
 
 ## Visual and interaction direction
 
-The visual system should feel steady and humane: deep petrol backgrounds, warm pearl high-contrast text, sea-glass actions, restrained clay accents and open geometric artwork, editorial headings, consistent cards and controls, clear hierarchy, and enough spacing for therapy content to breathe. A learner can see the progression from choosing a skill, through rehearsal, to reflection. Status uses words and iconography as well as colour. Primary actions are obvious, while destructive actions are separated and confirmed.
+The visual system should feel steady and humane: aubergine and midnight-blue backgrounds, warm porcelain text, apricot primary actions, lavender controls, muted gold labels and open geometric artwork, editorial headings, consistent cards and controls, clear hierarchy, and enough spacing for therapy content to breathe. A learner can see the progression from choosing a skill, through rehearsal, to reflection. Status uses words and iconography as well as colour. Primary actions are obvious, while destructive actions are separated and confirmed.
 
 Decorative artwork may use subtle progressive scroll parallax on supported desktop browsers. It remains static for reduced motion, touch devices and unsupported browsers. Motion explains state rather than decorating delay and respects reduced-motion preferences. Responsive layouts are designed for touch and narrow screens in the same pass as desktop layouts. Long model names, translations, logs, queue states, and error messages wrap without breaking the interface.
 

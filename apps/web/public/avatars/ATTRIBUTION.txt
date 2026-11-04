@@ -1,0 +1,14 @@
+Therapy Studio — fictional patient avatar
+
+Portrait: an original AI-generated fictional adult character prepared for Albert
+Buchard's schema therapy Avatar studio. No patient image is used.
+
+Model: portrait-fitted MPFB rig derived from the CC0 demonstration asset in
+TalkingHead. Hair: MakeHuman long01, CC0 1.0. Clothing and seams were generated
+locally for the character. The face color is fitted from the generated portrait.
+- https://github.com/met4citizen/TalkingHead#the-indexhtml-test-app
+- https://static.makehumancommunity.org/assets/assetpacks/makehuman_system_assets.html
+- https://creativecommons.org/publicdomain/zero/1.0/
+
+The practice version retains the original triangle count and the jaw/blink morphs.
+Textures are resized and compressed to WebP; geometry uses Meshopt compression.

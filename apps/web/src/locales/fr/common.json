@@ -1009,6 +1009,18 @@
     "overallScoreValue": "Score global {{score}}/4",
     "onTrack": "Sur la bonne voie.",
     "needsRefinement": "À améliorer.",
+    "avatar": {
+      "label": "Vue du patient",
+      "character": "Patiente simulée",
+      "description": "Visualisez la situation avec un personnage 3D facultatif.",
+      "show": "Afficher la patiente en 3D",
+      "hide": "Masquer la patiente en 3D",
+      "loading": "Préparation de la vue 3D…",
+      "ready": "Vue 3D prête",
+      "speaking": "La patiente parle",
+      "portrait": "Portrait fixe · animations réduites",
+      "unavailable": "3D indisponible · le texte et l’audio restent accessibles"
+    },
     "presentationMode": {
       "title": "Mode de pratique",
       "text": "Texte",

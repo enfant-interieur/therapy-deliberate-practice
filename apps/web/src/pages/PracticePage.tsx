@@ -14,6 +14,7 @@ import {
   usePrepareLocalPracticeMutation,
   useStartSessionMutation,
 } from "../store/api";
+import { PatientAvatar } from "../components/patient-avatar/PatientAvatar";
 import { PracticeJourney } from "../components/PracticeJourney";
 import { StatusPill } from "../components/StatusPill";
 import { Spinner } from "../components/Spinner";
@@ -276,7 +277,7 @@ export const PracticePage = () => {
       return "border-emerald-400/60 bg-emerald-400/10 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.45)]";
     }
     if (score >= 3) {
-      return "border-teal-300/60 bg-teal-400/10 text-teal-200 shadow-[0_0_12px_rgba(45,212,191,0.45)]";
+      return "border-teal-300/60 bg-teal-400/10 text-teal-200 shadow-[0_0_12px_rgba(196,170,250,0.45)]";
     }
     if (score >= 2) {
       return "border-amber-300/60 bg-amber-400/10 text-amber-200 shadow-[0_0_12px_rgba(251,191,36,0.4)]";
@@ -1511,7 +1512,7 @@ export const PracticePage = () => {
                     )}
                     <div className={practice.evaluation ? "pr-16" : ""}>
                       <div className="flex items-center gap-3">
-                        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-teal-300/40 bg-teal-400/10 text-xs font-semibold text-teal-200 shadow-[0_0_12px_rgba(45,212,191,0.35)]">
+                        <span className="flex h-7 w-7 items-center justify-center rounded-full border border-teal-300/40 bg-teal-400/10 text-xs font-semibold text-teal-200 shadow-[0_0_12px_rgba(196,170,250,0.35)]">
                           {index + 1}
                         </span>
                         <p className="text-sm font-semibold text-white">
@@ -1779,6 +1780,7 @@ export const PracticePage = () => {
           </details>
         </div>
         <div className="space-y-6">
+          <PatientAvatar speaking={practiceMode === "real_time" && patientSpeaking} />
           {practiceMode === "standard" ? (
             <div className="relative rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1807,7 +1809,7 @@ export const PracticePage = () => {
                       <path d="M15 18l-6-6 6-6" />
                     </svg>
                   </button>
-                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
+                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(196,170,250,0.25)]">
                     {t("practice.itemProgress", {
                       index: practice.currentIndex + 1,
                       total: practice.sessionItems.length || 0,
@@ -1816,7 +1818,7 @@ export const PracticePage = () => {
                   <button
                     type="button"
                     aria-label={t("practice.nextExample")}
-                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(196,170,250,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
                       nextArrowAttention
                         ? "animate-[pulse_3s_ease-in-out_infinite] motion-reduce:animate-none"
                         : ""
@@ -1836,7 +1838,7 @@ export const PracticePage = () => {
                       <path d="M9 6l6 6-6 6" />
                     </svg>
                     {nextArrowAttention && (
-                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(196,170,250,0.8)]" />
                     )}
                   </button>
                 </div>
@@ -1873,7 +1875,7 @@ export const PracticePage = () => {
                       <path d="M15 18l-6-6 6-6" />
                     </svg>
                   </button>
-                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(45,212,191,0.25)]">
+                  <span className="rounded-full border border-white/10 bg-white/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-slate-200 shadow-[0_0_15px_rgba(196,170,250,0.25)]">
                     {t("practice.itemProgress", {
                       index: practice.currentIndex + 1,
                       total: practice.sessionItems.length || 0,
@@ -1882,7 +1884,7 @@ export const PracticePage = () => {
                   <button
                     type="button"
                     aria-label={t("practice.nextPatientTurn")}
-                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(45,212,191,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
+                    className={`group relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-gradient-to-br from-teal-400/30 via-white/5 to-transparent text-slate-100 shadow-[0_0_15px_rgba(196,170,250,0.35)] transition hover:border-teal-200/80 hover:text-white disabled:cursor-not-allowed disabled:opacity-40 ${
                       nextArrowAttention
                         ? "animate-[pulse_3s_ease-in-out_infinite] motion-reduce:animate-none"
                         : ""
@@ -1902,7 +1904,7 @@ export const PracticePage = () => {
                       <path d="M9 6l6 6-6 6" />
                     </svg>
                     {nextArrowAttention && (
-                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(45,212,191,0.8)]" />
+                      <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_8px_rgba(196,170,250,0.8)]" />
                     )}
                   </button>
                 </div>
@@ -1937,7 +1939,7 @@ export const PracticePage = () => {
                 {/*/>*/}
                 {showWarmupRing && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm transition-opacity">
-                    <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 shadow-[0_0_30px_rgba(45,212,191,0.35)]">
+                    <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 shadow-[0_0_30px_rgba(196,170,250,0.35)]">
                       <svg
                         className="h-12 w-12 -rotate-90"
                         viewBox="0 0 42 42"
@@ -1956,7 +1958,7 @@ export const PracticePage = () => {
                           cy="21"
                           r="18"
                           fill="none"
-                          stroke="rgb(45 212 191)"
+                          stroke="rgb(196 170 250)"
                           strokeWidth="4"
                           strokeDasharray={`${2 * Math.PI * 18}`}
                           strokeDashoffset={`${
