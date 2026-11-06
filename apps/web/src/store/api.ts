@@ -25,6 +25,8 @@ export type UserProfile = {
   is_profile_public: boolean;
   created_at: string | null;
   hasOpenAiKey: boolean;
+  hasPersonalOpenAiKey?: boolean;
+  hasServerOpenAiKey?: boolean;
 };
 
 export type UserSettings = {
@@ -34,6 +36,8 @@ export type UserSettings = {
   localLlmUrl: string | null;
   storeAudio: boolean;
   hasOpenAiKey: boolean;
+  hasPersonalOpenAiKey?: boolean;
+  hasServerOpenAiKey?: boolean;
 };
 
 export type UserSettingsInput = {

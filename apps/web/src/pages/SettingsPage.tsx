@@ -906,9 +906,11 @@ export const SettingsPage = () => {
               {t("settings.openAi.title")}
             </h3>
             <p className="text-sm text-slate-300">
-              {settings.hasOpenAiKey
-                ? t("settings.openAi.connected")
-                : t("settings.openAi.disconnected")}
+              {data?.hasServerOpenAiKey && !data.hasPersonalOpenAiKey
+                ? t("settings.openAi.serverConnected")
+                : settings.hasOpenAiKey
+                  ? t("settings.openAi.connected")
+                  : t("settings.openAi.disconnected")}
             </p>
           </div>
           <span
@@ -967,7 +969,7 @@ export const SettingsPage = () => {
             <button
               className="rounded-full border border-rose-400/40 px-6 py-2 text-sm text-rose-200"
               onClick={handleRemoveKey}
-              disabled={isDeletingKey}
+              disabled={isDeletingKey || data?.hasPersonalOpenAiKey === false}
             >
               {isDeletingKey
                 ? t("settings.openAi.removeLoading")

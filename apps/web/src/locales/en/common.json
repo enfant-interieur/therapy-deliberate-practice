@@ -445,6 +445,7 @@
       "saveError": "We couldn't save your settings. Try again."
     },
     "openAi": {
+      "serverConnected": "OpenAI is provided by this server. Its key stays on the backend; you can optionally connect a personal key.",
       "title": "OpenAI API key",
       "connected": "Your key is connected and ready for OpenAI calls.",
       "disconnected": "Connect your key to unlock OpenAI-powered practice.",
@@ -1044,6 +1045,7 @@
       "delete": "Delete"
     },
     "patientPrompt": "Patient prompt",
+    "generatedVoiceDisclosure": "AI-generated patient voice.",
     "patientAudio": "Patient audio",
     "previousExample": "Previous example",
     "previousPatientTurn": "Previous patient turn",

@@ -646,8 +646,13 @@ export const createApiApp = ({
       localLlmUrl,
       storeAudio: false,
       hasOpenAiKey: Boolean(
+        env.openaiApiKey ||
+        (settings.openai_key_ciphertext && settings.openai_key_iv),
+      ),
+      hasPersonalOpenAiKey: Boolean(
         settings.openai_key_ciphertext && settings.openai_key_iv,
       ),
+      hasServerOpenAiKey: Boolean(env.openaiApiKey),
     };
   };
 
@@ -3344,8 +3349,13 @@ export const createApiApp = ({
         ? new Date(record.created_at).toISOString()
         : null,
       hasOpenAiKey: Boolean(
+        env.openaiApiKey ||
+        (settings?.openai_key_ciphertext && settings?.openai_key_iv),
+      ),
+      hasPersonalOpenAiKey: Boolean(
         settings?.openai_key_ciphertext && settings?.openai_key_iv,
       ),
+      hasServerOpenAiKey: Boolean(env.openaiApiKey),
     });
   });
 
@@ -3571,7 +3581,7 @@ export const createApiApp = ({
       })
       .where(eq(userSettings.user_id, user.id));
     log.info("OpenAI key deleted", { userId: user.id });
-    return c.json({ ok: true, hasOpenAiKey: false });
+    return c.json({ ok: true, hasOpenAiKey: Boolean(env.openaiApiKey) });
   });
 
   app.post("/api/v1/me/openai-key/validate", async (c) => {
@@ -3625,34 +3635,40 @@ export const createApiApp = ({
         .limit(1);
 
       const record = rows[0];
+      if (
+        (!record?.openai_key_ciphertext || !record?.openai_key_iv) &&
+        env.openaiApiKey
+      ) {
+        keyToValidate = env.openaiApiKey;
+      } else {
+        if (!record?.openai_key_ciphertext || !record?.openai_key_iv) {
+          return c.json(
+            { ok: false, error: "No key provided and no key stored." },
+            400,
+          );
+        }
 
-      if (!record?.openai_key_ciphertext || !record?.openai_key_iv) {
-        return c.json(
-          { ok: false, error: "No key provided and no key stored." },
-          400,
-        );
+        if (!env.openaiKeyEncryptionSecret) {
+          logServerError(
+            "me.openai_key.validate.missing_secret",
+            new Error("OPENAI_KEY_ENCRYPTION_SECRET is not set."),
+            { requestId: c.get("requestId"), userId: user.id },
+          );
+          return c.json(
+            {
+              ok: false,
+              error:
+                "Server misconfigured: OPENAI_KEY_ENCRYPTION_SECRET is not set.",
+            },
+            500,
+          );
+        }
+
+        keyToValidate = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
+          ciphertextB64: record.openai_key_ciphertext,
+          ivB64: record.openai_key_iv,
+        });
       }
-
-      if (!env.openaiKeyEncryptionSecret) {
-        logServerError(
-          "me.openai_key.validate.missing_secret",
-          new Error("OPENAI_KEY_ENCRYPTION_SECRET is not set."),
-          { requestId: c.get("requestId"), userId: user.id },
-        );
-        return c.json(
-          {
-            ok: false,
-            error:
-              "Server misconfigured: OPENAI_KEY_ENCRYPTION_SECRET is not set.",
-          },
-          500,
-        );
-      }
-
-      keyToValidate = await decryptOpenAiKey(env.openaiKeyEncryptionSecret, {
-        ciphertextB64: record.openai_key_ciphertext,
-        ivB64: record.openai_key_iv,
-      });
     }
 
     const result = await validateOpenAiApiKey(keyToValidate);

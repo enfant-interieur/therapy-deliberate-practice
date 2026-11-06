@@ -7,14 +7,18 @@ const toBase64 = (input: string) => {
   return Buffer.from(input, "utf8").toString("base64");
 };
 
-test("transcribeWithOpenAI supports text response", async () => {
+test("transcribeWithOpenAI sends the current model's language and JSON contract", async () => {
   let fileName: string | undefined;
+  let request: Record<string, unknown> | undefined;
   const client = {
     audio: {
       transcriptions: {
-        create: async ({ file }: { file: { name?: string } }) => {
-          fileName = file.name;
-          return "hello world";
+        create: async (
+          body: { file: { name?: string } } & Record<string, unknown>,
+        ) => {
+          request = body;
+          fileName = body.file.name;
+          return { text: "hello world", _request_id: "req_current_stt" };
         },
       },
     },
@@ -24,13 +28,24 @@ test("transcribeWithOpenAI supports text response", async () => {
     {
       apiKey: "test",
       audioBase64: toBase64("audio"),
-      opts: { responseFormat: "text" },
+      opts: {
+        responseFormat: "text",
+        language: "fr",
+        prompt: "A synthetic practice response.",
+      },
     },
     client as any,
   );
 
   assert.equal(result.transcript.text, "hello world");
+  assert.equal(result.requestId, "req_current_stt");
   assert.equal(fileName, "audio.webm");
+  assert.equal(request?.model, "gpt-transcribe");
+  assert.deepEqual(request?.languages, ["fr"]);
+  assert.equal(request?.prompt, "A synthetic practice response.");
+  assert.equal(request?.stream, false);
+  assert.equal(Object.hasOwn(request!, "response_format"), false);
+  assert.equal(Object.hasOwn(request!, "language"), false);
 });
 
 test("transcribeWithOpenAI normalizes diarized_json", async () => {

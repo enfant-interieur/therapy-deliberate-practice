@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { synthesizeRealtimeSpeech } from "./realtimeSpeech";
 import { getOpenAIClient } from "./openaiClient";
 import { createProviderError, getErrorRequestId } from "./providerErrors";
 import { safeTruncate } from "../utils/logger";
@@ -30,6 +31,11 @@ export const synthesizeWithOpenAI = async (
   },
   client?: OpenAI,
 ): Promise<OpenAiTtsResult> => {
+  if (input.model.startsWith("gpt-realtime-")) {
+    if (input.format !== "wav")
+      throw createProviderError("realtime_speech_requires_wav");
+    return synthesizeRealtimeSpeech(input);
+  }
   const openai = client ?? getOpenAIClient({ apiKey: input.apiKey });
   try {
     const response = await openai.audio.speech.create({

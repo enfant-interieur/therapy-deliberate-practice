@@ -445,6 +445,7 @@
       "saveError": "Impossible d'enregistrer vos paramètres. Réessayez."
     },
     "openAi": {
+      "serverConnected": "OpenAI est fourni par ce serveur. Sa clé reste sur le serveur ; vous pouvez aussi connecter une clé personnelle.",
       "title": "Clé API OpenAI",
       "connected": "Votre clé est connectée et prête pour les appels OpenAI.",
       "disconnected": "Connectez votre clé pour débloquer la pratique via OpenAI.",
@@ -1044,6 +1045,7 @@
       "delete": "Supprimer"
     },
     "patientPrompt": "Réplique du patient",
+    "generatedVoiceDisclosure": "Voix de patiente générée par l’IA.",
     "patientAudio": "Audio du patient",
     "previousExample": "Exemple précédent",
     "previousPatientTurn": "Tour précédent du patient",

@@ -119,9 +119,9 @@ export const resolveEnv = (bindings: EnvBindings): RuntimeEnv => ({
   localTtsModel: bindings.LOCAL_TTS_MODEL ?? "mlx-community/Kokoro-82M-bf16",
   localTtsVoice: bindings.LOCAL_TTS_VOICE ?? "af_bella",
   localTtsFormat: normalizeTtsFormat(bindings.LOCAL_TTS_FORMAT, "mp3"),
-  openaiTtsModel: bindings.OPENAI_TTS_MODEL ?? "gpt-4o-mini-tts",
-  openaiTtsVoice: bindings.OPENAI_TTS_VOICE ?? "sage",
-  openaiTtsFormat: normalizeTtsFormat(bindings.OPENAI_TTS_FORMAT, "mp3"),
+  openaiTtsModel: bindings.OPENAI_TTS_MODEL ?? "gpt-realtime-2.1-mini",
+  openaiTtsVoice: bindings.OPENAI_TTS_VOICE ?? "marin",
+  openaiTtsFormat: normalizeTtsFormat(bindings.OPENAI_TTS_FORMAT, "wav"),
   openaiTtsInstructions:
     bindings.OPENAI_TTS_INSTRUCTIONS ?? "Speaking to a friend.",
   authSecret: bindings.AUTH_SECRET ?? "",

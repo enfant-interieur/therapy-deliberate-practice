@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { OPENAI_STT_MODEL } from "./models";
 import type { SttTranscribeOptions, Transcript } from "@deliberate/shared";
 import { getOpenAIClient } from "./openaiClient";
 import { createProviderError, getErrorRequestId } from "./providerErrors";
@@ -69,7 +70,7 @@ export const transcribeWithOpenAI = async (
   client?: OpenAI,
 ): Promise<OpenAiSttResult> => {
   const openai = client ?? getOpenAIClient({ apiKey: input.apiKey });
-  const model = input.opts?.model ?? "gpt-4o-mini-transcribe";
+  const model = input.opts?.model ?? OPENAI_STT_MODEL;
   const isDiarize = model === "gpt-4o-transcribe-diarize";
   const responseFormat =
     input.opts?.responseFormat ?? (isDiarize ? "diarized_json" : undefined);
@@ -87,10 +88,17 @@ export const transcribeWithOpenAI = async (
       model,
       stream: false,
       ...(input.opts?.prompt &&
-      (model === "gpt-4o-mini-transcribe" || model === "gpt-4o-transcribe")
+      (model === "gpt-transcribe" ||
+        model === "gpt-4o-mini-transcribe" ||
+        model === "gpt-4o-transcribe")
         ? { prompt: input.opts.prompt }
         : {}),
-      ...(responseFormat && responseFormat !== "json"
+      ...(model === "gpt-transcribe" && input.opts?.language
+        ? { languages: [input.opts.language] }
+        : {}),
+      ...(model !== "gpt-transcribe" &&
+      responseFormat &&
+      responseFormat !== "json"
         ? { response_format: responseFormat }
         : {}),
       ...(isDiarize && responseFormat === "diarized_json"

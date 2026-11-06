@@ -37,5 +37,5 @@ export const CLOUD_LLM_POLICIES = {
 } as const;
 export const OPENAI_STT_MODEL = CLOUD_MODEL_ROLES.transcription;
 export const OPENAI_TTS_MODEL = CLOUD_MODEL_ROLES.speech;
-export const OPENAI_TTS_FORMAT = "mp3";
+export const OPENAI_TTS_FORMAT = "wav";
 export const OPENAI_TTS_INSTRUCTIONS = "Talking to a friend"; //"Speak like a patient in a therapy session.";

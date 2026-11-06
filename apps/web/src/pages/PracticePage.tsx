@@ -1780,7 +1780,9 @@ export const PracticePage = () => {
           </details>
         </div>
         <div className="space-y-6">
-          <PatientAvatar speaking={practiceMode === "real_time" && patientSpeaking} />
+          <PatientAvatar
+            speaking={practiceMode === "real_time" && patientSpeaking}
+          />
           {practiceMode === "standard" ? (
             <div className="relative rounded-3xl border border-white/10 bg-gradient-to-br from-slate-900/80 via-slate-950/90 to-slate-900/70 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.8)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -2049,6 +2051,9 @@ export const PracticePage = () => {
                         }
                       }}
                     />
+                    <p className="text-xs text-slate-400">
+                      {t("practice.generatedVoiceDisclosure")}
+                    </p>
                   </div>
                 )}
               </div>

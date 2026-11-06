@@ -369,3 +369,32 @@ test("OpenAI validation is destination-bound, failure-safe, and rate limited bef
     await cleanup();
   }
 });
+
+test("server-provided key availability is truthful without returning the credential or deleting the server key", async () => {
+  const { app, db, env, cleanup } = await createHarness();
+  const serverKey = fakeOpenAiKey("server-configured");
+  env.openaiApiKey = serverKey;
+  try {
+    const headers = await authHeaders(db, "server-key-learner");
+    const settings = await app.request("/api/v1/me/settings", { headers });
+    assert.equal(settings.status, 200);
+    const body = await settings.json();
+    assert.equal(body.hasOpenAiKey, true);
+    assert.equal(body.hasPersonalOpenAiKey, false);
+    assert.equal(body.hasServerOpenAiKey, true);
+    assert.equal(JSON.stringify(body).includes(serverKey), false);
+    const removed = await app.request("/api/v1/me/openai-key", {
+      method: "DELETE",
+      headers,
+    });
+    assert.equal(removed.status, 200);
+    assert.equal((await removed.json()).hasOpenAiKey, true);
+    assert.equal(env.openaiApiKey, serverKey);
+    const current = resolveEnv({ ENV: "test" });
+    assert.equal(current.openaiTtsModel, "gpt-realtime-2.1-mini");
+    assert.equal(current.openaiTtsFormat, "wav");
+    assert.equal(current.openaiTtsVoice, "marin");
+  } finally {
+    await cleanup();
+  }
+});

@@ -9,9 +9,15 @@ import type { LlmParseResult } from "./schemas";
 export const CLOUD_MODEL_ROLES = {
   reasoning: "gpt-6.1-sol",
   routine: "gpt-6-luna",
-  transcription: "gpt-4o-mini-transcribe",
-  speech: "gpt-4o-mini-tts",
+  transcription: "gpt-transcribe",
+  speech: "gpt-realtime-2.1-mini",
 } as const;
+
+// The requested successor is unavailable in the account/catalogue (2026-11-06).
+// Keep the actual available routine model accurately named; never relabel or silently
+// route a request for 6.1 Luna to another model.
+export const REQUESTED_ROUTINE_MODEL = "gpt-6.1-luna";
+export const REQUESTED_ROUTINE_MODEL_AVAILABLE = false;
 
 export type TranscriptSegment = {
   text: string;
@@ -29,6 +35,7 @@ export type SttTranscribeOptions = {
   language?: string;
   mimeType?: string;
   model?:
+    | "gpt-transcribe"
     | "gpt-4o-mini-transcribe"
     | "gpt-4o-transcribe"
     | "gpt-4o-transcribe-diarize"
