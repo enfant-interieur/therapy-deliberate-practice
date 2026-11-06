@@ -79,7 +79,7 @@
     "AUTH_BASE_URL": "https://therapy-deliberate-practice.com",
     "AUTH_TRUSTED_ORIGINS": "https://www.therapy-deliberate-practice.com",
     "AUTH_EMAIL_FROM": "login@auth.therapy-deliberate-practice.com",
-    "AUTH_EMAIL_ENABLED": "false",
+    "AUTH_EMAIL_ENABLED": "true",
     "R2_BUCKET": "therapy-studio-clean-20261106-audio",
     "BYPASS_ADMIN_AUTH": "false",
     "DEV_ADMIN_TOKEN": "",
