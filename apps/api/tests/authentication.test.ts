@@ -375,6 +375,19 @@ test("one-use reset tokens are consumed atomically and expired reset tokens fail
   }
 });
 
+test("current passwords retain compatibility with an independently derived Web Crypto fixture", async () => {
+  const hash =
+    "pbkdf2-sha256$v1$600000$000102030405060708090a0b0c0d0e0f$b959a1bda5569632983e25d8c9f200a67010272a8c0b5289ca30b88e435ee716";
+  assert.equal(
+    await verifyPassword({ hash, password: "un test indépendant 🔑" }),
+    true,
+  );
+  assert.equal(
+    await verifyPassword({ hash, password: "un test independant 🔑" }),
+    false,
+  );
+});
+
 test("new password format is bounded, salted, and permits long Unicode without bcrypt reinterpretation", async () => {
   const first = await hashPassword(password);
   const second = await hashPassword(password);

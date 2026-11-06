@@ -1,9 +1,9 @@
 import { compare } from "bcryptjs";
+import { pbkdf2 } from "node:crypto";
 
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;
 export const PASSWORD_ITERATIONS = 600_000;
-const encoder = new TextEncoder();
 const hex = (bytes: Uint8Array) =>
   Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 const fromHex = (value: string) =>
@@ -16,19 +16,14 @@ async function derive(
   password: string,
   salt: Uint8Array<ArrayBuffer>,
 ): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
-  const bits = await crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: PASSWORD_ITERATIONS },
-    key,
-    256,
-  );
-  return new Uint8Array(bits);
+  // Workers' Web Crypto limits PBKDF2 to 100,000 iterations. The native Node
+  // implementation preserves our 600,000-iteration encoding on both runtimes.
+  return new Promise((resolve, reject) => {
+    pbkdf2(password, salt, PASSWORD_ITERATIONS, 32, "sha256", (error, key) => {
+      if (error) reject(error);
+      else resolve(new Uint8Array(key));
+    });
+  });
 }
 
 export async function hashPassword(password: string): Promise<string> {
