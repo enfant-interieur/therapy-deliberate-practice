@@ -1,5 +1,6 @@
 import { compare } from "bcryptjs";
-import { pbkdf2 } from "node:crypto";
+import { pbkdf2Async } from "@noble/hashes/pbkdf2.js";
+import { sha256 } from "@noble/hashes/sha2.js";
 
 export const PASSWORD_MIN_LENGTH = 12;
 export const PASSWORD_MAX_LENGTH = 128;
@@ -16,13 +17,12 @@ async function derive(
   password: string,
   salt: Uint8Array<ArrayBuffer>,
 ): Promise<Uint8Array> {
-  // Workers' Web Crypto limits PBKDF2 to 100,000 iterations. The native Node
-  // implementation preserves our 600,000-iteration encoding on both runtimes.
-  return new Promise((resolve, reject) => {
-    pbkdf2(password, salt, PASSWORD_ITERATIONS, 32, "sha256", (error, key) => {
-      if (error) reject(error);
-      else resolve(new Uint8Array(key));
-    });
+  // Workers caps both native crypto interfaces at 100,000 iterations. Keep the
+  // full password work factor with the same portable, yielding implementation.
+  return pbkdf2Async(sha256, password, salt, {
+    c: PASSWORD_ITERATIONS,
+    dkLen: 32,
+    asyncTick: 10,
   });
 }
 
