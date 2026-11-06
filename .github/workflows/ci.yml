@@ -108,7 +108,7 @@ jobs:
         run: cargo check --locked --features sidecar-launcher
       - name: Run Rust tests
         working-directory: services/local-runtime-suite/desktop/src-tauri
-        run: cargo test --locked --features sidecar-launcher
+        run: cargo test --locked --features sidecar-launcher -- --test-threads=1
 
   workflows:
     runs-on: ubuntu-24.04
