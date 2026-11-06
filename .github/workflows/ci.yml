@@ -24,6 +24,8 @@ jobs:
           node-version: "24.12.0"
           cache: npm
       - run: npm ci
+      - name: Verify the production CI gate
+        run: npm run test:release
       - name: Lint browser and desktop code
         run: |
           npm run lint -w apps/web
@@ -87,8 +89,7 @@ jobs:
         run: |
           uv run --python 3.12 --no-project \
             --with-requirements services/local-runtime-suite/python/requirements-test.txt \
-            python services/local-runtime-suite/tools/gen_models_json.py
-          git diff --exit-code apps/web/public/local-suite/models.json
+            python services/local-runtime-suite/tools/gen_models_json.py --check
 
   rust:
     runs-on: macos-15

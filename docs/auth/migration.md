@@ -1,5 +1,7 @@
 # Application-owned authentication
 
+The current release follows [the clean-start procedure](clean-start.md). It does not export or import Supabase accounts. This document retains the authentication contract and the optional legacy account-transfer procedure for separately authorized use; that transfer procedure is not part of a clean start.
+
 The prepared application uses Better Auth 1.7.7 with the first-party Drizzle SQLite adapter. Cloudflare D1 stores accounts and sessions in production; local development uses SQLite. Google, GitHub, and Apple authenticate directly with the application. Supabase is the source of the existing account migration and remains available during the cutover and rollback period. A source commit does not mean production accounts have been transferred.
 
 Profiles, practice history, progress, settings, minigames, audio, task data, and administrative Cloudflare Access remain in their existing application stores. Imported authentication IDs are the original Supabase UUIDs. The importer adds authentication rows and does not rewrite application records or import old sessions.

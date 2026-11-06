@@ -6,6 +6,8 @@ Therapy Deliberate Practice Studio should feel like a focused rehearsal room. Th
 
 The application supports English and French. Loading, empty, offline, permission-denied, model-downloading, queue-processing, and failed-evaluation states need purposeful guidance rather than context-free spinners or raw technical errors.
 
+Accounts are owned by the application through Better Auth, backed by Cloudflare D1 in the hosted Worker and SQLite locally. The clean-start account database contains no imported Supabase identities or previous practice history. The existing exercise catalogue remains available. A learner creates a new account with verified email, or uses a social provider when its credentials are configured. Registration and recovery availability must reflect actual email delivery, and unavailable sign-in methods remain visibly disabled.
+
 ## Main product surfaces
 
 The **library and task detail views** help learners find published tasks by skill and difficulty, inspect authors, criteria, patient examples, and interaction examples, and start practice without losing search or filter state.

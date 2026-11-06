@@ -3,7 +3,17 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
-  "send_email": [{ "name": "AUTH_EMAIL", "allowed_sender_addresses": ["login@auth.therapy-deliberate-practice.com"] }],
+  "build": {
+    "command": "node -e \"import(require('node:url').pathToFileURL(require('node:path').join(require('node:child_process').execFileSync('git',['rev-parse','--show-toplevel'],{encoding:'utf8'}).trim(),'scripts/release/wait-for-ci.mjs')).href).then(m=>m.runReleaseCheck()).catch(()=>process.exit(1))\"",
+  },
+  "send_email": [
+    {
+      "name": "AUTH_EMAIL",
+      "allowed_sender_addresses": [
+        "login@auth.therapy-deliberate-practice.com",
+      ],
+    },
+  ],
   "assets": {
     "directory": "../../apps/web/dist",
     "binding": "ASSETS",
@@ -13,8 +23,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "deliberate_practice",
-      "database_id": "695c3755-8777-45fc-89b3-41b79e26522b",
+      "database_name": "therapy-studio-clean-20261106",
+      "database_id": "6e7bb8cf-9fd6-4ab2-a3f1-6192c85685ac",
       "migrations_dir": "migrations",
     },
   ],
@@ -33,7 +43,7 @@
   ],
   "r2_buckets": [
     {
-      "bucket_name": "deliberate-practice-audio",
+      "bucket_name": "therapy-studio-clean-20261106-audio",
       "binding": "deliberate_practice_audio",
     },
   ],
@@ -41,21 +51,21 @@
     "producers": [
       {
         "binding": "ADMIN_BATCH_PARSE_QUEUE",
-        "queue": "admin-batch-parse"
+        "queue": "therapy-studio-parse-20261106",
       },
       {
         "binding": "PATIENT_AUDIO_QUEUE",
-        "queue": "patient-audio"
-      }
+        "queue": "therapy-studio-audio-20261106",
+      },
     ],
     "consumers": [
       {
-        "queue": "admin-batch-parse"
+        "queue": "therapy-studio-parse-20261106",
       },
       {
-        "queue": "patient-audio"
-      }
-    ]
+        "queue": "therapy-studio-audio-20261106",
+      },
+    ],
   },
   // Secrets (set via `wrangler secret put`): OPENAI_API_KEY, OPENAI_KEY_ENCRYPTION_SECRET, AUTH_SECRET,
   //   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET,
@@ -70,7 +80,7 @@
     "AUTH_TRUSTED_ORIGINS": "https://www.therapy-deliberate-practice.com",
     "AUTH_EMAIL_FROM": "login@auth.therapy-deliberate-practice.com",
     "AUTH_EMAIL_ENABLED": "false",
-    "R2_BUCKET": "deliberate-practice-audio",
+    "R2_BUCKET": "therapy-studio-clean-20261106-audio",
     "BYPASS_ADMIN_AUTH": "false",
     "DEV_ADMIN_TOKEN": "",
   },

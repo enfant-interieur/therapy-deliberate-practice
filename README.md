@@ -46,7 +46,7 @@ cp .env.example .env
 
 Set the values required by the surface you are running. Keep all secret values out of source control.
 
-The browser requires no authentication environment variables. Configure the server-owned login as described in [the migration and configuration guide](docs/auth/migration.md). Keep protected values in the secure runtime environment.
+The browser requires no authentication environment variables. Configure the server-owned login as described in [the clean-start authentication guide](docs/auth/clean-start.md). Keep protected values in the secure runtime environment.
 
 ## Run the web application
 
@@ -106,7 +106,7 @@ Intel macOS does not advertise a packaged language model because PyTorch 2.13 ha
 
 ## Configure authentication
 
-The local source candidate uses Better Auth with D1 in Workers and SQLite in development. Google, GitHub, Apple, and email login are configured by the application. See [docs/auth/migration.md](docs/auth/migration.md) for the complete configuration, private account import, and cutover/rollback gates. The currently deployed Supabase login stays in service until that cutover is explicitly authorized.
+The application uses Better Auth with D1 in Workers and SQLite in development. New accounts register directly with the application. The clean-start database retains the exercise catalogue and starts with no imported users, passwords, sessions, settings, or practice history. Supabase is not part of the new login flow. Google, GitHub, and Apple are available only when their application credentials are configured; confirmation and password recovery require a validated email sender. See [the clean-start guide](docs/auth/clean-start.md) for configuration and release checks. Former databases, storage, queues, and Worker versions remain separate rollback resources.
 
 ## Configure text-to-speech and R2
 

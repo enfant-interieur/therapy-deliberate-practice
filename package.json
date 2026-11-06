@@ -7,6 +7,8 @@
     "services/local-runtime-suite/desktop"
   ],
   "scripts": {
+    "prebuild": "node scripts/release/wait-for-ci.mjs",
+    "test:release": "node --test scripts/release/wait-for-ci.test.mjs",
     "dev": "npm run dev:worker & npm run dev:web",
     "dev:web": "npm run dev -w apps/web",
     "dev:worker": "npm run dev -w apps/worker -- --port 8787",
