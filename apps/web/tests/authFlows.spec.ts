@@ -23,19 +23,31 @@ const installLibrary = async (
   await page.route("**/api/v1/tasks?*", (route) => fulfillJson(route, []));
 };
 
-test("development admin access keeps its dedicated header without learner bearer credentials", async ({ page }) => {
+test("development admin access keeps its dedicated header without learner bearer credentials", async ({
+  page,
+}) => {
   await installAuthenticatedBrowser(page);
-  await page.addInitScript(() => localStorage.setItem("devAdminToken", "synthetic-development-admin-token"));
+  await page.addInitScript(() =>
+    localStorage.setItem("devAdminToken", "synthetic-development-admin-token"),
+  );
   await page.route("**/api/v1/admin/whoami", async (route) => {
-    expect(route.request().headers()["x-dev-admin-token"]).toBe("synthetic-development-admin-token");
+    expect(route.request().headers()["x-dev-admin-token"]).toBe(
+      "synthetic-development-admin-token",
+    );
     expect(route.request().headers().authorization).toBeUndefined();
-    await fulfillJson(route, { isAuthenticated: true, isAdmin: false, email: "dev@example.com" });
+    await fulfillJson(route, {
+      isAuthenticated: true,
+      isAdmin: false,
+      email: "dev@example.com",
+    });
   });
   await installLibrary(page);
   const adminRequest = page.waitForResponse("**/api/v1/admin/whoami");
   await page.goto("/");
   expect((await adminRequest).status()).toBe(200);
-  await expect(page.getByRole("heading", { name: "Task library" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Task library" }),
+  ).toBeVisible();
 });
 
 test("email sign-in returns to the protected destination without browser credentials", async ({
@@ -64,9 +76,7 @@ test("email sign-in returns to the protected destination without browser credent
   await page
     .getByLabel("Password", { exact: true })
     .fill("synthetic passphrase");
-  await page
-    .getByRole("button", { name: "Sign in with email", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/history$/);
   await expect(
     page.getByRole("heading", { name: "Practice history" }),
@@ -128,7 +138,7 @@ test("signup, confirmation resend and reset request preserve private account res
   );
   await page.goto("/login");
   await page
-    .getByRole("button", { name: "Email sign up", exact: true })
+    .getByRole("link", { name: "Create an account", exact: true })
     .click();
   await page.getByLabel("Email", { exact: true }).fill("new@example.com");
   await page
@@ -137,9 +147,9 @@ test("signup, confirmation resend and reset request preserve private account res
   await page
     .getByLabel("Confirm password", { exact: true })
     .fill("a unique synthetic phrase");
-  await page.getByRole("button", { name: "Create account with email" }).click();
+  await page.getByRole("button", { name: "Create an account" }).click();
   await expect(page.getByRole("status")).toContainText("Check your email");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/signup$/);
   await page
     .getByRole("button", { name: "Resend confirmation email", exact: true })
     .click();
@@ -147,7 +157,15 @@ test("signup, confirmation resend and reset request preserve private account res
     "If confirmation is needed",
   );
   await page
-    .getByRole("button", { name: "Forgot password", exact: true })
+    .getByRole("link", { name: "Back to sign in", exact: true })
+    .click();
+  await page
+    .getByRole("link", { name: "Forgot password", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/forgot-password$/);
+  await page.getByLabel("Email", { exact: true }).fill("new@example.com");
+  await page
+    .getByRole("button", { name: "Send the link", exact: true })
     .click();
   await expect(page.getByRole("status")).toContainText(
     "If an account uses this email",
@@ -185,32 +203,66 @@ test("password recovery removes the token from history and completes the new-pas
   ).toBeVisible();
 });
 
-test("password recovery survives a delayed existing session and its later revocation", async ({ page }) => {
+test("password recovery survives a delayed existing session and its later revocation", async ({
+  page,
+}) => {
   const auth = await installAuthenticatedBrowser(page);
   let releaseSession = () => {};
-  const delayedSession = new Promise<void>((resolve) => { releaseSession = resolve; });
+  const delayedSession = new Promise<void>((resolve) => {
+    releaseSession = resolve;
+  });
   let firstRequest = true;
   await page.route(/\/api\/auth\/get-session(?:\?.*)?$/, async (route) => {
-    if (firstRequest) { firstRequest = false; await delayedSession; }
+    if (firstRequest) {
+      firstRequest = false;
+      await delayedSession;
+    }
     await fulfillJson(route, auth.getSession());
   });
   await page.route("**/api/auth/reset-password", async (route) => {
-    expect(route.request().postDataJSON()).toEqual({ token: "synthetic-delayed-recovery-token", newPassword: "a new unique synthetic phrase" });
+    expect(route.request().postDataJSON()).toEqual({
+      token: "synthetic-delayed-recovery-token",
+      newPassword: "a new unique synthetic phrase",
+    });
     auth.setAuthenticated(false);
     await fulfillJson(route, { status: true });
   });
   await page.goto("/reset-password?token=synthetic-delayed-recovery-token");
   await expect(page).toHaveURL(/\/reset-password$/);
-  await page.getByLabel("New password", { exact: true }).fill("a new unique synthetic phrase");
-  await page.getByLabel("Confirm password", { exact: true }).fill("a new unique synthetic phrase");
+  await page
+    .getByLabel("New password", { exact: true })
+    .fill("a new unique synthetic phrase");
+  await page
+    .getByLabel("Confirm password", { exact: true })
+    .fill("a new unique synthetic phrase");
   releaseSession();
-  await expect(page.getByRole("button", { name: "Profile", exact: true })).toBeVisible();
-  await expect(page.getByLabel("New password", { exact: true })).toHaveValue("a new unique synthetic phrase");
+  await expect(
+    page.getByRole("button", { name: "Profile", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("New password", { exact: true })).toHaveValue(
+    "a new unique synthetic phrase",
+  );
   await page.getByRole("button", { name: "Save new password" }).click();
-  await expect(page.getByRole("status")).toContainText("previous sessions have been signed out");
-  await page.evaluate(() => window.dispatchEvent(new StorageEvent("storage", { key: "better-auth.message", newValue: JSON.stringify({ event: "session", data: { trigger: "reset-password" } }) })));
-  await expect(page.getByRole("link", { name: "Log in", exact: true })).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("previous sessions have been signed out");
+  await expect(page.getByRole("status")).toContainText(
+    "previous sessions have been signed out",
+  );
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "better-auth.message",
+        newValue: JSON.stringify({
+          event: "session",
+          data: { trigger: "reset-password" },
+        }),
+      }),
+    ),
+  );
+  await expect(
+    page.getByRole("link", { name: "Back to sign in", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText(
+    "previous sessions have been signed out",
+  );
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
 
@@ -234,24 +286,59 @@ test("logout failure is recoverable and successful logout clears account state",
   ).toBeVisible();
 });
 
-test("a same-page account refresh clears private forms and reloads account methods", async ({ page }) => {
+test("a same-page account refresh clears private forms and reloads account methods", async ({
+  page,
+}) => {
   const auth = await installAuthenticatedBrowser(page);
   let accountLoads = 0;
   await page.route("**/api/v1/me", (route) => {
     const user = auth.getSession()!.user;
-    return fulfillJson(route, { id: user.id, email: user.email, display_name: user.name, bio: "", is_profile_public: false, created_at: null, hasOpenAiKey: false });
+    return fulfillJson(route, {
+      id: user.id,
+      email: user.email,
+      display_name: user.name,
+      bio: "",
+      is_profile_public: false,
+      created_at: null,
+      hasOpenAiKey: false,
+    });
   });
-  await page.route("**/api/v1/profiles/*", (route) => fulfillJson(route, { profile: { insights: null } }));
+  await page.route("**/api/v1/profiles/*", (route) =>
+    fulfillJson(route, { profile: { insights: null } }),
+  );
   await page.route("**/api/auth/list-accounts", (route) => {
     accountLoads++;
-    return fulfillJson(route, [{ id: "credential", providerId: "credential" }, { id: "provider", providerId: auth.getSession()!.user.id === "user-1" ? "google" : "apple" }]);
+    return fulfillJson(route, [
+      { id: "credential", providerId: "credential" },
+      {
+        id: "provider",
+        providerId:
+          auth.getSession()!.user.id === "user-1" ? "google" : "apple",
+      },
+    ]);
   });
-  await page.route("**/api/auth/list-sessions", (route) => fulfillJson(route, Array.from({ length: auth.getSession()!.user.id === "user-1" ? 1 : 2 }, () => createManagedSession().session)));
+  await page.route("**/api/auth/list-sessions", (route) =>
+    fulfillJson(
+      route,
+      Array.from(
+        { length: auth.getSession()!.user.id === "user-1" ? 1 : 2 },
+        () => createManagedSession().session,
+      ),
+    ),
+  );
   await page.goto("/profile");
-  const security = page.locator("section").filter({ has: page.getByRole("heading", { name: "Account security", exact: true }) });
+  const security = page
+    .locator("section")
+    .filter({
+      has: page.getByRole("heading", { name: "Account security", exact: true }),
+    });
   await expect(security.getByText("Google", { exact: true })).toBeVisible();
-  await security.getByLabel("Current password", { exact: true }).fill("first learner private password");
-  await security.getByLabel("New password", { exact: true }).fill("first learner proposed private password");
+  await security
+    .getByLabel("Current password", { exact: true })
+    .fill("first learner private password");
+  await security
+    .getByLabel("New password", { exact: true })
+    .fill("first learner proposed private password");
   const next = createManagedSession();
   next.user.id = "user-two";
   next.user.name = "Second learner";
@@ -259,15 +346,31 @@ test("a same-page account refresh clears private forms and reloads account metho
   next.session.userId = "user-two";
   auth.setSession(next);
   // Better Auth receives this metadata-only event when another tab updates the shared cookie.
-  await page.evaluate(() => window.dispatchEvent(new StorageEvent("storage", { key: "better-auth.message", newValue: JSON.stringify({ event: "session", data: { trigger: "sign-in" } }) })));
+  await page.evaluate(() =>
+    window.dispatchEvent(
+      new StorageEvent("storage", {
+        key: "better-auth.message",
+        newValue: JSON.stringify({
+          event: "session",
+          data: { trigger: "sign-in" },
+        }),
+      }),
+    ),
+  );
   await expect(page).toHaveURL(/\/profile$/);
   await expect(page.getByText("Second learner", { exact: true })).toBeVisible();
   await expect(page.getByText("Dev User", { exact: true })).toHaveCount(0);
   await expect(security.getByText("Apple", { exact: true })).toBeVisible();
   await expect(security.getByText("Google", { exact: true })).toHaveCount(0);
-  await expect(security.getByLabel("Current password", { exact: true })).toHaveValue("");
-  await expect(security.getByLabel("New password", { exact: true })).toHaveValue("");
-  await expect(security.getByText("Your account is open in 2 sessions.", { exact: true })).toBeVisible();
+  await expect(
+    security.getByLabel("Current password", { exact: true }),
+  ).toHaveValue("");
+  await expect(
+    security.getByLabel("New password", { exact: true }),
+  ).toHaveValue("");
+  await expect(
+    security.getByText("Your account is open in 2 sessions.", { exact: true }),
+  ).toBeVisible();
   expect(accountLoads).toBeGreaterThanOrEqual(2);
 });
 
@@ -316,9 +419,7 @@ test("a second account gets fresh profile and security state after sign-out", as
   await page
     .getByLabel("Password", { exact: true })
     .fill("synthetic passphrase");
-  await page
-    .getByRole("button", { name: "Sign in with email", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/profile$/);
   await expect(page.getByText("Second learner", { exact: true })).toBeVisible();
   await expect(page.getByText("Dev User", { exact: true })).toHaveCount(0);

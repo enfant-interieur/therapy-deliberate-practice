@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import type { AuthCapabilities } from "./client";
 
 export function useAuthCapabilities() {
-  const [capabilities, setCapabilities] = useState<AuthCapabilities | null>(
-    null,
-  );
+  const [capabilities, setCapabilities] = useState<
+    AuthCapabilities | null | undefined
+  >(undefined);
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/auth/config", {

@@ -1,4 +1,5 @@
 import path from "node:path";
+import type { Page } from "@playwright/test";
 import {
   expect,
   expectNoSeriousAccessibilityViolations,
@@ -49,10 +50,137 @@ const task = {
   ],
 };
 
+const installPendingPractice = async (page: Page) => {
+  const item = {
+    session_item_id: "pending-item",
+    task_id: task.id,
+    example_id: "pending-example",
+    target_difficulty: 2,
+    patient_text: "I worry I am asking too much.",
+  };
+  await page.route(`**/api/v1/tasks/${task.id}*`, (route) =>
+    fulfillJson(route, task),
+  );
+  await page.route("**/api/v1/sessions?*", (route) =>
+    fulfillJson(route, [
+      {
+        id: "pending-session",
+        source_task_id: task.id,
+        mode: "single_task",
+        created_at: 1,
+        ended_at: null,
+        item_count: 1,
+        completed_count: 0,
+        items: [item],
+      },
+    ]),
+  );
+  await page.route("**/api/v1/sessions/pending-session/attempts", (route) =>
+    fulfillJson(route, []),
+  );
+  await page.route("**/api/v1/practice/patient-audio/**", (route) =>
+    fulfillJson(route, { items: [], status: "pending" }),
+  );
+};
+
+test("standard text practice stays independent of 3D and preserves a draft through opt-in", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await installPendingPractice(page);
+  const avatarRequests: string[] = [];
+  page.on("request", (request) => {
+    if (/patientScene|\/avatars\/|\.glb(?:\?|$)|\/three\//.test(request.url()))
+      avatarRequests.push(request.url());
+  });
+  await page.goto(`/practice/${task.id}?session=pending-session`);
+  const prompt = page.getByText("I worry I am asking too much.", {
+    exact: true,
+  });
+  await expect(prompt).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Start recording", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("radio", { name: /^Type/ }).check();
+  const input = page.getByLabel("Written response", { exact: true });
+  const draft =
+    "A synthetic response that stays here while the optional view changes.";
+  await input.fill(draft);
+  await expect(page.locator(".patient-avatar-frame")).toHaveCount(0);
+  expect(avatarRequests).toEqual([]);
+  await page
+    .getByRole("button", { name: "Show 3D patient", exact: true })
+    .click();
+  await expect(page.locator(".patient-avatar-frame")).toHaveAttribute(
+    "data-avatar-view",
+    "portrait",
+  );
+  await expect(prompt).toBeVisible();
+  await expect(input).toHaveValue(draft);
+  await page
+    .getByRole("button", { name: "Hide 3D patient", exact: true })
+    .click();
+  await expect(page.locator(".patient-avatar-frame")).toHaveCount(0);
+  await expect(input).toHaveValue(draft);
+  await expect(
+    page.getByRole("button", {
+      name: "Evaluate written response",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth + 1,
+    ),
+  ).toBe(true);
+});
+
+test("an unavailable practice chunk has a clear recovery action and reloads safely", async ({
+  page,
+}) => {
+  await installPendingPractice(page);
+  let block = true;
+  await page.route(
+    /\/src\/pages\/PracticePage\.tsx(?:\?.*)?$/,
+    async (route) => {
+      if (block) await route.abort();
+      else await route.continue();
+    },
+  );
+  await page.goto(`/practice/${task.id}?session=pending-session`);
+  await expect(
+    page.getByRole("heading", { name: "Let’s get you back to practice" }),
+  ).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(
+    "Unexpected Application Error",
+  );
+  await expect(page.locator("body")).not.toContainText(
+    "Failed to fetch dynamically imported module",
+  );
+  block = false;
+  await page
+    .getByRole("button", { name: "Reload the page", exact: true })
+    .click();
+  await expect(
+    page.getByText("I worry I am asking too much.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Show 3D patient", exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+});
+
 for (const width of [360, 768, 1280]) {
   test(`studio routes, feedback identity and keyboard navigation at ${width}px`, async ({
     page,
   }) => {
+    const avatarRequests: string[] = [];
+    page.on("request", (request) => {
+      if (
+        /patientScene|\/avatars\/|\.glb(?:\?|$)|\/three\//.test(request.url())
+      )
+        avatarRequests.push(request.url());
+    });
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.route("**/api/v1/tasks/languages", (route) =>
@@ -192,10 +320,21 @@ for (const width of [360, 768, 1280]) {
         await expect(
           page.getByText("Synthetic educator", { exact: true }),
         ).toBeVisible();
-      if (name === "practice")
+      if (name === "practice") {
         await expect(
           page.getByText("Evaluator: synthetic-evaluator", { exact: true }),
         ).toBeVisible();
+        const avatarToggle = page.getByRole("button", {
+          name: "Show 3D patient",
+          exact: true,
+        });
+        await expect(avatarToggle).toHaveAttribute("aria-pressed", "false");
+        await expect(page.locator(".patient-avatar-frame")).toHaveCount(0);
+        expect(avatarRequests).toEqual([]);
+        await expect(
+          page.getByText("I worry I am asking too much.", { exact: true }),
+        ).toBeVisible();
+      }
       if (process.env.STUDIO_CAPTURE_DIR)
         await page.screenshot({
           path: path.join(

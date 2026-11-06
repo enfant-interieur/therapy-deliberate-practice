@@ -27,9 +27,8 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export const AppShell = () => {
   const { t, i18n } = useTranslation();
   const dispatch = useAppDispatch();
-  const { isAdmin, isAuthenticated, authChecked, email, userId } = useAppSelector(
-    (state) => state.auth,
-  );
+  const { isAdmin, isAuthenticated, authChecked, email, userId } =
+    useAppSelector((state) => state.auth);
   const isAppShellHidden = useAppSelector(
     (state) => state.minigames.ui.appShellHidden,
   );
@@ -42,6 +41,12 @@ export const AppShell = () => {
   });
   const navigate = useNavigate();
   const location = useLocation();
+  const isAuthPage = [
+    "/login",
+    "/signup",
+    "/forgot-password",
+    "/reset-password",
+  ].includes(location.pathname);
   const selectedLanguage = i18n.resolvedLanguage ?? i18n.language;
   const displayName = profileData?.display_name ?? email ?? "";
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -305,7 +310,7 @@ export const AppShell = () => {
                     <option value="en">{t("appShell.language.english")}</option>
                     <option value="fr">{t("appShell.language.french")}</option>
                   </select>
-                  {authChecked && !isAuthenticated && (
+                  {authChecked && !isAuthenticated && !isAuthPage && (
                     <NavLink
                       to="/login"
                       className="rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-950"
@@ -472,7 +477,7 @@ export const AppShell = () => {
                 <option value="fr">{t("appShell.language.french")}</option>
               </select>
             </div>
-            {authChecked && !isAuthenticated && (
+            {authChecked && !isAuthenticated && !isAuthPage && (
               <NavLink
                 to="/login"
                 className="flex w-full items-center justify-center rounded-full bg-teal-400 px-4 py-2 text-sm font-semibold text-slate-950"

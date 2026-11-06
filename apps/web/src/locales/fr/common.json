@@ -52,8 +52,8 @@
   },
   "login": {
     "welcome": "Bienvenue",
-    "signInTitle": "Connectez-vous pour continuer",
-    "signUpTitle": "Créez votre compte",
+    "signInTitle": "Se connecter",
+    "signUpTitle": "Créer un compte",
     "redirectNote": "Vous serez redirigé vers {{returnTo}} après la connexion.",
     "mode": {
       "signIn": "Connexion par e-mail",
@@ -65,8 +65,8 @@
       "confirmPassword": "Confirmer le mot de passe"
     },
     "actions": {
-      "primarySignIn": "Se connecter avec l'e-mail",
-      "primarySignUp": "Créer un compte avec l'e-mail",
+      "primarySignIn": "Se connecter",
+      "primarySignUp": "Créer un compte",
       "signingIn": "Connexion...",
       "creatingAccount": "Création du compte...",
       "resetPassword": "Mot de passe oublié",
@@ -1920,6 +1920,28 @@
       "google": "Google",
       "github": "GitHub",
       "apple": "Apple"
+    },
+    "design": {
+      "eyebrow": "Votre espace de pratique",
+      "caption": "Une place pour progresser."
+    },
+    "simple": {
+      "signinIntroduction": "Retrouvez votre espace de pratique.",
+      "signupIntroduction": "Commencez à pratiquer, à votre rythme.",
+      "resetIntroduction": "Recevez un lien pour choisir un nouveau mot de passe.",
+      "forgotTitle": "Mot de passe oublié ?",
+      "sendLink": "Envoyer le lien",
+      "sending": "Envoi en cours…",
+      "checkInbox": "Consultez votre boîte mail",
+      "noAccount": "Pas encore de compte ?",
+      "hasAccount": "Vous avez déjà un compte ?",
+      "loading": "Préparation de la connexion…"
+    },
+    "routeError": {
+      "title": "Retrouvons votre espace de pratique",
+      "description": "La page n’a pas pu se charger. Une mise à jour est peut-être disponible ou votre connexion a été interrompue. Rechargez la page pour réessayer.",
+      "reload": "Recharger la page",
+      "library": "Retour aux exercices"
     }
   }
 }

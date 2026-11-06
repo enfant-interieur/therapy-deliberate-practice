@@ -4,6 +4,7 @@ import { AppShell } from "./components/AppShell";
 import { AdminRouteGuard } from "./components/AdminRouteGuard";
 import { LocalizedText } from "./components/LocalizedText";
 import { UserRouteGuard } from "./components/UserRouteGuard";
+import { RouteErrorPage } from "./components/RouteErrorPage";
 
 const LibraryPage = lazy(() =>
   import("./pages/LibraryPage").then((module) => ({
@@ -140,10 +141,19 @@ export const router = createBrowserRouter([
   {
     path: "/",
     element: <AppShell />,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: loadRoute(<LibraryPage />) },
       { path: "tasks/:id", element: loadRoute(<ExerciseDetailPage />) },
-      { path: "login", element: loadRoute(<LoginPage />) },
+      { path: "login", element: loadRoute(<LoginPage key="signin" />) },
+      {
+        path: "signup",
+        element: loadRoute(<LoginPage key="signup" mode="signup" />),
+      },
+      {
+        path: "forgot-password",
+        element: loadRoute(<LoginPage key="reset" mode="reset" />),
+      },
       { path: "reset-password", element: loadRoute(<ResetPasswordPage />) },
       {
         path: "practice/:taskId",

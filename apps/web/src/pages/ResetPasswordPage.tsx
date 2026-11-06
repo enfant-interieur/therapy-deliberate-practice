@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { authClient, authErrorKey } from "../auth/client";
+import { AuthLayout } from "../components/AuthLayout";
 
 export function ResetPasswordPage() {
   const { t } = useTranslation();
@@ -53,29 +54,21 @@ export function ResetPasswordPage() {
     }
   };
   return (
-    <section className="studio-card mx-auto max-w-lg rounded-3xl p-6 sm:p-8">
-      <p className="studio-eyebrow">{t("auth.recovery.eyebrow")}</p>
-      <h1 className="studio-heading mt-3 text-3xl">
-        {t("auth.recovery.title")}
-      </h1>
+    <AuthLayout title={t("auth.recovery.title")}>
       {complete ? (
-        <p role="status" className="mt-5 text-teal-200">
+        <p role="status" className="auth-message auth-message--status">
           {t("auth.recovery.complete")}
         </p>
       ) : !token ? (
-        <p role="alert" className="mt-5 text-rose-300">
+        <p role="alert" className="auth-message auth-message--error">
           {t("auth.errors.expiredLink")}
         </p>
       ) : (
-        <form
-          onSubmit={(event) => void submit(event)}
-          className="mt-6 space-y-4"
-        >
-          <p className="text-sm text-slate-300">{t("auth.passwordHint")}</p>
-          <label className="block text-sm">
+        <form onSubmit={(event) => void submit(event)} className="auth-form">
+          <p className="auth-hint">{t("auth.passwordHint")}</p>
+          <label className="auth-field">
             {t("auth.newPassword")}
             <input
-              className="rounded-xl border border-slate-500 bg-slate-950 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-300 mt-2 w-full"
               type="password"
               autoComplete="new-password"
               minLength={12}
@@ -85,10 +78,9 @@ export function ResetPasswordPage() {
               onChange={(event) => setPassword(event.target.value)}
             />
           </label>
-          <label className="block text-sm">
+          <label className="auth-field">
             {t("login.placeholders.confirmPassword")}
             <input
-              className="rounded-xl border border-slate-500 bg-slate-950 px-4 py-3 focus:outline-none focus:ring-2 focus:ring-teal-300 mt-2 w-full"
               type="password"
               autoComplete="new-password"
               minLength={12}
@@ -99,22 +91,25 @@ export function ResetPasswordPage() {
             />
           </label>
           {error && (
-            <p role="alert" className="text-sm text-rose-300">
+            <p role="alert" className="auth-message auth-message--error">
               {error}
             </p>
           )}
-          <button
-            className="studio-primary w-full"
-            type="submit"
-            disabled={busy}
-          >
+          <button className="auth-primary" type="submit" disabled={busy}>
             {t(busy ? "auth.saving" : "auth.recovery.save")}
           </button>
         </form>
       )}
-      <Link className="studio-secondary mt-6 inline-flex" to="/login">
-        {t("auth.backToLogin")}
-      </Link>
-    </section>
+      <p className="auth-switch">
+        {!complete && !token && (
+          <Link className="auth-link" to="/forgot-password">
+            {t("login.actions.resetPassword")}
+          </Link>
+        )}
+        <Link className="auth-link" to="/login">
+          {t("auth.backToLogin")}
+        </Link>
+      </p>
+    </AuthLayout>
   );
 }

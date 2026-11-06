@@ -52,7 +52,7 @@
   },
   "login": {
     "welcome": "Welcome",
-    "signInTitle": "Sign in to continue",
+    "signInTitle": "Sign in",
     "signUpTitle": "Create your account",
     "redirectNote": "You'll be redirected back to {{returnTo}} after signing in.",
     "mode": {
@@ -65,8 +65,8 @@
       "confirmPassword": "Confirm password"
     },
     "actions": {
-      "primarySignIn": "Sign in with email",
-      "primarySignUp": "Create account with email",
+      "primarySignIn": "Sign in",
+      "primarySignUp": "Create an account",
       "signingIn": "Signing in...",
       "creatingAccount": "Creating account...",
       "resetPassword": "Forgot password",
@@ -1920,6 +1920,28 @@
       "google": "Google",
       "github": "GitHub",
       "apple": "Apple"
+    },
+    "design": {
+      "eyebrow": "Your practice space",
+      "caption": "A little space to grow."
+    },
+    "simple": {
+      "signinIntroduction": "Welcome back to your practice space.",
+      "signupIntroduction": "Start practising, at your own pace.",
+      "resetIntroduction": "We’ll send you a link to choose a new password.",
+      "forgotTitle": "Forgot your password?",
+      "sendLink": "Send the link",
+      "sending": "Sending…",
+      "checkInbox": "Check your inbox",
+      "noAccount": "New here?",
+      "hasAccount": "Already have an account?",
+      "loading": "Preparing sign-in…"
+    },
+    "routeError": {
+      "title": "Let’s get you back to practice",
+      "description": "The page could not load. A new version may be available, or your connection may have been interrupted. Reload to try again.",
+      "reload": "Reload the page",
+      "library": "Back to the exercises"
     }
   }
 }
