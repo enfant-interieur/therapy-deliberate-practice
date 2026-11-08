@@ -8,6 +8,7 @@ import {
   createStructuredResponse,
   createTextResponse,
 } from "../src/providers/openaiResponses";
+import { getOpenAiAccessIssue } from "../src/providers/providerErrors";
 
 const mockOpenAI = (payload: unknown) => ({
   responses: {
@@ -46,6 +47,33 @@ test("createStructuredResponse validates with Zod", async () => {
 
   assert.deepEqual(result.value, { ok: true });
   assert.equal(result.responseId, "req_456");
+});
+
+test("structured evaluation preserves an OpenAI authorization failure", async () => {
+  const client = {
+    responses: {
+      create: async () => {
+        throw Object.assign(new Error("private-provider-error"), {
+          status: 401,
+        });
+      },
+    },
+  };
+  await assert.rejects(
+    createStructuredResponse({
+      apiKey: "test-key",
+      model: "gpt-6.1-sol",
+      input: "payload",
+      schemaName: "TestSchema",
+      schema: z.object({ ok: z.boolean() }),
+      client,
+    }),
+    (error: unknown) => {
+      assert.equal(getOpenAiAccessIssue(error), "OPENAI_KEY_REJECTED");
+      assert.doesNotMatch(String(error), /private-provider-error/);
+      return true;
+    },
+  );
 });
 
 test("no direct OpenAI fetch usage outside providers (except key validation)", async () => {

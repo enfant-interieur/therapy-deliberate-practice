@@ -150,9 +150,19 @@ export type PracticeRunInput = {
   };
 };
 
+export const OPENAI_ACCESS_ISSUES = [
+  "OPENAI_KEY_MISSING",
+  "OPENAI_KEY_REJECTED",
+  "OPENAI_ACCESS_DENIED",
+  "OPENAI_QUOTA_EXHAUSTED",
+] as const;
+
+export type OpenAiAccessIssue = (typeof OPENAI_ACCESS_ISSUES)[number];
+
 export type PracticeRunError = {
   stage: "input" | "stt" | "scoring" | "db";
   message: string;
+  code?: OpenAiAccessIssue;
 };
 
 export type PracticeRunTranscript = {

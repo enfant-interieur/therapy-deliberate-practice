@@ -2,8 +2,11 @@ import OpenAI from "openai";
 import { OPENAI_STT_MODEL } from "./models";
 import type { SttTranscribeOptions, Transcript } from "@deliberate/shared";
 import { getOpenAIClient } from "./openaiClient";
-import { createProviderError, getErrorRequestId } from "./providerErrors";
-import { safeTruncate } from "../utils/logger";
+import {
+  createProviderError,
+  getErrorRequestId,
+  getOpenAiAccessIssue,
+} from "./providerErrors";
 
 export type OpenAiSttResult = {
   transcript: Transcript;
@@ -151,17 +154,14 @@ export const transcribeWithOpenAI = async (
       error && typeof error === "object" && "status" in error
         ? (error as { status?: number }).status
         : undefined;
-    const message =
-      error instanceof Error
-        ? safeTruncate(error.message, 200)
-        : safeTruncate(String(error), 200);
     throw createProviderError(
       `OpenAI STT failed${status ? ` (${status})` : ""}${
         requestId ? ` [${requestId}]` : ""
-      }: ${message}`,
+      }`,
       {
         requestId,
         logFields: status ? { status } : undefined,
+        openAiAccessIssue: getOpenAiAccessIssue(error),
       },
     );
   }

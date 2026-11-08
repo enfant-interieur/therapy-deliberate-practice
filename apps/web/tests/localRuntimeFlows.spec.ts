@@ -1,5 +1,6 @@
 import type { Page, Route } from "@playwright/test";
 import {
+  createManagedSession,
   expect,
   expectNoSeriousAccessibilityViolations,
   installManagedBrowser,
@@ -1147,11 +1148,23 @@ test.describe("browser-to-loopback local practice", () => {
           provider: null,
           duration_ms: null,
         },
-        scoring: {
-          evaluation: evaluation("cloud-typed-attempt"),
-          provider: { kind: "openai", model: "test-evaluator" },
-          duration_ms: 20,
-        },
+        ...(runCount === 2
+          ? {
+              errors: [
+                {
+                  stage: "scoring",
+                  code: "OPENAI_QUOTA_EXHAUSTED",
+                  message: "Scoring failed.",
+                },
+              ],
+            }
+          : {
+              scoring: {
+                evaluation: evaluation("cloud-typed-attempt"),
+                provider: { kind: "openai", model: "test-evaluator" },
+                duration_ms: 20,
+              },
+            }),
       });
     });
 
@@ -1185,6 +1198,15 @@ test.describe("browser-to-loopback local practice", () => {
     await expect(response).toHaveValue(transcript);
 
     await submit.click();
+    const quotaDialog = page.getByRole("dialog", {
+      name: "OpenAI quota reached",
+    });
+    await expect(quotaDialog).toBeVisible();
+    await quotaDialog
+      .getByRole("button", { name: "Stay on the exercise" })
+      .click();
+    await expect(response).toHaveValue(transcript);
+    await submit.click();
     await expect(page.getByText("Coach feedback")).toBeVisible();
     expect(
       await page.evaluate(() =>
@@ -1193,7 +1215,9 @@ test.describe("browser-to-loopback local practice", () => {
         ),
       ),
     ).toBe(false);
-    expect(runBodies).toHaveLength(2);
+    expect(runBodies).toHaveLength(3);
+    expect(runBodies[1]).not.toHaveProperty("attempt_id");
+    expect(runBodies[2].attempt_id).toBe("cloud-typed-attempt");
     for (const body of runBodies) {
       expect(body).toMatchObject({
         session_item_id: "cloud-typed-item",
@@ -1205,7 +1229,7 @@ test.describe("browser-to-loopback local practice", () => {
     }
   });
 
-  test.describe("spoken practice with unavailable local pairing", () => {
+  test.describe("spoken practice recovery", () => {
     const sessionItemId = "spoken-practice-item";
 
     test.beforeEach(async ({ page }) => {
@@ -1274,6 +1298,7 @@ test.describe("browser-to-loopback local practice", () => {
       await expect(page.getByRole("alert")).toHaveText(
         "Transcription failed. Please try again.",
       );
+      await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(
         page.getByText("Request ID: failed-transcription"),
       ).toBeVisible();
@@ -1299,6 +1324,144 @@ test.describe("browser-to-loopback local practice", () => {
       expect(
         await page.evaluate(() => Reflect.get(window, "__micRecorderStarts")),
       ).toBe(1);
+    });
+
+    test("shows OpenAI recovery, opens the key test, and retries scoring without sending audio again", async ({
+      page,
+      context,
+    }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await installBrowserState(page, {
+        aiMode: "openai_only",
+        hasOpenAiKey: true,
+        injectPairingKey: false,
+      });
+      await context.route(/\/api\/auth\/get-session(?:\?.*)?$/, (route) =>
+        json(route, createManagedSession()),
+      );
+      await context.route("**/api/v1/admin/whoami", (route) =>
+        json(route, { isAuthenticated: false, isAdmin: false, email: null }),
+      );
+      await context.route("**/api/v1/me", (route) =>
+        json(route, {
+          id: "user-1",
+          display_name: "Dev User",
+          hasOpenAiKey: true,
+        }),
+      );
+      await context.route("**/api/v1/me/settings", (route) =>
+        json(route, {
+          aiMode: "openai_only",
+          localAiBaseUrl: null,
+          localSttUrl: null,
+          localLlmUrl: null,
+          storeAudio: false,
+          hasOpenAiKey: true,
+        }),
+      );
+      let keyTests = 0;
+      await context.route("**/api/v1/me/openai-key/validate", (route) => {
+        expect(route.request().postDataJSON()).toEqual({});
+        keyTests += 1;
+        return json(route, { ok: true });
+      });
+      const runBodies: Array<Record<string, unknown>> = [];
+      await page.route("**/api/v1/practice/run", async (route) => {
+        runBodies.push(route.request().postDataJSON());
+        if (runBodies.length === 1) {
+          return json(
+            route,
+            {
+              requestId: "rejected-key",
+              errors: [
+                {
+                  stage: "stt",
+                  code: "OPENAI_KEY_REJECTED",
+                  message: "Transcription failed.",
+                },
+              ],
+            },
+            502,
+          );
+        }
+        return json(route, {
+          requestId: "cloud-spoken-request",
+          attemptId: "prepared-spoken-attempt",
+          score_trust: "cloud_trusted",
+          transcript: {
+            text: transcript,
+            provider: { kind: "openai", model: "test-transcriber" },
+            duration_ms: 10,
+          },
+          ...(runBodies.length === 3
+            ? {
+                errors: [
+                  {
+                    stage: "scoring",
+                    code: "OPENAI_QUOTA_EXHAUSTED",
+                    message: "Scoring failed.",
+                  },
+                ],
+              }
+            : runBodies.length === 4
+              ? {
+                  scoring: {
+                    evaluation: evaluation("prepared-spoken-attempt"),
+                    provider: { kind: "openai", model: "test-evaluator" },
+                    duration_ms: 20,
+                  },
+                }
+              : {}),
+        });
+      });
+
+      await page.goto(`/practice/${task.id}`);
+      await dismissSetupWizard(page);
+      await page.getByRole("button", { name: "Start recording" }).click();
+      await page.getByRole("button", { name: "Stop recording" }).click();
+      const rejectedDialog = page.getByRole("dialog", {
+        name: "OpenAI rejected the key",
+      });
+      await expect(rejectedDialog).toBeVisible();
+      const settingsLink = rejectedDialog.getByRole("link", {
+        name: "Open key settings",
+      });
+      await expect(settingsLink).toBeFocused();
+      await expectNoSeriousAccessibilityViolations(page);
+      const settingsPagePromise = context.waitForEvent("page");
+      await settingsLink.click();
+      const settingsPage = await settingsPagePromise;
+      await expect(settingsPage).toHaveURL(/\/settings#openai-key$/);
+      await expect(settingsPage.getByLabel("OpenAI API key")).toBeFocused();
+      await settingsPage.getByRole("button", { name: "Test key" }).click();
+      await expect(
+        settingsPage.getByText("OpenAI accepted the key."),
+      ).toBeVisible();
+      expect(keyTests).toBe(1);
+      await settingsPage.close();
+      await page.keyboard.press("Escape");
+      await expect(rejectedDialog).toHaveCount(0);
+      await page.getByRole("button", { name: "Retry transcription" }).click();
+
+      const quotaDialog = page.getByRole("dialog", {
+        name: "OpenAI quota reached",
+      });
+      await expect(quotaDialog).toBeVisible();
+      await quotaDialog
+        .getByRole("button", { name: "Stay on the exercise" })
+        .click();
+      await page.getByRole("button", { name: "Run evaluation" }).click();
+      await expect(page.getByText("Coach feedback")).toBeVisible();
+      expect(runBodies).toHaveLength(4);
+      expect(runBodies[1]).toEqual(runBodies[0]);
+      expect(runBodies[2]).toMatchObject({
+        session_item_id: sessionItemId,
+        attempt_id: "prepared-spoken-attempt",
+        input_mode: "audio",
+        transcript_text: transcript,
+      });
+      expect(runBodies[2]).not.toHaveProperty("audio");
+      expect(runBodies[3]).toEqual(runBodies[2]);
     });
 
     for (const { reason, aiMode, hasOpenAiKey, rejected } of [

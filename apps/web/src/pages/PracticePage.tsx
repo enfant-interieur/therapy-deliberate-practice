@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import type { PracticeRunResponse } from "@deliberate/shared";
+import {
+  OPENAI_ACCESS_ISSUES,
+  type OpenAiAccessIssue,
+  type PracticeRunResponse,
+} from "@deliberate/shared";
 import {
   type LocalPracticePreparation,
   type PracticeSessionItem,
@@ -15,6 +19,7 @@ import {
   useStartSessionMutation,
 } from "../store/api";
 import { PatientAvatar } from "../components/patient-avatar/PatientAvatar";
+import { OpenAiAccessDialog } from "../components/OpenAiAccessDialog";
 import { PracticeJourney } from "../components/PracticeJourney";
 import { StatusPill } from "../components/StatusPill";
 import { Spinner } from "../components/Spinner";
@@ -49,6 +54,20 @@ import {
   purgeExpiredPracticeDrafts,
   savePracticeDraft,
 } from "../utils/practiceDraftStorage";
+
+const readOpenAiAccessIssue = (outcome: unknown) => {
+  if (!outcome || typeof outcome !== "object") return null;
+  const payload = "data" in outcome ? outcome.data : outcome;
+  if (
+    !payload ||
+    typeof payload !== "object" ||
+    !("errors" in payload) ||
+    !Array.isArray(payload.errors)
+  )
+    return null;
+  const codes = payload.errors.map((entry) => entry?.code);
+  return OPENAI_ACCESS_ISSUES.find((issue) => codes.includes(issue)) ?? null;
+};
 
 const blobToBase64 = (blob: Blob, errorMessage: string) =>
   new Promise<string>((resolve, reject) => {
@@ -133,6 +152,8 @@ export const PracticePage = () => {
   const [transcriptionError, setTranscriptionError] = useState<string | null>(
     null,
   );
+  const [openAiAccessIssue, setOpenAiAccessIssue] =
+    useState<OpenAiAccessIssue | null>(null);
   const [evaluationStatus, setEvaluationStatus] = useState<
     "idle" | "evaluating" | "ready" | "error"
   >("idle");
@@ -152,6 +173,7 @@ export const PracticePage = () => {
   const transcriptionRequestRef = useRef<string | null>(null);
   const pendingResultRef = useRef<{
     sessionItemId: string;
+    inputMode: "audio" | "typed";
     result: PracticeRunResponse;
   } | null>(null);
   const evaluationPromiseRef = useRef<Promise<PracticeRunResponse> | null>(
@@ -288,7 +310,9 @@ export const PracticePage = () => {
     return "border-rose-400/60 bg-rose-400/10 text-rose-200 shadow-[0_0_12px_rgba(248,113,113,0.4)]";
   };
   const canStartRecording =
-    (practiceMode === "standard" || canRecord) && !isProcessing && !isMicBusy;
+    Boolean(currentItem) &&
+    !isPracticeTransitionLocked &&
+    (practiceMode === "standard" || canRecord);
   const patientKey =
     taskId && currentExampleId ? `${taskId}:${currentExampleId}` : null;
   const sessionIndexKey = useCallback(
@@ -566,7 +590,6 @@ export const PracticePage = () => {
     setTranscriptionError(null);
     transcriptionPromiseRef.current = null;
     evaluationPromiseRef.current = null;
-    pendingResultRef.current = null;
   }, [
     evaluationStatus,
     practice.currentSessionItemId,
@@ -650,6 +673,7 @@ export const PracticePage = () => {
     setCanRecord(practiceMode === "standard");
     setTranscriptionStatus("idle");
     setTranscriptionError(null);
+    setOpenAiAccessIssue(null);
     setTranscriptExpanded(false);
     transcriptionPromiseRef.current = null;
     transcriptionRequestRef.current = null;
@@ -772,6 +796,7 @@ export const PracticePage = () => {
       transcriptionRequestRef.current = transcriptionId;
       setTranscriptionStatus("transcribing");
       setTranscriptionError(null);
+      setOpenAiAccessIssue(null);
       setEvaluationStatus("idle");
       setError(null);
       setResponseErrors(null);
@@ -881,10 +906,15 @@ export const PracticePage = () => {
         if (transcriptionRequestRef.current !== transcriptionId) {
           return null;
         }
-        pendingResultRef.current = {
-          sessionItemId: currentItem.session_item_id,
-          result,
-        };
+        pendingResultRef.current = result.errors?.some(
+          ({ stage }) => stage === "db",
+        )
+          ? null
+          : {
+              sessionItemId: currentItem.session_item_id,
+              inputMode: "audio",
+              result,
+            };
         if (result.attemptId) {
           attemptInputModesRef.current[result.attemptId] = "audio";
         }
@@ -918,6 +948,7 @@ export const PracticePage = () => {
           setRequestId(err.data.requestId);
         }
         setTranscriptionStatus("error");
+        setOpenAiAccessIssue(readOpenAiAccessIssue(err));
         setTranscriptionError(
           localFailureMessage ?? t("practice.error.transcriptionFailed"),
         );
@@ -951,6 +982,7 @@ export const PracticePage = () => {
       const evaluationId = `${currentItem.session_item_id}:${Date.now()}`;
       evaluationRequestRef.current = evaluationId;
       setEvaluationStatus("evaluating");
+      setOpenAiAccessIssue(null);
       setError(null);
       setResponseErrors(null);
       const transcriptText =
@@ -1063,6 +1095,7 @@ export const PracticePage = () => {
         if (evaluationRequestRef.current !== evaluationId) {
           return evaluationResult;
         }
+        setOpenAiAccessIssue(readOpenAiAccessIssue(evaluationResult));
         setRequestId(evaluationResult.requestId ?? null);
         setResponseErrors(
           evaluationResult.errors ??
@@ -1092,6 +1125,7 @@ export const PracticePage = () => {
         if (evaluationRequestRef.current !== evaluationId) {
           throw err;
         }
+        setOpenAiAccessIssue(readOpenAiAccessIssue(err));
         setEvaluationStatus("error");
         throw err;
       });
@@ -1115,7 +1149,7 @@ export const PracticePage = () => {
   );
 
   const startRecording = () => {
-    if (micStartInFlightRef.current) return;
+    if (!currentItem || micStartInFlightRef.current) return;
     setError(null);
     setResponseErrors(null);
     setNextDifficulty(null);
@@ -1203,9 +1237,15 @@ export const PracticePage = () => {
       setError(null);
       setResponseErrors(null);
       dispatch(setRecordingState("processing"));
+      const prepared = pendingResultRef.current;
       const pendingTranscription = transcriptionPromiseRef.current;
       let result: PracticeRunResponse | null;
-      if (pendingTranscription) {
+      if (
+        prepared?.inputMode === "audio" &&
+        prepared.sessionItemId === currentItem.session_item_id
+      ) {
+        result = prepared.result;
+      } else if (pendingTranscription) {
         result = await pendingTranscription;
       } else {
         const response = await fetch(audioUrl);
@@ -1256,6 +1296,7 @@ export const PracticePage = () => {
 
   const submitTypedResponse = async () => {
     if (!currentItem) return;
+    const transitionGeneration = transitionGenerationRef.current;
     const transcriptText = typedResponse.trim();
     if (!transcriptText) {
       setError(t("practice.typed.required"));
@@ -1272,6 +1313,7 @@ export const PracticePage = () => {
 
     setError(null);
     setResponseErrors(null);
+    setOpenAiAccessIssue(null);
     setEvaluationStatus("evaluating");
     setTranscriptionStatus("ready");
     setRequestId(null);
@@ -1370,14 +1412,38 @@ export const PracticePage = () => {
         }
       }
 
+      const prepared = pendingResultRef.current;
+      const retryAttemptId =
+        prepared?.inputMode === "typed" &&
+        prepared.sessionItemId === currentItem.session_item_id &&
+        prepared.result.transcript?.text === transcriptText
+          ? prepared.result.attemptId
+          : undefined;
+      if (prepared?.inputMode === "typed" && !retryAttemptId) {
+        pendingResultRef.current = null;
+      }
       const result = await runPractice({
         session_item_id: currentItem.session_item_id,
+        attempt_id: retryAttemptId,
         input_mode: "typed",
         transcript_text: transcriptText,
         mode: "openai_only",
         practice_mode: practiceMode,
         turn_context: turnContext,
       }).unwrap();
+      if (transitionGeneration !== transitionGenerationRef.current) return;
+      pendingResultRef.current =
+        result.attemptId &&
+        !result.scoring &&
+        result.errors?.some(({ stage }) => stage === "scoring") &&
+        !result.errors.some(({ stage }) => stage === "db")
+          ? {
+              sessionItemId: currentItem.session_item_id,
+              inputMode: "typed",
+              result,
+            }
+          : null;
+      setOpenAiAccessIssue(readOpenAiAccessIssue(result));
       dispatch(
         setAttemptForItem({
           sessionItemId: currentItem.session_item_id,
@@ -1414,6 +1480,8 @@ export const PracticePage = () => {
         }
       }
     } catch (caught) {
+      if (transitionGeneration !== transitionGenerationRef.current) return;
+      setOpenAiAccessIssue(readOpenAiAccessIssue(caught));
       setEvaluationStatus("error");
       const detail =
         typeof caught === "object" && caught && "data" in caught
@@ -2480,6 +2548,10 @@ export const PracticePage = () => {
           </div>
         </section>
       )}
+      <OpenAiAccessDialog
+        issue={openAiAccessIssue}
+        onClose={() => setOpenAiAccessIssue(null)}
+      />
       <DeleteSessionConfirmDialog
         open={Boolean(pendingDeleteSessionId)}
         sessionLabel={

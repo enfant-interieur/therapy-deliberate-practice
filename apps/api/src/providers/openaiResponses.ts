@@ -2,7 +2,11 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { attemptJsonRepair } from "../utils/jsonRepair";
 import { getOpenAIClient } from "./openaiClient";
-import { createProviderError, getErrorRequestId } from "./providerErrors";
+import {
+  createProviderError,
+  getErrorRequestId,
+  getOpenAiAccessIssue,
+} from "./providerErrors";
 
 type OpenAIResponseInput = {
   apiKey: string;
@@ -173,6 +177,7 @@ const toSdkError = (error: unknown, fallback: string) => {
     {
       requestId,
       logFields: status ? { status } : undefined,
+      openAiAccessIssue: getOpenAiAccessIssue(error),
     },
   );
 };

@@ -454,12 +454,13 @@
         "disconnected": "Not connected"
       },
       "placeholder": "sk-...",
+      "keyLabel": "OpenAI API key",
       "reveal": "Reveal",
       "hide": "Hide",
       "save": "Save key",
       "saveLoading": "Saving...",
-      "validate": "Validate key",
-      "validateLoading": "Validating...",
+      "validate": "Test key",
+      "validateLoading": "Testing...",
       "remove": "Remove key",
       "removeLoading": "Removing...",
       "keyStatus": {
@@ -472,7 +473,7 @@
       "confirmRemove": "Remove your stored OpenAI key? This cannot be undone.",
       "validateStatus": {
         "missing": "Add a key (or save one first) before validating.",
-        "valid": "Key is valid and ready for practice.",
+        "valid": "OpenAI accepted the key.",
         "invalidFallback": "Key validation failed.",
         "error": "Unable to validate the key right now."
       },
@@ -1097,6 +1098,27 @@
     "stopRecording": "Stop recording",
     "runEvaluation": "Run evaluation",
     "retryTranscription": "Retry transcription",
+    "openAiAccess": {
+      "OPENAI_KEY_MISSING": {
+        "title": "Connect an OpenAI key",
+        "description": "Add an OpenAI API key to continue with the cloud practice mode."
+      },
+      "OPENAI_KEY_REJECTED": {
+        "title": "OpenAI rejected the key",
+        "description": "OpenAI could not authenticate the key used for this response. Test the current key or replace it with an active key."
+      },
+      "OPENAI_ACCESS_DENIED": {
+        "title": "OpenAI denied access",
+        "description": "OpenAI refused access to the service for this request. Check the key and the permissions of its OpenAI project."
+      },
+      "OPENAI_QUOTA_EXHAUSTED": {
+        "title": "OpenAI quota reached",
+        "description": "Check the credits and usage limits of your OpenAI project, or use a key from a project with available quota."
+      },
+      "settingsHint": "Settings opens in a new tab. Choose Test key to check the current key or a replacement, then save any change before returning to the exercise.",
+      "openSettings": "Open key settings",
+      "stay": "Stay on the exercise"
+    },
     "evaluating": "Evaluating...",
     "status": {
       "transcribing": "Transcribing",

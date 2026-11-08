@@ -41,6 +41,8 @@ export const AppShell = () => {
   });
   const navigate = useNavigate();
   const location = useLocation();
+  const isOpenAiSettingsLink =
+    location.pathname === "/settings" && location.hash === "#openai-key";
   const isAuthPage = [
     "/login",
     "/signup",
@@ -81,7 +83,13 @@ export const AppShell = () => {
   }, [settingsData, dispatch]);
 
   useEffect(() => {
-    if (!authChecked || !isAuthenticated || !settingsData) return;
+    if (
+      !authChecked ||
+      !isAuthenticated ||
+      !settingsData ||
+      isOpenAiSettingsLink
+    )
+      return;
     const dismissed = window.sessionStorage.getItem("aiSetupDismissed") === "1";
     if (dismissed) return;
     const missingLocal =
@@ -91,7 +99,7 @@ export const AppShell = () => {
     if (missingLocal || missingOpenAi) {
       setShowAiSetup(true);
     }
-  }, [authChecked, isAuthenticated, settingsData]);
+  }, [authChecked, isAuthenticated, isOpenAiSettingsLink, settingsData]);
 
   useEffect(() => {
     if (data) {

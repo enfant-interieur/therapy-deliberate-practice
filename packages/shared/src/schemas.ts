@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OPENAI_ACCESS_ISSUES } from "./types";
 
 const idSchema = z.string().min(1);
 
@@ -344,6 +345,7 @@ export const practiceRunResponseSchema = z.object({
       z.object({
         stage: z.enum(["input", "stt", "scoring", "db"]),
         message: z.string(),
+        code: z.enum(OPENAI_ACCESS_ISSUES).optional(),
       }),
     )
     .optional(),

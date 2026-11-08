@@ -454,12 +454,13 @@
         "disconnected": "Non connectée"
       },
       "placeholder": "sk-...",
+      "keyLabel": "Clé API OpenAI",
       "reveal": "Afficher",
       "hide": "Masquer",
       "save": "Enregistrer la clé",
       "saveLoading": "Enregistrement...",
-      "validate": "Valider la clé",
-      "validateLoading": "Validation...",
+      "validate": "Tester la clé",
+      "validateLoading": "Test en cours…",
       "remove": "Supprimer la clé",
       "removeLoading": "Suppression...",
       "keyStatus": {
@@ -472,7 +473,7 @@
       "confirmRemove": "Supprimer votre clé OpenAI enregistrée ? Cette action est irréversible.",
       "validateStatus": {
         "missing": "Ajoutez une clé (ou enregistrez-en une) avant de valider.",
-        "valid": "La clé est valide et prête pour la pratique.",
+        "valid": "OpenAI a accepté la clé.",
         "invalidFallback": "La validation de la clé a échoué.",
         "error": "Impossible de valider la clé pour le moment."
       },
@@ -1097,6 +1098,27 @@
     "stopRecording": "Arrêter l'enregistrement",
     "runEvaluation": "Lancer l'évaluation",
     "retryTranscription": "Réessayer la transcription",
+    "openAiAccess": {
+      "OPENAI_KEY_MISSING": {
+        "title": "Connectez une clé OpenAI",
+        "description": "Ajoutez une clé API OpenAI pour poursuivre votre exercice en mode cloud."
+      },
+      "OPENAI_KEY_REJECTED": {
+        "title": "OpenAI a refusé la clé",
+        "description": "OpenAI a refusé la clé utilisée pour cette réponse. Testez la clé actuelle ou remplacez-la par une clé active."
+      },
+      "OPENAI_ACCESS_DENIED": {
+        "title": "OpenAI a refusé l’accès",
+        "description": "OpenAI a refusé l’accès au service pour cette demande. Vérifiez la clé et les autorisations de son projet OpenAI."
+      },
+      "OPENAI_QUOTA_EXHAUSTED": {
+        "title": "Quota OpenAI atteint",
+        "description": "Vérifiez le crédit et les limites d’utilisation du projet OpenAI, ou utilisez une clé d’un projet qui dispose d’un quota."
+      },
+      "settingsHint": "Les réglages s’ouvrent dans un nouvel onglet. Utilisez « Tester la clé », puis enregistrez votre nouvelle clé avant de revenir à l’exercice.",
+      "openSettings": "Ouvrir les réglages de la clé",
+      "stay": "Rester sur l’exercice"
+    },
     "evaluating": "Évaluation...",
     "status": {
       "transcribing": "Transcription en cours",

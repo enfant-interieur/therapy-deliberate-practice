@@ -200,9 +200,10 @@ test("practice run returns 400 when openai_only has no key", async () => {
 
   assert.equal(response.status, 400);
   const payload = (await response.json()) as {
-    errors?: Array<{ message?: string }>;
+    errors?: Array<{ message?: string; code?: string }>;
   };
   assert.ok(
     payload.errors?.[0]?.message?.includes("OpenAI mode requires an API key"),
   );
+  assert.equal(payload.errors?.[0]?.code, "OPENAI_KEY_MISSING");
 });

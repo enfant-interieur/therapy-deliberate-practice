@@ -931,6 +931,7 @@ export const SettingsPage = () => {
             <input
               id="openai-key"
               ref={openAiKeyRef}
+              aria-label={t("settings.openAi.keyLabel")}
               className="flex-1 rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-2 text-sm text-slate-100"
               type={showKey ? "text" : "password"}
               placeholder={t("settings.openAi.placeholder")}
@@ -978,7 +979,7 @@ export const SettingsPage = () => {
           </div>
           {keyStatus && <p className="text-xs text-slate-300">{keyStatus}</p>}
           {validationStatus && (
-            <p className="text-xs text-slate-300">{validationStatus}</p>
+            <p role="status" className="text-xs text-slate-300">{validationStatus}</p>
           )}
           <p className="text-xs text-slate-500">
             {t("settings.openAi.securityNote")}

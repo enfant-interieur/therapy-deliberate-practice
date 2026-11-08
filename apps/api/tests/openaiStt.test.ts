@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { transcribeWithOpenAI } from "../src/providers/openaiStt";
+import {
+  getErrorRequestId,
+  getOpenAiAccessIssue,
+} from "../src/providers/providerErrors";
 
 const toBase64 = (input: string) => {
   if (typeof btoa === "function") return btoa(input);
@@ -72,4 +76,41 @@ test("transcribeWithOpenAI normalizes diarized_json", async () => {
 
   assert.equal(result.transcript.text, "");
   assert.equal(result.transcript.segments?.[0]?.text, "");
+});
+
+test("speech failures carry allowlisted access issues without the provider's error message", async () => {
+  for (const [status, code, issue] of [
+    [401, "invalid_api_key", "OPENAI_KEY_REJECTED"],
+    [403, "insufficient_permissions", "OPENAI_ACCESS_DENIED"],
+    [429, "credit_balance_exhausted", "OPENAI_QUOTA_EXHAUSTED"],
+    [429, "project_spend_limit_exceeded", "OPENAI_QUOTA_EXHAUSTED"],
+    [429, "rate_limit_exceeded", undefined],
+    [400, "invalid_audio", undefined],
+  ] as const) {
+    const client = {
+      audio: {
+        transcriptions: {
+          create: async () => {
+            throw Object.assign(new Error("private-provider-error"), {
+              status,
+              code,
+              request_id: "req_safe",
+            });
+          },
+        },
+      },
+    };
+    await assert.rejects(
+      transcribeWithOpenAI(
+        { apiKey: "test", audioBase64: toBase64("audio") },
+        client as any,
+      ),
+      (error: unknown) => {
+        assert.equal(getOpenAiAccessIssue(error), issue);
+        assert.equal(getErrorRequestId(error), "req_safe");
+        assert.doesNotMatch(String(error), /private-provider-error/);
+        return true;
+      },
+    );
+  }
 });

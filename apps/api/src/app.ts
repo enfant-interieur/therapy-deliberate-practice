@@ -47,6 +47,7 @@ import {
   taskExampleSchema,
   taskInteractionExampleSchema,
   taskSchema,
+  type PracticeRunError,
   type SttProvider,
   type Task,
   type TaskCriterion,
@@ -85,6 +86,7 @@ import {
 import {
   getErrorLogFields,
   getErrorRequestId,
+  getOpenAiAccessIssue,
   isProviderConfigError,
 } from "./providers/providerErrors";
 import { getOrCreateTtsAsset, type TtsStorage } from "./services/ttsService";
@@ -3765,10 +3767,7 @@ export const createApiApp = ({
     overallPass?: boolean;
   }> => {
     const timings: Record<string, number> = {};
-    const errors: Array<{
-      stage: "input" | "stt" | "scoring" | "db";
-      message: string;
-    }> = [];
+    const errors: PracticeRunError[] = [];
 
     logEvent("info", "practice.run.start");
 
@@ -4120,7 +4119,9 @@ export const createApiApp = ({
           status: error.status,
           payload: {
             requestId,
-            errors: [{ stage: "input", message: error.message }],
+            errors: [
+              { stage: "input", message: error.message, code: getOpenAiAccessIssue(error) },
+            ],
           },
         };
       }
@@ -4237,6 +4238,7 @@ export const createApiApp = ({
               {
                 stage: "stt",
                 message: "Transcription failed. Please try again.",
+                code: getOpenAiAccessIssue(error),
               },
             ],
           },
@@ -4298,6 +4300,7 @@ export const createApiApp = ({
           stage: "scoring",
           message:
             "Scoring failed. Check your AI provider settings and try again.",
+          code: getOpenAiAccessIssue(error),
         });
       }
       llmDuration = Date.now() - llmStart;
