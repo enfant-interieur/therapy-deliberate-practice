@@ -29,7 +29,7 @@ export const OpenAiAccessDialog = ({
         className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] border border-violet-200/25 bg-[#242035] p-6 text-slate-50 shadow-2xl sm:p-8"
       >
         <span className="inline-flex rounded-full bg-[#3c3153] px-3 py-1 text-xs font-semibold text-violet-100">
-          OpenAI
+          {t("settings.openAi.title")}
         </span>
         <h2 id={titleId} className="mt-4 text-2xl font-semibold tracking-tight">
           {t(`practice.openAiAccess.${issue}.title`)}
