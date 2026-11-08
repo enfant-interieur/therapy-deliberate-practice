@@ -312,7 +312,7 @@ export const api = createApi({
   tagTypes: ["Task", "Attempt", "MinigameSession"],
   endpoints: (builder) => ({
     getAdminWhoami: builder.query<AdminWhoami, void>({
-      query: () => "/admin/whoami",
+      query: () => ({ url: "/admin/whoami", redirect: "manual" }),
     }),
     getMe: builder.query<UserProfile, void>({
       query: () => "/me",

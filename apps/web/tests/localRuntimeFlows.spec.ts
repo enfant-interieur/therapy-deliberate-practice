@@ -1205,6 +1205,163 @@ test.describe("browser-to-loopback local practice", () => {
     }
   });
 
+  test.describe("spoken practice with unavailable local pairing", () => {
+    const sessionItemId = "spoken-practice-item";
+
+    test.beforeEach(async ({ page }) => {
+      await page.route(`**/api/v1/tasks/${task.id}*`, (route) =>
+        json(route, task),
+      );
+      await page.route("**/api/v1/sessions?*", (route) => json(route, []));
+      await page.route("**/api/v1/sessions/start", (route) =>
+        json(route, {
+          session_id: "spoken-practice-session",
+          items: [
+            {
+              session_item_id: sessionItemId,
+              task_id: task.id,
+              example_id: example.id,
+              target_difficulty: 2,
+              patient_text: example.patient_text,
+            },
+          ],
+        }),
+      );
+    });
+
+    test("uses OpenAI when unpaired and retries the same recording after a transcription error", async ({
+      page,
+    }) => {
+      await installBrowserState(page, {
+        aiMode: "local_prefer",
+        hasOpenAiKey: true,
+        injectPairingKey: false,
+      });
+      const runBodies: Array<Record<string, unknown>> = [];
+      await page.route("**/api/v1/practice/run", async (route) => {
+        runBodies.push(route.request().postDataJSON());
+        if (runBodies.length === 1) {
+          return json(route, { requestId: "failed-transcription" }, 502);
+        }
+        return json(route, {
+          requestId: "cloud-spoken-request",
+          attemptId: "cloud-spoken-attempt",
+          score_trust: "cloud_trusted",
+          transcript: {
+            text: transcript,
+            provider: { kind: "openai", model: "test-transcriber" },
+            duration_ms: 10,
+          },
+          ...(runBodies.length === 3
+            ? {
+                scoring: {
+                  evaluation: evaluation("cloud-spoken-attempt"),
+                  provider: { kind: "openai", model: "test-evaluator" },
+                  duration_ms: 20,
+                },
+              }
+            : {}),
+        });
+      });
+
+      await page.goto(`/practice/${task.id}`);
+      await dismissSetupWizard(page);
+      await expect(
+        page.getByText(/your audio may be sent to OpenAI/i),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Start recording" }).click();
+      await page.getByRole("button", { name: "Stop recording" }).click();
+      await expect(page.getByRole("alert")).toHaveText(
+        "Transcription failed. Please try again.",
+      );
+      await expect(
+        page.getByText("Request ID: failed-transcription"),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "Retry transcription" }).click();
+
+      await expect(page.getByText("Coach feedback")).toBeVisible();
+      expect(runBodies).toHaveLength(3);
+      expect(runBodies[0]).toMatchObject({
+        session_item_id: sessionItemId,
+        audio: expect.any(String),
+        audio_mime: "audio/webm;codecs=opus",
+        mode: "openai_only",
+        skip_scoring: true,
+      });
+      expect(runBodies[1]).toEqual(runBodies[0]);
+      expect(runBodies[2]).toMatchObject({
+        session_item_id: sessionItemId,
+        attempt_id: "cloud-spoken-attempt",
+        input_mode: "audio",
+        transcript_text: transcript,
+      });
+      expect(runBodies[2]).not.toHaveProperty("audio");
+      expect(
+        await page.evaluate(() => Reflect.get(window, "__micRecorderStarts")),
+      ).toBe(1);
+    });
+
+    for (const { reason, aiMode, hasOpenAiKey, rejected } of [
+      {
+        reason: "local-only mode",
+        aiMode: "local_only",
+        hasOpenAiKey: true,
+        rejected: false,
+      },
+      {
+        reason: "no cloud key",
+        aiMode: "local_prefer",
+        hasOpenAiKey: false,
+        rejected: false,
+      },
+      {
+        reason: "rejected pairing key",
+        aiMode: "local_prefer",
+        hasOpenAiKey: true,
+        rejected: true,
+      },
+    ] as const) {
+      test(`${reason} shows pairing recovery without uploading audio`, async ({
+        page,
+      }) => {
+        await installBrowserState(page, {
+          aiMode,
+          hasOpenAiKey,
+          injectPairingKey: rejected,
+        });
+        let gatewayTranscriptions = 0;
+        await page.route(`${gatewayOrigin}/**`, async (route) => {
+          const path = new URL(route.request().url()).pathname;
+          if (path === "/health") {
+            return json(route, {
+              service: "therapy-local-runtime",
+              protocol_version: "1",
+              status: "ready",
+            });
+          }
+          if (path === "/v1/audio/transcriptions") gatewayTranscriptions += 1;
+          return json(route, { detail: "Invalid pairing key." }, 401);
+        });
+        let cloudRuns = 0;
+        await page.route("**/api/v1/practice/run", async (route) => {
+          cloudRuns += 1;
+          return json(route, {}, 502);
+        });
+
+        await page.goto(`/practice/${task.id}`);
+        await dismissSetupWizard(page);
+        await page.getByRole("button", { name: "Start recording" }).click();
+        await page.getByRole("button", { name: "Stop recording" }).click();
+
+        await expect(page.getByRole("alert")).toHaveText(
+          /Open Settings and pair this browser/i,
+        );
+        expect(cloudRuns).toBe(0);
+        expect(gatewayTranscriptions).toBe(rejected ? 1 : 0);
+      });
+    }
+  });
+
   test("standard practice transcribes, evaluates, commits, and shows provenance", async ({
     page,
     baseURL,

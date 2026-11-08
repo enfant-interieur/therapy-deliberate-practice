@@ -36,6 +36,7 @@ import {
   checkLocalRuntimeHealth,
   evaluateWithLocalRuntime,
   isLocalRuntimePairingError,
+  LocalRuntimeRequestError,
   requireLocalRuntimePairingKey,
   resolveLocalRuntimeGatewayOrigin,
   transcribeWithLocalRuntime,
@@ -146,9 +147,8 @@ export const PracticePage = () => {
   const previousTaskIdRef = useRef<string | null>(null);
   const hasInitializedRef = useRef(false);
   const attemptsKeyRef = useRef<string>("");
-  const transcriptionPromiseRef = useRef<Promise<PracticeRunResponse> | null>(
-    null,
-  );
+  const transcriptionPromiseRef =
+    useRef<Promise<PracticeRunResponse | null> | null>(null);
   const transcriptionRequestRef = useRef<string | null>(null);
   const pendingResultRef = useRef<{
     sessionItemId: string;
@@ -637,12 +637,13 @@ export const PracticePage = () => {
 
   useEffect(() => {
     return () => {
+      invalidateActiveWork();
       patientAudioBank.revokeAll();
       warmupAbortRef.current?.abort();
       prefetchAbortRef.current?.abort();
       playAbortRef.current?.abort();
     };
-  }, [patientAudioBank]);
+  }, [invalidateActiveWork, patientAudioBank]);
 
   useEffect(() => {
     setPatientSpeaking(false);
@@ -778,6 +779,7 @@ export const PracticePage = () => {
       setRequestId(null);
       setScoreTrust(null);
       dispatch(setEvaluation(undefined));
+      let localFailureMessage: string | undefined;
       const promise = (async () => {
         const turnContext =
           practiceMode === "real_time"
@@ -787,7 +789,6 @@ export const PracticePage = () => {
               }
             : undefined;
         let result: PracticeRunResponse | null = null;
-        let localError: unknown;
         if (settings.aiMode !== "openai_only") {
           try {
             const gatewayOrigin = resolveLocalRuntimeGatewayOrigin({
@@ -810,6 +811,8 @@ export const PracticePage = () => {
               audio: blob,
               language: task?.language,
             });
+            if (transcriptionRequestRef.current !== transcriptionId)
+              return null;
             const preparation = await prepareLocalPractice({
               session_item_id: currentItem.session_item_id,
               input_mode: "audio",
@@ -819,6 +822,8 @@ export const PracticePage = () => {
                 duration_ms: transcription.durationMs,
               },
             }).unwrap();
+            if (transcriptionRequestRef.current !== transcriptionId)
+              return null;
             localAttemptRef.current = {
               preparation,
               inputMode: "audio",
@@ -839,20 +844,21 @@ export const PracticePage = () => {
               },
             };
           } catch (caught) {
-            localError = caught;
+            if (transcriptionRequestRef.current !== transcriptionId)
+              return null;
             localAttemptRef.current = null;
-            if (isLocalRuntimePairingError(caught)) {
-              throw new Error(t("practice.localRuntime.pairAgain"), {
-                cause: caught,
-              });
-            }
-            if (settings.aiMode === "local_only" || !settings.hasOpenAiKey) {
-              const detail =
-                caught instanceof Error ? caught.message : String(caught);
-              throw new Error(
-                t("practice.error.localRuntimeUnavailable", { detail }),
-                { cause: caught },
-              );
+            const pairingRejected =
+              caught instanceof LocalRuntimeRequestError &&
+              caught.status === 401;
+            if (
+              settings.aiMode === "local_only" ||
+              !settings.hasOpenAiKey ||
+              pairingRejected
+            ) {
+              localFailureMessage = isLocalRuntimePairingError(caught)
+                ? t("practice.localRuntime.pairAgain")
+                : t("practice.localRuntime.transcriptionUnavailable");
+              throw caught;
             }
           }
         }
@@ -861,6 +867,7 @@ export const PracticePage = () => {
             blob,
             t("practice.error.readAudio"),
           );
+          if (transcriptionRequestRef.current !== transcriptionId) return null;
           result = await runPractice({
             session_item_id: currentItem.session_item_id,
             audio: base64,
@@ -870,17 +877,9 @@ export const PracticePage = () => {
             turn_context: turnContext,
             skip_scoring: true,
           }).unwrap();
-          if (localError) {
-            setResponseErrors([
-              {
-                stage: "stt",
-                message: t("practice.localRuntime.cloudFallback"),
-              },
-            ]);
-          }
         }
         if (transcriptionRequestRef.current !== transcriptionId) {
-          return result;
+          return null;
         }
         pendingResultRef.current = {
           sessionItemId: currentItem.session_item_id,
@@ -902,17 +901,31 @@ export const PracticePage = () => {
         setTranscriptionStatus("ready");
         dispatch(setRecordingState("ready"));
         return result;
-      })();
-      transcriptionPromiseRef.current = promise;
-      return promise.catch((err) => {
+      })().catch((err: unknown) => {
         if (transcriptionRequestRef.current !== transcriptionId) {
-          throw err;
+          return null;
+        }
+        transcriptionPromiseRef.current = null;
+        if (
+          err &&
+          typeof err === "object" &&
+          "data" in err &&
+          err.data &&
+          typeof err.data === "object" &&
+          "requestId" in err.data &&
+          typeof err.data.requestId === "string"
+        ) {
+          setRequestId(err.data.requestId);
         }
         setTranscriptionStatus("error");
-        setTranscriptionError(t("practice.error.transcriptionFailed"));
+        setTranscriptionError(
+          localFailureMessage ?? t("practice.error.transcriptionFailed"),
+        );
         dispatch(setRecordingState("ready"));
-        throw err;
+        return null;
       });
+      transcriptionPromiseRef.current = promise;
+      return promise;
     },
     [
       currentExampleId,
@@ -1183,27 +1196,32 @@ export const PracticePage = () => {
   };
 
   const runEvaluation = async () => {
-    if (!currentItem || !practice.audioBlobRef) return;
+    const audioUrl = practice.audioBlobRef;
+    if (!currentItem || !audioUrl || isPracticeTransitionLocked) return;
+    const transitionGeneration = transitionGenerationRef.current;
     try {
       setError(null);
       setResponseErrors(null);
       dispatch(setRecordingState("processing"));
-      if (!transcriptionPromiseRef.current) {
-        const response = await fetch(practice.audioBlobRef);
+      const pendingTranscription = transcriptionPromiseRef.current;
+      let result: PracticeRunResponse | null;
+      if (pendingTranscription) {
+        result = await pendingTranscription;
+      } else {
+        const response = await fetch(audioUrl);
         const blob = await response.blob();
+        if (transitionGeneration !== transitionGenerationRef.current) return;
         if (!blob.size) {
           setError(t("practice.error.noAudio"));
-          dispatch(setRecordingState("ready"));
           return;
         }
-        const result = await beginTranscription(blob, practice.audioMime);
-        await beginEvaluation(result);
-      } else {
-        const result = await transcriptionPromiseRef.current;
+        result = await beginTranscription(blob, practice.audioMime);
+      }
+      if (result && transitionGeneration === transitionGenerationRef.current) {
         await beginEvaluation(result);
       }
-      dispatch(setRecordingState("ready"));
     } catch (err) {
+      if (transitionGeneration !== transitionGenerationRef.current) return;
       const message =
         typeof err === "object" &&
         err &&
@@ -1229,7 +1247,10 @@ export const PracticePage = () => {
         setResponseErrors(errorData.errors);
       }
       setError(message ?? t("practice.error.evaluateFailed"));
-      dispatch(setRecordingState("ready"));
+    } finally {
+      if (transitionGeneration === transitionGenerationRef.current) {
+        dispatch(setRecordingState("ready"));
+      }
     }
   };
 
@@ -2098,6 +2119,13 @@ export const PracticePage = () => {
               </div>
             </fieldset>
             {responseInputMode === "spoken" &&
+              settings.aiMode === "local_prefer" &&
+              settings.hasOpenAiKey && (
+                <p className="mt-2 text-xs text-slate-400">
+                  {t("practice.localRuntime.audioFallbackNotice")}
+                </p>
+              )}
+            {responseInputMode === "spoken" &&
               practiceMode === "real_time" &&
               !canRecord && (
                 <p className="mt-2 text-xs text-slate-400">
@@ -2195,17 +2223,17 @@ export const PracticePage = () => {
                   onClick={runEvaluation}
                   disabled={
                     !practice.audioBlobRef ||
-                    transcriptionStatus === "transcribing" ||
-                    isEvaluating ||
-                    isStartingSession ||
-                    !currentItem
+                    !currentItem ||
+                    isPracticeTransitionLocked
                   }
                 >
                   <span className="flex items-center gap-2">
                     {isEvaluating && <Spinner size="sm" tone="slate" />}
                     {isEvaluating
                       ? t("practice.evaluating")
-                      : t("practice.runEvaluation")}
+                      : transcriptionStatus === "error"
+                        ? t("practice.retryTranscription")
+                        : t("practice.runEvaluation")}
                   </span>
                 </button>
               </div>
@@ -2299,7 +2327,7 @@ export const PracticePage = () => {
                 </div>
               </div>
               {transcriptionError && (
-                <p className="mt-3 text-xs text-rose-300">
+                <p role="alert" className="mt-3 text-xs text-rose-300">
                   {transcriptionError}
                 </p>
               )}

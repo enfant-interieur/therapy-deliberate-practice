@@ -1096,6 +1096,7 @@
     "startRecording": "Start recording",
     "stopRecording": "Stop recording",
     "runEvaluation": "Run evaluation",
+    "retryTranscription": "Retry transcription",
     "evaluating": "Evaluating...",
     "status": {
       "transcribing": "Transcribing",
@@ -1114,7 +1115,8 @@
     "localScoreNotice": "This score was produced with your local runtime. It stays in your personal history and is excluded from public rankings.",
     "localRuntime": {
       "pairAgain": "Your local pairing key is missing or no longer valid. Open Settings and pair this browser with the desktop runtime again.",
-      "cloudFallback": "The local runtime was unavailable, so this attempt used OpenAI.",
+      "transcriptionUnavailable": "Local transcription is unavailable. Check the connection to the desktop app in Settings.",
+      "audioFallbackNotice": "If the desktop app is unavailable, your audio may be sent to OpenAI for transcription and the resulting text for feedback.",
       "spokenCloudFallback": "The local evaluator was unavailable, so OpenAI evaluated this locally transcribed attempt."
     },
     "criterionLabel": "Criterion {{id}}",

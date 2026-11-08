@@ -1096,6 +1096,7 @@
     "startRecording": "Démarrer l'enregistrement",
     "stopRecording": "Arrêter l'enregistrement",
     "runEvaluation": "Lancer l'évaluation",
+    "retryTranscription": "Réessayer la transcription",
     "evaluating": "Évaluation...",
     "status": {
       "transcribing": "Transcription en cours",
@@ -1114,7 +1115,8 @@
     "localScoreNotice": "Ce score a été produit par votre environnement local. Il reste dans votre historique personnel et n'est pas inclus dans les classements publics.",
     "localRuntime": {
       "pairAgain": "Votre clé d’appairage locale est absente ou n’est plus valide. Ouvrez les paramètres et associez à nouveau ce navigateur à l’environnement de bureau.",
-      "cloudFallback": "L’environnement local était indisponible ; cette tentative a donc utilisé OpenAI.",
+      "transcriptionUnavailable": "La transcription locale est indisponible. Vérifiez la connexion à l’application de bureau dans les paramètres.",
+      "audioFallbackNotice": "Si l’application de bureau est indisponible, votre audio peut être envoyé à OpenAI pour être transcrit, puis votre réponse peut y être évaluée.",
       "spokenCloudFallback": "L’évaluateur local était indisponible ; OpenAI a donc évalué cette tentative transcrite localement."
     },
     "criterionLabel": "Critère {{id}}",
